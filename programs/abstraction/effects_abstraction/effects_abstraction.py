@@ -2,7 +2,7 @@ import logging
 import time
 
 from programs.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
-from programs.abstraction.effects_abstraction.effects_to_explicit import effects_to_explicit_abstraction
+from programs.abstraction.effects_abstraction.util.effects_to_explicit import effects_to_explicit_abstraction
 from programs.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
 from programs.abstraction.explicit_abstraction.explicit_to_ltl import explicit_to_state_based_ltl
 from programs.abstraction.interface.ltl_abstraction_types import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
