@@ -578,7 +578,7 @@ class EffectsAbstraction(PredicateAbstraction):
                        new_env_transitions, new_con_transitions, self.abstraction.env_events,
                        self.abstraction.con_events, self.abstraction.out_events, False, preprocess=True)
 
-    def to_explicit_abstraction(self):
+    def to_automaton_abstraction(self):
         return effects_to_explicit_abstraction(self)
 
     def to_ltl(self, base_type: LTLAbstractionBaseType, transition_type: LTLAbstractionTransitionType,

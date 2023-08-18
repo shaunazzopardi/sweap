@@ -175,20 +175,15 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
                                                  in_acts + mon_events + pred_acts,
                                                  out_acts,
                                                  docker)
+        print(mm.to_dot(all_preds))
 
         if real and not debug:
             print("Realizable")
             if project_on_abstraction:
-                print(mm.to_dot(all_preds))
-                return True, mm  # mm.project_controller_on_program((
-                # "strategy" if real else "counterstrategy"),
-                # program, predicate_abstraction.py,
-                # symbol_table | symbol_table_preds)
+                return True, mm
             else:
-                # mm = mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(predicate_abstraction.py, program)
-                return True, mm  # mm.to_dot(pred_list)
+                return True, mm
 
-        print(mm.to_dot(all_preds))
 
         if base_type == LTLAbstractionBaseType.explicit and \
                 transition_type == LTLAbstractionTransitionType.combined and \
@@ -233,9 +228,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
 
         if success:
             new_ranking_invars, new_transition_predicates = result
+        elif not success and result is not None:
+            # do structural refinement
+            pass
 
+        if eager or (not success and result is None):
         ## do safety refinement
-        if eager or not success:
             success, result = safety_refinement(program,
                                                 predicate_abstraction,
                                                 agreed_on_transitions,

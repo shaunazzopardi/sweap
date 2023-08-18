@@ -21,7 +21,7 @@ class PredicateAbstraction(ABC):
         pass
 
     @abstractmethod
-    def to_explicit_abstraction(self):
+    def to_automaton_abstraction(self):
         pass
 
     @abstractmethod
