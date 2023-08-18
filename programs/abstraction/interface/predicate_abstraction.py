@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from programs.abstraction.interface.ltl_abstraction_types import LTLAbstractionBaseType, LTLAbstractionTransitionType, \
     LTLAbstractionStructureType
 from programs.program import Program
-from programs.synthesis.mealy_machine import MealyMachine
 from prop_lang.formula import Formula
 
 
@@ -32,7 +31,7 @@ class PredicateAbstraction(ABC):
         pass
 
     @abstractmethod
-    def massage_mealy_machine(self, mealymachine: MealyMachine) -> MealyMachine:
+    def massage_mealy_machine(self, mealymachine):
         pass
 
     @abstractmethod
