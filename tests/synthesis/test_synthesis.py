@@ -1,4 +1,3 @@
-import os
 from unittest import TestCase
 
 from parsing.string_to_program import string_to_program
