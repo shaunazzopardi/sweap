@@ -108,7 +108,12 @@ def try_liveness_refinement(counterstrategy_states: [str],
 
 seen_loops_cache = {}
 
-def liveness_refinement(symbol_table, program, entry_condition, unfolded_loop: [Transition], exit_predicate_grounded, add_natural_conditions=True):
+def liveness_refinement(symbol_table,
+                        program,
+                        entry_condition,
+                        unfolded_loop: [Transition],
+                        exit_predicate_grounded,
+                        add_natural_conditions=True):
     try:
         c_code = loop_to_c(symbol_table, program, entry_condition, unfolded_loop,
                            exit_predicate_grounded, add_natural_conditions)
