@@ -1,3 +1,4 @@
+import sympy.core.logic
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Not, Minus, Int
 
@@ -6,10 +7,10 @@ from prop_lang.formula import Formula
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-
 class UniOp(Formula):
     def __init__(self, op: str, right: Formula):
-        assert isinstance(right, Formula)
+        if not isinstance(right, Formula):
+            print()
         self.op = op
         self.right = right
 
@@ -54,11 +55,14 @@ class UniOp(Formula):
     def ops_used(self):
         return [self.op] + self.right.ops_used()
 
-    def replace(self, context):
-        return UniOp(self.op, self.right.replace(context))
+    def replace_vars(self, context):
+        return UniOp(self.op, self.right.replace_vars(context))
 
     def to_nuxmv(self):
         return UniOp(self.op, self.right.to_nuxmv())
+
+    def to_strix(self):
+        return UniOp(self.op, self.right.to_strix())
 
     def to_smt(self, symbol_table) -> (FNode, FNode):
         expr, invar = self.right.to_smt(symbol_table)
@@ -75,3 +79,13 @@ class UniOp(Formula):
             if self.op == "-" or self.op == "+":
                 new_right, dic = Variable("math_" + str(cnt)), {Variable("math_" + str(cnt)): self}
         return UniOp(self.op, new_right), dic
+
+    def to_sympy(self):
+        if self.op == "!":
+            return sympy.Not(self.right.to_sympy())
+
+    def replace_formulas(self, context):
+        if self in context.keys():
+            return context[self]
+        else:
+            return UniOp(self.op, self.right.replace_formulas(context))

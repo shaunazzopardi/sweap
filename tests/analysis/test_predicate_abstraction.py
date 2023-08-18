@@ -1,9 +1,9 @@
 from unittest import TestCase
 
 from programs.analysis.model_checker import ModelChecker
-from programs.abstraction.predicate_abstraction import abstraction_to_ltl_with_turns, predicate_abstraction_init
+from programs.abstraction.interface.predicate_abstraction import abstraction_to_ltl_with_turns, predicate_abstraction_init
 from parsing.string_to_program import string_to_program
-from programs.util import create_nuxmv_model, symbol_table_from_program
+from programs.util import create_nuxmv_model
 
 
 class Test(TestCase):

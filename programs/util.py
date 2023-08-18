@@ -1,14 +1,14 @@
 import os
 import re
 import shutil
+from itertools import chain, combinations
 
 from pysmt.factory import SolverRedefinitionError
 from pysmt.fnode import FNode
 from pysmt.logics import QF_UFLRA
-from pysmt.shortcuts import get_env, And, Not
+from pysmt.shortcuts import get_env, And
 
 from programs.analysis.model_checker import ModelChecker
-from programs.analysis.nuxmv_model import NuXmvModel
 from programs.analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
@@ -17,122 +17,9 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, conjunct, neg, append_to_variable_name, dnf, disjunct_formula_set, \
-    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf
+    true, sat, is_tautology, iff, propagate_negations, type_constraints
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-
-smt_checker = SMTChecker()
-
-
-def create_nuxmv_model_for_compatibility_checking(program, strategy_model: NuXmvModel, mon_events,
-                                                  pred_list, include_mismatches_due_to_nondeterminism=False,
-                                                  colloborate=False, predicate_mismatch=False, prefer_lassos=False):
-    pred_definitions = {label_pred(p, pred_list):p for p in pred_list}
-    program_model = program.to_nuXmv_with_turns(include_mismatches_due_to_nondeterminism, colloborate, pred_definitions)
-
-    text = "MODULE main\n"
-    strategy_states = sorted([v for v in strategy_model.vars
-                     if v not in program_model.vars and str(v).startswith("st_")])
-    seen_strategy_states_decs = [str(s).replace(" : ", "_seen_once : ") for s in strategy_states]
-    seen_strategy_states_decs += [str(s).replace(" : ", "_seen_more_than_once : ") for s in strategy_states]
-
-    vars = sorted(program_model.vars) \
-           + sorted([v for v in strategy_model.vars
-                     if v not in program_model.vars]) \
-           + seen_strategy_states_decs\
-           + ["mismatch : boolean"]
-    text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
-    text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define) + ";\n"
-
-    safety_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
-                                    for p in pred_list if not any([v for v in p.variablesin() if "_prev" in str(v)])] # this excludes transition predicates from checking since the ones the environment sets may also contain those of the previous controller transition
-
-    tran_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
-                                    for p in pred_list if any([v for v in p.variablesin() if "_prev" in str(v)])] # this excludes transition predicates from checking since the ones the environment sets may also contain those of the previous controller transition
-
-    mon_output_equality = [BiOp(o, '=', Variable("mon_" + o.name))
-                                    for o in program.out_events]
-
-    mon_state_equality = [BiOp(Variable(s), '=', Variable("mon_" + s))
-                                    for s in program.states]
-
-    compatible_output = "\tcompatible_outputs := " + "((turn == mon_env) -> (" + str(conjunct_formula_set(mon_output_equality)) + "))" + ";\n"
-    compatible_states = "\tcompatible_states := " + "((turn == mon_env | turn == mon_con) -> (" + str(conjunct_formula_set(mon_state_equality)) + "))" + ";\n"
-    compatible_state_predicates = "\tcompatible_state_predicates := " + "((turn == mon_env | turn == mon_con) -> (" + str(conjunct_formula_set(safety_predicate_truth)) + "))" + ";\n"
-    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((turn == mon_env | turn == mon_con) -> (" + str(conjunct_formula_set(tran_predicate_truth)) + "))" + ";\n"
-    compatible = "\tcompatible := " + ("compatible_state_predicates & compatible_tran_predicates & " if predicate_mismatch else "") + "compatible_outputs & compatible_states" + ";\n"
-
-    text += compatible_output + compatible_states + compatible + compatible_state_predicates + compatible_tran_predicates
-
-    # TODO consider adding checks that state predicates expected by env are true, for debugging predicate abstraction
-
-    text += "INIT\n" + "\t(" + ")\n\t& (".join(
-        program_model.init + strategy_model.init + ["turn = env", "mismatch = FALSE"] + \
-        ((([s.split(" : ")[0] + "_seen_once = FALSE" for s in strategy_states] +\
-           [s.split(" : ")[0] + "_seen_more_than_once = FALSE" for s in strategy_states])) if prefer_lassos else [])) + ")\n"
-    text += "INVAR\n" + "\t((" + ")\n\t& (".join(program_model.invar + strategy_model.invar) + "))\n"
-
-    turn_logic = ["(turn = con -> next(turn) = mon_con)"]
-    turn_logic += ["(turn = env -> next(turn) = mon_env)"]
-    turn_logic += ["(turn = mon_env -> next(turn) = con)"]
-    turn_logic += ["(turn = mon_con -> next(turn) = env)"]
-
-    maintain_mon_vars = str(conjunct_formula_set(
-        [BiOp(UniOp("next", Variable("mon_" + m.name)), ' = ', Variable("mon_" + m.name)) for m in (mon_events)]
-        + [BiOp(UniOp("next", Variable(m.name)), ' = ', Variable(m.name)) for m in
-           [label_pred(p, pred_list) for p in pred_list]]))
-    new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic
-    normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
-
-    normal_trans += "\t | (!compatible & " + \
-                    " next(mismatch) & identity_" + program_model.name + \
-                    " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_mon_vars + ")"
-    normal_trans = "(!mismatch -> (" + normal_trans + "))"
-
-    deadlock = "(mismatch -> (next(mismatch) & identity_" + program_model.name + " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_mon_vars + "))"
-
-    text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
-
-    if prefer_lassos:
-        report_if_state_seen = \
-            "\n\t& ".join(["((((turn == con | turn == env) & " + s.split(" : ")[0]
-                        + ") " + " | " + s.split(" : ")[0] + "_seen_once) " +
-                            "<-> next(" + s.split(" : ")[0] + "_seen_once))"
-                        for s in strategy_states])
-
-        report_if_state_seen += "\n\t& " +\
-            "\n\t& ".join(["(((" + ("(turn == con | turn == env)" ) +" & " + s.split(" : ")[0] + " & " + s.split(" : ")[0] + "_seen_once "
-                        + ") " + " | " + s.split(" : ")[0] + "_seen_more_than_once) " +
-                            "<-> next(" + s.split(" : ")[0] + "_seen_more_than_once))"
-                        for s in strategy_states])
-
-        text += "\t&" + report_if_state_seen + "\n"
-
-    text = text.replace("%", "mod")
-    text = text.replace("&&", "&")
-    text = text.replace("||", "|")
-    text = text.replace("==", "=")
-    return text
-
-
-def create_nuxmv_model(nuxmvModel):
-    text = "MODULE main\n"
-    text += "VAR\n" + "\t" + ";\n\t".join(nuxmvModel.vars) + ";\n"
-    text += "DEFINE\n" + "\t" + ";\n\t".join(nuxmvModel.define) + ";\n"
-    text += "INIT\n" + "\t(" + ")\n\t& (".join(nuxmvModel.init + ["turn = env"]) + ")\n"
-    text += "INVAR\n" + "\t(" + ")\n\t& (".join(nuxmvModel.invar) + ")\n"
-
-    turn_logic = ["(turn = con -> next(turn) = mon_con)"]
-    turn_logic += ["(turn = env -> next(turn) = mon_env)"]
-    turn_logic += ["(turn = mon_env -> next(turn) = con)"]
-    turn_logic += ["(turn = mon_con -> next(turn) = env)"]
-
-    text += "TRANS\n" + "\t(" + ")\n\t& (".join(nuxmvModel.trans + turn_logic) + ")\n"
-    text = text.replace("%", "mod")
-    text = text.replace("&&", "&")
-    text = text.replace("||", "|")
-    text = text.replace("==", "=")
-    return text
 
 
 def symbol_table_from_program(program):
@@ -143,7 +30,7 @@ def symbol_table_from_program(program):
         symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
     for t_val in program.valuation:
         symbol_table[t_val.name] = t_val
-        symbol_table[t_val.name + "_prev"] = t_val
+        symbol_table[t_val.name + "_prev"] = TypedValuation(t_val.name + "_prev", t_val.type, None)
     return symbol_table
 
 
@@ -157,6 +44,7 @@ def symbol_table_from_typed_valuation(tv):
 def ce_state_to_predicate_abstraction_trans(ltl_to_program_transitions, symbol_table, start, middle, end,
                                             env_events, con_events):
     # ltl_to_program_transitions is a dict of the form {now: {(con_ev, env_ev) : [(con_trans, env_trans)]}}
+    smt_checker = SMTChecker()
 
     start = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in start.items() if
                                       (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "TRUE"]
@@ -391,10 +279,7 @@ def ground_formula_on_ce_state_with_index(formula: Formula, state: dict, i) -> F
 
 def label_pred(p, preds):
     if p not in preds:
-        if (isinstance(p, UniOp) and p.op == "!"):
-            return neg(stringify_pred(p.right))
-        else:
-            return neg(stringify_pred(neg(p)))
+        return stringify_pred_take_out_neg(p)
     else:
         return stringify_pred(p)
 
@@ -427,36 +312,27 @@ def stringify_pred(p):
                     .replace("<=>", "_IFF_")
                     )
 
+def stringify_pred_take_out_neg(p):
+    res = None
+    if (isinstance(p, UniOp) and p.op == "!"):
+        res = neg(stringify_pred(p.right))
+    else:
+        res = stringify_pred(p)
+    if res == None:
+        raise Exception("Could not stringify predicate: " + str(p))
+    else:
+        return res
+
 
 def label_preds(ps, preds):
     return {label_pred(p, preds) for p in ps}
-
-
-def there_is_mismatch_between_program_and_strategy(system, controller: bool, livenesstosafety: bool,
-                                                   ltl_assumptions: Formula,
-                                                   ltl_guarantees: Formula, debug=False, mismatch_condition=None):
-    model_checker = ModelChecker()
-    if debug:
-        print(system)
-        # Sanity check
-        result, out = model_checker.check(system, "F FALSE", None, livenesstosafety)
-        if result:
-            print("Are you sure the counterstrategy given is complete?")
-            return True, None, out
-
-    if not controller:
-        there_is_no_mismatch, out = model_checker.check(system, "G !(mismatch" + (" & " + mismatch_condition if mismatch_condition is not None else "") + ")", None, livenesstosafety)
-
-        return False, not there_is_no_mismatch, out
-    else:
-        return False, False, None
-
 
 def reduce_up_to_iff(old_preds, new_preds, symbol_table):
     if len(new_preds) == 0:
         return old_preds
     # if len(old_preds) == 0:
     #     return new_preds
+    smt_checker = SMTChecker()
 
     keep_these = set()
     remove_these = set()
@@ -476,6 +352,7 @@ def reduce_up_to_iff(old_preds, new_preds, symbol_table):
 def has_equiv_pred(p, preds, symbol_table):
     if p in preds or neg(p) in preds:
         return True
+    smt_checker = SMTChecker()
 
     for pp in preds:
         #technically should check if it can be expressed using a set of the existing predicates, but can be expensive
@@ -529,13 +406,15 @@ def stutter_transition(program, state, env: bool):
     transitions = program.env_transitions if env else program.con_transitions
     condition = neg(disjunct_formula_set([t.condition
                                       for t in transitions if t.src == state]))
+    smt_checker = SMTChecker()
 
     if smt_checker.check(And(*condition.to_smt(program.symbol_table))):
         return Transition(state,
                           condition,
                           [],
                           [],
-                          state)
+                          state).complete_outputs(program.out_events)\
+            .complete_action_set([Variable(v.name) for v in program.valuation])
     else:
         return None
 
@@ -543,9 +422,9 @@ def looping_to_normal(t : Transition):
     return t #Transition(re.split("_loop", t.src)[0], t.condition, t.action, t.output,  re.split("_loop", t.tgt)[0]) \
               #  if "loop" in ((t.src) + (t.tgt)) else t
 
-def concretize_transitions(program, looping_program, indices_and_state_list, add_stuttering_transitions: bool,
-                           abstract_program, state_pred_label_to_formula, incompatible_state):
+def concretize_transitions(program, looping_program, indices_and_state_list, state_pred_label_to_formula, incompatible_state):
     transitions = looping_program.env_transitions + looping_program.con_transitions
+    smt_checker = SMTChecker()
 
     # ignore the mismatch state
     new_indices_and_state_list = indices_and_state_list
@@ -568,11 +447,14 @@ def concretize_transitions(program, looping_program, indices_and_state_list, add
             return concretized[:-1], ([neg(concretized[-1][0].condition)], concretized[-1][1]), concretized[-1]
         else:
             # if program is not deterministic, we need to identify the transitions the counterstrategy wanted to take rather than the one the program actually took
-            state_before_mismatch = concretized[-2][1]
+            try:
+                state_before_mismatch = concretized[-2][1]
+            except Exception as e:
+                raise e
             src_state = concretized[-2][0].tgt
             tgt_state_env_wanted = [p for p in program.states if incompatible_state["mon_" + str(p)] == "TRUE"][0]
             outputs_env_wanted = [p for p in program.out_events if incompatible_state["mon_" + str(p)] == "TRUE"]
-            # outputs_env_wanted += [neg(p) for p in program.out_events if incompatible_state["mon_" + str(p)] == "FALSE"]
+            outputs_env_wanted += [neg(p) for p in program.out_events if incompatible_state["mon_" + str(p)] == "FALSE"]
             if incompatible_state["turn"] == "mon_env":
                 candidate_transitions = [t for t in program.env_transitions if
                                          t.src == src_state and t.tgt == tgt_state_env_wanted and set(t.output) == set(
@@ -583,7 +465,8 @@ def concretize_transitions(program, looping_program, indices_and_state_list, add
                         candidate_transitions.append(stutter)
             elif incompatible_state["turn"] == "mon_con":
                 candidate_transitions = [t for t in program.con_transitions if
-                                         t.src == src_state and t.tgt == tgt_state_env_wanted]
+                                         t.src == src_state and t.tgt == tgt_state_env_wanted and set(t.output) == set(
+                                             outputs_env_wanted)]
                 if tgt_state_env_wanted == src_state:
                     stutter = stutter_transition(program, src_state, False)
                     if stutter is not None:
@@ -601,10 +484,8 @@ def concretize_transitions(program, looping_program, indices_and_state_list, add
             env_desired_transitions = [t for t in candidate_transitions
                                        if smt_checker.check(And(*abstract_state.to_smt(program.symbol_table),
                                                                 *t.condition.to_smt(program.symbol_table)))]
-            if len(env_desired_transitions) == 0:
-                raise Exception("Couldn't identify transition environment desired to take.")
             formula = disjunct_formula_set([t.condition for t in env_desired_transitions] + [
-                propagate_negations(neg(cnf(concretized[-1][0].condition, program.symbol_table)))])
+                propagate_negations(neg(concretized[-1][0].condition))])
             return concretized[:-1], ([formula], concretized[-1][1]), concretized[-1]
     else:
         env_pred_state = None
@@ -653,7 +534,7 @@ def keep_bool_preds(formula: Formula, symbol_table):
         return conjunct_formula_set(preds)
 
 
-def add_prev_suffix(program, formula):
+def add_prev_suffix(formula):
     return append_to_variable_name(formula, [str(v) for v in formula.variablesin()], "_prev")
 
 
@@ -671,12 +552,15 @@ def is_deterministic(program):
     env_state_dict = {s: [t.condition for t in program.env_transitions if t.src == s] for s in program.states}
 
     symbol_table = program.symbol_table
+    smt_checker = SMTChecker()
 
     for (s, conds) in env_state_dict.items():
-        sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
-        for cond in conds:
-            if cond not in sat_conds:
-                print("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
+        # Assuming satisfiability already checked
+        sat_conds = [cond for cond in conds]
+        # sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
+        # for cond in conds:
+        #     if cond not in sat_conds:
+        #         print("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
 
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
@@ -688,10 +572,12 @@ def is_deterministic(program):
     con_state_dict = {s: [t.condition for t in program.con_transitions if t.src == s] for s in program.states}
 
     for (s, conds) in con_state_dict.items():
-        sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
-        for cond in conds:
-            if cond not in sat_conds:
-                print("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
+        # Assuming satisfiability already checked
+        sat_conds = [cond for cond in conds]
+        # sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
+        # for cond in conds:
+        #     if cond not in sat_conds:
+        #         print("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
                 if smt_checker.check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
@@ -725,6 +611,8 @@ def safe_update_dict_value(d : dict, k, v_dict):
 
 def function_is_of_natural_type(f: Formula, invars: Formula, symbol_table):
     # TODO, should we conjunct or disjunct invars?
+    smt_checker = SMTChecker()
+
     return not smt_checker.check(And(*conjunct(conjunct_formula_set(invars), BiOp(f, "<", Value(0))).to_smt(symbol_table)))
 
 
@@ -816,3 +704,50 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
     if sat((conjunct(guarded_transition.condition, neg(disjunct_formula_set(collect_guards)))), symbol_table, checker):
         raise Exception("Not all transitions are covered by guards")
     return transitions
+
+transition_formulas = {}
+def transition_formula(t):
+    if t not in transition_formulas.keys():
+        formula = conjunct(add_prev_suffix(t.condition),
+             conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right)) for act in
+                                   t.action]))
+        transition_formulas[t] = formula
+        return formula
+    else:
+        return transition_formulas[t]
+
+def stringify_formula(f):
+    if isinstance(f, BiOp):
+        return BiOp(stringify_formula(f.left), f.op, stringify_formula(f.right))
+    elif isinstance(f, UniOp):
+        return UniOp(f.op, stringify_formula(f.right))
+    elif isinstance(f, MathExpr) or isinstance(f, Variable):
+        return stringify_pred(f)
+    else:
+        return f
+
+def powerset_complete(SS: set):
+    if not isinstance(SS, set):
+        S = set(SS)
+    else:
+        S = SS
+    positive_subsets = chain.from_iterable(combinations(S, r) for r in range(len(S) + 1))
+    complete_subsets = list()
+    for ps in positive_subsets:
+        real_ps = set(ps)
+        negative = {neg(s) for s in S if (s) not in real_ps}
+        complete = set(real_ps).union(negative)
+        complete_subsets.append(frozenset(complete))
+
+    return complete_subsets
+
+powersets = {}
+def powerset(S: set):
+    if frozenset(S) in powersets.keys():
+        return powersets[frozenset(S)]
+    else:
+        subsets = chain.from_iterable(combinations(S, r) for r in range(len(S) + 1))
+        subsets = sorted(list(map(set, subsets)), key=lambda x: len(x))
+
+        powersets[frozenset(S)] = subsets
+        return subsets

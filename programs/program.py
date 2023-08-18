@@ -1,18 +1,16 @@
 from typing import Set
 
 from graphviz import Digraph
-from pysmt.shortcuts import And
 
-from parsing.string_to_prop_logic import string_to_prop
-from programs.analysis.nuxmv_model import NuXmvModel
+from programs.analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import stutter_transition, symbol_table_from_program, is_deterministic
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
-from prop_lang.util import disjunct_formula_set, mutually_exclusive_rules, neg, true, \
-    sat, type_constraints_acts, conjunct_formula_set, implies
+from prop_lang.util import disjunct_formula_set, neg, true, \
+    sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology
 from prop_lang.variable import Variable
 
 
@@ -20,7 +18,8 @@ class Program:
 
     def __init__(self, name, sts, init_st, init_val: [TypedValuation],
                  env_transitions: [Transition], con_transitions: [Transition],
-                 env_events: [Variable], con_events: [Variable], out_events: [Variable], debug=True):
+                 env_events: [Variable], con_events: [Variable], out_events: [Variable],
+                 debug=True, preprocess=True):
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
@@ -37,26 +36,31 @@ class Program:
         if len(self.con_transitions) == 0:
             self.con_transitions = [Transition(s, true(), [], [], s) for s in self.states]
 
-        unsat_env_trans = []
-        for t in self.env_transitions:
-            if not sat(t.condition, self.symbol_table, SMTChecker()):
-                unsat_env_trans.append(t)
+        if preprocess:
+            all_vars = [Variable(v.name) for v in self.valuation]
+            self.env_transitions = [self.add_type_constraints_to_guards(t)
+                                    .complete_outputs(self.out_events)
+                                    .complete_action_set(all_vars) for t in self.env_transitions]
+            self.con_transitions = [self.add_type_constraints_to_guards(t)
+                                    .complete_outputs(self.out_events)
+                                    .complete_action_set(all_vars) for t in self.con_transitions]
+            unsat_env_trans = []
+            for t in self.env_transitions:
+                if not sat(t.condition, self.symbol_table, SMTChecker()):
+                    unsat_env_trans.append(t)
 
-        unsat_con_trans = []
-        for t in self.con_transitions:
-            if not sat(t.condition, self.symbol_table, SMTChecker()):
-                unsat_con_trans.append(t)
+            unsat_con_trans = []
+            for t in self.con_transitions:
+                if not sat(t.condition, self.symbol_table, SMTChecker()):
+                    unsat_con_trans.append(t)
 
-        self.env_transitions = [t for t in self.env_transitions if t not in unsat_env_trans]
-        if len(unsat_env_trans) > 0:
-            print("Removed environment transitions with unsat transitions: " + ",\n".join(map(str, unsat_env_trans)))
+            self.env_transitions = [t for t in self.env_transitions if t not in unsat_env_trans]
+            if len(unsat_env_trans) > 0:
+                print("Removed environment transitions with unsat transitions: " + ",\n".join(map(str, unsat_env_trans)))
 
-        if len(unsat_env_trans) > 0:
-            print("Removed controller transitions with unsat transitions: " + ",\n".join(map(str, unsat_con_trans)))
-        self.con_transitions = [t for t in self.con_transitions if t not in unsat_con_trans]
-
-        self.state_to_env = {s:[t for t in self.env_transitions if t.src == s] for s in self.states}
-        self.state_to_con = {s:[t for t in self.con_transitions if t.src == s] for s in self.states}
+            if len(unsat_env_trans) > 0:
+                print("Removed controller transitions with unsat transitions: " + ",\n".join(map(str, unsat_con_trans)))
+            self.con_transitions = [t for t in self.con_transitions if t not in unsat_con_trans]
 
         env_otherwise = [t for t in self.env_transitions if str(t.condition) == "otherwise"]
         if len(env_otherwise) > 1:
@@ -94,8 +98,20 @@ class Program:
                 self.con_transitions.append(concrete_trans)
             self.con_transitions.remove(otherwise_trans)
 
-        self.env_transitions = [self.add_type_constraints_to_guards(t) for t in self.env_transitions]
-        self.con_transitions = [self.add_type_constraints_to_guards(t) for t in self.con_transitions]
+        # TODO this can take a long time, see concurrent-safety-response
+        self.state_to_env = {}
+        for t in self.env_transitions:
+            if t.src in self.state_to_env.keys():
+                self.state_to_env[t.src].append(t)
+            else:
+                self.state_to_env[t.src] = [t]
+
+        self.state_to_con = {}
+        for t in self.con_transitions:
+            if t.src in self.state_to_con.keys():
+                self.state_to_con[t.src].append(t)
+            else:
+                self.state_to_con[t.src] = [t]
 
         if debug:
             # type checking
@@ -130,10 +146,15 @@ class Program:
                     raise Exception("Actions in controller transitions can only refer to environment or"
                                     "local/internal variables: " + str(transition) + ".")
 
-        self.deterministic = is_deterministic(self)
+        if preprocess:
+            self.deterministic = is_deterministic(self)
 
     def add_type_constraints_to_guards(self, transition: Transition):
-        return transition.add_condition(type_constraints_acts(transition.action, self.symbol_table).to_nuxmv())
+        constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()
+        if not is_tautology(implies(transition.condition, constraints), self.symbol_table):
+            return transition.add_condition(constraints)
+        else:
+            return transition
 
     def to_dot(self):
         dot = Digraph(name=self.name,
@@ -189,7 +210,9 @@ class Program:
                   + "".join([" & next(" + str(assignment) + ")" for assignment in
                              env_transition.output]) \
                   + "".join([" & !next(" + str(event) + ")" for event in self.out_events
-                             if event not in env_transition.output])
+                             if event not in env_transition.output]) \
+                  + "".join([" & !next(" + str(st) + ")" for st in self.states
+                             if st != env_transition.tgt])
             guards.append(guard)
             acts.append(act)
             real_acts.append((env_transition.action, env_transition.output, env_transition.tgt))
@@ -203,7 +226,9 @@ class Program:
                   + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
                              self.complete_action_set(con_transition.action)]) \
                   + "".join([" & !next(" + str(event) + ")"
-                             for event in self.out_events])
+                             for event in self.out_events]) \
+                  + "".join([" & !next(" + str(st) + ")" for st in self.states
+                             if st != con_transition.tgt])
             guards.append(guard)
             acts.append(act)
             real_acts.append((con_transition.action, con_transition.output, con_transition.tgt))
@@ -263,11 +288,13 @@ class Program:
 
         vars = ["turn : {env, mon_env, con, mon_con}"]
         vars += [str(st) + " : boolean" for st in self.states]
-        vars += [str(var.name) + " : " + str(var.type).replace("bool", "boolean") for var in self.valuation if
+        vars += [str(var.name) + " : " + (str(var.type) if var.type == "boolean" else str(var.type).replace("bool", "boolean"))
+                 for var in self.valuation if
                  not (var.type == "nat" or var.type == "natural")]
         vars += [str(var.name) + " : integer" for var in self.valuation if (var.type == "nat" or var.type == "natural")]
         # for transition_predicate checking
-        vars += [str(var.name) + "_prev : " + str(var.type.replace("bool", "boolean")) for var in self.valuation if
+        vars += [str(var.name) + "_prev : " + (str(var.type) if var.type == "boolean" else str(var.type).replace("bool", "boolean"))
+                 for var in self.valuation if
                  not (var.type == "nat" or var.type == "natural")]
         vars += [str(var.name) + "_prev : integer" for var in self.valuation if
                  (var.type == "nat" or var.type == "natural")]
@@ -277,6 +304,7 @@ class Program:
         vars += [str(var) + " : boolean" for var in self.out_events]
 
         init = [self.initial_state]
+        init += ["!" + st for st in self.states if st != self.initial_state]
         init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
@@ -285,9 +313,9 @@ class Program:
         prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
         trans += [prev_logic]
 
-        invar = mutually_exclusive_rules(self.states)
-        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
-        invar += [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
+        # invar = mutually_exclusive_rules(self.states)
+        # invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
+        invar = [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
 
         # if include_mismatches_due_to_nondeterminism is not None and not include_mismatches_due_to_nondeterminism:
         #     for i in range(len(guards)):
@@ -316,7 +344,47 @@ class Program:
                 con_from_s += [con_stutter_from_s]
             complete_con += con_from_s
 
+
+        unsat_trans = [t for t in self.env_transitions + self.con_transitions if not sat(t.condition, self.symbol_table)]
+        if len(unsat_trans) > 0:
+            raise Exception("There are some unsat transitions: " + ",\n".join([str(t) for t in unsat_trans]))
         return complete_env, complete_con
+
+    def complete_transitions_stutter_explicit(self):
+        complete_env = []
+        complete_con = []
+
+        reachable_states = set(
+            [s for t in self.env_transitions for s in [t.tgt, t.src]] + [s for t in self.con_transitions for s in
+                                                                         [t.tgt, t.src]])
+        stutter_trans_env_candidates = []
+        stutter_trans_con_candidates = []
+        for s in reachable_states:
+            env_from_s = [t.complete_outputs(self.out_events) for t in self.env_transitions if t.src == s]
+            env_stutter_from_s = stutter_transition(self, s, True)
+            if env_stutter_from_s != None:
+                stutter_trans_env_candidates += [env_stutter_from_s.complete_outputs(self.out_events)]
+            complete_env += env_from_s
+
+            con_from_s = [t.complete_outputs(self.out_events) for t in self.con_transitions if t.src == s]
+            con_stutter_from_s = stutter_transition(self, s, False)
+            if con_stutter_from_s != None:
+                stutter_trans_con_candidates += [con_stutter_from_s.complete_outputs(self.out_events)]
+            complete_con += con_from_s
+
+        stutter_trans_env = []
+        stutter_trans_con = []
+        for stutter_t in stutter_trans_env_candidates:
+            if any(t for t in complete_con + stutter_trans_con_candidates if t.tgt == stutter_t.src):
+                complete_env += [stutter_t]
+                stutter_trans_env += [stutter_t]
+
+        for stutter_t in stutter_trans_con_candidates:
+            if any(t for t in complete_env + stutter_trans_env_candidates if t.tgt == stutter_t.src):
+                complete_con += [stutter_t]
+                stutter_trans_con += [stutter_t]
+
+        return complete_env, complete_con, stutter_trans_env, stutter_trans_con
 
     def complete_action_set(self, actions: [BiOp]):
         non_updated_vars = [tv.name for tv in self.valuation if tv.name not in [str(act.left) for act in actions]]
@@ -324,3 +392,79 @@ class Program:
 
     def __str__(self):
         return str(self.to_dot())
+
+
+def combine_programs(programs: [Program]):
+    if len(programs) == 0:
+        raise Exception("Cannot combine empty list of programs")
+    if len(programs) == 1:
+        return programs[0]
+    return combine_programs([combine_two_programs(programs[0], programs[1])] + programs[2:])
+
+def combine_two_programs(program_A : Program, program_B : Program):
+    valuation = list(set(program_A.valuation + program_B.valuation))
+    states = []
+    orig_A_to_new = {st_A : [] for st_A in program_A.states}
+    orig_B_to_new = {st_B : [] for st_B in program_B.states}
+    for st_A in program_A.states:
+        for st_B in program_B.states:
+            states.append(st_A + "_" + st_B)
+            orig_A_to_new[st_A] += [st_A + "_" + st_B]
+            orig_B_to_new[st_B] += [st_A + "_" + st_B]
+    initial_state = program_A.initial_state + "_" + program_B.initial_state
+    env_events = program_A.env_events + program_B.env_events
+    con_events = program_A.con_events + program_B.con_events
+    out_events = program_A.out_events + program_B.out_events
+
+    new_env_transitions = []
+    new_con_transitions = []
+    for t_A in program_A.env_transitions:
+        for new_st in orig_A_to_new[t_A.src]:
+            # A executes first
+            new_src = new_st
+            new_tgt = new_st.replace(t_A.src + "_", t_A.tgt + "_")
+            guard = t_A.condition
+            action = t_A.action
+            output = t_A.output
+            A_first_t = Transition(new_src, guard, action, output,new_tgt)
+
+            new_env_transitions += [A_first_t]
+
+    for t_B in program_B.env_transitions:
+        for new_st in orig_A_to_new[t_B.src]:
+            # B executes first
+            new_src = new_st
+            new_tgt = new_st.replace("_" + t_B.src, "_" + t_B.tgt)
+            guard = t_B.condition
+            action = t_B.action
+            output = t_B.output
+
+            B_first_t = Transition(new_src, guard, action, output,new_tgt)
+            new_env_transitions += [B_first_t]
+
+
+    for t_A in program_A.con_transitions:
+        for new_st in orig_A_to_new[t_A.src]:
+            # A executes first
+            new_src = new_st
+            new_tgt = new_st.replace(t_A.src + "_", t_A.tgt + "_")
+            guard = t_A.condition
+            action = t_A.action
+            output = t_A.output
+            A_first_t = Transition(new_src, guard, action, output,new_tgt)
+
+            new_con_transitions += [A_first_t]
+
+    for t_B in program_B.con_transitions:
+        for new_st in orig_A_to_new[t_B.src]:
+            # B executes first
+            new_src = new_st
+            new_tgt = new_st.replace("_" + t_B.src, "_" + t_B.tgt)
+            guard = t_B.condition
+            action = t_B.action
+            output = t_B.output
+
+            B_first_t = Transition(new_src, guard, action, output,new_tgt)
+            new_con_transitions += [B_first_t]
+
+    return Program(program_A.name + "_" + program_B.name, states, initial_state, valuation, new_env_transitions, new_con_transitions, env_events, con_events, out_events)

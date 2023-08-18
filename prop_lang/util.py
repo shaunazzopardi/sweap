@@ -1,8 +1,12 @@
 import re
+from multiprocessing import Queue, Process
 
-from pysmt.shortcuts import And, serialize, simplify
-from sympy.logic.boolalg import to_dnf, simplify_logic, to_cnf, is_dnf
-from sympy.parsing.sympy_parser import parse_expr
+import sympy
+from pysmt.environment import Environment
+from pysmt.fnode import FNode
+from pysmt.shortcuts import And, simplify, serialize, Or
+from sympy import Basic
+from sympy.logic.boolalg import to_dnf, simplify_logic, to_cnf, Implies, Equivalent
 
 from parsing.string_to_prop_logic import string_to_prop
 from programs.analysis.smt_checker import SMTChecker
@@ -42,7 +46,10 @@ def conjunct(left: Formula, right: Formula):
     return BiOp(left, "&", right)
 
 
-def conjunct_formula_set(s) -> Formula:
+def conjunct_formula_set(s, sort=False) -> Formula:
+    if sort:
+        s = sorted(list({p for p in s}), key=lambda x : str(x))
+
     ret = true()
     for f in s:
         ret = conjunct(f, ret)
@@ -71,7 +78,7 @@ def disjunct(left: Formula, right: Formula):
         if right.is_true():
             return right
 
-    return BiOp(left, "|", right);
+    return BiOp(left, "|", right)
 
 
 def disjunct_formula_set(s) -> Formula:
@@ -82,15 +89,19 @@ def disjunct_formula_set(s) -> Formula:
 
 
 def implies(left: Formula, right: Formula):
-    return BiOp(left, "->", right);
+    return BiOp(left, "->", right)
 
 
 def iff(left: Formula, right: Formula):
-    return BiOp(left, "<->", right);
+    return BiOp(left, "<->", right)
 
 
 def U(left: Formula, right: Formula):
-    return BiOp(left, "U", right);
+    return BiOp(left, "U", right)
+
+
+def W(left: Formula, right: Formula):
+    return BiOp(left, "W", right)
 
 
 def neg(ltl: Formula):
@@ -98,19 +109,19 @@ def neg(ltl: Formula):
         if ltl.op == "!":
             return ltl.right
 
-    return UniOp("!", ltl);
+    return UniOp("!", ltl)
 
 
 def G(ltl: Formula):
-    return UniOp("G", ltl);
+    return UniOp("G", ltl)
 
 
 def F(ltl: Formula):
-    return UniOp("F", ltl);
+    return UniOp("F", ltl)
 
 
 def X(ltl: Formula):
-    return UniOp("X", ltl);
+    return UniOp("X", ltl)
 
 
 def nnf(prop: Formula) -> Formula:
@@ -139,15 +150,38 @@ def nnf(prop: Formula) -> Formula:
         return NotImplemented
 
 
-def sat(formula: Formula, symbol_table: dict, solver: SMTChecker) -> bool:
-    return solver.check(And(*formula.to_smt(symbol_table)))
+smt_checker = SMTChecker()
 
 
-def is_tautology(formula: Formula, symbol_table: dict, solver: SMTChecker) -> bool:
+def sat(formula: Formula, symbol_table: dict = None,
+        solver: SMTChecker = smt_checker) -> bool:
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
+    try:
+        return solver.check(And(*formula.to_smt(symbol_table)))
+    except Exception as e:
+        print(str(formula))
+        return solver.check(And(*formula.to_smt(symbol_table)))
+
+def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None,
+                 solver: SMTChecker = smt_checker) -> bool:
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula1.variablesin()}
+        symbol_table |= {str(v): TypedValuation(str(v), "bool", None) for v in formula2.variablesin()}
+    return not solver.check(And(*neg(iff(formula1, formula2)).to_smt(symbol_table)))
+
+
+def is_tautology(formula: Formula, symbol_table: dict = None,
+                 solver: SMTChecker = smt_checker) -> bool:
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
     return not solver.check(And(*neg(formula).to_smt(symbol_table)))
 
 
-def is_contradictory(formula: Formula, symbol_table: dict, solver: SMTChecker) -> bool:
+def is_contradictory(formula: Formula, symbol_table: dict = None,
+                     solver: SMTChecker = smt_checker) -> bool:
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
     return not solver.check(And(*formula.to_smt(symbol_table)))
 
 
@@ -226,18 +260,156 @@ def only_dis_or_con_junctions(f: Formula):
 
 dnf_cache = {}
 
+def fnode_to_formula(fnode: FNode):
+    if fnode.is_true():
+        return true()
+    elif fnode.is_false():
+        return false()
+    elif fnode.is_and():
+        return conjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+    elif fnode.is_or():
+        return disjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+    elif fnode.is_not():
+        return neg(fnode_to_formula(fnode.arg(0)))
+    elif fnode.is_implies():
+        return implies(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+    elif fnode.is_iff():
+        return iff(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+    elif fnode.is_symbol():
+        return Variable(fnode.symbol_name())
+    else:
+        return string_to_prop(serialize(fnode))
+
+def sympi_to_formula(basic: Basic):
+    if isinstance(basic, sympy.logic.boolalg.Not):
+        return neg(sympi_to_formula(basic.args[0]))
+    elif isinstance(basic, sympy.logic.boolalg.And):
+        return conjunct_formula_set({sympi_to_formula(arg) for arg in list(basic.args)})
+    elif isinstance(basic, sympy.logic.boolalg.Or):
+        return disjunct_formula_set({sympi_to_formula(arg) for arg in list(basic.args)})
+    elif isinstance(basic, sympy.logic.boolalg.Implies):
+        return implies(sympi_to_formula(basic.args[0]), sympi_to_formula(basic.args[1]))
+    elif isinstance(basic, sympy.logic.boolalg.Equivalent):
+        return iff(sympi_to_formula(basic.args[0]), sympi_to_formula(basic.args[1]))
+    else:
+        return string_to_prop(str(basic))
+
 
 def simplify_formula_with_math(formula, symbol_table):
-    simple_f_without_math, dic = formula.replace_math_exprs(symbol_table)
-    return string_to_prop(serialize(simplify(And(*formula.to_smt(symbol_table | dic))))).replace(
-        [BiOp(Variable(key), ":=", value) for key, value in dic.items()])
+    environ = Environment()
+    simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
+    try:
+        to_formula = fnode_to_formula(simplified)
+    except Exception as e:
+        to_formula = fnode_to_formula(simplified)
+        print(str(e))
+    return to_formula
 
 
 def simplify_formula_without_math(formula, symbol_table=None):
+    environ = Environment()
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
 
-    return string_to_prop(serialize(simplify(And(*formula.to_smt(symbol_table)))))
+    simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
+    to_formula = fnode_to_formula(simplified)
+    return to_formula
+
+
+def simplify_ltl_formula(formula, symbol_table=None):
+    ltl_to_prop = ltl_to_propositional(formula)
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in ltl_to_prop.variablesin()}
+
+    simplified = string_to_prop(serialize(simplify(And(*ltl_to_prop.to_smt(symbol_table)))))
+
+    simplified_ltl = simplified.replace([BiOp(Variable(str(v)), ":=", X(Variable(str(v).split("_next")[0])))
+                                         for v in simplified.variablesin() if str(v).endswith("_next")])
+    return simplified_ltl
+
+
+def ltl_to_propositional(formula):
+    if isinstance(formula, Value) or isinstance(formula, Variable):
+        return formula
+    elif isinstance(formula, BiOp):
+        return BiOp(ltl_to_propositional(formula.left), formula.op, ltl_to_propositional(formula.right))
+    elif isinstance(formula, UniOp):
+        if formula.op == "X":
+            vars = formula.right.variablesin()
+            to_next = [BiOp(v, ":=", Variable(str(v) + "_next")) for v in vars]
+            return ltl_to_propositional(formula.right.replace(to_next))
+        else:
+            return UniOp(formula.op, ltl_to_propositional(formula.right))
+    else:
+        raise Exception("ltl_to_propositional: I do not know how to handle " + str(formula))
+
+
+def dnf(f: Formula, symbol_table: dict = None, simplify=True):
+    if isinstance(f, Value) or isinstance(f, MathExpr):
+        return f
+
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+    try:
+        if f in dnf_cache.keys():
+            return dnf_cache[f]
+        simple_f = only_dis_or_con_junctions(f)
+        simple_f = propagate_negations(simple_f)
+        simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
+        if simplify:
+            simple_f_without_math = simplify_formula_without_math(simple_f_without_math)
+
+        if isinstance(simple_f_without_math, BiOp) and simple_f_without_math.op[0] == "|":
+            disjuncts = simple_f_without_math.sub_formulas_up_to_associativity()
+        else:
+            disjuncts = [simple_f_without_math]
+
+        new_disjuncts = []
+        for disjunct in disjuncts:
+            if not is_dnf(disjunct):
+                for_sympi = disjunct.to_sympy()
+                if isinstance(for_sympi, int):
+                    return simple_f
+            # if formula has more than 8 variables it can take a long time, dnf is exponential
+                in_dnf = to_dnf(for_sympi, simplify=simplify, force=True)
+                new_disjunct = sympi_to_formula(in_dnf)
+            else:
+                new_disjunct = disjunct
+            # print(str(f) + " after dnf becomes " + str(in_dnf).replace("~", "!"))
+            new_disjunct = new_disjunct.replace([BiOp(Variable(key), ":=", value) for key, value in dic.items()])
+
+            new_disjuncts.append(new_disjunct)
+
+        in_dnf_math_back = disjunct_formula_set(new_disjuncts)
+        dnf_cache[f] = in_dnf_math_back
+
+        return in_dnf_math_back
+    except Exception as e:
+        raise Exception("dnf: I do not know how to handle " + str(f) + ", cannot turn it into dnf. " + str(e))
+
+
+def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=2):
+    if isinstance(f, Value) or isinstance(f, MathExpr):
+        return f
+
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+
+    ret = run_with_timeout(dnf, [f, symbol_table, simplify], timeout=timeout)
+
+    return ret
+
+def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=2):
+    if isinstance(f, Value) or isinstance(f, MathExpr):
+        return f
+
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+
+    ret = run_with_timeout(cnf, [f, symbol_table], timeout=timeout)
+    if ret == None:
+        return f
+    return ret
 
 
 def cnf(f: Formula, symbol_table: dict = None):
@@ -250,13 +422,16 @@ def cnf(f: Formula, symbol_table: dict = None):
         simple_f = propagate_negations(simple_f).simplify()
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
         simple_f_without_math = simplify_formula_without_math(simple_f_without_math).to_nuxmv()
-        for_sympi = parse_expr(str(simple_f_without_math).replace("!", " ~"), evaluate=True)
+        for_sympi = simple_f_without_math.to_sympy()
         if isinstance(for_sympi, int):
             return f
         # if formula has more than 8 variables it can take a long time, dnf is exponential
         in_cnf = to_cnf(for_sympi, simplify=True, force=True)
         # print(str(f) + " after cnf becomes " + str(in_cnf).replace("~", "!"))
-        in_dnf_formula = string_to_prop(str(in_cnf).replace("~", "!"))
+        try:
+            in_dnf_formula = sympi_to_formula(in_cnf)
+        except Exception as e:
+            raise e
         in_dnf_math_back = in_dnf_formula.replace([BiOp(Variable(key), ":=", value) for key, value in dic.items()])
 
         dnf_cache[f] = in_dnf_math_back
@@ -264,48 +439,6 @@ def cnf(f: Formula, symbol_table: dict = None):
         return in_dnf_math_back
     except Exception as e:
         raise Exception("dnf: I do not know how to handle " + str(f) + ", cannot turn it into dnf." + str(e))
-
-
-def dnf(f: Formula, symbol_table: dict=None, simplify=True):
-    if isinstance(f, Value) or isinstance(f, MathExpr):
-        return f
-
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
-
-    try:
-        if f in dnf_cache.keys():
-            return dnf_cache[f]
-        simple_f = only_dis_or_con_junctions(f)
-        simple_f = propagate_negations(simple_f)
-        if simplify:
-            simple_f = simple_f.simplify()
-        simple_f = simple_f.to_nuxmv()
-        simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table, 0)
-
-        if isinstance(f, Value):
-            return simple_f
-
-        for_sympi = parse_expr(str(simple_f_without_math).replace("!", " ~"), evaluate=simplify)
-        if isinstance(for_sympi, int):
-            return f
-        if simplify:
-            for_sympi = simplify_logic(for_sympi)
-        # if formula has more than 8 variables it can take a long time, dnf is exponential
-        if is_dnf(for_sympi):
-            in_dnf = for_sympi
-        else:
-            in_dnf = to_dnf(for_sympi, simplify=simplify, force=simplify)
-        print(str(f) + " after dnf becomes " + str(in_dnf).replace("~", "!"))
-        in_dnf_formula = string_to_prop(str(in_dnf).replace("~", "!"))
-        in_dnf_math_back = in_dnf_formula.replace([BiOp(key, ":=", value) for key, value in dic.items()])
-
-        dnf_cache[f] = in_dnf_math_back
-
-        return in_dnf_math_back
-    except:
-        dnf(f, symbol_table, simplify)
-        raise Exception("dnf: I do not know how to handle " + str(f) + ", cannot turn it into dnf.")
 
 
 def append_to_variable_name(formula, vars_names, suffix):
@@ -322,7 +455,8 @@ def is_boolean(var, tvs):
 
 
 def infinite_type(var, tvs):
-    return any(tv for tv in tvs if tv.name == str(var) and re.match("(nat(ural)?|int(eger)?|real|rat(ional)?)", str(tv.type)))
+    return any(
+        tv for tv in tvs if tv.name == str(var) and re.match("(nat(ural)?|int(eger)?|real|rat(ional)?)", str(tv.type)))
 
 
 def related_to(v, F: Formula):
@@ -346,8 +480,15 @@ def type_constraints(formula, symbol_table):
     return conjunct_formula_set(set({type_constraint(v, symbol_table) for v in formula.variablesin()}))
 
 
-def type_constraints_acts(acts : [BiOp], symbol_table):
-    return conjunct_formula_set(set({type_constraint(act.left, symbol_table).replace([BiOp(act.left, ":=", act.right)]) for act in acts}))
+def type_constraints_acts(transition, symbol_table):
+    acts = transition.action
+    constraints = []
+    for act in acts:
+        if act.right != act.left:
+            constraint = type_constraint(act.left, symbol_table).replace([BiOp(act.left, ":=", act.right)])
+            if sat(conjunct(transition.condition, neg(constraint)), symbol_table):
+                constraints.append(constraint)
+    return conjunct_formula_set(constraints)
 
 
 def type_constraint(variable, symbol_table):
@@ -361,12 +502,13 @@ def type_constraint(variable, symbol_table):
         elif typed_val.type == "bool" or typed_val.type == "boolean":
             return Value("TRUE")
         elif typed_val.type == "nat" or typed_val.type == "natural":
-            return BiOp(variable, ">=", Value("0"))
+            return MathExpr(BiOp(variable, ">=", Value("0")))
         elif re.match("[0-9]+..+[0-9]+", typed_val.type):
             split = re.split("..+", typed_val.type)
             lower = split[0]
             upper = split[1]
-            return BiOp(BiOp(variable, ">=", Value(lower)), "&&", BiOp(variable, "<=", Value(upper)))
+            return BiOp(MathExpr(BiOp(variable, ">=", Value(lower))), "&&",
+                        MathExpr(BiOp(variable, "<=", Value(upper))))
         else:
             raise NotImplementedError(f"Type {typed_val.type} unsupported.")
     else:
@@ -397,10 +539,218 @@ def negate(formula):
         elif formula.op == "->" or formula.op == "=>":
             return BiOp(formula.left, "&", negate(formula.right))
         elif formula.op == "<->" or formula.op == "<=>":
-            return BiOp(BiOp(formula.left, "&", negate(formula.right)), "|", BiOp(negate(formula.left), "&", formula.right))
+            return BiOp(BiOp(formula.left, "&", negate(formula.right)), "|",
+                        BiOp(negate(formula.left), "&", formula.right))
         else:
             return UniOp("!", formula)
     elif isinstance(formula, MathExpr):
         return MathExpr(negate(formula.formula))
     else:
-        return UniOp("!", formula)
+        return UniOp("!", formula).simplify()
+
+
+def keep_only_vars(formula, vars_to_keep, make_program_choices_explicit=False):
+    to_project_out = [v for v in formula.variablesin() if v not in vars_to_keep]
+    return project_out_vars_int(propagate_negations(formula), to_project_out, True, make_program_choices_explicit)
+
+
+def keep_only_vars_inverse(formula, vars_to_keep):
+    to_project_out = [v for v in formula.variablesin() if v not in vars_to_keep]
+    return project_out_vars_int(propagate_negations(formula), to_project_out, False)
+
+
+def project_out_vars_inverse(formula, vars_to_project_out):
+    return project_out_vars_int(propagate_negations(formula), vars_to_project_out, False)
+
+
+def project_out_vars(formula, vars_to_project_out, make_program_choices_explicit=False):
+    return project_out_vars_int(propagate_negations(formula), vars_to_project_out, True, make_program_choices_explicit)
+
+
+def project_out_vars_int(formula, vars_to_project_out, make_true, make_program_choices_explicit=False):
+    program_choice = Variable("program_choice") if make_program_choices_explicit else Value("FALSE")
+    if isinstance(formula, Value):
+        return formula
+    elif isinstance(formula, Variable):
+        if formula in vars_to_project_out:
+            return Value("TRUE") if make_true else program_choice
+        else:
+            return formula
+    elif isinstance(formula, UniOp):
+        if not isinstance(formula.right, Value) and not isinstance(formula.right, Variable):
+            raise Exception("propagate negations before calling project_out_vars")
+        if formula.right in vars_to_project_out:
+            return Value("TRUE") if make_true else program_choice
+        else:
+            return formula
+    elif isinstance(formula, BiOp):
+        vars_in_formula = formula.variablesin()
+        if not any(v not in vars_to_project_out for v in vars_in_formula):
+            return Value("TRUE") if make_true else program_choice
+        elif not any(v in vars_to_project_out for v in vars_in_formula):
+            return formula
+        else:
+            make_true = formula.op[0] == "&"  # if make_true else formula.op[0] == "|"
+            return BiOp(project_out_vars_int(formula.left, vars_to_project_out, make_true),
+                        formula.op, project_out_vars_int(formula.right, vars_to_project_out, make_true))
+    else:
+        raise Exception("not implemented")
+
+
+def partially_evaluate(formula, true_vars: [Variable], false_vars: [Variable], symbol_table):
+    new_formula = formula
+    for v in true_vars:
+        if not isinstance(v, Variable):
+            raise Exception("partially_evaluate: element " + str(v) + " of true_vars is not a variable")
+        new_formula = new_formula.replace([BiOp(v, ":=", true())])
+    for v in false_vars:
+        if not isinstance(v, Variable):
+            raise Exception("partially_evaluate: element " + str(v) + " of false_vars is not a variable")
+        new_formula = new_formula.replace([BiOp(v, ":=", false())])
+
+    new_formula_simplified = new_formula.simplify()
+    new_formula_simplified_more = simplify_formula_with_math(new_formula_simplified, symbol_table)
+
+    return new_formula_simplified_more
+
+
+def is_atomic(f):
+    return isinstance(f, Variable) or isinstance(f, Value) or isinstance(f, MathExpr) or (
+                isinstance(f, UniOp) and is_atomic(f.right))
+
+
+def is_conjunction_of_atoms(formula):
+    if isinstance(formula, BiOp) and formula.op[0] == "&":
+        for f in formula.sub_formulas_up_to_associativity():
+            if is_atomic(f):
+                continue
+            if isinstance(f, BiOp) and f.op[0] == "&":
+                if any(not is_atomic(ff)
+                       for ff in f.sub_formulas_up_to_associativity()):
+                    return False
+            else:
+                return False
+        return True
+    elif is_atomic(formula):
+        return True
+    else:
+        return False
+
+
+def is_disjunction_of_atoms(formula):
+    if isinstance(formula, BiOp) and formula.op[0] == "|":
+        for f in formula.sub_formulas_up_to_associativity():
+            if is_atomic(f):
+                continue
+            if isinstance(f, BiOp) and f.op[0] == "|":
+                if any(not is_atomic(ff)
+                       for ff in f.sub_formulas_up_to_associativity()):
+                    return False
+            else:
+                return False
+        return True
+    elif is_atomic(formula):
+        return True
+    else:
+        return False
+
+
+def is_dnf(formula):
+    if isinstance(formula, BiOp):
+        if formula.op == "||":
+            for f in formula.sub_formulas_up_to_associativity():
+                if not is_conjunction_of_atoms(f):
+                    return False
+        elif formula.op[0] == "&":
+            return is_conjunction_of_atoms(formula)
+        else:
+            return is_atomic(formula)
+    else:
+        return is_atomic(formula)
+
+
+def abstract_out_conjunctions_of_atoms(formula, dict) -> (Formula, dict):
+    # traverse the syntax tree, abstract out all conjunction of atoms
+    dict = {}
+    if is_atomic(formula):
+        return formula, dict
+    elif is_conjunction_of_atoms(formula):
+        var_name = "conj_" + str(len(dict))
+        dict[var_name] = formula
+        return Variable(var_name), dict
+    elif isinstance(formula, BiOp):
+        left_form, new_dict = abstract_out_conjunctions_of_atoms(formula.left, dict)
+        right_form, new_dict = abstract_out_conjunctions_of_atoms(formula.right, new_dict)
+        return BiOp(left_form,
+                    formula.op,
+                    right_form), new_dict
+    elif isinstance(formula, UniOp):
+        right_form, new_dict = abstract_out_conjunctions_of_atoms(formula.right, dict)
+        return UniOp(formula.op, right_form), new_dict
+    else:
+        return formula, dict
+
+
+def abstract_out_disjunctions_of_atoms(formula, dict={}) -> (Formula, dict):
+    # traverse the syntax tree, abstract out all conjunction of atoms
+    if is_atomic(formula):
+        return formula, dict
+    elif is_disjunction_of_atoms(formula):
+        var_name = "disj_" + str(len(dict))
+        dict[var_name] = formula
+        return Variable(var_name), dict
+    elif isinstance(formula, BiOp):
+        left_form, new_dict = abstract_out_disjunctions_of_atoms(formula.left, dict)
+        right_form, new_dict = abstract_out_disjunctions_of_atoms(formula.right, new_dict)
+        return BiOp(left_form,
+                    formula.op,
+                    right_form), new_dict
+    elif isinstance(formula, UniOp):
+        right_form, new_dict = abstract_out_disjunctions_of_atoms(formula.right, dict)
+        return UniOp(formula.op, right_form), new_dict
+    else:
+        return formula, dict
+
+
+def depth_of_formula(formula):
+    if isinstance(formula, BiOp):
+        return 1 + max(depth_of_formula(formula.left), depth_of_formula(formula.right))
+    elif isinstance(formula, UniOp):
+        return 1 + depth_of_formula(formula.right)
+    else:
+        return 0
+
+
+def atomic_predicates(formula):
+    if isinstance(formula, Value) or isinstance(formula, Variable) or isinstance(formula, MathExpr):
+        return {formula}
+    else:
+        if isinstance(formula, UniOp):
+            return atomic_predicates(formula.right)
+        elif isinstance(formula, BiOp):
+            return atomic_predicates(formula.left) | atomic_predicates(formula.right)
+        else:
+            raise Exception("atoms: not implemented for " + str(formula))
+
+
+queue = Queue()
+
+
+def run_with_timeout(f, args, timeout=-1):
+    if timeout == -1:
+        return f(args)
+    else:
+        params = tuple([f] + [tuple(args)])
+        p1 = Process(target=evaluate_and_queue, name=f.__name__, args=params)
+        p1.start()
+        p1.join(timeout=timeout)
+        if p1.exitcode is None:
+            p1.terminate()
+            return None
+        else:
+            return queue.get()
+
+
+def evaluate_and_queue(function, args):
+    result = function(*args)
+    queue.put(result)

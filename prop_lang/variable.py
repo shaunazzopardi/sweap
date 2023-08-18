@@ -1,7 +1,8 @@
 import re
 
+import sympy.core.symbol
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Symbol, INT, BOOL, GE, LE, And, Int, TRUE
+from pysmt.shortcuts import INT, BOOL, GE, LE, And, Int, TRUE, Symbol
 
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
@@ -39,7 +40,7 @@ class Variable(Atom):
     def ops_used(self):
         return []
 
-    def replace(self, context):
+    def replace_vars(self, context):
         if isinstance(context, list):
             for val in context:
                 if (val.op == "=" or val.op == ":=") and (str(val.left.name) == self.name):
@@ -47,14 +48,27 @@ class Variable(Atom):
         elif hasattr(context, '__call__'):
             return context(self)
         else:
-            raise Exception("Variable.replace: context is not a list of assignments or a mapping function.")
+            try:
+                val = context
+                if (val.op == "=" or val.op == ":=") and (str(val.left.name) == self.name):
+                    return val.right
+            except:
+                raise Exception("Variable.replace: context is not a list of assignments, an assignment, or a mapping function.")
         return self
 
     def to_nuxmv(self):
         return self
 
+    def to_strix(self):
+        return self
+
     def to_smt(self, symbol_table) -> (FNode, FNode):
-        typed_val = symbol_table[self.name]
+        if self.name in symbol_table.keys():
+            typed_val = symbol_table[self.name]
+        elif self.name.split("_prev")[0] in symbol_table.keys():
+            typed_val = symbol_table[self.name.split("_prev")[0]]
+        else:
+            raise Exception("Variable.to_smt: variable " + self.name + " not in symbol table.")
 
         if typed_val.type == "int" or typed_val.type == "integer":
             return Symbol(self.name, INT), TRUE()
@@ -63,13 +77,22 @@ class Variable(Atom):
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return Symbol(self.name, INT), GE(Symbol(self.name, INT), Int(0))
         elif re.match("[0-9]+..+[0-9]+", typed_val.type):
-            split = re.split("..+", typed_val.type)
-            lower = split[0]
-            upper = split[1]
-            return Symbol(self.name, INT), And(GE(Symbol(self.name, INT), Int(lower)),
-                                               LE(Symbol(self.name, INT), Int(upper)))
+            split = re.split("\\.\\.+", typed_val.type)
+            lower = int(split[0])
+            upper = int(split[1])
+            return Symbol(self.name, INT), And(GE(Symbol(self.name, INT), Int((lower))),
+                                               LE(Symbol(self.name, INT), Int((upper))))
         else:
             raise NotImplementedError(f"Type {typed_val.type} unsupported.")
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         return self, {}
+
+    def to_sympy(self):
+        return sympy.core.symbol.Symbol(self.name)
+
+    def replace_formulas(self, context):
+        if self in context.keys():
+            return context[self]
+        else:
+            return self

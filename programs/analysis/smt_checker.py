@@ -1,29 +1,34 @@
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Solver, Interpolator, get_env
+from pysmt.shortcuts import Solver, Interpolator, get_env, is_sat, serialize
+from pysmt.solvers import solver
 
 
 class SMTChecker:
-    SOLVER_NAME = "msat"
-
-    # SOLVER_NAME = "mathsat-smtlib"
 
     def __init__(self) -> None:
-        pass
-        get_env().factory._get_available_solvers()
+        self.solver = Solver(name="msat")
         # _add_solver(self.SOLVER_NAME, "msat")
 
     def check(self, smt: FNode):
         try:
-            with Solver(name="msat") as s:
-                return s.is_sat(smt)
-        except:
-            with Solver(name="z3") as s: # this is needed because msat does not support non-linear arithmetic
-                return s.is_sat(smt)
+            return self.solver.is_sat(smt)
+        except Exception as e:
+            self.solver = Solver(name="z3")
+            return self.solver.is_sat(smt)
 
-    def binary_interpolant(self, A: FNode, B: FNode, logic) -> FNode:
-        with Interpolator(name="msat") as s:
-            return s.binary_interpolant(A, B)
 
-    def sequence_interpolant(self, A: FNode, B: FNode, logic) -> FNode:
-        # TODO
-        pass
+def binary_interpolant(A: FNode, B: FNode) -> FNode:
+    with Interpolator(name="msat") as s:
+        return s.binary_interpolant(A, B)
+
+
+def check(smt: FNode):
+    try:
+        return is_sat(smt, solver_name="msat")
+    except Exception as e:
+        print(serialize(smt))
+        try:
+            return is_sat(smt, solver_name="z3")
+        except Exception as e:
+            print(serialize(smt))
+            raise (e)

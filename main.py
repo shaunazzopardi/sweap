@@ -1,10 +1,10 @@
 import argparse
 
+from programs.analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from programs.analysis.model_checker import ModelChecker
 from parsing.string_to_program_with_action_guards import string_to_program
 from programs.synthesis.synthesis import synthesize
 # inputs: date_file ltl_file
-from programs.util import create_nuxmv_model, is_deterministic
 import time
 
 def main():

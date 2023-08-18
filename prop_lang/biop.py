@@ -1,8 +1,10 @@
+import sympy
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And, Or, Implies
 from pysmt.shortcuts import (
     Plus, Minus, Times, Div, BVSRem, EqualsOrIff, LE, LT, GT, GE, NotEquals
 )
+# from sympy import And, Or, Implies, Equivalent
 
 from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
@@ -113,8 +115,8 @@ class BiOp(Formula):
     def ops_used(self):
         return [self.op] + self.left.ops_used() + self.right.ops_used()
 
-    def replace(self, context):
-        return BiOp(self.left.replace(context), self.op, self.right.replace(context))
+    def replace_vars(self, context):
+        return BiOp(self.left.replace_vars(context), self.op, self.right.replace_vars(context))
 
     def to_nuxmv(self):
         if self.op == "%":
@@ -139,42 +141,88 @@ class BiOp(Formula):
         else:
             return BiOp(self.left.to_nuxmv(), self.op, self.right.to_nuxmv())
 
+    def to_strix(self):
+        if self.op == "==":
+            return BiOp(self.left.to_strix(), '==', self.right.to_strix())
+        elif self.op == "=>":
+            return BiOp(self.left.to_strix(), '->', self.right.to_strix())
+        elif self.op == "<=>":
+            return BiOp(self.left.to_strix(), '<->', self.right.to_strix())
+        elif self.op == "&":
+            return BiOp(self.left.to_strix(), '&&', self.right.to_strix())
+        elif self.op == "|":
+            return BiOp(self.left.to_strix(), '||', self.right.to_strix())
+        # elif self.op == "W":
+        #     return BiOp(BiOp(self.left, "U", self.right), "|", UniOp("G", self.left)).to_nuxmv()
+        # elif self.op == "R":
+        #     return BiOp(self.right, "W", BiOp(self.right, "&", self.left)).to_nuxmv()
+        # elif self.op == "M":
+        #     return BiOp(self.right, "U", BiOp(self.right, "&", self.left)).to_nuxmv()
+        else:
+            return BiOp(self.left.to_strix(), self.op, self.right.to_strix())
+
+    ops = {
+        "&": And,
+        "&&": And,
+        "|": Or,
+        "||": Or,
+        "->": Implies,
+        "=>": Implies,
+        "==": EqualsOrIff,
+        "=": EqualsOrIff,
+        "!=": NotEquals,
+        "<->": EqualsOrIff,
+        ">": GT,
+        ">=": GE,
+        "<": LT,
+        "<=": LE,
+        "+": Plus,
+        "-": Minus,
+        "*": Times,
+        "/": Div,
+        "%": BVSRem
+    }
     def to_smt(self, symbol_table) -> (FNode, FNode):
-        ops = {
-            "&": And,
-            "&&": And,
-            "|": Or,
-            "||": Or,
-            "->": Implies,
-            "=>": Implies,
-            "==": EqualsOrIff,
-            "=": EqualsOrIff,
-            "!=": NotEquals,
-            "<->": EqualsOrIff,
-            ">": GT,
-            ">=": GE,
-            "<": LT,
-            "<=": LE,
-            "+": Plus,
-            "-": Minus,
-            "*": Times,
-            "/": Div,
-            "%": BVSRem
-        }
         left_expr, left_invar = self.left.to_smt(symbol_table)
         right_expr, right_invar = self.right.to_smt(symbol_table)
 
         try:
-            op = ops[self.op]
+            op = self.ops[self.op]
+            return op(left_expr, right_expr), And(left_invar, right_invar)
         except KeyError:
             raise NotImplementedError(f"{self.op} unsupported")
-        else:
+        except Exception as e:
+            print(str(e))
+            op = self.ops[self.op]
             return op(left_expr, right_expr), And(left_invar, right_invar)
 
+    def to_sympy(self):
+        if self.op[0] == "|":
+            return sympy.Or(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op[0] == "&":
+            return sympy.And(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op[0] == "=" or self.op == "<->":
+            return sympy.Equivalent(self.left.to_sympy(), self.right.to_sympy())
+        else:
+            raise Exception("Unsupported operator: " + self.op)
+
     def replace_math_exprs(self, symbol_table, cnt=0):
-        new_left, dic_left = self.left.replace_math_exprs(symbol_table, cnt)
-        new_right, dic_right = self.right.replace_math_exprs(symbol_table, cnt + len(dic_left))
-        if len(dic_left) == 0 and len(dic_right) == 0:
-            if self.op == "=" or self.op == "==" or self.op == "!=" or self.op == "<=" or self.op == ">=" or self.op == "<" or self.op == ">":
-                return Variable("math_" + str(cnt)), {Variable("math_" + str(cnt)): self}
-        return BiOp(new_left, self.op, new_right), dic_left | dic_right
+        if self.is_mathexpr(symbol_table):
+                return Variable("math_" + str(cnt)), {("math_" + str(cnt)): self}
+        else:
+            new_left, dic_left = self.left.replace_math_exprs(symbol_table, cnt)
+            new_right, dic_right = self.right.replace_math_exprs(symbol_table, cnt + len(dic_left))
+
+            return BiOp(new_left, self.op, new_right), dic_left | dic_right
+
+    def is_mathexpr(self, symbol_table):
+        return isinstance(self.left, Value) and self.left.is_math_value() \
+                or isinstance(self.right, Value) and self.right.is_math_value() \
+                or isinstance(self.left, Variable) and not symbol_table[str(self.left)].type.lower().startswith("bool") \
+                or isinstance(self.right, Variable) and not symbol_table[str(self.right)].type.lower().startswith("bool")
+
+    def replace_formulas(self, context):
+        if self in context.keys():
+            return context[self]
+        else:
+            return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))

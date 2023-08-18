@@ -27,7 +27,7 @@ class MathExpr(Formula):
         return self.formula.variablesin()
 
     def ground(self, context):
-        return self.formula.ground(context)
+        return MathExpr(self.formula.ground(context))
 
     def simplify(self):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
@@ -40,14 +40,26 @@ class MathExpr(Formula):
     def ops_used(self):
         return []
 
-    def replace(self, context):
-        return self.formula.replace(context)
+    def replace_vars(self, context):
+        return MathExpr(self.formula.replace_vars(context))
 
     def to_nuxmv(self):
-        return self.formula.to_nuxmv()
+        return MathExpr(self.formula.to_nuxmv())
+
+    def to_strix(self):
+        return self
 
     def to_smt(self, symbol_table: Any):
         return self.formula.to_smt(symbol_table)
 
     def replace_math_exprs(self, symbol_table, cnt=0):
-        return Variable("math_" + str(cnt)), {Variable("math_" + str(cnt)): self}
+        return Variable("math_" + str(cnt)), {("math_" + str(cnt)): self}
+
+    def to_sympy(self):
+        raise Exception("Unsupported operator: " + self.op)
+
+    def replace_formulas(self, context):
+        if self in context.keys():
+            return context[self]
+        else:
+            return MathExpr(self.formula.replace_formulas(context))
