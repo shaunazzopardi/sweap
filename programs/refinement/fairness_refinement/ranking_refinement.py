@@ -15,7 +15,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, conjunct_formula_set, neg, true, is_boolean, dnf, infinite_type, type_constraints, \
-    is_tautology, related_to, equivalent
+    is_tautology, related_to, equivalent, sat
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -85,6 +85,23 @@ def try_liveness_refinement(counterstrategy_states: [str],
                     break
         else:
             new_ranking_invars = {ranking: invars}
+
+    # check if the ranking function is both increased in the loop
+    inappropriate_rankings = []
+    for ranking in new_ranking_invars.keys():
+        for t, _ in loop:
+            action_formula = conjunct_formula_set([BiOp(a.left, "==", add_prev_suffix(a.right)) for a in t.action])
+            ranking_increase_with_action = conjunct(BiOp(ranking, ">", add_prev_suffix(ranking)),action_formula)
+            if sat(ranking_increase_with_action, symbol_table):
+                inappropriate_rankings.append(ranking)
+
+    for inappropriate_ranking in inappropriate_rankings:
+        new_ranking_invars.pop(inappropriate_ranking)
+
+    if len(new_ranking_invars) == 0:
+        print("The found ranking function/s is/are increased in the loop, and thus is/are not appropriate "
+              "for ranking refinement.")
+        return False, None
 
     new_transition_predicates = []
     for (ranking, invars) in new_ranking_invars.items():
