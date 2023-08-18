@@ -1,0 +1,30 @@
+INFO {
+  TITLE:       "Arbiter Case Study"
+  DESCRIPTION: ""
+  SEMANTICS:   Mealy
+  TARGET:      Mealy
+}
+
+
+MAIN {
+
+  INPUTS {
+    request;
+    changeRoom;
+    pending_ev;
+  }
+
+  OUTPUTS {
+    grantA;
+    grantB;
+    finished;
+  }
+
+  ASSUMPTIONS {
+  }
+
+  GUARANTEES {
+      G((pending_ev && !request && !changeRoom) -> F(!pending_ev))
+  }
+
+}

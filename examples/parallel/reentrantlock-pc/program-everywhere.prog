@@ -1,0 +1,62 @@
+program eventually__allow_grant {
+    STATES {
+        q0 : init, q1, q2, q3, q4, q5, q6, env_error_st, con_error_st
+    }
+
+    ENVIRONMENT EVENTS {
+        env_lock, stop
+    }
+
+    CONTROLLER EVENTS {
+        dec, inc
+    }
+
+    PROGRAM EVENTS {
+        env_error, con_error
+    }
+
+    VALUATION {
+        got_lock : integer := 0;
+        L : integer := 0;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        q0 -> q1 [got_lock == L && env_lock],
+        q0 -> q4 [got_lock == L && !env_lock],
+        q1 -> q2 [got_lock == L && (L >= 0)],
+        q1 -> env_error_st [got_lock == L && !(L >= 0)],
+        q2 -> q3 [got_lock == L $ L := L + 1;],
+        q3 -> q4 [got_lock == L && got_lock != 0],
+        q4 -> q5 [got_lock == L $ L := L - 1],
+        q3 -> q5 [got_lock == L && got_lock == 0],
+        q5 -> q6 [got_lock == L && got_lock == L],
+        q0 -> con_error_st [got_lock != L],
+        q1 -> con_error_st [got_lock != L],
+        q2 -> con_error_st [got_lock != L],
+        q3 -> con_error_st [got_lock != L],
+        q4 -> con_error_st [got_lock != L],
+        q5 -> con_error_st [got_lock != L],
+        con_error_st -> con_error_st [ # con_error]
+    }
+
+    CONTROLLER TRANSITIONS {
+        q0 -> q0 [dec & !inc $ got_lock := got_lock - 1],
+        q0 -> q0 [!dec & inc $ got_lock := got_lock + 1],
+        q0 -> q0 [!((dec & !inc) || (!dec & inc))],
+        q1 -> q1 [dec & !inc $ got_lock := got_lock - 1],
+        q1 -> q1 [!dec & inc $ got_lock := got_lock + 1],
+        q1 -> q1 [!((dec & !inc) || (!dec & inc))],
+        q2 -> q2 [dec & !inc $ got_lock := got_lock - 1],
+        q2 -> q2 [!dec & inc $ got_lock := got_lock + 1],
+        q2 -> q2 [!((dec & !inc) || (!dec & inc))],
+        q3 -> q3 [dec & !inc $ got_lock := got_lock - 1],
+        q3 -> q3 [!dec & inc $ got_lock := got_lock + 1],
+        q3 -> q3 [!((dec & !inc) || (!dec & inc))],
+        q4 -> q4 [dec & !inc $ got_lock := got_lock - 1],
+        q4 -> q4 [!dec & inc $ got_lock := got_lock + 1],
+        q4 -> q4 [!((dec & !inc) || (!dec & inc))],
+        q5 -> q5 [dec & !inc $ got_lock := got_lock - 1],
+        q5 -> q5 [!dec & inc $ got_lock := got_lock + 1],
+        q5 -> q5 [!((dec & !inc) || (!dec & inc))]
+    }
+}

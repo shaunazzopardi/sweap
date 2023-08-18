@@ -1,0 +1,26 @@
+INFO {
+  TITLE:       "Arbiter Case Study"
+  DESCRIPTION: ""
+  SEMANTICS:   Mealy
+  TARGET:      Mealy
+}
+
+
+MAIN {
+
+  INPUTS {
+    start;
+    env_dec;
+    env_inc;
+    goal;
+    xis1;
+  }
+
+  OUTPUTS {
+  }
+
+  GUARANTEES {
+    (F start) -> F(start && (xis1 -> F goal))
+  }
+
+}

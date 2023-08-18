@@ -1,0 +1,34 @@
+program eventually__allow_grant {
+    STATES {
+        q0 : init, q1, q2
+    }
+
+    ENVIRONMENT EVENTS {
+        request
+    }
+
+    CONTROLLER EVENTS {
+        grant, finished
+    }
+
+    PROGRAM EVENTS {
+        here
+    }
+
+    VALUATION {
+        cnt : natural := 0;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        q0 -> q0 [request $ cnt := cnt + 1; # here],
+        q0 -> q1 [!request],
+        q1 -> q1 [cnt == 0],
+        q2 -> q2 [$ cnt := cnt - 1]
+    }
+
+    CONTROLLER TRANSITIONS {
+        q1 -> q1 [grant && cnt >= 0 $ cnt := cnt - 1],
+        q1 -> q0 [cnt == 0 && finished && !grant],
+        q1 -> q2 [cnt < 0]
+    }
+}

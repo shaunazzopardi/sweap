@@ -1,0 +1,33 @@
+program eventually__allow_grant {
+    STATES {
+        q0 : init, q1
+    }
+
+    ENVIRONMENT EVENTS {
+        start, env_inc, env_dec
+    }
+
+    CONTROLLER EVENTS {
+        dec, inc
+    }
+
+    PROGRAM EVENTS {
+        goal
+    }
+
+    VALUATION {
+        x : integer := 0;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        q0 -> q0 [!start && env_inc && !env_dec $ x := x + 1 # goal],
+        q0 -> q0 [!start && !env_inc && env_dec $ x := x - 1 # goal],
+        q0 -> q1 [start],
+        q1 -> q1 [x < 0 # goal]
+    }
+
+    CONTROLLER TRANSITIONS {
+        q1 -> q1 [dec && !inc $ x := x - 1],
+        q1 -> q1 [!dec && inc $ x := x + 1]
+    }
+}

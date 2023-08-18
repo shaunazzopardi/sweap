@@ -1,0 +1,45 @@
+program eventually__allow_grant {
+    STATES {
+        q0 : init, q1, q2, q3, env_error_st
+    }
+
+    ENVIRONMENT EVENTS {
+        env_lock, me
+    }
+
+    CONTROLLER EVENTS {
+        dec, inc
+    }
+
+    PROGRAM EVENTS {
+        owner_is_me_ev, equal_Ls, env_error
+    }
+
+    VALUATION {
+        got_lock : integer := 0;
+        L : integer := 0;
+        owner_is_me : bool := false;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        q0 -> env_error_st [env_lock && L != 0 && (L <= 0 || !(me <-> owner_is_me)) # env_error],
+        env_error_st -> env_error_st [# env_error],
+        q0 -> q1 [env_lock && (L == 0 || (L > 0 && me <-> owner_is_me)) && me && got_lock == L $ L := L + 1; owner_is_me := true; # owner_is_me_ev, equal_Ls],
+        q0 -> q1 [env_lock && (L == 0 || (L > 0 && me <-> owner_is_me)) && me && got_lock != L $ L := L + 1; owner_is_me := true; # owner_is_me_ev],
+        q0 -> q1 [env_lock && (L == 0 || (L > 0 && me <-> owner_is_me)) && !me && got_lock == L$ L := L + 1; owner_is_me := false; # equal_Ls],
+        q0 -> q1 [env_lock && (L == 0 || (L > 0 && me <-> owner_is_me)) && !me && got_lock != L$ L := L + 1; owner_is_me := false;],
+        q0 -> q1 [!env_lock && got_lock == L # equal_Ls],
+        q0 -> q1 [!env_lock && got_lock != L ],
+        q2 -> q3 [got_lock != 0 && me <-> owner_is_me && got_lock == L $ L := L - 1 # equal_Ls],
+        q2 -> q3 [got_lock != 0 && me <-> owner_is_me && got_lock != L $ L := L - 1]
+    }
+
+    CONTROLLER TRANSITIONS {
+        q1 -> q2 [dec & !inc $ got_lock := got_lock - 1],
+        q1 -> q2 [!dec & inc $ got_lock := got_lock + 1],
+        q1 -> q2 [!((dec & !inc) || (!dec & inc))],
+        q3 -> q0 [dec & !inc $ got_lock := got_lock - 1],
+        q3 -> q0 [!dec & inc $ got_lock := got_lock + 1],
+        q3 -> q0 [!((dec & !inc) || (!dec & inc))]
+    }
+}

@@ -1,0 +1,25 @@
+INFO {
+  TITLE:       "Arbiter Case Study"
+  DESCRIPTION: ""
+  SEMANTICS:   Mealy
+  TARGET:      Mealy
+}
+
+
+MAIN {
+
+  INPUTS {
+    request;
+    here;
+  }
+
+  OUTPUTS {
+    grant;
+    finished;
+  }
+
+  GUARANTEES {
+    G F request -> G F here;
+  }
+
+}
