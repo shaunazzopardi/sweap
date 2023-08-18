@@ -3,6 +3,7 @@ from pysmt.shortcuts import Not, TRUE
 from programs.analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.util import safe_update_set_vals, fnode_to_formula
+from prop_lang.uniop import UniOp
 from prop_lang.util import disjunct_formula_set, conjunct_formula_set
 
 
@@ -65,3 +66,19 @@ def merge_transitions(transitions: [Transition], symbol_table, to_program_transi
         except Exception as e:
             raise e
     return new_transitions, new_to_program_transitions
+
+def tran_and_state_preds_after_con_env_step(env_trans: Transition):
+    if True:
+        src_tran_preds = [p for p in env_trans.src.predicates
+                          if [] != [v for v in p.variablesin() if v.name.endswith("_prev")]]
+        tgt_tran_preds = [p for p in env_trans.tgt.predicates
+                          if [] != [v for v in p.variablesin() if v.name.endswith("_prev")]]
+
+        pos = {p for p in (src_tran_preds + tgt_tran_preds) if not isinstance(p, UniOp)}
+        all_neg = {p for p in (src_tran_preds + tgt_tran_preds) if isinstance(p, UniOp)}
+        neg = {p for p in all_neg if p.right not in pos}
+
+        state_preds = [p for p in env_trans.tgt.predicates
+                       if [] == [v for v in p.variablesin() if v.name.endswith("_prev")]]
+
+        return list(pos | neg) + state_preds

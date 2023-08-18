@@ -1,9 +1,9 @@
 from graphviz import Digraph
 from pysmt.shortcuts import And
 
+from programs.abstraction.effects_abstraction.util.effects_util import tran_and_state_preds_after_con_env_step
 from programs.abstraction.explicit_abstraction.util.abstract_state import AbstractState
-# from programs.abstraction.predicate_abstraction_new import tran_and_state_preds_after_con_env_step, PredicateAbstraction
-from programs.abstraction.predicate_abstraction_tran import tran_and_state_preds_after_con_env_step, PredicateAbstraction
+from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from programs.analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.analysis.smt_checker import SMTChecker
 from programs.program import Program
