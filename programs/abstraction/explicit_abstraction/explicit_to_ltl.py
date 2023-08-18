@@ -7,7 +7,7 @@ from prop_lang.variable import Variable
 
 def explicit_to_state_based_ltl(predAbs):
     # This requires the abstraction to be explicit (no invars ignored in states)
-    one_step_abstraction = predAbs.to_explicit_abstraction()
+    one_step_abstraction = predAbs.to_automaton_abstraction()
     print(one_step_abstraction.to_dot())
     predicates = predAbs.get_state_predicates() + predAbs.get_transition_predicates()
 
