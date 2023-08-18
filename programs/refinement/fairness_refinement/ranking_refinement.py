@@ -101,7 +101,7 @@ def try_liveness_refinement(counterstrategy_states: [str],
     if len(new_ranking_invars) == 0:
         print("The found ranking function/s is/are increased in the loop, and thus is/are not appropriate "
               "for ranking refinement.")
-        return False, None
+        return False, (sufficient_entry_condition, exit_predicate)
 
     new_transition_predicates = []
     for (ranking, invars) in new_ranking_invars.items():
