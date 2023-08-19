@@ -106,9 +106,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
     symbol_table.update({tv.name + "_prev": TypedValuation(tv.name + "_prev", tv.type, tv.value) for tv in
                          program.valuation})
 
-    base_type = LTLAbstractionBaseType.explicit
+    base_type = LTLAbstractionBaseType.explicit_automaton
     transition_type = LTLAbstractionTransitionType.combined
-    structure_type = LTLAbstractionStructureType.predicate_state
+    structure_type = LTLAbstractionStructureType.control_and_predicate_state
 
     mon_events = program.out_events \
                  + [Variable(s) for s in program.states]
@@ -185,9 +185,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
                 return True, mm
 
 
-        if base_type == LTLAbstractionBaseType.explicit and \
+        if base_type == LTLAbstractionBaseType.explicit_automaton and \
                 transition_type == LTLAbstractionTransitionType.combined and \
-                structure_type == LTLAbstractionStructureType.predicate_state:
+                structure_type == LTLAbstractionStructureType.control_and_predicate_state:
             mm = mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(predicate_abstraction,
                                                                                            program,
                                                                                            base_abstraction)

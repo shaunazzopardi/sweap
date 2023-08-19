@@ -584,9 +584,9 @@ class EffectsAbstraction(PredicateAbstraction):
     def to_ltl(self, base_type: LTLAbstractionBaseType, transition_type: LTLAbstractionTransitionType,
                structure_type: LTLAbstractionStructureType):
         ltl_abstractions = {}
-        if base_type == LTLAbstractionBaseType.explicit and \
+        if base_type == LTLAbstractionBaseType.explicit_automaton and \
                 transition_type == LTLAbstractionTransitionType.combined and \
-                structure_type == LTLAbstractionStructureType.predicate_state:
+                structure_type == LTLAbstractionStructureType.control_and_predicate_state:
             return explicit_to_state_based_ltl(self)
         if len(ltl_abstractions) != 1:
             raise NotImplementedError("Options for LTL abstraction not implemented: " + str(base_type) + ", " + str(
