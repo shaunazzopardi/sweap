@@ -6,7 +6,7 @@ from programs.util import transition_formula, safe_update_set_vals, stringify_pr
 from prop_lang.util import conjunct_formula_set, neg, sat
 
 
-def effects_to_explicit_abstraction(predAbs):
+def effects_to_explicit_automaton_abstraction(predAbs):
     states = set()
     env_transitions = []
     new_env_to_program_transitions = {}

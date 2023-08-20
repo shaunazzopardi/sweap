@@ -2,7 +2,7 @@ import logging
 import time
 
 from programs.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
-from programs.abstraction.effects_abstraction.util.effects_to_explicit import effects_to_explicit_abstraction
+from programs.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
 from programs.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
 from programs.abstraction.explicit_abstraction.explicit_to_ltl import explicit_to_state_based_ltl
 from programs.abstraction.interface.ltl_abstraction_types import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
@@ -579,7 +579,8 @@ class EffectsAbstraction(PredicateAbstraction):
                        self.abstraction.con_events, self.abstraction.out_events, False, preprocess=True)
 
     def to_automaton_abstraction(self):
-        return effects_to_explicit_abstraction(self)
+        self.abstraction_automaton = effects_to_explicit_automaton_abstraction(self)
+        return self.abstraction_automaton
 
     def to_ltl(self, base_type: LTLAbstractionBaseType, transition_type: LTLAbstractionTransitionType,
                structure_type: LTLAbstractionStructureType):
