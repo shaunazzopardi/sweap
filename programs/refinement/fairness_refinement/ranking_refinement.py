@@ -27,19 +27,19 @@ def try_liveness_refinement(counterstrategy_states: [str],
                             predicate_abstraction: PredicateAbstraction,
                             agreed_on_transitions,
                             disagreed_on_state,
-                            symbol_table: dict,
-                            state_pred_label_to_formula: dict,
                             ranking_invars: dict[Formula, [Formula]],
                             allow_user_input):
+    symbol_table = predicate_abstraction.get_symbol_table()
     ## check if should use fairness refinement or not
     try:
         print("Counterstrategy states before environment step: " + ", ".join(counterstrategy_states))
         last_counterstrategy_state = counterstrategy_states[-1]
         use_fairness_refinement_flag, counterexample_loop, entry_valuation, entry_predicate, pred_mismatch \
-            = use_fairness_refinement(program, agreed_on_transitions,
+            = use_fairness_refinement(predicate_abstraction,
+                                      agreed_on_transitions,
                                       disagreed_on_state,
                                       last_counterstrategy_state,
-                                      symbol_table, state_pred_label_to_formula)
+                                      symbol_table)
     except Exception as e:
         print("WARNING: " + str(e))
         print("I will try to use safety instead.")
@@ -344,37 +344,37 @@ def use_liveness_refinement_trans(ce: [dict], symbol_table):
         return False, None
 
 
-def use_fairness_refinement(program,
+def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
                             agreed_on_transitions,
                             disagreed_on_state,
                             last_counterstrategy_state,
-                            symbol_table, pred_label_to_formula):
+                            symbol_table):
     yes = False
     mon_transitions = [(y, st) for (y, st) in agreed_on_transitions]
     ce = [x for _, x in agreed_on_transitions]
 
     # TODO we can do more analysis here
     # check first if there are actions that change the value of a variable
-    if not any(a for t, _ in mon_transitions for a in t.action if not isinstance(a.right, Value) and a.left != a.right and not symbol_table[str(a.left)] == "bool"):
+    if not any(a for t, _ in mon_transitions for a in t.action if not isinstance(a.right, Value)
+                                                                  and a.left != a.right
+                                                                  and not symbol_table[str(a.left)] == "bool"):
         return False, None, None, None, None
 
-    yes_state, first_index_state = use_liveness_refinement_state(ce, last_counterstrategy_state, disagreed_on_state[1], symbol_table)
+    yes_state, first_index_state = use_liveness_refinement_state(ce,
+                                                                 last_counterstrategy_state,
+                                                                 disagreed_on_state[1],
+                                                                 symbol_table)
     if yes_state:
-        yes = True
         first_index = first_index_state
-
-    if yes:
         ce_prog_loop_tran_concretised = mon_transitions[first_index:]
         # prune up to predicate mismatch
         # TODO THIS IS NOT CORRECT
         # ce_prog_loop_tran_concretised = []
         pred_mismatch = False
-        pred_symbol_table = symbol_table | {str(p):TypedValuation(str(p), "bool", None) for p in pred_label_to_formula.keys() if isinstance(p, Variable)}
         exit = False
+        program = predicate_abstraction.get_program()
 
         # TODO simplify loop by finding repeated sequences
-
-
         if [] == [t for t, _ in ce_prog_loop_tran_concretised if [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
             return False, None, None, None, None
 
@@ -383,8 +383,10 @@ def use_fairness_refinement(program,
                                                     for key, value in ce_prog_loop_tran_concretised[0][1].items()
                                                     if key == tv.name])
 
-        true_preds = [p for p in pred_label_to_formula.values() if smt_checker.check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
-        false_preds = [neg(p) for p in pred_label_to_formula.values() if p not in true_preds]
+        all_state_preds = predicate_abstraction.get_state_predicates()
+
+        true_preds = [p for p in all_state_preds if smt_checker.check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
+        false_preds = [neg(p) for p in all_state_preds if p not in true_preds]
         entry_predicate = conjunct_formula_set(true_preds + false_preds)
 
         return True, ce_prog_loop_tran_concretised, entry_valuation, entry_predicate, pred_mismatch

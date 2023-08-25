@@ -1,9 +1,11 @@
+from programs.abstraction.concretisation import concretize_transitions
+from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from programs.analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.analysis.model_checker import ModelChecker
 from programs.program import Program
 from programs.synthesis.mealy_machine import MealyMachine
-from programs.util import label_pred, concretize_transitions, parse_nuxmv_ce_output_finite
+from programs.util import label_pred, parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set
@@ -14,12 +16,14 @@ def compatibility_checking(program: Program,
                            predicate_abstraction: PredicateAbstraction,
                            mealy_machine: MealyMachine,
                            is_controller: bool,
+                           base_abstraction,
+                           ltlAbstractionType: LTLAbstractionType,
                            mon_events,
-                           all_preds,
-                           symbol_table,
-                           state_pred_label_to_formula,
                            project_on_abstraction: bool,
                            prefer_lasso_counterexamples: bool):
+    mealy_machine = predicate_abstraction.massage_mealy_machine(mealy_machine, base_abstraction, ltlAbstractionType)
+    print(mealy_machine)
+
     mealy_nuxmv = mealy_machine.to_nuXmv_with_turns(predicate_abstraction.get_program().states,
                                                     predicate_abstraction.get_program().out_events,
                                                     predicate_abstraction.get_state_predicates(),
@@ -36,6 +40,9 @@ def compatibility_checking(program: Program,
         mismatch_condition = lasso_mismatch
     else:
         mismatch_condition = None
+
+    all_preds = predicate_abstraction.get_all_preds()
+    symbol_table = predicate_abstraction.get_symbol_table()
 
     system = create_nuxmv_model_for_compatibility_checking(program,
                                                            mealy_nuxmv,
@@ -132,8 +139,8 @@ def compatibility_checking(program: Program,
     transitions_without_stutter_program_took, env_desired_abstract_state, _ = \
                                                             concretize_transitions(program,
                                                                                    program,
+                                                                                   predicate_abstraction,
                                                                                    transition_indices_and_state,
-                                                                                   state_pred_label_to_formula,
                                                                                    incompatible_state)
 
     # if pred_state is not None:

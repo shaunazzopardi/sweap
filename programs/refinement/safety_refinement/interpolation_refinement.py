@@ -21,10 +21,10 @@ def safety_refinement(program: Program,
                       agreed_on_transitions,
                       disagreed_on_state,
                       ce,
-                      symbol_table,
                       allow_user_input: bool,
                       keep_only_bool_interpolants: bool,
                       conservative_with_state_predicates: bool):
+    symbol_table = predicate_abstraction.get_symbol_table()
     if allow_user_input:
         new_state_preds = interactive_state_predicates()
     else:

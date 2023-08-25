@@ -1,13 +1,17 @@
-from programs.util import label_preds, label_pred
+from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from programs.program import Program
+from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from programs.util import label_preds, label_pred, add_prev_suffix
 from prop_lang.biop import BiOp
+from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct, conjunct_formula_set, disjunct_formula_set, iff, X, implies, neg, G
+from prop_lang.util import conjunct, conjunct_formula_set, disjunct_formula_set, iff, X, implies, neg, G, disjunct, F
 from prop_lang.variable import Variable
 
 
-def explicit_to_state_based_ltl(predAbs):
+def explicit_abstraction_to_state_based_ltl_abstraction(predAbs: PredicateAbstraction,
+                                                        one_step_abstraction: Program):
     # This requires the abstraction to be explicit (no invars ignored in states)
-    one_step_abstraction = predAbs.to_automaton_abstraction()
     print(one_step_abstraction.to_dot())
     predicates = predAbs.get_state_predicates() + predAbs.get_transition_predicates()
 
@@ -72,16 +76,16 @@ def explicit_to_state_based_ltl(predAbs):
 
         # this can be optimised
         for et in not_init_env_transitions:
-        # for et in one_step_abstraction.state_to_env[t.tgt]:
+            # for et in one_step_abstraction.state_to_env[t.tgt]:
             if et.src.compatible(t.tgt, predAbs.get_program().symbol_table):
                 if et.condition not in preds_now_to_next[current_pred_state][t.src][t.condition].keys():
                     preds_now_to_next[current_pred_state][t.src][t.condition][et.condition] = {}
 
-
                 next_pred_oblig = conjunct_formula_set(
                     [iff(label_pred(p, predicates), X(label_pred(p, predicates))) for p in predicates
                      if "_prev" not in str(p) and
-                     (p not in t.src.predicates + et.tgt.predicates and neg(p) not in t.src.predicates + et.tgt.predicates)])
+                     (p not in t.src.predicates + et.tgt.predicates and neg(
+                         p) not in t.src.predicates + et.tgt.predicates)])
 
                 et_current_out = set()
                 et_tran_preds = set()
@@ -98,7 +102,8 @@ def explicit_to_state_based_ltl(predAbs):
 
                 if next_state not in preds_now_to_next[current_pred_state][t.src][t.condition][et.condition].keys():
                     preds_now_to_next[current_pred_state][t.src][t.condition][et.condition][next_state] = []
-                preds_now_to_next[current_pred_state][t.src][t.condition][et.condition][next_state].append(conjunct(X(next_here), next_pred_oblig))
+                preds_now_to_next[current_pred_state][t.src][t.condition][et.condition][next_state].append(
+                    conjunct(X(next_here), next_pred_oblig))
 
     transitions = []
     for Ps, state_dict in preds_now_to_next.items():
@@ -130,7 +135,8 @@ def explicit_to_state_based_ltl(predAbs):
         now = conjunct_formula_set([Ps] + irrelevant_states)
         transitions.append(G(implies(now, next)))
 
-    return one_step_abstraction, [init_cond, at_least_and_at_most_one_state] + transitions
+    return [init_cond, at_least_and_at_most_one_state] + transitions
+
 
 def bookkeep_tran_preds(con_tran_preds, env_tran_preds):
     if True:
@@ -139,3 +145,49 @@ def bookkeep_tran_preds(con_tran_preds, env_tran_preds):
         neg = {p for p in all_neg if p.right not in pos}
 
         return (pos | neg)
+
+
+def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
+                         predicate_abstraction: PredicateAbstraction,
+                         one_step_abstraction: Program):
+    ltl_abstraction = explicit_abstraction_to_state_based_ltl_abstraction(predicate_abstraction, one_step_abstraction)
+
+    predicate_vars = set()
+    for interpolant in predicate_abstraction.get_interpolants():
+        predicate_vars.add(label_pred(interpolant, []))
+
+    transition_fairness = []
+    for ranking, invars in predicate_abstraction.get_ranking_and_invars().items():
+        dec = BiOp(add_prev_suffix(ranking), ">", ranking)
+        inc = BiOp(add_prev_suffix(ranking), "<", ranking)
+
+        dec_var = label_pred(dec, predicate_abstraction.get_ranking_and_invars().keys())
+        inc_var = label_pred(inc, predicate_abstraction.get_ranking_and_invars().keys())
+
+        invar_vars = [label_pred(invar, invars) for invar in invars]
+        invar_formula = conjunct_formula_set(invar_vars)
+
+        predicate_vars.add(dec_var)
+        predicate_vars.add(inc_var)
+        predicate_vars.update(invar_vars)
+
+        transition_fairness.extend([
+            implies(G(F(conjunct(invar_formula, dec_var))),
+                    G(F((disjunct(inc_var, neg(invar_formula)))))).simplify()])
+
+    assumptions = original_LTL_problem.assumptions + transition_fairness + ltl_abstraction
+    guarantees = original_LTL_problem.guarantees
+
+    program = predicate_abstraction.get_program()
+    env_props = program.out_events \
+                + [Variable(s) for s in program.states] \
+                + list(predicate_vars) \
+                + original_LTL_problem.env_props
+    con_props = original_LTL_problem.con_props
+
+    ltl_synthesis_problem = LTLSynthesisProblem(env_props,
+                                                con_props,
+                                                assumptions,
+                                                guarantees)
+
+    return ltl_synthesis_problem

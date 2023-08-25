@@ -205,7 +205,10 @@ class MealyMachine:
 
         return NuXmvModel(self.name, set(vars), define, init, invar, trans)
 
-    def fill_in_predicates_at_controller_states_label_tran_preds_appropriately(self, predicate_abstraction, program, abstract_program):
+    def fill_in_predicates_at_controller_states_label_tran_preds_appropriately(self,
+                                                                               predicate_abstraction,
+                                                                               program,
+                                                                               abstract_program):
         symbol_table = (program.symbol_table |
                         {tv.name + "_prev": TypedValuation(tv.name + "_prev", tv.type, tv.value) for tv in
                          program.valuation})
@@ -332,7 +335,9 @@ class MealyMachine:
             for (mm_con_cond, mm_con_tgt) in dict.keys():
                 proper_con_transitions[k] |= {(conjunct(mm_con_cond, disjunct_formula_set(dict[(mm_con_cond, mm_con_tgt)])), (mm_con_tgt))}
 
-        return MealyMachine(self.name, self.init_st, self.env_events, self.con_events, self.env_transitions, proper_con_transitions)
+        new_mm = MealyMachine(self.name, self.init_st, self.env_events, self.con_events, self.env_transitions, proper_con_transitions)
+
+        return new_mm
 
     # TODO this function needs to be optimised
     def project_controller_on_program(self, name, program, predicate_abstraction: PredicateAbstraction, symbol_table,

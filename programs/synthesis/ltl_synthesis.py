@@ -5,38 +5,12 @@ from typing import Tuple
 from parsing.hoa_parser import hoa_to_transitions
 from programs.program import Program
 from programs.synthesis.mealy_machine import MealyMachine
-from programs.util import synthesis_problem_to_TLSF_script
-from prop_lang.formula import Formula
+from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from prop_lang.variable import Variable
 
 
-def ltl_synthesis(assumptions: [Formula], guarantees: [Formula], in_act: [Variable], out_act: [Variable],
-                  strix_tlsf_command: str) -> Tuple[
-    bool, MealyMachine]:
-    # prepare for tlsf
-    in_acts_lowered = [str(a) for a in in_act]
-    out_acts_lowered = [str(a) for a in out_act]
-
-    assumptions_tlsf = [str(a).replace("TRUE", "true") \
-                            .replace("True", "true") \
-                            .replace("FALSE", "false") \
-                            .replace("False", "false") \
-                            .replace(" & ", " && ") \
-                            .replace(" | ", " || ") \
-                            .replace("\"", "") for a in assumptions]
-
-    guarantees_tlsf = [str(g).replace("TRUE", "true") \
-                           .replace("True", "true") \
-                           .replace("FALSE", "false") \
-                           .replace("False", "false") \
-                           .replace(" & ", " && ") \
-                           .replace(" | ", " || ") \
-                           .replace("\"", "") for g in guarantees]
-
-    tlsf_script = synthesis_problem_to_TLSF_script(in_acts_lowered,
-                                                   out_acts_lowered,
-                                                   assumptions_tlsf,
-                                                   guarantees_tlsf)
+def ltl_synthesis(synthesis_problem: LTLSynthesisProblem) -> Tuple[bool, MealyMachine]:
+    tlsf_script = synthesis_problem.to_tlsf()
     print(tlsf_script)
     try:
         with NamedTemporaryFile('w', suffix='.tlsf', delete=False) as tmp:
@@ -51,12 +25,12 @@ def ltl_synthesis(assumptions: [Formula], guarantees: [Formula], in_act: [Variab
 
             if "UNREALIZABLE" in output:
                 print("\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n")
-                mon = parse_hoa(env_events=in_act, con_events=out_act, output=output)
+                mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
                 return False, mon
             elif "REALIZABLE" in output:
                 print("\nINFO: Strix thinks the current abstract problem is realisable! I will check..\n")
                 try:
-                    mon = parse_hoa(env_events=in_act, con_events=out_act, output=output)
+                    mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
                     return True, mon
                 except Exception as err:
                     raise err

@@ -1,14 +1,17 @@
+import itertools
 import logging
 import time
 
 from programs.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
 from programs.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
 from programs.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
-from programs.abstraction.explicit_abstraction.explicit_to_ltl import explicit_to_state_based_ltl
-from programs.abstraction.interface.ltl_abstraction_types import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
-    LTLAbstractionStructureType
+from programs.abstraction.explicit_abstraction.explicit_to_ltl import abstract_ltl_problem
+from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
+    LTLAbstractionStructureType, LTLAbstractionType, LTLAbstractionOutputType
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.synthesis.mealy_machine import MealyMachine
+from programs.typed_valuation import TypedValuation
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ from joblib import Parallel, delayed
 from programs.analysis.smt_checker import SMTChecker
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import add_prev_suffix, transition_formula, powerset_complete
+from programs.util import add_prev_suffix, transition_formula, powerset_complete, label_pred
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
@@ -36,7 +39,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_irrelevant_preds = {}
         self.abstract_effect_tran_preds_constant = {}
         self.all_pred_states = set()
-
+        self.base_abstraction = None
         self.con_env_transitions = {}
 
         self.init_program_trans = None
@@ -46,6 +49,9 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_guard_env_disjuncts = None
         self.state_predicates = []
         self.transition_predicates = []
+
+        self.interpolants = set()
+        self.ranking_and_invars = {}
         self.loops = []
 
         self.con_to_program_transitions = None
@@ -78,6 +84,8 @@ class EffectsAbstraction(PredicateAbstraction):
             self.abstract_effect_invars[t] = []
             self.abstract_effect_constant[t] = []
             self.abstract_effect_tran_preds_constant[formula] = []
+
+        self.symbol_table = {v:tv for v, tv in program.symbol_table.items()}
 
     def abstract_program_transition_env(self, env_trans: Transition, symbol_table):
         disjuncts, formula = self.abstract_guard(env_trans.condition, self.program.env_events, symbol_table)
@@ -437,9 +445,24 @@ class EffectsAbstraction(PredicateAbstraction):
                         "true" if len(nowPs) == 0 else "(" + " and ".join(str(p) for p in nowPs) + ")" for nowPs in
                         self.abstract_effect[t][E][nextPs]))
 
-    def add_predicates(self, new_state_predicates: [Formula], new_transition_predicates: [Formula], parallelise=True):
-        self.add_state_predicates(new_state_predicates, parallelise)
-        self.add_transition_predicates(new_transition_predicates, parallelise)
+    def add_predicates(self,
+                       new_interpolants: [Formula],
+                       new_ranking_and_invars: dict[Formula, [Formula]],
+                       parallelise=True):
+        self.interpolants.update(new_interpolants)
+        all_new_state_preds = (new_interpolants +
+                               list(itertools.chain.from_iterable(new_ranking_and_invars.values())))
+        self.add_state_predicates(all_new_state_preds, parallelise)
+
+        self.ranking_and_invars.update(new_ranking_and_invars)
+        new_tran_preds = []
+        for ranking in new_ranking_and_invars.keys():
+            dec = BiOp(add_prev_suffix(ranking), ">", ranking)
+            inc = BiOp(add_prev_suffix(ranking), "<", ranking)
+            new_tran_preds.append(dec)
+            new_tran_preds.append(inc)
+
+        self.add_transition_predicates(new_tran_preds, True)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:
@@ -452,6 +475,10 @@ class EffectsAbstraction(PredicateAbstraction):
         start = time.time()
         self.all_pred_states = set()
         for p in new_state_predicates:
+            self.symbol_table.update({
+                str(label_pred(p, new_state_predicates)):
+                    TypedValuation(str(label_pred(p, new_state_predicates)), "bool", true())})
+
             if parallelise:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
                 results_env = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
@@ -509,6 +536,10 @@ class EffectsAbstraction(PredicateAbstraction):
         start = time.time()
         self.all_pred_states = set()
         for p in new_transition_predicates:
+            self.symbol_table.update({
+                str(label_pred(p, new_transition_predicates)):
+                    TypedValuation(str(label_pred(p, new_transition_predicates)), "bool", true())})
+
             if parallelise:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
                 results_env = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
@@ -582,16 +613,21 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstraction_automaton = effects_to_explicit_automaton_abstraction(self)
         return self.abstraction_automaton
 
-    def to_ltl(self, base_type: LTLAbstractionBaseType, transition_type: LTLAbstractionTransitionType,
-               structure_type: LTLAbstractionStructureType):
+    def to_ltl(self,
+               original_ltl_problem: LTLSynthesisProblem,
+               ltlAbstractionType: LTLAbstractionType) -> tuple[object, ([Formula], [Formula])]:
         ltl_abstractions = {}
-        if base_type == LTLAbstractionBaseType.explicit_automaton and \
-                transition_type == LTLAbstractionTransitionType.combined and \
-                structure_type == LTLAbstractionStructureType.control_and_predicate_state:
-            return explicit_to_state_based_ltl(self)
+        if ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton and \
+                ltlAbstractionType.transition_type == LTLAbstractionTransitionType.combined and \
+                ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state and \
+                ltlAbstractionType.output_type == LTLAbstractionOutputType.after_env:
+            self.base_abstraction = self.to_automaton_abstraction()
+            return self.base_abstraction, abstract_ltl_problem(original_ltl_problem, self, self.base_abstraction)
         if len(ltl_abstractions) != 1:
-            raise NotImplementedError("Options for LTL abstraction not implemented: " + str(base_type) + ", " + str(
-                transition_type) + ", " + str(structure_type))
+            raise NotImplementedError("Options for LTL abstraction not implemented: " + str(ltlAbstractionType))
+
+    def get_symbol_table(self):
+        return self.symbol_table
 
     def get_state_predicates(self):
         return self.state_predicates
@@ -599,11 +635,27 @@ class EffectsAbstraction(PredicateAbstraction):
     def get_transition_predicates(self):
         return self.transition_predicates
 
+    def get_interpolants(self) -> [Formula]:
+        return self.interpolants
+
+    def get_ranking_and_invars(self) -> dict[Formula, [Formula]]:
+        return self.ranking_and_invars
+
     def get_program(self):
         return self.program
 
-    def massage_mealy_machine(self, mealymachine: MealyMachine) -> MealyMachine:
-        pass
+    def massage_mealy_machine(self,
+                              mm: MealyMachine,
+                              base_abstraction,
+                              ltlAbstractionType: LTLAbstractionType) -> MealyMachine:
+        if ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton and \
+                ltlAbstractionType.transition_type == LTLAbstractionTransitionType.combined and \
+                ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state:
+            return mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(self,
+                                                                                             self.program,
+                                                                                             base_abstraction)
+        else:
+            raise NotImplementedError("Options for LTL abstraction not implemented: " + str(ltlAbstractionType))
 
     def concretise_counterexample(self, counterexample: [dict]):
         pass

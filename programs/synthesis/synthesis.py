@@ -1,8 +1,8 @@
 from typing import Tuple
 
 from programs.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from programs.abstraction.interface.ltl_abstraction_types import LTLAbstractionStructureType, \
-    LTLAbstractionTransitionType, LTLAbstractionBaseType
+from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
+    LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
 from programs.analysis.compatibility_checking.compatibility_checking import compatibility_checking
 from programs.analysis.smt_checker import SMTChecker
 
@@ -10,15 +10,13 @@ from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
 from programs.refinement.fairness_refinement.ranking_refinement import try_liveness_refinement
 from programs.refinement.safety_refinement.interpolation_refinement import safety_refinement
-from programs.synthesis import ltl_synthesis
-from programs.synthesis.ltl_synthesis import syfco_ltl, syfco_ltl_in, syfco_ltl_out
+from programs.synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
+from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
-from programs.util import label_pred
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import neg, G, F, implies, conjunct, disjunct, true, conjunct_formula_set
+from prop_lang.util import true
 from prop_lang.variable import Variable
 
 smt_checker = SMTChecker()
@@ -28,7 +26,7 @@ def synthesize(program: Program,
                ltl_text: str,
                tlsf_path: str,
                docker: bool,
-               project_on_abstraction=False) -> Tuple[bool, Program]:
+               project_on_abstraction=False) -> Tuple[bool, MealyMachine]:
     # if not program.deterministic:
     #     raise Exception("We do not handle non-deterministic programs yet.")
 
@@ -68,7 +66,7 @@ def synthesize(program: Program,
 
 
 def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guarantees: Formula, in_acts: [Variable],
-                            out_acts: [Variable], docker: str, project_on_abstraction=False, debug=False) -> \
+                            out_acts: [Variable], docker: bool, project_on_abstraction=False, debug=False) -> \
         Tuple[bool, MealyMachine]:
     eager = False
     keep_only_bool_interpolants = False
@@ -85,97 +83,45 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
     add_all_boolean_vars = True
 
     state_predicates = []
-    transition_predicates = []
-    ranking_invars = {}
 
     if add_all_boolean_vars:
         new_state_preds = [Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool")]
     else:
         new_state_preds = []
 
+    ranking_invars = {}
     new_ranking_invars = {}
 
-    new_transition_predicates = []
-
-    transition_fairness = []
     predicate_abstraction = EffectsAbstraction(program)
 
-    pred_acts = []
-    state_pred_label_to_formula = {}
-    symbol_table = predicate_abstraction.program.symbol_table
-    symbol_table.update({tv.name + "_prev": TypedValuation(tv.name + "_prev", tv.type, tv.value) for tv in
-                         program.valuation})
-
-    base_type = LTLAbstractionBaseType.explicit_automaton
-    transition_type = LTLAbstractionTransitionType.combined
-    structure_type = LTLAbstractionStructureType.control_and_predicate_state
+    ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.explicit_automaton,
+                                                                LTLAbstractionTransitionType.combined,
+                                                                LTLAbstractionStructureType.control_and_predicate_state,
+                                                                LTLAbstractionOutputType.after_env)
 
     mon_events = program.out_events \
                  + [Variable(s) for s in program.states]
 
+    original_LTL_problem = LTLSynthesisProblem(in_acts,
+                                               out_acts,
+                                               [ltl_assumptions],
+                                               [ltl_guarantees])
+
     while True:
-        for invars in new_ranking_invars.values():
-            new_state_preds.extend(invars)
+        ## update predicate abstraction
+        predicate_abstraction.add_predicates(new_state_preds, new_ranking_invars, True)
 
         state_predicates.extend(new_state_preds)
-        transition_predicates.extend(new_transition_predicates)
-
-        # symbol_table["inloop"] = TypedValuation("inloop", "bool", True)
-        # symbol_table["notinloop"] = TypedValuation("notinloop", "bool", True)
-
-        ## update predicate abstraction
-        predicate_abstraction.add_predicates(new_state_preds, new_transition_predicates, True)
-        ## LTL abstraction
-        base_abstraction, ltl_abstraction = predicate_abstraction.to_ltl(base_type=base_type,
-                                                                         transition_type=transition_type,
-                                                                         structure_type=structure_type)
-        print(", ".join(map(str, ltl_abstraction)))
-
-        all_preds = state_predicates + transition_predicates
-        all_new_preds = new_state_preds + new_transition_predicates
         new_state_preds.clear()
 
-        new_pred_name_dict = {p: label_pred(p, all_preds) for p in all_new_preds}
-        state_pred_label_to_formula.update(
-            {label_pred(p, all_preds): p for p in all_new_preds})  # + transition_predicates_prev}
-        state_pred_label_to_formula.update(
-            {neg(label_pred(p, all_preds)): neg(p) for p in all_new_preds})  # + transition_predicates_prev}
-        pred_acts.extend([new_pred_name_dict[v] for v in new_pred_name_dict.keys()])
-
-        # should be computed incrementally
-        i = 0
-        while i < len(new_transition_predicates):
-            dec = new_pred_name_dict[new_transition_predicates[i]]
-            inc = new_pred_name_dict[new_transition_predicates[i + 1]]
-            ranking = new_transition_predicates[i].right
-            if debug:
-                assert not any(v for v in ranking.variablesin() if "_prev" in v.name)
-
-            invar_vars = [new_pred_name_dict[p] for p in new_ranking_invars[ranking]]
-            invar_formula = conjunct_formula_set(invar_vars)
-
-            transition_fairness.extend([
-                implies(G(F(conjunct(invar_formula, dec))), G(F((disjunct(inc, neg(invar_formula)))))).simplify()])
-            # transition_fairness += [implies(G(F(conjunct(invar_formula, disjunct(dec, dec_prev)))), G(F(disjunct(inc, inc_prev))))]
-            i += 2
-
-        new_transition_predicates.clear()
+        ranking_invars.update(new_ranking_invars)
         new_ranking_invars.clear()
 
-        symbol_table.update({
-            str(label_pred(v, all_new_preds)): TypedValuation(str(label_pred(v, all_new_preds)), "bool", true()) for v
-            in
-            all_new_preds})
+        ## LTL abstraction
+        base_abstraction, abstract_ltl_problem = predicate_abstraction.to_ltl(original_LTL_problem,
+                                                                              ltlAbstractionType)
 
-        assumptions = [ltl_assumptions] + transition_fairness + ltl_abstraction
-        guarantees = [ltl_guarantees]
-
-        (real, mm) = ltl_synthesis.ltl_synthesis(assumptions,
-                                                 guarantees,
-                                                 in_acts + mon_events + pred_acts,
-                                                 out_acts,
-                                                 docker)
-        print(mm.to_dot(all_preds))
+        (real, mm) = ltl_synthesis(abstract_ltl_problem)
 
         if real and not debug:
             print("Realizable")
@@ -184,24 +130,14 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
             else:
                 return True, mm
 
-
-        if base_type == LTLAbstractionBaseType.explicit_automaton and \
-                transition_type == LTLAbstractionTransitionType.combined and \
-                structure_type == LTLAbstractionStructureType.control_and_predicate_state:
-            mm = mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(predicate_abstraction,
-                                                                                           program,
-                                                                                           base_abstraction)
-            print("Mealy Machine with filled in controller steps:\n" + str(mm.to_dot(all_preds)))
-
         ## compatibility checking
         determination, result = compatibility_checking(program,
                                                        predicate_abstraction,
                                                        mm,
                                                        real,
+                                                       base_abstraction,
+                                                       ltlAbstractionType,
                                                        mon_events,
-                                                       all_preds,
-                                                       symbol_table,
-                                                       state_pred_label_to_formula,
                                                        project_on_abstraction,
                                                        prefer_lasso_counterexamples)
 
@@ -221,8 +157,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
                                                   predicate_abstraction,
                                                   agreed_on_transitions,
                                                   disagreed_on_state,
-                                                  symbol_table,
-                                                  state_pred_label_to_formula,
                                                   ranking_invars,
                                                   allow_user_input)
 
@@ -233,13 +167,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
             pass
 
         if eager or (not success and result is None):
-        ## do safety refinement
+            ## do safety refinement
             success, result = safety_refinement(program,
                                                 predicate_abstraction,
                                                 agreed_on_transitions,
                                                 disagreed_on_state,
                                                 ce,
-                                                symbol_table,
                                                 allow_user_input,
                                                 keep_only_bool_interpolants,
                                                 conservative_with_state_predicates)
