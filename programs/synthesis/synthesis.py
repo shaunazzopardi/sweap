@@ -46,11 +46,21 @@ def synthesize(program: Program,
     ltl = string_to_ltl(ltl_text)
 
     if isinstance(ltl, BiOp) and (ltl.op == "->" or ltl.op == "=>"):
-        ltl_assumptions = ltl.left
-        ltl_guarantees = ltl.right
+        ltl_assumptions_formula = ltl.left
+        ltl_guarantees_formula = ltl.right
     else:
-        ltl_assumptions = true()
-        ltl_guarantees = ltl
+        ltl_assumptions_formula = true()
+        ltl_guarantees_formula = ltl
+
+    if isinstance(ltl_assumptions_formula, BiOp) and ltl_assumptions_formula.op[0] == "&":
+        ltl_assumptions = ltl_assumptions_formula.sub_formulas_up_to_associativity()
+    else:
+        ltl_assumptions = [ltl_assumptions_formula]
+
+    if isinstance(ltl_guarantees_formula, BiOp) and ltl_guarantees_formula.op[0] == "&":
+        ltl_guarantees = ltl_guarantees_formula.sub_formulas_up_to_associativity()
+    else:
+        ltl_guarantees = [ltl_guarantees_formula]
 
     in_acts = [e for e in program.env_events]
     out_acts = [e for e in program.con_events]
@@ -67,7 +77,7 @@ def synthesize(program: Program,
                                    project_on_abstraction=project_on_abstraction)
 
 
-def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guarantees: Formula, in_acts: [Variable],
+def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_guarantees: [Formula], in_acts: [Variable],
                             out_acts: [Variable], docker: bool, project_on_abstraction=False, debug=False) -> \
         Tuple[bool, MealyMachine]:
     eager = False
@@ -110,8 +120,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
 
     original_LTL_problem = LTLSynthesisProblem(in_acts,
                                                out_acts,
-                                               [ltl_assumptions],
-                                               [ltl_guarantees])
+                                               ltl_assumptions,
+                                               ltl_guarantees)
 
     while True:
         ## update predicate abstraction
