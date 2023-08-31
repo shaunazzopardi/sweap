@@ -67,7 +67,7 @@ def effects_to_explicit_automaton_abstraction(predAbs):
                         tran_preds.append(p)
                     else:
                         nextPs_with_constants.add(p)
-                tran_preds.extend(predAbs.abstract_effect_tran_preds_constant[t_f])
+                tran_preds.extend(predAbs.abstract_effect_tran_preds_constant[t])
                 nextPs_with_constants.update(set(nextPs_without_tran_preds))
                 for P in Ps:
                     invars = set()
@@ -131,7 +131,7 @@ def effects_to_explicit_automaton_abstraction(predAbs):
                         tran_preds.append(p)
                     else:
                         nextPs_with_constants.add(p)
-                tran_preds.extend(predAbs.abstract_effect_tran_preds_constant[t_f])
+                tran_preds.extend(predAbs.abstract_effect_tran_preds_constant[t])
                 nextPs_with_constants.update(set(nextPs_without_tran_preds))
                 for P in Ps:
                     invars = set()

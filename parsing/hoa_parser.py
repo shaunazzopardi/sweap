@@ -6,7 +6,7 @@ from prop_lang.variable import Variable
 
 
 def hoa_to_transitions(hoa):
-    preamble_body = hoa.split("--BODY--")
+    preamble_body = hoa.strip().split("--BODY--")
 
     hoa_preamble = preamble_body[0]
     lines = hoa_preamble.splitlines()
@@ -24,7 +24,7 @@ def hoa_to_transitions(hoa):
     transitions = {}
     for raw_tran in raw_trans:
         result = re.search(
-            r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)(\n| )+)+)", raw_tran)
+            r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)( |\n)+)+)", raw_tran)
         if result == None:
             raise Exception("Could not parse HOA:\n" + hoa)
         else:
@@ -38,12 +38,13 @@ def hoa_to_transitions(hoa):
                     raw_cond = raw_cond.replace("t", "true")
                     raw_cond = raw_cond.replace("f", "false")  # probably we don't need this
                     cond = string_to_prop(raw_cond, True)
-                    cond = cond.replace(to_replace)
-                    # cond = cond.replace(lambda var : Variable(re.split("_loop", var.name)[0]))
+                    cond = cond.replace_vars(to_replace)
                     assert isinstance(cond, BiOp)
-                    key = (src, cond.left, tgt)
+                    env_cond = cond.left
+                    con_cond = cond.right
+                    key = (src, env_cond, tgt)
                     if key not in transitions.keys():
-                        transitions[key] = [cond.right]
+                        transitions[key] = [con_cond]
                     else:
-                        transitions[key] += [cond.right]
+                        transitions[key] += [con_cond]
     return hoa_dict["Start"], transitions

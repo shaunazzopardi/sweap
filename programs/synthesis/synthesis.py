@@ -19,6 +19,8 @@ from prop_lang.formula import Formula
 from prop_lang.util import true
 from prop_lang.variable import Variable
 
+import programs.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
+
 smt_checker = SMTChecker()
 
 
@@ -94,9 +96,13 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
 
     predicate_abstraction = EffectsAbstraction(program)
 
-    ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.explicit_automaton,
-                                                                LTLAbstractionTransitionType.combined,
-                                                                LTLAbstractionStructureType.control_and_predicate_state,
+    # ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.explicit_automaton,
+    #                                                             LTLAbstractionTransitionType.combined,
+    #                                                             LTLAbstractionStructureType.control_and_predicate_state,
+    #                                                             LTLAbstractionOutputType.after_env)
+    ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.effects_representation,
+                                                                LTLAbstractionTransitionType.env_con_separate,
+                                                                LTLAbstractionStructureType.control_state,
                                                                 LTLAbstractionOutputType.after_env)
 
     mon_events = program.out_events \
@@ -118,10 +124,16 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: Formula, ltl_guar
         new_ranking_invars.clear()
 
         ## LTL abstraction
-        base_abstraction, abstract_ltl_problem = predicate_abstraction.to_ltl(original_LTL_problem,
-                                                                              ltlAbstractionType)
+        base_abstraction, abstract_ltl_problem = effects_to_ltl.to_ltl(predicate_abstraction,
+                                                                       original_LTL_problem,
+                                                                       ltlAbstractionType)
 
-        (real, mm) = ltl_synthesis(abstract_ltl_problem)
+        (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
+        mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
+                                                         base_abstraction,
+                                                         ltlAbstractionType,
+                                                         abstract_ltl_problem)
+        print(mm)
 
         if real and not debug:
             print("Realizable")

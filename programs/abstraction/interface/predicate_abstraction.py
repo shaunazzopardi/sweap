@@ -28,17 +28,18 @@ class PredicateAbstraction(ABC):
     def to_automaton_abstraction(self):
         pass
 
-    @abstractmethod
-    def to_ltl(self,
-               original_ltl_problem: LTLSynthesisProblem,
-               ltlAbstractionType: LTLAbstractionType) -> tuple[object, LTLSynthesisProblem]:
-        pass
+    # @abstractmethod
+    # def to_ltl(self,
+    #            original_ltl_problem: LTLSynthesisProblem,
+    #            ltlAbstractionType: LTLAbstractionType) -> tuple[object, LTLSynthesisProblem]:
+    #     pass
 
     @abstractmethod
     def massage_mealy_machine(self,
                               mealymachine,
                               base_abstraction,
-                              ltlAbstractionType):
+                              ltlAbstractionType,
+                              synthesis_problem):
         pass
 
     @abstractmethod

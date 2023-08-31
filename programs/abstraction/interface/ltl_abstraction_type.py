@@ -2,7 +2,7 @@ from enum import Enum
 
 class LTLAbstractionBaseType(Enum):
     explicit_automaton = 1  # creates full unrolled automaton corresponding to predicate abstraction
-    symbolic_predicate_representation = 2  # has some symbolic (succinct) representation of the predicate abstraction
+    effects_representation = 2  # has a symbolic effects representation of the predicate abstraction
     one_to_one_with_program = 3  # predicates for each atomic condition and action in program
 
 

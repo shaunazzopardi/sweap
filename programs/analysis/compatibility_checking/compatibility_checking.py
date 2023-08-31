@@ -21,9 +21,6 @@ def compatibility_checking(program: Program,
                            mon_events,
                            project_on_abstraction: bool,
                            prefer_lasso_counterexamples: bool):
-    mealy_machine = predicate_abstraction.massage_mealy_machine(mealy_machine, base_abstraction, ltlAbstractionType)
-    print(mealy_machine)
-
     mealy_nuxmv = mealy_machine.to_nuXmv_with_turns(predicate_abstraction.get_program().states,
                                                     predicate_abstraction.get_program().out_events,
                                                     predicate_abstraction.get_state_predicates(),

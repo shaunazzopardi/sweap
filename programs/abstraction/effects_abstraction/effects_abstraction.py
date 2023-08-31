@@ -5,10 +5,11 @@ import time
 from programs.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
 from programs.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
 from programs.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
-from programs.abstraction.explicit_abstraction.explicit_to_ltl import abstract_ltl_problem
 from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
     LTLAbstractionStructureType, LTLAbstractionType, LTLAbstractionOutputType
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
+from programs.synthesis.ltl_synthesis import parse_hoa
 from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.synthesis.mealy_machine import MealyMachine
 from programs.typed_valuation import TypedValuation
@@ -39,7 +40,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_irrelevant_preds = {}
         self.abstract_effect_tran_preds_constant = {}
         self.all_pred_states = set()
-        self.base_abstraction = None
+        self.combined_automata_abstraction = None
         self.con_env_transitions = {}
 
         self.init_program_trans = None
@@ -80,10 +81,12 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.abstract_guard_con_disjuncts[t]
 
             formula = transition_formula(t)
+            # TODO these should eventually all depend on formula not transition,
+            #  note that multiple transitions may have the same formula
             self.formula_to_trans[formula] = t
             self.abstract_effect_invars[t] = []
             self.abstract_effect_constant[t] = []
-            self.abstract_effect_tran_preds_constant[formula] = []
+            self.abstract_effect_tran_preds_constant[t] = []
 
         self.symbol_table = {v:tv for v, tv in program.symbol_table.items()}
 
@@ -484,7 +487,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 results_env = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
                     delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_env_disjuncts[t],
                                                                  self.abstract_effect[t], p)
-                    for t in self.abstract_guard_env.keys() if t not in self.init_program_trans)
+                    for t in self.abstract_guard_env.keys())# if t not in self.init_program_trans)
                 results_con = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
                     delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_con_disjuncts[t],
                                                                  self.abstract_effect[t], p) for t in
@@ -564,13 +567,13 @@ class EffectsAbstraction(PredicateAbstraction):
             # TODO can optimise, since same t may be both env or con
             for t, t_formula, invars, constants, Es, new_effects in results_env:
                 self.abstract_effect_invars[t] += invars
-                self.abstract_effect_tran_preds_constant[t_formula] += constants
+                self.abstract_effect_tran_preds_constant[t] += constants
                 self.abstract_guard_env_disjuncts[t] = Es
                 self.abstract_effect[t] = new_effects
 
             for t, t_formula, invars, constants, Es, new_effects in results_con:
                 self.abstract_effect_invars[t] += invars
-                self.abstract_effect_tran_preds_constant[t_formula] += constants
+                self.abstract_effect_tran_preds_constant[t] += constants
                 self.abstract_guard_con_disjuncts[t] = Es
                 self.abstract_effect[t] = new_effects
 
@@ -613,19 +616,6 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstraction_automaton = effects_to_explicit_automaton_abstraction(self)
         return self.abstraction_automaton
 
-    def to_ltl(self,
-               original_ltl_problem: LTLSynthesisProblem,
-               ltlAbstractionType: LTLAbstractionType) -> tuple[object, ([Formula], [Formula])]:
-        ltl_abstractions = {}
-        if ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton and \
-                ltlAbstractionType.transition_type == LTLAbstractionTransitionType.combined and \
-                ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state and \
-                ltlAbstractionType.output_type == LTLAbstractionOutputType.after_env:
-            self.base_abstraction = self.to_automaton_abstraction()
-            return self.base_abstraction, abstract_ltl_problem(original_ltl_problem, self, self.base_abstraction)
-        if len(ltl_abstractions) != 1:
-            raise NotImplementedError("Options for LTL abstraction not implemented: " + str(ltlAbstractionType))
-
     def get_symbol_table(self):
         return self.symbol_table
 
@@ -645,15 +635,25 @@ class EffectsAbstraction(PredicateAbstraction):
         return self.program
 
     def massage_mealy_machine(self,
-                              mm: MealyMachine,
+                              mm_hoa: str,
                               base_abstraction,
-                              ltlAbstractionType: LTLAbstractionType) -> MealyMachine:
+                              ltlAbstractionType: LTLAbstractionType,
+                              synthesis_problem: AbstractLTLSynthesisProblem) -> MealyMachine:
         if ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton and \
                 ltlAbstractionType.transition_type == LTLAbstractionTransitionType.combined and \
-                ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state:
+                ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state and \
+                ltlAbstractionType.output_type == LTLAbstractionOutputType.after_env:
+            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=False)
             return mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(self,
                                                                                              self.program,
                                                                                              base_abstraction)
+        elif ltlAbstractionType.base_type == LTLAbstractionBaseType.effects_representation and \
+                ltlAbstractionType.transition_type == LTLAbstractionTransitionType.env_con_separate and \
+                ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_state and \
+                ltlAbstractionType.output_type == LTLAbstractionOutputType.after_env:
+            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=True)
+
+            return mm
         else:
             raise NotImplementedError("Options for LTL abstraction not implemented: " + str(ltlAbstractionType))
 

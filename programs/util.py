@@ -7,6 +7,7 @@ from pysmt.factory import SolverRedefinitionError
 from pysmt.fnode import FNode
 from pysmt.logics import QF_UFLRA
 from pysmt.shortcuts import get_env, And
+from sympy.utilities.iterables import iterable
 
 from programs.analysis.model_checker import ModelChecker
 from programs.analysis.smt_checker import SMTChecker
@@ -47,17 +48,23 @@ def ce_state_to_predicate_abstraction_trans(ltl_to_program_transitions, symbol_t
     smt_checker = SMTChecker()
 
     start = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in start.items() if
-                                      (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "TRUE"]
-                                     + [neg(Variable(key.removeprefix("mon_"))) for key, value in start.items() if
-                                        (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "FALSE"])
+                                  (key.startswith("mon_") or key.startswith("pred_") or Variable(
+                                      key) in env_events + con_events) and value == "TRUE"]
+                                 + [neg(Variable(key.removeprefix("mon_"))) for key, value in start.items() if
+                                    (key.startswith("mon_") or key.startswith("pred_") or Variable(
+                                        key) in env_events + con_events) and value == "FALSE"])
     middle = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in middle.items() if
-                                    (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "TRUE"]
-                                   + [neg(Variable(key.removeprefix("mon_"))) for key, value in middle.items() if
-                                      (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "FALSE"])
+                                   (key.startswith("mon_") or key.startswith("pred_") or Variable(
+                                       key) in env_events + con_events) and value == "TRUE"]
+                                  + [neg(Variable(key.removeprefix("mon_"))) for key, value in middle.items() if
+                                     (key.startswith("mon_") or key.startswith("pred_") or Variable(
+                                         key) in env_events + con_events) and value == "FALSE"])
     end = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in end.items() if
-                                    (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "TRUE"]
-                                   + [neg(Variable(key.removeprefix("mon_"))) for key, value in end.items() if
-                                      (key.startswith("mon_") or key.startswith("pred_") or Variable(key) in env_events + con_events) and value == "FALSE"])
+                                (key.startswith("mon_") or key.startswith("pred_") or Variable(
+                                    key) in env_events + con_events) and value == "TRUE"]
+                               + [neg(Variable(key.removeprefix("mon_"))) for key, value in end.items() if
+                                  (key.startswith("mon_") or key.startswith("pred_") or Variable(
+                                      key) in env_events + con_events) and value == "FALSE"])
 
     for abs_con_start in ltl_to_program_transitions.keys():
         if abs_con_start == "init":
@@ -153,7 +160,7 @@ def get_ce_from_nuxmv_output(out: str):
         if complete_prefix[i]["compatible"] == "TRUE":
             prune_up_to_mismatch += [complete_prefix[i]]
         else:
-            prune_up_to_mismatch += [complete_prefix[i]] # add mismatching state
+            prune_up_to_mismatch += [complete_prefix[i]]  # add mismatching state
             break
     return prune_up_to_mismatch, complete_prefix[len(prune_up_to_mismatch):] + complete_loop
 
@@ -280,6 +287,7 @@ def ground_formula_on_ce_state_with_index(formula: Formula, state: dict, i) -> F
 predicate_to_var_cache = {}
 var_to_predicate_cache = {}
 
+
 def is_predicate_var(p):
     if isinstance(p, str):
         p = Variable(p)
@@ -288,11 +296,17 @@ def is_predicate_var(p):
     else:
         return False
 
+
 def var_to_predicate(p):
-    if p in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[p]
+    if isinstance(p, UniOp) and p.op == "!":
+        p_new = p.right
     else:
-        raise Exception("Could not find predicate for variable: " + str(p))
+        p_new = p
+    if p_new in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[p_new]
+    else:
+        raise Exception("Could not find predicate for variable: " + str(p_new))
+
 
 def label_pred(p, preds):
     if p in predicate_to_var_cache.keys():
@@ -312,34 +326,35 @@ def stringify_pred(p):
     if p in predicate_to_var_cache.keys():
         return predicate_to_var_cache[p]
 
-    representation =  Variable("pred_" +
-                                str(p)
-                                .replace(" ", "")
-                                .replace("_", "")
-                                .replace("(", "_")
-                                .replace(")", "_")
-                                .replace("=", "_EQ_")
-                                .replace(">", "_GT_")
-                                .replace("<=", "_LTEQ_")
-                                .replace("<", "_LT_")
-                                .replace(">=", "_GTEQ_")
-                                .replace("-", "_MINUS_")
-                                .replace("+", "_PLUS_")
-                                .replace("/", "_DIV_")
-                                .replace("*", "_MULT_")
-                                .replace("%", "_MOD_")
-                                .replace("!", "_NEG_")
-                                .replace("&&", "_AND_")
-                                .replace("&", "_AND_")
-                                .replace("||", "_OR_")
-                                .replace("|", "_OR_")
-                                .replace("->", "_IMPLIES_")
-                                .replace("=>", "_IMPLIES_")
-                                .replace("<->", "_IFF_")
-                                .replace("<=>", "_IFF_")
-                                )
+    representation = Variable("pred_" +
+                              str(p)
+                              .replace(" ", "")
+                              .replace("_", "")
+                              .replace("(", "_")
+                              .replace(")", "_")
+                              .replace("=", "_EQ_")
+                              .replace(">", "_GT_")
+                              .replace("<=", "_LTEQ_")
+                              .replace("<", "_LT_")
+                              .replace(">=", "_GTEQ_")
+                              .replace("-", "_MINUS_")
+                              .replace("+", "_PLUS_")
+                              .replace("/", "_DIV_")
+                              .replace("*", "_MULT_")
+                              .replace("%", "_MOD_")
+                              .replace("!", "_NEG_")
+                              .replace("&&", "_AND_")
+                              .replace("&", "_AND_")
+                              .replace("||", "_OR_")
+                              .replace("|", "_OR_")
+                              .replace("->", "_IMPLIES_")
+                              .replace("=>", "_IMPLIES_")
+                              .replace("<->", "_IFF_")
+                              .replace("<=>", "_IFF_")
+                              )
     predicate_to_var_cache[p] = representation
     return representation
+
 
 def stringify_pred_take_out_neg(p):
     res = None
@@ -355,6 +370,7 @@ def stringify_pred_take_out_neg(p):
 
 def label_preds(ps, preds):
     return {label_pred(p, preds) for p in ps}
+
 
 def reduce_up_to_iff(old_preds, new_preds, symbol_table):
     if len(new_preds) == 0:
@@ -384,7 +400,7 @@ def has_equiv_pred(p, preds, symbol_table):
     smt_checker = SMTChecker()
 
     for pp in preds:
-        #technically should check if it can be expressed using a set of the existing predicates, but can be expensive
+        # technically should check if it can be expressed using a set of the existing predicates, but can be expensive
         if is_tautology(iff(p, pp), symbol_table, smt_checker) or \
                 is_tautology(iff(neg(p), pp), symbol_table, smt_checker):
             return True
@@ -408,7 +424,7 @@ def stutter_transitions(program, env: bool):
 def stutter_transition(program, state, env: bool):
     transitions = program.env_transitions if env else program.con_transitions
     condition = neg(disjunct_formula_set([t.condition
-                                      for t in transitions if t.src == state]))
+                                          for t in transitions if t.src == state]))
     smt_checker = SMTChecker()
 
     if smt_checker.check(And(*condition.to_smt(program.symbol_table))):
@@ -416,19 +432,21 @@ def stutter_transition(program, state, env: bool):
                           condition,
                           [],
                           [],
-                          state).complete_outputs(program.out_events)\
+                          state).complete_outputs(program.out_events) \
             .complete_action_set([Variable(v.name) for v in program.valuation])
     else:
         return None
 
-def looping_to_normal(t : Transition):
-    return t #Transition(re.split("_loop", t.src)[0], t.condition, t.action, t.output,  re.split("_loop", t.tgt)[0]) \
-              #  if "loop" in ((t.src) + (t.tgt)) else t
+
+def looping_to_normal(t: Transition):
+    return t  # Transition(re.split("_loop", t.src)[0], t.condition, t.action, t.output,  re.split("_loop", t.tgt)[0]) \
+    #  if "loop" in ((t.src) + (t.tgt)) else t
+
 
 def preds_in_state(ce_state: dict):
     return [var_to_predicate(Variable(p)) for p, v in ce_state.items() if p.startswith("pred_") and v == "TRUE"] \
-                + [neg(var_to_predicate((Variable(p)))) for p, v in ce_state.items() if
-                   p.startswith("pred_") and v == "FALSE"]
+        + [neg(var_to_predicate((Variable(p)))) for p, v in ce_state.items() if
+           p.startswith("pred_") and v == "FALSE"]
 
 
 def ground_transitions(program, transition_and_state_list, vars_to_ground_on, symbol_table):
@@ -451,11 +469,13 @@ def ground_predicate_on_vars(program, predicate, ce_state, vars, symbol_table):
         [BiOp(Variable(key), ":=", Value(grounded_state[key])) for key in grounded_state.keys()])
     return projected_condition
 
+
 def keep_bool_preds(formula: Formula, symbol_table):
     if not isinstance(formula, BiOp):
         return formula if not any(v for v in formula.variablesin() if symbol_table[str(v)].type != "bool") else true()
     else:
-        preds = {p for p in formula.sub_formulas_up_to_associativity() if not any(v for v in p.variablesin() if symbol_table[str(v)].type != "bool")}
+        preds = {p for p in formula.sub_formulas_up_to_associativity() if
+                 not any(v for v in p.variablesin() if symbol_table[str(v)].type != "bool")}
         return conjunct_formula_set(preds)
 
 
@@ -527,7 +547,7 @@ def safe_update_set_vals(d, k, v_set):
         d[k] = v_set
 
 
-def safe_update_dict_value(d : dict, k, v_dict):
+def safe_update_dict_value(d: dict, k, v_dict):
     if k in d.keys():
         d[k].update(v_dict)
     else:
@@ -538,7 +558,8 @@ def function_is_of_natural_type(f: Formula, invars: Formula, symbol_table):
     # TODO, should we conjunct or disjunct invars?
     smt_checker = SMTChecker()
 
-    return not smt_checker.check(And(*conjunct(conjunct_formula_set(invars), BiOp(f, "<", Value(0))).to_smt(symbol_table)))
+    return not smt_checker.check(
+        And(*conjunct(conjunct_formula_set(invars), BiOp(f, "<", Value(0))).to_smt(symbol_table)))
 
 
 def resolve_next_references(transition, valuation):
@@ -561,8 +582,8 @@ def resolve_next_references(transition, valuation):
         return transition
 
 
-
-def guarded_action_transitions_to_normal_transitions(guarded_transition, valuation, env_events, con_events, outputs, symbol_table):
+def guarded_action_transitions_to_normal_transitions(guarded_transition, valuation, env_events, con_events, outputs,
+                                                     symbol_table):
     if str(guarded_transition.condition) == "otherwise":
         # check that no guarded actions
         for (act, guard) in guarded_transition.action:
@@ -579,7 +600,9 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
     guarded_acts = {act: g_set for act, g_set in guarded_acts.items() if len(g_set) > 0}
 
     if len(guarded_acts) == 0:
-        return [Transition(guarded_transition.src, guarded_transition.condition, unguarded_acts, guarded_transition.output, guarded_transition.tgt)]
+        return [
+            Transition(guarded_transition.src, guarded_transition.condition, unguarded_acts, guarded_transition.output,
+                       guarded_transition.tgt)]
 
     transitions = []
 
@@ -605,14 +628,15 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
             for act_guard_set in act_guard_sets:
                 guard1true = frozenset(act_guard_set | {(act, guard1)})
                 guard1false = frozenset(act_guard_set | {(None, neg(guard1))})
-                if sat(conjunct_formula_set([g for (_,g) in guard1true]), symbol_table, checker):
+                if sat(conjunct_formula_set([g for (_, g) in guard1true]), symbol_table, checker):
                     new_act_guard_sets.add(guard1true)
-                if sat(conjunct_formula_set([g for (_,g) in guard1false]), symbol_table, checker):
+                if sat(conjunct_formula_set([g for (_, g) in guard1false]), symbol_table, checker):
                     new_act_guard_sets.add(guard1false)
         act_guard_sets = new_act_guard_sets
 
     for act_guard_set in act_guard_sets:
-        action_guards = conjunct_formula_set(sorted(list({guard for (_, guard) in act_guard_set}), key=lambda x : str(x)))
+        action_guards = conjunct_formula_set(
+            sorted(list({guard for (_, guard) in act_guard_set}), key=lambda x: str(x)))
         new_guard = conjunct(guarded_transition.condition, action_guards)
         if not sat(new_guard, symbol_table, checker):
             continue
@@ -620,7 +644,7 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
         actions = [act for (act, _) in act_guard_set if act != None]
 
         transitions.append(Transition(guarded_transition.src, propagate_negations(new_guard),
-                           unguarded_acts + actions, guarded_transition.output, guarded_transition.tgt))
+                                      unguarded_acts + actions, guarded_transition.output, guarded_transition.tgt))
 
     # debug
     collect_guards = []
@@ -630,16 +654,20 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
         raise Exception("Not all transitions are covered by guards")
     return transitions
 
+
 transition_formulas = {}
+
+
 def transition_formula(t):
     if t not in transition_formulas.keys():
         formula = conjunct(add_prev_suffix(t.condition),
-             conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right)) for act in
-                                   t.action]))
+                           conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right)) for act in
+                                                 t.action]))
         transition_formulas[t] = formula
         return formula
     else:
         return transition_formulas[t]
+
 
 def stringify_formula(f):
     if isinstance(f, BiOp):
@@ -651,7 +679,8 @@ def stringify_formula(f):
     else:
         return f
 
-def powerset_complete(SS: set):
+
+def powerset_complete(SS: iterable):
     if not isinstance(SS, set):
         S = set(SS)
     else:
@@ -666,7 +695,10 @@ def powerset_complete(SS: set):
 
     return complete_subsets
 
+
 powersets = {}
+
+
 def powerset(S: set):
     if frozenset(S) in powersets.keys():
         return powersets[frozenset(S)]

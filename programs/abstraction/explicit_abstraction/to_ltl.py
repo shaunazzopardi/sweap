@@ -1,5 +1,6 @@
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from programs.program import Program
+from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.util import label_preds, label_pred, add_prev_suffix
 from prop_lang.biop import BiOp
@@ -179,15 +180,14 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     guarantees = original_LTL_problem.guarantees
 
     program = predicate_abstraction.get_program()
-    env_props = program.out_events \
-                + [Variable(s) for s in program.states] \
-                + list(predicate_vars) \
-                + original_LTL_problem.env_props
-    con_props = original_LTL_problem.con_props
+    pred_props = [Variable(s) for s in program.states] \
+                + list(predicate_vars)
 
-    ltl_synthesis_problem = LTLSynthesisProblem(env_props,
-                                                con_props,
-                                                assumptions,
-                                                guarantees)
+    ltl_synthesis_problem = AbstractLTLSynthesisProblem(original_LTL_problem.env_props,
+                                                        program.out_events,
+                                                        pred_props,
+                                                        original_LTL_problem.con_props,
+                                                        assumptions,
+                                                        guarantees)
 
     return ltl_synthesis_problem

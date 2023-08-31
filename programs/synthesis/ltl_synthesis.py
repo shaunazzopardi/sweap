@@ -3,13 +3,12 @@ from tempfile import NamedTemporaryFile
 from typing import Tuple
 
 from parsing.hoa_parser import hoa_to_transitions
-from programs.program import Program
+from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.synthesis.mealy_machine import MealyMachine
-from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from prop_lang.variable import Variable
 
 
-def ltl_synthesis(synthesis_problem: LTLSynthesisProblem) -> Tuple[bool, MealyMachine]:
+def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool, str]:
     tlsf_script = synthesis_problem.to_tlsf()
     print(tlsf_script)
     try:
@@ -22,16 +21,17 @@ def ltl_synthesis(synthesis_problem: LTLSynthesisProblem) -> Tuple[bool, MealyMa
 
             so = subprocess.getstatusoutput(cmd)
             output: str = so[1]
+            print(output)
 
             if "UNREALIZABLE" in output:
                 print("\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n")
-                mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
-                return False, mon
+                # mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
+                return False, output#mon
             elif "REALIZABLE" in output:
                 print("\nINFO: Strix thinks the current abstract problem is realisable! I will check..\n")
                 try:
-                    mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
-                    return True, mon
+                    # mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
+                    return True, output#mon
                 except Exception as err:
                     raise err
             else:
@@ -42,7 +42,7 @@ def ltl_synthesis(synthesis_problem: LTLSynthesisProblem) -> Tuple[bool, MealyMa
     pass
 
 
-def parse_hoa(env_events, con_events, output) -> Program:
+def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem, output, env_con_separate: bool) -> MealyMachine:
     if "UNREALIZABLE" in output:
         counterstrategy = True
     else:
@@ -50,11 +50,33 @@ def parse_hoa(env_events, con_events, output) -> Program:
 
     print(output)
 
+    # logger.info("Parsing Strix output..")
     init_st, trans = hoa_to_transitions(output)
+    # logger.info("Finished parsing Strix output.. Constructing expanded Mealy Machine now..")
 
-    mon = MealyMachine("counterstrategy" if counterstrategy else "controller", "st_" + init_st, env_events, con_events, {}, {})
+    env_props = (synthesis_problem.get_env_props()
+                 + synthesis_problem.get_program_out_props()
+                 + synthesis_problem.get_program_pred_props())
 
-    mon.add_transitions(trans)
+    con_props = synthesis_problem.get_con_props()
+
+    if not env_con_separate:
+        mon = MealyMachine("counterstrategy" if counterstrategy else "controller", "st_" + init_st,
+                           env_props,
+                           con_props,
+                           {}, {})
+        mon.add_transitions(trans)
+    else:
+        mon = MealyMachine("counterstrategy" if counterstrategy else "controller", "st_" + init_st,
+                           env_props,
+                           con_props,
+                           {},
+                           {})
+
+        mon.add_transitions_env_con_separate(not counterstrategy,
+                                             trans,
+                                             synthesis_problem)
+
     return mon
 
 
