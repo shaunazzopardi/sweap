@@ -207,8 +207,10 @@ def write_counterexample(program,
                  + [v for v in list(state.keys()) if str(v).startswith("pred_")]
                  + [v for v in program.env_events + program.con_events])
 
-        print(("env: " if "env" == state["turn"] else "con: ") + str(trans) + "\nvar values: " + ", ".join(
-            [str(v) + "=" + state[str(v)] for v in vs]) + "\n")
+        print("\nvar values: " + ", ".join(
+            [str(v) + "=" + state[str(v)] for v in vs]))
+        print(("env: " if "env" == state["turn"] else "con: ") + str(trans))
+        print()
 
     # print("Environment wanted to take one of these:")
 
@@ -245,8 +247,9 @@ def write_counterexample_state(program,
                  + [v for v in list(state.keys()) if str(v).startswith("pred_")]
                  + [v for v in program.env_events + program.con_events])
 
-        print(("env: " if "env" == state["turn"] else "con: ") + str(trans) + "\nvar values: " + ", ".join(
-            [str(v) + "=" + state[str(v)] for v in vs]) + "\n")
+        print("\nvar values: " + ", ".join([str(v) + "=" + state[str(v)] for v in vs]))
+        print(("env: " if "env" == state["turn"] else "con: ") + str(trans))
+        print()
 
     print("Environment wanted state to satisfy:")
 
