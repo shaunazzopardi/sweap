@@ -33,7 +33,7 @@ class MathExpr(Formula):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
             if isinstance(self.formula.left, Value) and self.formula.left.name == "1":
                 return MathExpr(self.formula.right)
-            elif isinstance(self.formula.right, Value) and self.formula.left.name == "1":
+            elif isinstance(self.formula.right, Value) and self.formula.right.name == "1":
                 return MathExpr(self.formula.left)
         return self
 
