@@ -217,7 +217,7 @@ def expand_ltl_to_env_con_steps(formula: Formula, env_events: [Variable]):
             return X(formula)
     elif isinstance(formula, UniOp):
         if formula.op == "X":
-            return X(X(formula))
+            return X(X(expand_ltl_to_env_con_steps(formula.right, env_events)))
         elif formula.op == "F":
             return F(conjunct(env, expand_ltl_to_env_con_steps(formula.right, env_events)))
         elif formula.op == "G":
