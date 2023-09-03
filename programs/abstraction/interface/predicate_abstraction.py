@@ -39,7 +39,8 @@ class PredicateAbstraction(ABC):
                               mealymachine,
                               base_abstraction,
                               ltlAbstractionType,
-                              synthesis_problem):
+                              synthesis_problem,
+                              controller: bool):
         pass
 
     @abstractmethod

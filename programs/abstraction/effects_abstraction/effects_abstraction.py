@@ -634,15 +634,21 @@ class EffectsAbstraction(PredicateAbstraction):
                               mm_hoa: str,
                               base_abstraction,
                               ltlAbstractionType: LTLAbstractionType,
-                              synthesis_problem: AbstractLTLSynthesisProblem) -> MealyMachine:
+                              synthesis_problem: AbstractLTLSynthesisProblem,
+                              controller: bool) -> MealyMachine:
         if ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton and \
                 ltlAbstractionType.transition_type == LTLAbstractionTransitionType.combined and \
                 ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state and \
                 ltlAbstractionType.output_type == LTLAbstractionOutputType.after_env:
-            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=False)
-            return mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(self,
-                                                                                             self.program,
-                                                                                             base_abstraction)
+
+            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=False, abstraction=self)
+
+            if controller:
+                return mm
+            else:
+                return mm.fill_in_predicates_at_controller_states_label_tran_preds_appropriately(self,
+                                                                                                 self.program,
+                                                                                                 base_abstraction)
         elif ltlAbstractionType.base_type == LTLAbstractionBaseType.effects_representation and \
                 ltlAbstractionType.transition_type == LTLAbstractionTransitionType.env_con_separate and \
                 ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_state and \
