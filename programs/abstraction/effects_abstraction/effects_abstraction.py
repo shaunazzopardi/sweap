@@ -461,7 +461,7 @@ class EffectsAbstraction(PredicateAbstraction):
             new_tran_preds.append(dec)
             new_tran_preds.append(inc)
 
-        self.add_transition_predicates(new_tran_preds, True)
+        self.add_transition_predicates(new_tran_preds, parallelise)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:
