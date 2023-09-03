@@ -10,7 +10,6 @@ from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionTr
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.synthesis.ltl_synthesis import parse_hoa
-from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.synthesis.mealy_machine import MealyMachine
 from programs.typed_valuation import TypedValuation
 
@@ -77,9 +76,6 @@ class EffectsAbstraction(PredicateAbstraction):
 
         # Formula -> (P -> [P])
         for t in self.all_program_trans:
-            disjuncts = self.abstract_guard_env_disjuncts[t] if t in self.abstract_guard_env_disjuncts.keys() else \
-                self.abstract_guard_con_disjuncts[t]
-
             formula = transition_formula(t)
             # TODO these should eventually all depend on formula not transition,
             #  note that multiple transitions may have the same formula
