@@ -1,11 +1,13 @@
 import re
 
+from joblib import Parallel, delayed
+
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
 from prop_lang.variable import Variable
 
 
-def hoa_to_transitions(hoa):
+def hoa_to_transitions(hoa, parallelise=True):
     preamble_body = hoa.strip().split("--BODY--")
 
     hoa_preamble = preamble_body[0]
@@ -22,29 +24,55 @@ def hoa_to_transitions(hoa):
         to_replace.append(BiOp(Variable(str(i)), ":=", Variable(name)))
 
     transitions = {}
-    for raw_tran in raw_trans:
-        result = re.search(
-            r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)( |\n)+)+)", raw_tran)
-        if result == None:
-            raise Exception("Could not parse HOA:\n" + hoa)
-        else:
-            src = result.group("src")
-            trans = result.group("trans")
-            for line in trans.splitlines():
-                if line.strip() != "":
-                    search = re.search(r" *\[(?P<cond>[^\[\]]+)\] (?P<tgt>[0-9]+)", line)
-                    tgt = search.group("tgt")
-                    raw_cond = search.group("cond")
-                    raw_cond = raw_cond.replace("t", "true")
-                    raw_cond = raw_cond.replace("f", "false")  # probably we don't need this
-                    cond = string_to_prop(raw_cond, True)
-                    cond = cond.replace_vars(to_replace)
-                    assert isinstance(cond, BiOp)
-                    env_cond = cond.left
-                    con_cond = cond.right
-                    key = (src, env_cond, tgt)
-                    if key not in transitions.keys():
-                        transitions[key] = [con_cond]
-                    else:
-                        transitions[key] += [con_cond]
+    if parallelise:
+        n_jobs = -1
+    else:
+        n_jobs = 1
+
+    results = Parallel(n_jobs=n_jobs, verbose=11)(
+        delayed(parse_state_trans)(to_replace, raw_tran) for raw_tran in raw_trans)
+
+    for r in results:
+        transitions.update(r)
+
     return hoa_dict["Start"], transitions
+
+
+def parse_state_trans(to_replace, raw_tran):
+    result = re.search(
+        r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)( |\n)+)+)", raw_tran)
+    # if result == None:
+    #     raise Exception("Could not parse HOA:\n" + hoa)
+    # else:
+    src = result.group("src")
+    trans = result.group("trans")
+    new_trans = {}
+    for line in trans.splitlines():
+        if line.strip("") != "":
+            search = re.search(r" *\[(?P<cond>[^\[\]]+)\] (?P<tgt>[0-9]+)", line)
+            tgt = search.group("tgt")
+            raw_cond = search.group("cond")
+            raw_cond = raw_cond.replace("t", "true")
+            raw_cond = raw_cond.replace("f", "false")  # probably we don't need this
+            cond = string_to_prop(raw_cond, True)
+            cond = cond.replace_vars(to_replace)
+            env_cond = cond.left
+            con_cond = cond.right
+            key = (src, env_cond, tgt)
+            if key not in new_trans.keys():
+                new_trans[key] = []
+            new_trans[key].append(con_cond)
+    return new_trans
+
+def parse_line(to_replace, src, line: str):
+    search = re.search(r" *\[(?P<cond>[^\[\]]+)\] (?P<tgt>[0-9]+)", line)
+    tgt = search.group("tgt")
+    raw_cond = search.group("cond")
+    raw_cond = raw_cond.replace("t", "true")
+    raw_cond = raw_cond.replace("f", "false")  # probably we don't need this
+    cond = string_to_prop(raw_cond, True)
+    cond = cond.replace_vars(to_replace)
+    env_cond = cond.left
+    con_cond = cond.right
+    to_return = src, env_cond, tgt, con_cond
+    return to_return
