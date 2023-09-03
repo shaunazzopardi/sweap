@@ -3,6 +3,7 @@ from tempfile import NamedTemporaryFile
 from typing import Tuple
 
 from parsing.hoa_parser import hoa_to_transitions
+from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.synthesis.mealy_machine import MealyMachine
 from prop_lang.variable import Variable
@@ -42,7 +43,10 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
     pass
 
 
-def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem, output, env_con_separate: bool) -> MealyMachine:
+def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem,
+              output: object,
+              env_con_separate: bool,
+              abstraction: PredicateAbstraction) -> MealyMachine:
     if "UNREALIZABLE" in output:
         counterstrategy = True
     else:
@@ -61,13 +65,13 @@ def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem, output, env_con_se
     con_props = synthesis_problem.get_con_props()
 
     if not env_con_separate:
-        mon = MealyMachine("counterstrategy" if counterstrategy else "controller", "st_" + init_st,
+        mon = MealyMachine("counterstrategy" if counterstrategy else "controller", init_st,
                            env_props,
                            con_props,
                            {}, {})
         mon.add_transitions(trans)
     else:
-        mon = MealyMachine("counterstrategy" if counterstrategy else "controller", "st_" + init_st,
+        mon = MealyMachine("counterstrategy" if counterstrategy else "controller", init_st,
                            env_props,
                            con_props,
                            {},
@@ -75,7 +79,8 @@ def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem, output, env_con_se
 
         mon.add_transitions_env_con_separate(not counterstrategy,
                                              trans,
-                                             synthesis_problem)
+                                             synthesis_problem,
+                                             abstraction)
 
     return mon
 

@@ -142,7 +142,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
                                                          base_abstraction,
                                                          ltlAbstractionType,
-                                                         abstract_ltl_problem)
+                                                         abstract_ltl_problem,
+                                                         real)
         print(mm)
 
         if real and not debug:

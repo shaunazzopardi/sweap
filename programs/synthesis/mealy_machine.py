@@ -1,4 +1,5 @@
 from graphviz import Digraph
+from joblib import Parallel, delayed
 from pysmt.shortcuts import And
 
 from programs.abstraction.effects_abstraction.util.effects_util import tran_and_state_preds_after_con_env_step
@@ -21,9 +22,10 @@ from prop_lang.variable import Variable
 
 
 class MealyMachine:
-    def __init__(self, name, init_st: int, env_events, con_events, env_transitions={}, con_transitions={}):
+    def __init__(self, name, init_index: int, env_events, con_events, env_transitions={}, con_transitions={}):
         self.name = name
-        self.init_st = str(init_st)
+        self.init_index = init_index
+        self.init_st = "st_" + str(init_index)
         self.states = {self.init_st} | {k for k in env_transitions.keys() | con_transitions.keys()}
         self.env_events = env_events
         self.con_events = con_events
@@ -79,131 +81,140 @@ class MealyMachine:
             self.states.add(new_src)
             self.states.add(new_tgt)
 
+    def handle_transition(self,
+                          src_index,
+                          env_cond,
+                          con_cond,
+                          tgt_index,
+                          abstract_problem: AbstractLTLSynthesisProblem):
+        pure_env_events = abstract_problem.get_env_props()
+        prog_out = abstract_problem.get_program_out_props()
+        prog_preds = abstract_problem.get_program_pred_props()
+
+        env_cond = (env_cond.simplify()).to_nuxmv()
+        env_cond = propagate_negations(env_cond)
+
+        env_turn = sat(conjunct(env, env_cond))
+        con_turn = sat(conjunct(con, env_cond))
+
+        if not env_turn and not con_turn:
+            breaking_assumptions = True
+            raise Exception("Environment is breaking the turn logic assumption in transition: "
+                            + str(src_index) + " "
+                            + str(env_cond) + " "
+                            + str(con_cond) + " "
+                            + str(tgt_index))
+
+        # TODO need to populate self.env_prog_state and self.con_prog_state to minimize
+
+        src_prog_state = self.project_out_events(env_cond, pure_env_events + [env])
+
+        if env_turn:
+            pure_env_cond = self.project_out_events(env_cond, prog_out + prog_preds + [env])
+            new_transition = ((src_index, (src_prog_state, None)), pure_env_cond, tgt_index)
+            return True, new_transition
+
+        if con_turn:
+            con_cond = (con_cond.simplify()).to_nuxmv()
+
+            prog_outs = self.project_out_events(propagate_negations(env_cond),
+                                                pure_env_events + prog_preds + [env]).simplify()
+            prog_outs = simplify_formula_without_math(prog_outs)
+
+            new_transition = ((src_index, (src_prog_state, prog_outs)), con_cond, tgt_index)
+
+            return False, new_transition
+
+    # TODO add_transitions can be integrated into this
     def add_transitions_env_con_separate(self,
                                          controller: bool,
                                          trans_dict: dict,
-                                         abstract_LTL_synthesis_problem: AbstractLTLSynthesisProblem):
-        pure_env_events = abstract_LTL_synthesis_problem.get_env_props()
-        prog_out = abstract_LTL_synthesis_problem.get_program_out_props()
-        prog_preds = abstract_LTL_synthesis_problem.get_program_pred_props()
+                                         abstract_ltl_synthesis_problem: AbstractLTLSynthesisProblem,
+                                         abstraction: PredicateAbstraction,
+                                         parallelise=True):
+        # this will create a mealy machine with states tagged by program predicates
 
-        int_env_trans = {}
-        int_con_trans = {}
+        # some preprocessing
+        reworked_transitions = []
+        if parallelise:
+            n_jobs = -1
+        else:
+            n_jobs = 1
 
-        for src_index, env_behaviour, tgt_index in trans_dict.keys():
-            env_cond = (env_behaviour.simplify()).to_nuxmv()
-            env_cond = propagate_negations(env_cond)
+        reworked_transitions = Parallel(n_jobs=n_jobs, verbose=11)(
+                                    delayed(self.handle_transition)(src_index,
+                                                                    env_behaviour,
+                                                                    con_cond,
+                                                                    tgt_index,
+                                                                    abstract_ltl_synthesis_problem)
+                                          for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items()
+                                              for con_cond in con_conds)
 
-            env_turn = sat(conjunct(env, env_cond))
-            con_turn = sat(conjunct(con, env_cond))
-
-            if not env_turn and not con_turn:
-                raise Exception(str(env) + "")
-
-            # if env_turn and con_turn:
-            #     raise Exception("Environment is not setting " + str(py.env) + " correctly: " + str((src_index, env_behaviour, tgt_index)))
-
+        env_states = {}
+        con_states = {}
+        for env_turn, ((src_index, (src_prog_state, prog_outs)), con_cond, tgt_index) in reworked_transitions:
             if env_turn:
-                new_src = "st_" + str(src_index)
-                new_tgt = "st__" + str(tgt_index)
+                if src_index not in env_states.keys():
+                    env_states[src_index] = []
 
-                if new_src not in int_env_trans.keys():
-                    int_env_trans[new_src] = set()
+                if (src_prog_state, prog_outs) not in env_states[src_index]:
+                    env_states[src_index].append((src_prog_state, prog_outs))
+            else:
+                if src_index not in con_states.keys():
+                    con_states[src_index] = []
 
-                if not controller:
-                    pure_env_action = self.project_out_events(env_cond, prog_out + prog_preds + [env])
-                    prog_state_before_env_action = self.project_out_events(env_cond, pure_env_events + [env])
+                if (src_prog_state, prog_outs) not in con_states[src_index]:
+                    con_states[src_index].append((src_prog_state, prog_outs))
 
-                    if new_src in self.prog_state.keys():
-                        if self.prog_state[new_src] != prog_state_before_env_action:
-                            if not is_tautology(iff(self.prog_state[new_src], prog_state_before_env_action)):
-                                raise Exception(new_src + " already tagged by " + str(self.prog_state[new_src]) + " but now we also need to tag it by " + str(prog_state_before_env_action))
+        for env_turn, ((src_index, (src_prog_state, prog_outs)), env_or_con_cond, tgt_index) in reworked_transitions:
+            if env_turn:
+                state_loc = str(env_states[src_index].index((src_prog_state, prog_outs)))
+                new_src = "st_" + str(src_index) + "_" + state_loc
+                self.prog_state[new_src] = src_prog_state
 
-                    if prog_state_before_env_action not in self.env_prog_state.keys():
-                        self.env_prog_state[prog_state_before_env_action] = [new_src]
-                    else:
-                        self.env_prog_state[prog_state_before_env_action].append(new_src)
-                    self.prog_state[new_src] = prog_state_before_env_action
+                if new_src not in self.env_transitions.keys():
+                    self.env_transitions[new_src] = set()
 
-                    int_env_trans[new_src].add((pure_env_action, new_tgt))
+                for i in range(len(con_states[tgt_index])):
+                    new_tgt = "st__" + str(tgt_index) + "_" + str(i)
+                    self.env_transitions[new_src].add((env_or_con_cond, new_tgt))
 
-                    if new_tgt in self.env_transition_tgt.keys():
-                        self.env_transition_tgt[new_tgt].append((new_src, pure_env_action))
-                    else:
-                        self.env_transition_tgt[new_tgt] = [(new_src, pure_env_action)]
-                else:
-                    env_prog_action = self.project_out_events(env_cond, prog_out + [env])
-                    env_prog_action = simplify_formula_without_math(env_prog_action)
-                    int_env_trans[new_src].add((env_prog_action, new_tgt))
+            else:
+                state_loc = str(con_states[src_index].index((src_prog_state, prog_outs)))
+                new_src = "st__" + str(src_index) + "_" + state_loc
+                self.prog_state[new_src] = src_prog_state
 
-                    if new_tgt in self.env_transition_tgt.keys():
-                        self.env_transition_tgt[new_tgt].append((new_src, env_prog_action))
-                    else:
-                        self.env_transition_tgt[new_tgt] = [(new_src, env_prog_action)]
+                if new_src not in self.con_transitions.keys():
+                    self.con_transitions[new_src] = set()
 
-                self.states.add(new_src)
-                self.states.add(new_tgt)
+                for i in range(len(env_states[tgt_index])):
+                    new_tgt = "st_" + str(tgt_index) + "_" + str(i)
+                    self.con_transitions[new_src].add((env_or_con_cond, new_tgt))
 
-            if con_turn:
-                new_src = "st__" + str(src_index)
-                new_tgt = "st_" + str(tgt_index)
+        if not controller:
+            if len(env_states[self.init_index]) == 1:
+                self.init_st = self.init_st + "_0"
+            else:
+                # this should not be reached
+                raise Exception("Not implemented: counterstrategy not deterministic")
+        else:
+            init_prog_pred_state = conjunct_formula_set([BiOp(Variable(tv.name), "=", tv.value)
+                                                         for tv in abstraction.get_program().valuation])
+            found_init_state = False
+            for init_sub_state in env_states[self.init_index]:
+                pred_state = init_sub_state[0]
+                if sat(conjunct(pred_state, init_prog_pred_state), abstraction.get_symbol_table(), add_missing_vars=True):
+                    self.init_st = init_sub_state
+                    found_init_state = True
+                    break
+            if not found_init_state:
+                raise Exception("Did not find controller init state.")
 
-                if new_src not in int_con_trans.keys():
-                    int_con_trans[new_src] = set()
+        for st in self.env_transitions.keys():
+            self.states.add(st)
 
-                con_behaviour = disjunct_formula_set(trans_dict[(src_index, env_behaviour, tgt_index)])
-                con_cond = (con_behaviour.simplify()).to_nuxmv()
-                con_action = propagate_negations(con_cond)
-
-                if not controller:
-                    prog_state_before_con_action = self.project_out_events(propagate_negations(env_behaviour),
-                                                                           pure_env_events + [env])
-
-                    # if new_src in self.prog_state.keys():
-                    #     # This will happen because env needs to consider all possible controller actions
-                    #     if not is_tautology(iff(self.prog_state[new_src], prog_state_before_con_action)):
-                    #         raise Exception(new_src + " already tagged by " + str(self.prog_state[new_src]) + " but now we also need to tag it by " + str(prog_state_before_con_action))
-                    self.con_transition_tgt[(con_action, new_tgt)] = new_src
-                    if prog_state_before_con_action not in self.con_prog_state.keys():
-                        self.con_prog_state[prog_state_before_con_action] = [new_src]
-                    else:
-                        self.con_prog_state[prog_state_before_con_action].append(new_src)
-
-                    self.prog_state[new_src] = prog_state_before_con_action
-                    int_con_trans[new_src].add((con_action, new_tgt))
-
-                        # raise Exception("Transition already exists: " + str((con_action, new_tgt)))
-
-                else:
-                    prog_outs = self.project_out_events(propagate_negations(env_behaviour),
-                                                        pure_env_events + prog_preds + [env]).simplify()
-                    prog_outs = simplify_formula_without_math(prog_outs)
-                    # con_transition_tgt[(con_action, new_tgt)] = (new_src, prog_state_before_con_action)
-                    int_con_trans[new_src].add((conjunct(con_action, prog_outs), new_tgt))
-
-                    self.con_transition_tgt[(con_action, new_tgt)] = new_src
-                self.states.add(new_src)
-                self.states.add(new_tgt)
-
-        self.env_transitions = int_env_trans
-        self.con_transitions = int_con_trans
-
-        for src, tgts in self.con_transitions.items():
-            for _, tgt in tgts:
-                if tgt not in self.env_transitions.keys():
-                    raise Exception("Controller transition to non-existing environment state: " + str((src, tgt)))
-
-        for src, tgts in self.env_transitions.items():
-            for _, tgt in tgts:
-                if tgt not in self.con_transitions.keys():
-                    raise Exception(
-                        "Environment transition to non-existing controller state: " + str((src, tgt)))
-                    # print(str(tgt) + " not in env transitions")
-                    # mon = MealyMachine("", self.init_st,
-                    #                    self.env_events, self.con_events, {}, {})
-                    #
-                    # mon.add_transitions(controller, trans_dict, resolve_env_turns, env_events,
-                    #                     prog_out, prog_preds, con_events)
+        for st in self.con_transitions.keys():
+            self.states.add(st)
 
         had_an_effect = True
         while had_an_effect:
@@ -590,7 +601,7 @@ class MealyMachine:
             for (mm_con_cond, mm_con_tgt) in dict.keys():
                 proper_con_transitions[k] |= {(conjunct(mm_con_cond, disjunct_formula_set(dict[(mm_con_cond, mm_con_tgt)])), (mm_con_tgt))}
 
-        new_mm = MealyMachine(self.name, self.init_st, self.env_events, self.con_events, self.env_transitions, proper_con_transitions)
+        new_mm = MealyMachine(self.name, self.init_index, self.env_events, self.con_events, self.env_transitions, proper_con_transitions)
 
         return new_mm
 
