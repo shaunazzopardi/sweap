@@ -86,7 +86,7 @@ def concretize_transitions(program,
             # pred mismatch
             incompatibility_formula += preds_in_state(incompatible_state)
             #TODO we wanted to take the wrong transition, but the condition at state concretized[-1][1], not at incompatible_state
-            # incompatibility_formula += [neg(concretized[-1][0].condition)]
+            incompatibility_formula += [neg(concretized[-1][0].condition)]
             env_pred_state = (incompatibility_formula, incompatible_state)
 
         return concretized, env_pred_state, concretized[-1]
