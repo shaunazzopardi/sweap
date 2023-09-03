@@ -73,7 +73,11 @@ def try_liveness_refinement(counterstrategy_states: [str],
         else:
             return False, None
     else:
-        print("Found ranking function: " + str(ranking) + " with invariants: " + ", ".join(map(str, invars)))
+        print("Found ranking function: "
+              + str(ranking)
+              + (" with invariants: " + ", ".join(map(str, invars))
+                 if len(invars) > 0
+                 else ""))
         if allow_user_input:
             text = input("Use suggested ranking function (y/n)?").lower().strip()
             while text != "y" and text != "n":
