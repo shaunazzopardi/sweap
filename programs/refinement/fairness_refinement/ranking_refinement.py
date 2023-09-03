@@ -209,21 +209,17 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
         .replace(" | ", " || ")
 
     # TODO check for satisfiability instead of equality of with true
-    # choices = [
-    #               "\tif(!(" + exit_cond_var_constraints + ")) break;" if exit_cond_var_constraints.lower() != "true" else ""] \
-    #           + choices
-    choices = ["\tif(" + exit_cond_simplified + ") break;" if exit_cond_simplified.lower() != "true" else ""] \
-              + choices
+    loop_code = "\n\t\twhile(!(" + exit_cond_simplified + ")){\n\t" \
+                + "\n\t\t\t".join(choices) \
+                + "\n\t\t}\n"
 
-    loop_code = "\n\tdo{\n\t" \
-                + "\n\t".join(choices) \
-                + "\n\t} while(true);\n"
-
-    loop_code = "\n\tif(" + str(entry_condition.simplify())\
-                                .replace(" = ", " == ")\
-                                .replace(" & ", " && ")\
-                                .replace(" | ", " || ") \
-                        + "){" + loop_code + "\n\t}"
+    entry_cond_simplified = str(entry_condition.simplify())
+    if entry_cond_simplified.lower() != "true":
+        loop_code = "\n\tif(" + entry_cond_simplified\
+                                    .replace(" = ", " == ")\
+                                    .replace(" & ", " && ")\
+                                    .replace(" | ", " || ") \
+                            + "){" + loop_code + "\n\t}"
 
     c_code = "#include<stdbool.h>\n\nvoid main(" + param_list + "){\n\t" + "\n\t".join(init).strip() + loop_code + "\n}"
     c_code = c_code.replace("TRUE", "true")
