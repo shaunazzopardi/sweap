@@ -56,39 +56,11 @@ def compatibility_checking(program: Program,
                                                                                            debug=True,
                                                                                            mismatch_condition=mismatch_condition)
 
-    if not there_is_mismatch or contradictory:
-        system = create_nuxmv_model_for_compatibility_checking(program, mealy_nuxmv, mon_events, all_preds,
-                                                               not program.deterministic, not program.deterministic,
-                                                               predicate_mismatch=False)
-        contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
-                                                                                               is_controller,
-                                                                                               False)
-    ## end checking for mismatch
-
     if contradictory:
         raise Exception("I have no idea what's gone wrong. Strix thinks the previous mealy machine is a " +
                         ("controller" if is_controller else "counterstrategy") +
                         ", but nuxmv thinks it is non consistent with the program.\n" +
                         "This may be a problem with nuXmv, e.g., it does not seem to play well with integer division.")
-
-    ## deal with if there is nothing wrong
-    if not there_is_mismatch or contradictory:
-        # TODO do this only when program has non-determinism
-        # print("No mismatch found between " + (
-        #     "strategy" if real else "counterstrategy") + " and program when excluding traces for which the program has a non-deterministic choice.")
-        # print("Trying for when the program has a non-deterministic choice..")
-        system = create_nuxmv_model_for_compatibility_checking(program, mealy_nuxmv, mon_events, all_preds,
-                                                               not program.deterministic, not program.deterministic,
-                                                               predicate_mismatch=False)
-        contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
-                                                                                               is_controller,
-                                                                                               False)
-
-        if contradictory:
-            raise Exception("I have no idea what's gone wrong. Strix thinks the previous mealy machine is a " +
-                            ("controller" if is_controller else "counterstrategy") +
-                            ", but nuxmv thinks it is non consistent with the program.\n" +
-                            "This may be a problem with nuXmv, e.g., it does not seem to play well with integer division.")
 
         if not there_is_mismatch:
             print("No mismatch found.")
