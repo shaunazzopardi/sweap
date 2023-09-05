@@ -108,21 +108,24 @@ def try_liveness_refinement(counterstrategy_states: [str],
         return False, (sufficient_entry_condition, exit_predicate)
 
     new_transition_predicates = []
+    new_decs = []
     for (ranking, invars) in new_ranking_invars.items():
         if not function_is_of_natural_type(ranking, invars, symbol_table):
             wellfounded_invar = MathExpr(BiOp(ranking, ">=", Value(0)))
             new_ranking_invars[ranking].append(wellfounded_invar)
 
-        new_transition_predicates.extend([BiOp(add_prev_suffix(ranking), ">", ranking),
-                                          BiOp(add_prev_suffix(ranking), "<", ranking)])
+        dec = BiOp(add_prev_suffix(ranking), ">", ranking)
+        new_decs.append(dec)
+        inc = BiOp(add_prev_suffix(ranking), "<", ranking)
+        new_transition_predicates.extend([dec, inc])
 
-    new_all_trans_preds = new_transition_predicates + predicate_abstraction.get_transition_predicates()
-    new_all_trans_preds = reduce_up_to_iff(predicate_abstraction.get_transition_predicates(),
-                                           new_all_trans_preds,
-                                           symbol_table)
+    old_trans_preds_decs = [tp for tp in predicate_abstraction.get_transition_predicates() if tp.op == ">"]
+    new_all_trans_preds_decs = reduce_up_to_iff(old_trans_preds_decs,
+                                                old_trans_preds_decs + new_decs,
+                                                symbol_table)
 
-    if len(new_all_trans_preds) == len(predicate_abstraction.get_transition_predicates()):
-        print("New transition predicates are equivalent to old ones.")
+    if len(new_all_trans_preds_decs) == len(old_trans_preds_decs):
+        logging.info("New transition predicates are equivalent to old ones.")
         return False, None
 
     return True, (new_ranking_invars, new_transition_predicates)
