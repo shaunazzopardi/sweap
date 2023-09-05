@@ -18,7 +18,7 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, conjunct, neg, append_to_variable_name, dnf, disjunct_formula_set, \
-    true, sat, is_tautology, iff, propagate_negations, type_constraints
+    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_with_timeout
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -421,20 +421,33 @@ def stutter_transitions(program, env: bool):
     return stutter_transitions
 
 
+stutter_transition_cache = {}
+
+
 def stutter_transition(program, state, env: bool):
     transitions = program.env_transitions if env else program.con_transitions
     condition = neg(disjunct_formula_set([t.condition
                                           for t in transitions if t.src == state]))
     smt_checker = SMTChecker()
 
-    if smt_checker.check(And(*condition.to_smt(program.symbol_table))):
-        return Transition(state,
-                          condition,
-                          [],
-                          [],
-                          state).complete_outputs(program.out_events) \
+    if program not in stutter_transition_cache.keys():
+        stutter_transition_cache[program] = {}
+
+    if condition in stutter_transition_cache.keys():
+        return stutter_transition_cache[program][condition]
+    elif smt_checker.check(And(*condition.to_smt(program.symbol_table))):
+        condition_cnfed = cnf_with_timeout(condition, program.symbol_table)
+
+        stutter_t = Transition(state,
+                               condition_cnfed,
+                               [],
+                               [],
+                               state).complete_outputs(program.out_events) \
             .complete_action_set([Variable(v.name) for v in program.valuation])
+        stutter_transition_cache[program][condition] = stutter_t
+        return stutter_t
     else:
+        stutter_transition_cache[program][condition] = None
         return None
 
 
