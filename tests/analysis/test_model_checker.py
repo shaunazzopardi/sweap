@@ -1,8 +1,8 @@
 from unittest import TestCase
 
-from programs.analysis.model_checker import ModelChecker
+from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
+from analysis.model_checker import ModelChecker
 from parsing.string_to_program import string_to_program
-from programs.util import create_nuxmv_model
 
 
 class TestModelChecker(TestCase):
