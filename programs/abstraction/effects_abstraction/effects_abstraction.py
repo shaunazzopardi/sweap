@@ -469,12 +469,15 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.ranking_and_invars.update(new_ranking_and_invars)
         new_tran_preds = []
+        new_invars = []
         for ranking in new_ranking_and_invars.keys():
             dec = BiOp(add_prev_suffix(ranking), ">", ranking)
             inc = BiOp(add_prev_suffix(ranking), "<", ranking)
             new_tran_preds.append(dec)
             new_tran_preds.append(inc)
+            new_invars.extend(new_ranking_and_invars[ranking])
 
+        self.add_state_predicates(new_invars, parallelise)
         self.add_transition_predicates(new_tran_preds, parallelise)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
