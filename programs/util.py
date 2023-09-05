@@ -463,7 +463,7 @@ def looping_to_normal(t: Transition):
     #  if "loop" in ((t.src) + (t.tgt)) else t
 
 
-def preds_in_state(ce_state: dict):
+def preds_in_state(ce_state: dict[str, str]):
     return [var_to_predicate(Variable(p)) for p, v in ce_state.items() if p.startswith("pred_") and v == "TRUE"] \
         + [neg(var_to_predicate((Variable(p)))) for p, v in ce_state.items() if
            p.startswith("pred_") and v == "FALSE"]
