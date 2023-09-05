@@ -306,6 +306,7 @@ class Program:
         init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
         init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation]
+        init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
         update_prevs = "(turn = env | turn == con)" + " & " + " & ".join(["next(" + str(var.name) + "_prev) = " + str(var.name) for var in self.valuation])
@@ -316,6 +317,7 @@ class Program:
         # invar = mutually_exclusive_rules(self.states)
         # invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
         invar = [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
+        invar.extend([str(val.name) + "_prev" + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")])
 
         # if include_mismatches_due_to_nondeterminism is not None and not include_mismatches_due_to_nondeterminism:
         #     for i in range(len(guards)):
