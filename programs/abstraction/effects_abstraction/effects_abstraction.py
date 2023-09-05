@@ -72,7 +72,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
         logger.info("Initialising predicate abstraction.")
 
-        self.abstract_program_transitions()
+        self.abstract_program_transitions(parallelise=False)
 
         # Formula -> (P -> [P])
         for t in self.all_program_trans:
@@ -106,24 +106,38 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.init_program_trans = []
 
-        if parallelise:
-            n_jobs = -1
-        else:
-            n_jobs = 1
-
-        results_env = Parallel(n_jobs=n_jobs, prefer="threads", verbose=11)(
-            delayed(self.abstract_program_transition_env)(t, self.program.symbol_table) for t in
-            orig_env_transitions + stutter_env)
+        all_env_trans = orig_env_transitions + stutter_env
         init_conf = MathExpr(conjunct_typed_valuation_set(self.program.valuation))
-        self.init_program_trans = [t.add_condition(init_conf) for t in orig_env_transitions + stutter_env if
+        self.init_program_trans = [t.add_condition(init_conf) for t in all_env_trans if
                                    t.src == self.program.initial_state and sat(conjunct(init_conf, t.condition),
                                                                                self.program.symbol_table)]
-        results_init = Parallel(n_jobs=n_jobs, prefer="threads", verbose=11)(
-            delayed(self.abstract_program_transition_env)(t, self.program.symbol_table) for t in
-            self.init_program_trans)
-        results_con = Parallel(n_jobs=n_jobs, prefer="threads", verbose=11)(
-            delayed(self.abstract_program_transition_con)(t, self.program.symbol_table) for t in
-            orig_con_transitions + stutter_cons)
+        all_con_trans = orig_con_transitions + stutter_cons
+
+        if parallelise:
+            results_env = Parallel(n_jobs=-1,
+                                   # prefer="threads",
+                                   verbose=11,
+                                   batch_size=len(all_env_trans) // 8 + 1)(
+                delayed(self.abstract_program_transition_env)(t, self.program.symbol_table) for t in all_env_trans)
+            results_init = Parallel(n_jobs=-1,
+                                    # prefer="threads",
+                                    verbose=11
+                                    # , batch_size=len(self.init_program_trans)//8 + 1
+                                    )(
+                delayed(self.abstract_program_transition_env)(t, self.program.symbol_table) for t in
+                self.init_program_trans)
+
+            results_con = Parallel(n_jobs=-1,
+                                   # prefer="threads",
+                                   verbose=11
+                                   # , batch_size=len(all_con_trans)//8 + 1
+                                   )(
+                delayed(self.abstract_program_transition_con)(t, self.program.symbol_table) for t in
+                all_con_trans)
+        else:
+            results_env = [self.abstract_program_transition_env(t, self.program.symbol_table) for t in all_env_trans]
+            results_init = [self.abstract_program_transition_env(t, self.program.symbol_table) for t in self.init_program_trans]
+            results_con = [self.abstract_program_transition_con(t, self.program.symbol_table) for t in all_con_trans]
 
         for t, disjuncts, formula in results_env + results_init:
             self.abstract_guard_env[t] = formula
@@ -478,13 +492,19 @@ class EffectsAbstraction(PredicateAbstraction):
                 str(label_pred(p, new_state_predicates)):
                     TypedValuation(str(label_pred(p, new_state_predicates)), "bool", true())})
 
-            if parallelise:
+            if parallelise and len(self.state_predicates) > 4:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
-                results_env = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
+                results_env = Parallel(n_jobs=-1, 
+                                       #prefer="threads",
+                                       verbose=11,
+                                       batch_size=len(self.abstract_guard_env.keys())//8 + 1)(
                     delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_env_disjuncts[t],
                                                                  self.abstract_effect[t], p)
                     for t in self.abstract_guard_env.keys())# if t not in self.init_program_trans)
-                results_con = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
+                results_con = Parallel(n_jobs=-1, 
+                                       #prefer="threads",
+                                       verbose=11,
+                                       batch_size=len(self.abstract_guard_con.keys())//8 + 1)(
                     delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_con_disjuncts[t],
                                                                  self.abstract_effect[t], p) for t in
                     self.abstract_guard_con.keys())
@@ -539,13 +559,23 @@ class EffectsAbstraction(PredicateAbstraction):
                 str(label_pred(p, new_transition_predicates)):
                     TypedValuation(str(label_pred(p, new_transition_predicates)), "bool", true())})
 
-            if parallelise:
+            if parallelise and len(self.state_predicates) > 4:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
-                results_env = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
+                results_env = Parallel(n_jobs=-1, 
+                                       #prefer="threads",
+                                       verbose=11
+                                       # ,
+                                       # batch_size=len(self.abstract_guard_env.keys())//8 + 1
+                                       )(
                     delayed(self.add_transition_predicate_to_t)(t, self.abstract_guard_env_disjuncts[t],
                                                                 self.abstract_effect[t], p) for t in
                     self.abstract_guard_env.keys())
-                results_con = Parallel(n_jobs=-1, prefer="threads", verbose=11)(
+                results_con = Parallel(n_jobs=-1, 
+                                       #prefer="threads",
+                                       verbose=11
+                                       # ,
+                                       # batch_size=len(self.abstract_guard_con.keys())//8 + 1
+                                       )(
                     delayed(self.add_transition_predicate_to_t)(t, self.abstract_guard_con_disjuncts[t],
                                                                 self.abstract_effect[t], p) for t in
                     self.abstract_guard_con.keys())
