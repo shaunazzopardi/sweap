@@ -1,10 +1,10 @@
-from programs.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionType, LTLAbstractionBaseType, \
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
+from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType, LTLAbstractionBaseType, \
     LTLAbstractionStructureType, LTLAbstractionTransitionType, LTLAbstractionOutputType
-from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from prop_lang.formula import Formula
-import programs.abstraction.explicit_abstraction.to_ltl as explicit_to_ltl
-import programs.abstraction.effects_abstraction.to_ltl.to_env_con_separate_ltl as to_env_con_separate_ltl
+import analysis.abstraction.explicit_abstraction.to_ltl as explicit_to_ltl
+import analysis.abstraction.effects_abstraction.to_ltl.to_env_con_separate_ltl as to_env_con_separate_ltl
 
 
 def to_ltl(effects_abstraction: EffectsAbstraction,

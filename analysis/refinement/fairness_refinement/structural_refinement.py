@@ -1,6 +1,6 @@
 # need function for env loop refinement
 # need function for con loop refinement
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 
 
 def structural_refinement(predicate_abstraction: PredicateAbstraction,

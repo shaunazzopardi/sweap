@@ -5,10 +5,9 @@ import time
 from pysmt.shortcuts import And
 
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.analysis.ranker import Ranker
-from programs.typed_valuation import TypedValuation
-from programs.analysis.smt_checker import SMTChecker
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.ranker import Ranker
+from analysis.smt_checker import SMTChecker
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import get_differently_value_vars, function_is_of_natural_type, add_prev_suffix, \

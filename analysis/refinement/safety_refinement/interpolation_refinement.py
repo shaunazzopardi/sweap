@@ -4,8 +4,8 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import And
 
 from parsing.string_to_prop_logic import string_to_prop
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.analysis.smt_checker import SMTChecker, binary_interpolant
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.smt_checker import SMTChecker, binary_interpolant
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation

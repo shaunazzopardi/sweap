@@ -3,8 +3,8 @@ from typing import Set
 
 from graphviz import Digraph
 
-from programs.analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from programs.analysis.smt_checker import SMTChecker
+from analysis.compatibility_checking.nuxmv_model import NuXmvModel
+from analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import stutter_transition, symbol_table_from_program, is_deterministic

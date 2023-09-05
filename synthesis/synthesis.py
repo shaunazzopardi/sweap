@@ -2,26 +2,26 @@ import logging
 import time
 from typing import Tuple
 
-from programs.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
+from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
-from programs.analysis.compatibility_checking.compatibility_checking import compatibility_checking
-from programs.analysis.smt_checker import SMTChecker
+from analysis.compatibility_checking.compatibility_checking import compatibility_checking
+from analysis.smt_checker import SMTChecker
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
-from programs.refinement.fairness_refinement.ranking_refinement import try_liveness_refinement
-from programs.refinement.safety_refinement.interpolation_refinement import safety_refinement
-from programs.synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
-from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from programs.synthesis.mealy_machine import MealyMachine
+from analysis.refinement.fairness_refinement.ranking_refinement import try_liveness_refinement
+from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement
+from synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import true
 from prop_lang.variable import Variable
 
-import programs.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
+import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 
 smt_checker = SMTChecker()
 

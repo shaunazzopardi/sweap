@@ -4,9 +4,9 @@ from tempfile import NamedTemporaryFile
 from typing import Tuple
 
 from parsing.hoa_parser import hoa_to_transitions
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
-from programs.synthesis.mealy_machine import MealyMachine
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
+from synthesis.mealy_machine import MealyMachine
 from prop_lang.variable import Variable
 
 

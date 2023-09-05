@@ -1,10 +1,10 @@
 import argparse
 import os
 
-from programs.analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
-from programs.analysis.model_checker import ModelChecker
+from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
+from analysis.model_checker import ModelChecker
 from parsing.string_to_program_with_action_guards import string_to_program
-from programs.synthesis.synthesis import synthesize
+from synthesis.synthesis import synthesize
 import logging
 
 import time

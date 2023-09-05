@@ -2,22 +2,22 @@ import itertools
 import logging
 import time
 
-from programs.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
-from programs.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
-from programs.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
-from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
+from analysis.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
+from analysis.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
+from analysis.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
+from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
     LTLAbstractionStructureType, LTLAbstractionType, LTLAbstractionOutputType
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
-from programs.synthesis.ltl_synthesis import parse_hoa
-from programs.synthesis.mealy_machine import MealyMachine
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
+from synthesis.ltl_synthesis import parse_hoa
+from synthesis.mealy_machine import MealyMachine
 from programs.typed_valuation import TypedValuation
 
 logger = logging.getLogger(__name__)
 
 from joblib import Parallel, delayed
 
-from programs.analysis.smt_checker import SMTChecker
+from analysis.smt_checker import SMTChecker
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, transition_formula, powerset_complete, label_pred

@@ -2,14 +2,14 @@ from graphviz import Digraph
 from joblib import Parallel, delayed
 from pysmt.shortcuts import And
 
-from programs.abstraction.effects_abstraction.util.effects_util import tran_and_state_preds_after_con_env_step
-from programs.abstraction.explicit_abstraction.util.abstract_state import AbstractState
-from programs.abstraction.interface.Config import env, con
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from programs.analysis.smt_checker import SMTChecker
+from analysis.abstraction.effects_abstraction.util.effects_util import tran_and_state_preds_after_con_env_step
+from analysis.abstraction.explicit_abstraction.util.abstract_state import AbstractState
+from analysis.abstraction.interface.Config import env, con
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.compatibility_checking.nuxmv_model import NuXmvModel
+from analysis.smt_checker import SMTChecker
 from programs.program import Program
-from programs.synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
+from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import label_pred

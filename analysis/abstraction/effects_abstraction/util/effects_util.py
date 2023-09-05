@@ -1,6 +1,6 @@
 from pysmt.shortcuts import Not, TRUE
 
-from programs.analysis.smt_checker import SMTChecker
+from analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.util import safe_update_set_vals, fnode_to_formula
 from prop_lang.uniop import UniOp

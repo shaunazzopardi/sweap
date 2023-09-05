@@ -5,12 +5,12 @@ from multiprocessing import Queue, Process
 import sympy
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, simplify, serialize, Or
+from pysmt.shortcuts import And, simplify, serialize
 from sympy import Basic
-from sympy.logic.boolalg import to_dnf, simplify_logic, to_cnf, Implies, Equivalent
+from sympy.logic.boolalg import to_dnf, to_cnf
 
 from parsing.string_to_prop_logic import string_to_prop
-from programs.analysis.smt_checker import SMTChecker
+from analysis.smt_checker import SMTChecker
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp

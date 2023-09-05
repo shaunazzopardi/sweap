@@ -1,4 +1,4 @@
-from programs.abstraction.explicit_abstraction.util.abstract_state import AbstractState
+from analysis.abstraction.explicit_abstraction.util.abstract_state import AbstractState
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import transition_formula, safe_update_set_vals, stringify_pred_take_out_neg, powerset, \

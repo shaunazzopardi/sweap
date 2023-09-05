@@ -1,7 +1,7 @@
 from pysmt.shortcuts import And
 
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.analysis.smt_checker import SMTChecker
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.smt_checker import SMTChecker
 from programs.util import looping_to_normal, stutter_transition, preds_in_state, var_to_predicate, is_predicate_var
 from prop_lang.biop import BiOp
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, propagate_negations, sat, \

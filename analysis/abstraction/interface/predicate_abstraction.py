@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 
-from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
 from programs.program import Program
-from programs.synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
 

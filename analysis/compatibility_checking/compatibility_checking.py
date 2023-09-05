@@ -1,12 +1,12 @@
 import logging
 
-from programs.abstraction.concretisation import concretize_transitions
-from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
-from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from programs.analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from programs.analysis.model_checker import ModelChecker
+from analysis.abstraction.concretisation import concretize_transitions
+from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.compatibility_checking.nuxmv_model import NuXmvModel
+from analysis.model_checker import ModelChecker
 from programs.program import Program
-from programs.synthesis.mealy_machine import MealyMachine
+from synthesis.mealy_machine import MealyMachine
 from programs.util import label_pred, parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp

@@ -1,4 +1,4 @@
-from programs.abstraction.explicit_abstraction.util.abstract_state import AbstractState
+from analysis.abstraction.explicit_abstraction.util.abstract_state import AbstractState
 from programs.abstraction.predicate_abstraction_new import bookkeep_tran_preds
 from programs.abstraction.predicate_abstraction_tran import powerset
 from programs.program import Program

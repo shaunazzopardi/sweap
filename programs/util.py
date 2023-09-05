@@ -11,8 +11,7 @@ from pysmt.logics import QF_UFLRA
 from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
 
-from programs.analysis.model_checker import ModelChecker
-from programs.analysis.smt_checker import SMTChecker
+from analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from prop_lang.biop import BiOp
