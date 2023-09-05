@@ -136,19 +136,23 @@ class MealyMachine:
 
         # some preprocessing
         reworked_transitions = []
-        if parallelise:
-            n_jobs = -1
+        if parallelise and len(trans_dict.keys()) > 50:
+            reworked_transitions = Parallel(n_jobs=-1, verbose=11)(
+                delayed(self.handle_transition)(src_index,
+                                                env_behaviour,
+                                                con_cond,
+                                                tgt_index,
+                                                abstract_ltl_synthesis_problem)
+                for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items()
+                for con_cond in con_conds)
         else:
-            n_jobs = 1
-
-        reworked_transitions = Parallel(n_jobs=n_jobs, verbose=11)(
-                                    delayed(self.handle_transition)(src_index,
-                                                                    env_behaviour,
-                                                                    con_cond,
-                                                                    tgt_index,
-                                                                    abstract_ltl_synthesis_problem)
-                                          for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items()
-                                              for con_cond in con_conds)
+            for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items():
+                for con_cond in con_conds:
+                    reworked_transitions.append(self.handle_transition(src_index,
+                                                                       env_behaviour,
+                                                                       con_cond,
+                                                                       tgt_index,
+                                                                       abstract_ltl_synthesis_problem))
 
         env_states = {}
         con_states = {}
