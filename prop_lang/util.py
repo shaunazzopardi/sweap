@@ -154,9 +154,12 @@ smt_checker = SMTChecker()
 
 
 def sat(formula: Formula, symbol_table: dict = None,
-        solver: SMTChecker = smt_checker) -> bool:
+        solver: SMTChecker = smt_checker, add_missing_vars:bool=False) -> bool:
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
+    if add_missing_vars:
+        symbol_table.update({str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()
+                                if str(v) not in symbol_table.keys()})
     try:
         return solver.check(And(*formula.to_smt(symbol_table)))
     except Exception as e:
