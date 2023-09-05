@@ -288,7 +288,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 if len(newNextPss) > 0:
                     new_effects[E] = newNextPss
                 else:
-                    new_effects.pop(E)
+                    if E in new_effects.keys():
+                        new_effects.pop(E)
+
                     Es.remove((guard_disjunct, E))
         else:
             action_formula = conjunct_formula_set([BiOp(a.left, "=", add_prev_suffix(a.right)) for a in action])
@@ -308,8 +310,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     try_neg = False
                 newNextPss = InvertibleMap()
-                if E not in old_effects.keys():
-                    print()
+
                 # old_effects[E] is an InvertibleMap
                 for (nextPs, Pss) in old_effects[E].items():
                     nextPs_with_p = frozenset(p for p in nextPs | {predicate})
@@ -354,7 +355,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 if len(newNextPss) > 0:
                     new_effects[E] = newNextPss
                 else:
-                    new_effects.pop(E)
+                    if E in new_effects.keys():
+                        new_effects.pop(E)
+
                     Es.remove((guard_disjunct, E))
         return t, t_formula, invars, constants, Es, new_effects
 
@@ -393,8 +396,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 new_formula = conjunct(action_formula, add_prev_suffix(guard_disjunct))
 
                 newNextPss = InvertibleMap()
-                if E not in old_effects.keys():
-                    print()
+
                 # old_effects[E] is an InvertibleMap
                 for (nextPs, Pss) in old_effects[E].items():
                     nextPs_with_p = frozenset(p for p in nextPs | {predicate})
@@ -414,8 +416,6 @@ class EffectsAbstraction(PredicateAbstraction):
                                self.program.symbol_table, smt_checker):
                             new_pos_Ps.add(Ps)
 
-                    if len(new_pos_Ps) == 0 and len(new_neg_Ps) == 0:
-                        print()
                     if len(new_pos_Ps) > 0:
                         newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
                     if len(new_neg_Ps) > 0:
@@ -424,7 +424,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 if len(newNextPss) > 0:
                     new_effects[E] = newNextPss
                 else:
-                    new_effects.pop(E)
+                    if E in new_effects.keys():
+                        new_effects.pop(E)
+
                     Es.remove((guard_disjunct, E))
         return t, t_formula, invars, constants, Es, new_effects
 

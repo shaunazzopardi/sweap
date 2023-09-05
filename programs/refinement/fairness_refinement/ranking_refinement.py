@@ -99,7 +99,7 @@ def try_liveness_refinement(counterstrategy_states: [str],
     for ranking in new_ranking_invars.keys():
         for t, _ in loop:
             action_formula = conjunct_formula_set([BiOp(a.left, "==", add_prev_suffix(a.right)) for a in t.action])
-            ranking_increase_with_action = conjunct(BiOp(ranking, ">", add_prev_suffix(ranking)),action_formula)
+            ranking_increase_with_action = conjunct(BiOp(ranking, ">", add_prev_suffix(ranking)), action_formula)
             if sat(ranking_increase_with_action, symbol_table):
                 inappropriate_rankings.append(ranking)
 
@@ -134,7 +134,9 @@ def try_liveness_refinement(counterstrategy_states: [str],
 
     return True, (new_ranking_invars, new_transition_predicates)
 
+
 seen_loops_cache = {}
+
 
 def liveness_refinement(symbol_table,
                         program,
@@ -189,10 +191,10 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
     choices = []
 
     for t in loop_before_exit:
-        safety = str(type_constraints(t.condition, symbol_table))\
-                        .replace(" = ", " == ")\
-                        .replace(" & ", " && ")\
-                        .replace(" | ", " || ")
+        safety = str(type_constraints(t.condition, symbol_table)) \
+            .replace(" = ", " == ") \
+            .replace(" & ", " && ") \
+            .replace(" | ", " || ")
         cond_simpl = str(t.condition.simplify()).replace(" = ", " == ").replace(" & ", " && ").replace(" | ", " || ")
         acts = "\n\t\t".join([str(act.left) + " = " + str(act.right) + ";" for act in t.action if
                               not is_boolean(act.left, program.valuation) if act.left != act.right])
@@ -220,17 +222,17 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
         .replace(" | ", " || ")
 
     # TODO check for satisfiability instead of equality of with true
-    loop_code = "\n\t\twhile(!(" + exit_cond_simplified + ")){\n\t" \
+    loop_code = "\n\twhile(!(" + exit_cond_simplified + ")){\n\t" \
                 + "\n\t\t\t".join(choices) \
-                + "\n\t\t}\n"
+                + "\n\t}\n"
 
     entry_cond_simplified = str(entry_condition.simplify())
     if entry_cond_simplified.lower() != "true":
-        loop_code = "\n\tif(" + entry_cond_simplified\
-                                    .replace(" = ", " == ")\
-                                    .replace(" & ", " && ")\
-                                    .replace(" | ", " || ") \
-                            + "){" + loop_code + "\n\t}"
+        loop_code = "\n\tif(" + entry_cond_simplified \
+            .replace(" = ", " == ") \
+            .replace(" & ", " && ") \
+            .replace(" | ", " || ") \
+                    + "){" + loop_code + "\n\t}"
 
     c_code = "#include<stdbool.h>\n\nvoid main(" + param_list + "){\n\t" + "\n\t".join(init).strip() + loop_code + "\n}"
     c_code = c_code.replace("TRUE", "true")
@@ -282,14 +284,15 @@ def use_liveness_refinement_state(env_con_ce: [dict], last_cs_state, disagreed_o
             corresponding_ce_state = [ce_with_stutter_states[i][1] for i in range(visit, previous_visits[i + 1] + 1)]
 
             any_var_differences = [get_differently_value_vars(corresponding_ce_state[i], corresponding_ce_state[i + 1])
-                               for i in range(0, len(corresponding_ce_state) - 1)]
+                                   for i in range(0, len(corresponding_ce_state) - 1)]
             any_var_differences = [[re.sub("_[0-9]+$", "", v) for v in vs] for vs in any_var_differences]
-            any_var_differences = [[v for v in vs if v in symbol_table.keys() and not str(v).endswith("_prev")] for vs in any_var_differences]
+            any_var_differences = [[v for v in vs if v in symbol_table.keys() and not str(v).endswith("_prev")] for vs
+                                   in any_var_differences]
             any_var_differences = [[] != [v for v in vs if
-                                      not re.match("(bool(ean)?)", symbol_table[v].type)] for vs in
-                                      # the below only identifies loops when there are changes in infinite-domain variables in the loop
-                                      # re.match("(int(eger)?|nat(ural)?|real|rational)", symbol_table[v].type)] for vs in
-                               any_var_differences]
+                                          not re.match("(bool(ean)?)", symbol_table[v].type)] for vs in
+                                   # the below only identifies loops when there are changes in infinite-domain variables in the loop
+                                   # re.match("(int(eger)?|nat(ural)?|real|rational)", symbol_table[v].type)] for vs in
+                                   any_var_differences]
             if True in any_var_differences:
                 var_differences += [True]
             else:
@@ -382,17 +385,19 @@ def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
         program = predicate_abstraction.get_program()
 
         # TODO simplify loop by finding repeated sequences
-        if [] == [t for t, _ in ce_prog_loop_tran_concretised if [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
+        if [] == [t for t, _ in ce_prog_loop_tran_concretised if
+                  [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
             return False, None, None, None, None
 
         entry_valuation = conjunct_formula_set([BiOp(Variable(key), "=", Value(value))
-                                                    for tv in program.valuation
-                                                    for key, value in ce_prog_loop_tran_concretised[0][1].items()
-                                                    if key == tv.name])
+                                                for tv in program.valuation
+                                                for key, value in ce_prog_loop_tran_concretised[0][1].items()
+                                                if key == tv.name])
 
         all_state_preds = predicate_abstraction.get_state_predicates()
 
-        true_preds = [p for p in all_state_preds if smt_checker.check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
+        true_preds = [p for p in all_state_preds if
+                      smt_checker.check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
         false_preds = [neg(p) for p in all_state_preds if p not in true_preds]
         entry_predicate = conjunct_formula_set(true_preds + false_preds)
 

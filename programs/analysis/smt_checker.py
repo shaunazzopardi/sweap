@@ -1,8 +1,7 @@
 import logging
 
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Solver, Interpolator, get_env, is_sat, serialize
-from pysmt.solvers import solver
+from pysmt.shortcuts import Solver, Interpolator, is_sat, serialize
 
 
 class SMTChecker:

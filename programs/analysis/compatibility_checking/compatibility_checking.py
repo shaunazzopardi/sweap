@@ -130,7 +130,7 @@ def compatibility_checking(program: Program,
     return None, (ce, agreed_on_transitions, disagreed_on_state, counterstrategy_states)
 
 
-def create_nuxmv_model_for_compatibility_checking(program, strategy_model: NuXmvModel, mon_events,
+def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel, mon_events,
                                                   pred_list, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
     pred_definitions = {label_pred(p, pred_list): p for p in pred_list}

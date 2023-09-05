@@ -18,6 +18,7 @@ from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
+
 def safety_refinement(program: Program,
                       predicate_abstraction: PredicateAbstraction,
                       agreed_on_transitions,
@@ -37,7 +38,7 @@ def safety_refinement(program: Program,
                                                        symbol_table, program, use_dnf=True)
 
         if len(new_state_preds) == 0:
-            print("No state predicates identified.")
+            logging.info("No state predicates identified.")
             if allow_user_input:
                 new_state_preds = interactive_state_predicates()
             else:
@@ -45,7 +46,7 @@ def safety_refinement(program: Program,
                 vars_mentioned_in_preds = {v for p in disagreed_on_state[0] for v in p.variablesin() if
                                            not str(v).endswith("_prev")}
                 new_state_preds |= {BiOp(v, "=", Value(state[str(v)])) for v in vars_mentioned_in_preds for state
-                                     in [st for (_, st) in agreed_on_transitions + [disagreed_on_state]]}
+                                    in [st for (_, st) in agreed_on_transitions + [disagreed_on_state]]}
         else:
             logging.info("Found state predicates: " + ", ".join([str(p) for p in new_state_preds]))
 
@@ -70,13 +71,13 @@ def safety_refinement(program: Program,
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         logging.info(
             "New state predicates (" + ", ".join([str(p) for p in new_state_preds]) + ") are a subset of "
-                                                                                "previous predicates."
+                                                                                      "previous predicates."
         )
         logging.info("I will try using the values of variables instead..")
         vars_mentioned_in_preds = {v for p in new_state_preds for v in p.variablesin()}
         new_state_preds = {BiOp(v, "=", Value(state[str(v)]))
-                     for v in vars_mentioned_in_preds
-                     for state in [st for (_, st) in agreed_on_transitions + [disagreed_on_state]]}
+                           for v in vars_mentioned_in_preds
+                           for state in [st for (_, st) in agreed_on_transitions + [disagreed_on_state]]}
         new_all_preds = {x.simplify() for x in
                          new_state_preds | {p for p in state_predicates if p not in state_predicates}}
         new_all_preds = reduce_up_to_iff(set(state_predicates),
@@ -92,15 +93,6 @@ def safety_refinement(program: Program,
                                                  "prev")})
         if len(new_all_preds) <= len(set(state_predicates)):
             return False, None
-
-        # ranking invars may have been added
-        # print("For debugging:\nComputing projection of counterstrategy onto predicate abstraction..")
-        # controller_projected_on_program = mm.project_controller_on_program("counterstrategy", program, predicate_abstraction.py,
-        #                                                                    symbol_table | symbol_table_preds)
-        #
-        # print(controller_projected_on_program.to_dot())
-        # raise e
-
 
     if keep_only_bool_interpolants:
         bool_interpolants = [p for p in new_state_preds if
@@ -127,6 +119,7 @@ def safety_refinement(program: Program,
 
     return True, [p for p in new_all_preds if p not in state_predicates]
 
+
 def counterexample_interpolation(ce: [dict],
                                  agreed_on_transitions: [(Transition, dict)],
                                  disagreed_on_state: (Formula, dict),
@@ -151,7 +144,12 @@ def counterexample_interpolation(ce: [dict],
     # TODO why aren't se just conjuncting disagreed_on_state[0]?
     for s in disagreed_on_state[0]:
         for j in reversed(range(0, len(concurring_transitions) + 1)):
-            Css = path_interpolation(program, concurring_transitions, (neg(s), disagreed_on_state[1]), j, symbol_table, use_dnf=use_dnf)
+            Css = path_interpolation(program,
+                                     concurring_transitions,
+                                     (neg(s), disagreed_on_state[1]),
+                                     j,
+                                     symbol_table,
+                                     use_dnf=use_dnf)
             if Css is None:
                 logging.info("I think that interpolation is being checked against formulas that are not contradictory.")
                 break
@@ -222,7 +220,9 @@ def path_interpolation(program: Program, concurring_transitions: [(Transition, d
     disagreed_on_value_state = disagreed_on_state[1]
     projected_condition = disagreed_on_state[0].replace(ith_vars(len(concurring_transitions)))
     if any(v for v in projected_condition.variablesin() if "_prev" in str(v)):
-        projected_condition = projected_condition.replace([BiOp(Variable(str(v)), ":=", Variable(str(v).split("_prev")[0] + "_" + str(i-1))) for v in projected_condition.variablesin() if "_prev" in str(v)])
+        projected_condition = projected_condition.replace(
+            [BiOp(Variable(str(v)), ":=", Variable(str(v).split("_prev")[0] + "_" + str(i - 1))) for v in
+             projected_condition.variablesin() if "_prev" in str(v)])
     grounded_condition = ground_formula_on_ce_state_with_index(projected_condition,
                                                                project_ce_state_onto_ev(disagreed_on_value_state,
                                                                                         program.env_events
@@ -262,13 +262,16 @@ def path_interpolation(program: Program, concurring_transitions: [(Transition, d
 
         if C is not None:
             Cf = fnode_to_formula(C)
-            previous_vars_related_to_current_vars = [v for v in Cf.variablesin() if Variable(str(v).rsplit("_", 1)[0] + "_" + str(int(str(v).rsplit("_", 1)[1]) - 1)) in Cf.variablesin()]
+            previous_vars_related_to_current_vars = [v for v in Cf.variablesin() if Variable(
+                str(v).rsplit("_", 1)[0] + "_" + str(int(str(v).rsplit("_", 1)[1]) - 1)) in Cf.variablesin()]
             if len(previous_vars_related_to_current_vars) > 0:
                 # ground previous variables on their values; TODO instead of just looking one step back, have to go back to the first action, or just use the variables value in the previous step
                 for v in previous_vars_related_to_current_vars:
                     var_name = (str(v).split("_")[0])
                     prev_var = Variable(var_name + "_" + str(i - 1))
-                    Cf = Cf.replace([BiOp(prev_var, ":=", act.right) for act in concurring_transitions[i-1][0].action if str(act.left) == var_name])
+                    Cf = Cf.replace(
+                        [BiOp(prev_var, ":=", act.right) for act in concurring_transitions[i - 1][0].action if
+                         str(act.left) == var_name])
             Cf = Cf.replace(reset_vars)
             Cs |= {Cf}
 
@@ -276,7 +279,6 @@ def path_interpolation(program: Program, concurring_transitions: [(Transition, d
         return None
     else:
         return Cs
-
 
 
 def interactive_state_predicates():
