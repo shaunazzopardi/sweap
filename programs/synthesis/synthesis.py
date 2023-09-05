@@ -139,19 +139,26 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                                        ltlAbstractionType)
 
         (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
+        print(mm)
+
+        if real and not debug:
+            if project_on_abstraction:
+                mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
+                                                                 base_abstraction,
+                                                                 ltlAbstractionType,
+                                                                 abstract_ltl_problem,
+                                                                 real)
+                return True, mm
+            else:
+                return True, mm_hoa
+
+
         mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
                                                          base_abstraction,
                                                          ltlAbstractionType,
                                                          abstract_ltl_problem,
                                                          real)
-        print(mm)
 
-        if real and not debug:
-            print("Realizable")
-            if project_on_abstraction:
-                return True, mm
-            else:
-                return True, mm
 
         ## compatibility checking
         determination, result = compatibility_checking(program,
