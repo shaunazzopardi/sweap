@@ -391,7 +391,7 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
         raise Exception("dnf: I do not know how to handle " + str(f) + ", cannot turn it into dnf. " + str(e))
 
 
-def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=2):
+def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
@@ -402,7 +402,7 @@ def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeo
 
     return ret
 
-def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=2):
+def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
