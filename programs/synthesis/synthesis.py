@@ -1,3 +1,5 @@
+import logging
+import time
 from typing import Tuple
 
 from programs.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
@@ -32,6 +34,7 @@ def synthesize(program: Program,
     # if not program.deterministic:
     #     raise Exception("We do not handle non-deterministic programs yet.")
 
+    start = time.time()
     if tlsf_path is not None:
         ltl_text = syfco_ltl(tlsf_path)
         if " Error\"" in ltl_text:
@@ -73,8 +76,10 @@ def synthesize(program: Program,
         if any(x for x in out_acts if x not in out_acts_syfco):
             raise Exception("TLSF file has different output variables than the program.")
 
-    return abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
-                                   project_on_abstraction=project_on_abstraction)
+    result = abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
+                                     project_on_abstraction=project_on_abstraction)
+    logging.info("synthesis took " + str(time.time() - start))
+    return result
 
 
 def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_guarantees: [Formula], in_acts: [Variable],
@@ -123,9 +128,17 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                ltl_assumptions,
                                                ltl_guarantees)
 
+    timing_data = ""
+    print("Starting abstract synthesis loop.")
     while True:
         ## update predicate abstraction
+        start = time.time()
+        print("adding " + ", ".join(map(str, new_state_preds + [str(rank) + " with invars " + ", ".join([str(i) for i in invars])
+                                    for rank, invars in new_ranking_invars.items()])) + " to predicate abstraction")
         predicate_abstraction.add_predicates(new_state_preds, new_ranking_invars, True)
+        timing_data += "\n" + ("adding " + ", ".join(map(str, new_state_preds + [str(rank) + " with invars " + ", ".join([str(i) for i in invars])
+                                    for rank, invars in new_ranking_invars.items()]))  + " took " + str(time.time() - start))
+        logging.info(timing_data)
 
         state_predicates.extend(new_state_preds)
         new_state_preds.clear()
@@ -134,15 +147,26 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         new_ranking_invars.clear()
 
         ## LTL abstraction
+        start = time.time()
+        print("constructing LTL abstraction")
         base_abstraction, abstract_ltl_problem = effects_to_ltl.to_ltl(predicate_abstraction,
                                                                        original_LTL_problem,
                                                                        ltlAbstractionType)
 
+        timing_data += "\n" + ("to ltl abstraction took " + str(time.time() - start))
+        logging.info(timing_data)
+
+        start = time.time()
+        print("running LTL synthesis")
         (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
-        print(mm)
+        timing_data += "\n" + ("ltl synthesis took " + str(time.time() - start))
+        logging.info(timing_data)
 
         if real and not debug:
+            logging.info("Realizable")
             if project_on_abstraction:
+                # TODO actually project
+                print("massaging abstract controller")
                 mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
                                                                  base_abstraction,
                                                                  ltlAbstractionType,
@@ -153,14 +177,22 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                 return True, mm_hoa
 
 
+        start = time.time()
+        print("massaging abstract counterstrategy")
         mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
                                                          base_abstraction,
                                                          ltlAbstractionType,
                                                          abstract_ltl_problem,
                                                          real)
 
+        timing_data += "\n" + ("massaging mealy machine took " + str(time.time() - start))
+        logging.info(mm)
+        logging.info(timing_data)
 
         ## compatibility checking
+        start = time.time()
+
+        print("checking for compatibility of counterstrategy with program")
         determination, result = compatibility_checking(program,
                                                        predicate_abstraction,
                                                        mm,
@@ -171,8 +203,11 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                        project_on_abstraction,
                                                        prefer_lasso_counterexamples)
 
+        timing_data += "\n" + ("compatibility checking took " + str(time.time() - start))
+        logging.info(timing_data)
+
         if determination == False:
-            print("Problem is unrealisable.")
+            logging.info("Problem is unrealisable.")
             return False, mm
         elif determination == True:
             raise Exception("error")
@@ -182,6 +217,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         write_counterexample_state(program, agreed_on_transitions, disagreed_on_state)
 
         ## try fairness refinement
+        start = time.time()
+        print("trying fairness refinement")
         success, result = try_liveness_refinement(counterstrategy_states,
                                                   program,
                                                   predicate_abstraction,
@@ -190,14 +227,20 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                   ranking_invars,
                                                   allow_user_input)
 
+        timing_data += "\n" + ("liveness refinement took " + str(time.time() - start))
+        logging.info(timing_data)
+
         if success:
             new_ranking_invars, new_transition_predicates = result
         elif not success and result is not None:
-            # do structural refinement
-            pass
+            # TODO structural refinement
+            logging.error("Structural refinement not implemented yet.")
+            result = None
 
         if eager or (not success and result is None):
             ## do safety refinement
+            start = time.time()
+            print("trying safety refinement")
             success, result = safety_refinement(program,
                                                 predicate_abstraction,
                                                 agreed_on_transitions,
@@ -207,6 +250,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                 keep_only_bool_interpolants,
                                                 conservative_with_state_predicates)
 
+            timing_data += "\n" + ("safety refinement took " + str(time.time() - start))
             if success:
                 new_state_preds = result
             else:
@@ -217,61 +261,46 @@ def write_counterexample(program,
                          agreed_on_transitions: [(Transition, dict)],
                          # disagreed_on_transitions: ([Transition], dict),
                          program_actually_took: [(Transition, dict)]):
-    print("Mismatch:")
-    print("Agreed on transitions:")
+    logging.info("Mismatch:")
+    logging.info("Agreed on transitions:")
     for trans, state in ([(t, s) for (t, s) in agreed_on_transitions]):
         vs = set(trans.condition.variablesin()
                  + [v for v in list(state.keys()) if str(v).startswith("mon_")]
                  + [v for v in list(state.keys()) if str(v).startswith("pred_")]
                  + [v for v in program.env_events + program.con_events])
 
-        print("\nvar values: " + ", ".join(
+        logging.info("\nvar values: " + ", ".join(
             [str(v) + "=" + state[str(v)] for v in vs]))
-        print(("env: " if "env" == state["turn"] else "con: ") + str(trans))
-        print()
+        logging.info(("env: " if "env" == state["turn"] else "con: ") + str(trans))
 
-    # print("Environment wanted to take one of these:")
+    logging.info("Environment did not want to take:")
 
-    # state = disagreed_on_transitions[1]
-    # vs = []
-    # for trans in disagreed_on_transitions[0]:
-    #     vs += set(trans.condition.variablesin()
-    #               + [v for v in list(state.keys()) if str(v).startswith("mon_")]
-    #               + [v for v in list(state.keys()) if str(v).startswith("pred_")]
-    #               + [v for v in program.env_events + program.con_events])
-    #     print(str(trans))
-    # print("with state: " + ", ".join([str(v) + "=" + state[str(v)] for v in vs]))
-    #
-    # print("Program actually took:")
-    print("Environment did not want to take:")
-
-    print(("env: " if "env" == program_actually_took[1]["turn"] else "con: ") + str(program_actually_took[0]))
+    logging.info(("env: " if "env" == program_actually_took[1]["turn"] else "con: ") + str(program_actually_took[0]))
     vs = []
     vs += set(program_actually_took[0].condition.variablesin()
               + [v for v in list(program_actually_took[1].keys()) if str(v).startswith("mon_")]
               + [v for v in list(program_actually_took[1].keys()) if str(v).startswith("pred_")]
               + [v for v in program.env_events + program.con_events])
-    print("with state: " + ", ".join([str(v) + "=" + program_actually_took[1][str(v)] for v in vs]))
+    logging.info("with state: " + ", ".join([str(v) + "=" + program_actually_took[1][str(v)] for v in vs]))
 
 
 def write_counterexample_state(program,
                                agreed_on_transitions: [(Transition, dict)],
                                disagreed_on_state: ([Formula], dict)):
-    print("Mismatch:")
-    print("Agreed on transitions:")
+    logging.info("Mismatch:")
+    logging.info("Agreed on transitions:")
     for trans, state in ([(t, s) for (t, s) in agreed_on_transitions]):
         vs = set(trans.condition.variablesin()
                  + [v for v in list(state.keys()) if str(v).startswith("mon_")]
                  + [v for v in list(state.keys()) if str(v).startswith("pred_")]
                  + [v for v in program.env_events + program.con_events])
 
-        print("\nvar values: " + ", ".join([str(v) + "=" + state[str(v)] for v in vs]))
-        print(("env: " if "env" == state["turn"] else "con: ") + str(trans))
-        print()
+        logging.info("\nvar values: " + ", ".join([str(v) + "=" + state[str(v)] for v in vs]))
+        logging.info(("env: " if "env" == state["turn"] else "con: ") + str(trans))
 
-    print("Environment wanted state to satisfy:")
+    logging.info("Environment wanted state to satisfy:")
 
-    print(", ".join([str(p) for p in disagreed_on_state[0]]))
+    logging.info(", ".join([str(p) for p in disagreed_on_state[0]]))
 
-    print("Program however has state:")
-    print(", ".join([v + " = " + k for v, k in disagreed_on_state[1].items()]))
+    logging.info("Program however has state:")
+    logging.info(", ".join([v + " = " + k for v, k in disagreed_on_state[1].items()]))

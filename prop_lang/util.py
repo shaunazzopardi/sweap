@@ -1,3 +1,4 @@
+import logging
 import re
 from multiprocessing import Queue, Process
 
@@ -163,7 +164,7 @@ def sat(formula: Formula, symbol_table: dict = None,
     try:
         return solver.check(And(*formula.to_smt(symbol_table)))
     except Exception as e:
-        print(str(formula))
+        logging.info(str(formula))
         return solver.check(And(*formula.to_smt(symbol_table)))
 
 def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None,
@@ -255,7 +256,7 @@ def only_dis_or_con_junctions(f: Formula):
                         only_dis_or_con_junctions(BiOp(f.right, "->", f.left)))
         else:
             # check if math expr? math expr should be abstracted out before manipulating formulas also for dnf
-            # print("only_dis_or_con_junctions: I do not know how to handle " + str(f) + ", treating it as math expression.")
+            # logging.info("only_dis_or_con_junctions: I do not know how to handle " + str(f) + ", treating it as math expression.")
             return MathExpr(f)
     else:
         return f
@@ -305,7 +306,7 @@ def simplify_formula_with_math(formula, symbol_table):
         to_formula = fnode_to_formula(simplified)
     except Exception as e:
         to_formula = fnode_to_formula(simplified)
-        print(str(e))
+        logging.info(str(e))
     return to_formula
 
 

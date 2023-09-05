@@ -1,6 +1,8 @@
+import logging
 import os
 import re
 import shutil
+import time
 from itertools import chain, combinations
 
 from pysmt.factory import SolverRedefinitionError
@@ -99,7 +101,7 @@ def check_for_nondeterminism_last_step(state_before_mismatch, program, raise_exc
             else:
                 raise Exception(message) from exception
         else:
-            print("WARNING: " + message)
+            logging.info("WARNING: " + message)
 
 
 def parse_nuxmv_ce_output_finite(transition_no, out: str):
@@ -436,7 +438,13 @@ def stutter_transition(program, state, env: bool):
     if condition in stutter_transition_cache.keys():
         return stutter_transition_cache[program][condition]
     elif smt_checker.check(And(*condition.to_smt(program.symbol_table))):
+        start = time.time()
         condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
+        if condition_cnfed != condition:
+            logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
+                     "With result " + str(condition_cnfed))
+        else:
+            logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
         stutter_t = Transition(state,
                                condition_cnfed,
                                [],
@@ -517,12 +525,12 @@ def is_deterministic(program):
         # sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
         # for cond in conds:
         #     if cond not in sat_conds:
-        #         print("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
+        #         logging.info("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
 
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
                 if smt_checker.check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
-                    print("WARNING: " + str(cond) + " and " + str(
+                    logging.info("WARNING: " + str(cond) + " and " + str(
                         cond2) + " are satisfiable together, see environment transitions from state " + str(s))
                     return False
 
@@ -534,11 +542,11 @@ def is_deterministic(program):
         # sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
         # for cond in conds:
         #     if cond not in sat_conds:
-        #         print("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
+        #         logging.info("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
                 if smt_checker.check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
-                    print("WARNING: " + str(cond) + " and " + str(
+                    logging.info("WARNING: " + str(cond) + " and " + str(
                         cond2) + " are satisfiable together, see controller transitions from state " + str(s))
                     return False
 

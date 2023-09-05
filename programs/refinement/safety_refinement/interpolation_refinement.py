@@ -1,3 +1,5 @@
+import logging
+
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And
 
@@ -39,13 +41,13 @@ def safety_refinement(program: Program,
             if allow_user_input:
                 new_state_preds = interactive_state_predicates()
             else:
-                print("I will try using the values of variables instead..")
+                logging.info("I will try using the values of variables instead..")
                 vars_mentioned_in_preds = {v for p in disagreed_on_state[0] for v in p.variablesin() if
                                            not str(v).endswith("_prev")}
                 new_state_preds |= {BiOp(v, "=", Value(state[str(v)])) for v in vars_mentioned_in_preds for state
                                      in [st for (_, st) in agreed_on_transitions + [disagreed_on_state]]}
         else:
-            print("Found state predicates: " + ", ".join([str(p) for p in new_state_preds]))
+            logging.info("Found state predicates: " + ", ".join([str(p) for p in new_state_preds]))
 
     state_predicates = predicate_abstraction.get_state_predicates()
     new_all_preds = [x.simplify() for x in new_state_preds] + state_predicates
@@ -66,11 +68,11 @@ def safety_refinement(program: Program,
 
     if len(new_all_preds) == len(set(state_predicates)):
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
-        print(
+        logging.info(
             "New state predicates (" + ", ".join([str(p) for p in new_state_preds]) + ") are a subset of "
                                                                                 "previous predicates."
         )
-        print("I will try using the values of variables instead..")
+        logging.info("I will try using the values of variables instead..")
         vars_mentioned_in_preds = {v for p in new_state_preds for v in p.variablesin()}
         new_state_preds = {BiOp(v, "=", Value(state[str(v)]))
                      for v in vars_mentioned_in_preds
@@ -121,7 +123,7 @@ def safety_refinement(program: Program,
         new_all_preds = state_predicates + (ordered_according_to_no_of_vars_used[0] if len(
             ordered_according_to_no_of_vars_used) > 0 else [])
 
-    print("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates]))
+    logging.info("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates]))
 
     return True, [p for p in new_all_preds if p not in state_predicates]
 
@@ -151,7 +153,7 @@ def counterexample_interpolation(ce: [dict],
         for j in reversed(range(0, len(concurring_transitions) + 1)):
             Css = path_interpolation(program, concurring_transitions, (neg(s), disagreed_on_state[1]), j, symbol_table, use_dnf=use_dnf)
             if Css is None:
-                print("I think that interpolation is being checked against formulas that are not contradictory.")
+                logging.info("I think that interpolation is being checked against formulas that are not contradictory.")
                 break
             # if B is itself inconsistent
             if len(Cs) == 1 and isinstance(list(Cs)[0], Value):
@@ -220,7 +222,6 @@ def path_interpolation(program: Program, concurring_transitions: [(Transition, d
     disagreed_on_value_state = disagreed_on_state[1]
     projected_condition = disagreed_on_state[0].replace(ith_vars(len(concurring_transitions)))
     if any(v for v in projected_condition.variablesin() if "_prev" in str(v)):
-        print()
         projected_condition = projected_condition.replace([BiOp(Variable(str(v)), ":=", Variable(str(v).split("_prev")[0] + "_" + str(i-1))) for v in projected_condition.variablesin() if "_prev" in str(v)])
     grounded_condition = ground_formula_on_ce_state_with_index(projected_condition,
                                                                project_ce_state_onto_ev(disagreed_on_value_state,

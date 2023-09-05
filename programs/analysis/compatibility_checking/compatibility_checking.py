@@ -1,3 +1,5 @@
+import logging
+
 from programs.abstraction.concretisation import concretize_transitions
 from programs.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
@@ -49,7 +51,7 @@ def compatibility_checking(program: Program,
                                                            not program.deterministic,
                                                            predicate_mismatch=True,
                                                            prefer_lassos=prefer_lasso_counterexamples)
-    print(system)
+    logging.info(system)
     contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
                                                                                            is_controller,
                                                                                            False,
@@ -62,46 +64,46 @@ def compatibility_checking(program: Program,
                         ", but nuxmv thinks it is non consistent with the program.\n" +
                         "This may be a problem with nuXmv, e.g., it does not seem to play well with integer division.")
 
-        if not there_is_mismatch:
-            print("No mismatch found.")
+    if not there_is_mismatch:
+        logging.info("No mismatch found.")
 
-            ## Finished
-            if project_on_abstraction:
-                print("Computing projection of " + (
-                    "strategy" if is_controller else "counterstrategy") + " onto predicate abstraction..")
-                controller_projected_on_program = mealy_machine.project_controller_on_program((
-                    "strategy" if is_controller else "counterstrategy"),
-                    program,
-                    predicate_abstraction,
-                    symbol_table)
+        ## Finished
+        if project_on_abstraction:
+            logging.info("Computing projection of " + (
+                "strategy" if is_controller else "counterstrategy") + " onto predicate abstraction..")
+            controller_projected_on_program = mealy_machine.project_controller_on_program((
+                "strategy" if is_controller else "counterstrategy"),
+                program,
+                predicate_abstraction,
+                symbol_table)
 
-                for t in controller_projected_on_program.con_transitions + controller_projected_on_program.env_transitions:
-                    ok = False
-                    for tt in controller_projected_on_program.con_transitions + controller_projected_on_program.env_transitions:
-                        if t.tgt == tt.src:
-                            ok = True
-                            break
+            for t in controller_projected_on_program.con_transitions + controller_projected_on_program.env_transitions:
+                ok = False
+                for tt in controller_projected_on_program.con_transitions + controller_projected_on_program.env_transitions:
+                    if t.tgt == tt.src:
+                        ok = True
+                        break
 
-                    if not ok:
-                        print(controller_projected_on_program.to_dot())
+                if not ok:
+                    logging.info(controller_projected_on_program.to_dot())
 
-                        raise Exception(
-                            "Warning: Model checking says counterstrategy is fine, but something has gone wrong with projection "
-                            "onto the predicate abstraction, and I have no idea why. "
-                            "The " + (
-                                "controller" if is_controller else "counterstrategy") + " has no outgoing transition from this program state: "
-                            + ", ".join([str(p) for p in list(t.tgt)]))
-                result = controller_projected_on_program.to_dot()
-            else:
-                result = mealy_machine.to_dot(all_preds)
+                    raise Exception(
+                        "Warning: Model checking says counterstrategy is fine, but something has gone wrong with projection "
+                        "onto the predicate abstraction, and I have no idea why. "
+                        "The " + (
+                            "controller" if is_controller else "counterstrategy") + " has no outgoing transition from this program state: "
+                        + ", ".join([str(p) for p in list(t.tgt)]))
+            result = controller_projected_on_program.to_dot()
+        else:
+            result = mealy_machine.to_dot(all_preds)
 
-            if is_controller:
-                return True, result
-            else:
-                # then the problem is unrealisable (i.e., the counterstrategy is a real counterstrategy)
-                return False, result
+        if is_controller:
+            return True, result
+        else:
+            # then the problem is unrealisable (i.e., the counterstrategy is a real counterstrategy)
+            return False, result
 
-    print(out)
+    logging.info(out)
     ## Compute mismatch trace
     ce, transition_indices_and_state, incompatible_state = parse_nuxmv_ce_output_finite(
         len(program.env_transitions) + len(program.con_transitions), out)
@@ -256,11 +258,11 @@ def there_is_mismatch_between_program_and_strategy(system,
                                                    mismatch_condition=None):
     model_checker = ModelChecker()
     if debug:
-        print(system)
+        logging.info(system)
         # Sanity check
         result, out = model_checker.check(system, "F FALSE", None, livenesstosafety)
         if result:
-            print("Are you sure the counterstrategy given is complete?")
+            logging.info("Are you sure the counterstrategy given is complete?")
             return True, None, out
 
     if not controller:

@@ -1,10 +1,12 @@
 import argparse
+import os
 
 from programs.analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from programs.analysis.model_checker import ModelChecker
 from parsing.string_to_program_with_action_guards import string_to_program
 from programs.synthesis.synthesis import synthesize
-# inputs: date_file ltl_file
+import logging
+
 import time
 
 def main():
@@ -28,10 +30,22 @@ def main():
     if args.program is None:
         raise Exception("Program path not specified.")
 
-    date_file = open(args.program, "r").read()
+    prog_file = open(args.program, "r")
+    prog_str = prog_file.read()
 
-    program = string_to_program(date_file)
-    print(program.to_dot())
+    if not os.path.exists(str(os.getcwd()) + "\\out"):
+        os.makedirs(str(os.getcwd()) + "\\out")
+
+    logging.basicConfig(filename=(str(os.getcwd()) + "\\out\\"
+                                  + str(prog_file.name).split("/")[-1].split(".")[0]
+                                  + str(time.time()) + ".log"),
+                        encoding='utf-8',
+                        level=logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+
+    program = string_to_program(prog_str)
+    logging.info(program.to_dot())
 
     if args.translate is not None:
         if args.translate.lower() == "dot":

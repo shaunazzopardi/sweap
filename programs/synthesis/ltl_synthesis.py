@@ -1,3 +1,4 @@
+import logging
 import subprocess
 from tempfile import NamedTemporaryFile
 from typing import Tuple
@@ -11,7 +12,7 @@ from prop_lang.variable import Variable
 
 def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool, str]:
     tlsf_script = synthesis_problem.to_tlsf()
-    print(tlsf_script)
+    logging.info(tlsf_script)
     try:
         with NamedTemporaryFile('w', suffix='.tlsf', delete=False) as tmp:
             tmp.write(tlsf_script)
@@ -22,14 +23,14 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
 
             so = subprocess.getstatusoutput(cmd)
             output: str = so[1]
-            print(output)
+            logging.info(output)
 
             if "UNREALIZABLE" in output:
-                print("\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n")
+                logging.info("\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n")
                 # mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
                 return False, output#mon
             elif "REALIZABLE" in output:
-                print("\nINFO: Strix thinks the current abstract problem is realisable! I will check..\n")
+                logging.info("\nINFO: Strix thinks the current abstract problem is realisable! I will check..\n")
                 try:
                     # mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
                     return True, output#mon
@@ -52,7 +53,7 @@ def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem,
     else:
         counterstrategy = False
 
-    print(output)
+    logging.info(output)
 
     # logger.info("Parsing Strix output..")
     init_st, trans = hoa_to_transitions(output)

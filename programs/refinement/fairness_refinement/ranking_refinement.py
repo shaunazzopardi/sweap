@@ -1,4 +1,6 @@
+import logging
 import re
+import time
 
 from pysmt.shortcuts import And
 
@@ -32,17 +34,19 @@ def try_liveness_refinement(counterstrategy_states: [str],
     symbol_table = predicate_abstraction.get_symbol_table()
     ## check if should use fairness refinement or not
     try:
-        print("Counterstrategy states before environment step: " + ", ".join(counterstrategy_states))
+        logging.info("Counterstrategy states before environment step: " + ", ".join(counterstrategy_states))
         last_counterstrategy_state = counterstrategy_states[-1]
+        start = time.time()
         use_fairness_refinement_flag, counterexample_loop, entry_valuation, entry_predicate, pred_mismatch \
             = use_fairness_refinement(predicate_abstraction,
                                       agreed_on_transitions,
                                       disagreed_on_state,
                                       last_counterstrategy_state,
                                       symbol_table)
+        logging.info("determining whether fairness refinement is appropriate took " + str(time.time() - start))
     except Exception as e:
-        print("WARNING: " + str(e))
-        print("I will try to use safety instead.")
+        logging.info("WARNING: " + str(e))
+        logging.info("I will try to use safety instead.")
         return False, None
 
     if not use_fairness_refinement_flag:
@@ -67,17 +71,17 @@ def try_liveness_refinement(counterstrategy_states: [str],
     #  -DONE if supporting invariant ensures ranking function is bounded below
 
     if ranking is None:
-        print("I could not find a ranking function.")
+        logging.info("I could not find a ranking function.")
         if allow_user_input:
             new_ranking_invars = interactive_transition_predicates(ranking_invars, symbol_table)
         else:
             return False, None
     else:
-        print("Found ranking function: "
-              + str(ranking)
-              + (" with invariants: " + ", ".join(map(str, invars))
-                 if len(invars) > 0
-                 else ""))
+        logging.info("Found ranking function: "
+                     + str(ranking)
+                     + (" with invariants: " + ", ".join(map(str, invars))
+                        if len(invars) > 0
+                        else ""))
         if allow_user_input:
             text = input("Use suggested ranking function (y/n)?").lower().strip()
             while text != "y" and text != "n":
@@ -103,8 +107,8 @@ def try_liveness_refinement(counterstrategy_states: [str],
         new_ranking_invars.pop(inappropriate_ranking)
 
     if len(new_ranking_invars) == 0:
-        print("The found ranking function/s is/are increased in the loop, and thus is/are not appropriate "
-              "for ranking refinement.")
+        logging.info("The found ranking function/s is/are increased in the loop, and thus is/are not appropriate "
+                     "for ranking refinement.")
         return False, (sufficient_entry_condition, exit_predicate)
 
     new_transition_predicates = []
@@ -141,10 +145,10 @@ def liveness_refinement(symbol_table,
     try:
         c_code = loop_to_c(symbol_table, program, entry_condition, unfolded_loop,
                            exit_predicate_grounded, add_natural_conditions)
-        print(c_code)
+        logging.info(c_code)
 
         if c_code in seen_loops_cache.keys():
-            print("Loop already seen..")
+            logging.info("Loop already seen..")
             return seen_loops_cache[c_code]
 
         ranker = Ranker()
@@ -271,7 +275,7 @@ def use_liveness_refinement_state(env_con_ce: [dict], last_cs_state, disagreed_o
 
     previous_visits = [i for i, dict in (ce_with_stutter_states) for key, value in dict.items()
                        if key == last_cs_state and value == "TRUE"]
-    if len(previous_visits) - 1 > 0: # ignoring last visit
+    if len(previous_visits) - 1 > 0:  # ignoring last visit
         var_differences = []
 
         for i, visit in enumerate(previous_visits[:-1]):
@@ -402,6 +406,7 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
     # ground transitions in the counterexample loop
     # on the environment and controller events in the counterexample\
 
+    start = time.time()
     invars = []
     # TODO consider if sometimes bool vals are needed or not
     bool_vars = [v for v in symbol_table.keys() if symbol_table[v].type == "bool" or symbol_table[v].type == "boolean"]
@@ -450,6 +455,8 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
 
         loop_before_exit = ground_transitions(program, counterexample_loop, irrelevant_vars + bool_vars, symbol_table)
 
+    logging.info("first preprocessing for fairness refinement took " + str(time.time() - start))
+
     sufficient_entry_condition = None
 
     conditions = [(true(), True), (entry_predicate_grounded.simplify(), True), (entry_valuation_grounded, False)]
@@ -482,6 +489,7 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
         # analyse ranking function for suitability and re-try
         if not isinstance(exit_predicate_grounded, Value) or \
                 is_tautology(exit_predicate_grounded, symbol_table, smt_checker):
+            start = time.time()
             # for each variable in ranking function, check if they are related in the exit condition, or transitively so
             updated_in_loop_vars = [str(act.left) for t in loop_before_exit for act in t.action if
                                     act.left != act.right]
@@ -501,10 +509,10 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
 
             # check if the ranking function relates variables that are related in entry condition
             if [] != [v for v in vars_in_ranking if v not in related_dict[vars_in_ranking[0]]]:
-                print(
+                logging.info(
                     "The ranking function discovered does not relate variables that are related in the exit condition.")
                 all_updated_vars_mentioned_in_ranking = {v for v in vars_in_ranking if str(v) in updated_in_loop_vars}
-                print("Refining the loop code to focus on: " + ", ".join(
+                logging.info("Refining the loop code to focus on: " + ", ".join(
                     [str(v) for v in all_updated_vars_mentioned_in_ranking]) + "...")
                 all_extra_vars = [v for v in vars_in_ranking
                                   if not any(v in related_dict[vv] for vv in all_updated_vars_mentioned_in_ranking)]
@@ -533,6 +541,8 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
                               (entry_valuation_grounded, False)]
 
                 ranking = None
+                logging.info("second preprocessing for fairness refinement took " + str(time.time() - start))
+
                 for (cond, add_natural_conditions) in conditions:
                     for exit_pred in disjuncts_in_exit_pred_grounded:
                         if len(exit_pred.variablesin()) == 0:
@@ -584,7 +594,7 @@ def interactive_transition_predicates(existing_rankings: dict[Formula, [Formula]
                 invars = list(map(string_to_math_expression, text.split(",")))
             if ranking in existing_rankings.keys():
                 if equivalent(existing_rankings[ranking], conjunct_formula_set(invars)):
-                    print("This ranking function with the given invariants is already in use.")
+                    logging.info("This ranking function with the given invariants is already in use.")
                     continue
             new_rankings.append((ranking, invars))
         except Exception as e:

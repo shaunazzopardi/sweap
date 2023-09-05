@@ -1,3 +1,5 @@
+import logging
+
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver, Interpolator, get_env, is_sat, serialize
 from pysmt.solvers import solver
@@ -26,9 +28,9 @@ def check(smt: FNode):
     try:
         return is_sat(smt, solver_name="msat")
     except Exception as e:
-        print(serialize(smt))
+        logging.info(serialize(smt))
         try:
             return is_sat(smt, solver_name="z3")
         except Exception as e:
-            print(serialize(smt))
+            logging.info(serialize(smt))
             raise (e)

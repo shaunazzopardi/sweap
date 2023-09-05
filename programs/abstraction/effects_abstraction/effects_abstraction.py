@@ -169,7 +169,7 @@ class EffectsAbstraction(PredicateAbstraction):
             except Exception as e:
                 # TODO what is this exception caused by??
                 guard_E_simplified = simplify_formula_with_math(guard_E, symbol_table)
-                print(str(e))
+                logging.info(str(e))
             disjuncts.append((guard_E_simplified, E))
         return disjuncts, dnfed
 
@@ -254,8 +254,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     try_neg = False
                 newNextPss = InvertibleMap()
-                if E not in old_effects.keys():
-                    print()
+
                 # old_effects[E] is an InvertibleMap
                 for (nextPs, Pss) in old_effects[E].items():
                     if not relevant_pred(t, nextPs, predicate):
@@ -281,8 +280,7 @@ class EffectsAbstraction(PredicateAbstraction):
                             new_neg_Ps.add(Ps | {neg(predicate)})
                     self.all_pred_states.add(frozenset(new_pos_Ps))
                     self.all_pred_states.add(frozenset(new_neg_Ps))
-                    if len(new_pos_Ps) == 0 and len(new_neg_Ps) == 0:
-                        print()
+
                     new_now = frozenset(P for P in new_neg_Ps | new_pos_Ps)
                     if len(new_now) > 0:
                         newNextPss.put(nextPs, new_now)
@@ -432,17 +430,17 @@ class EffectsAbstraction(PredicateAbstraction):
 
     def pretty_print_abstract_effect(self):
         for t in self.abstract_effect.keys():
-            print(str(t))
+            logging.info(str(t))
             for E in self.abstract_effect[t].keys():
                 if len(E) == 0:
-                    print("\tevents: ", "true")
+                    logging.info("\tevents: " + "true")
                 else:
-                    print("\tevents: ", ", ".join(str(e) for e in E))
+                    logging.info("\tevents: " + ", ".join(str(e) for e in E))
                 for nextPs in self.abstract_effect[t][E].keys():
-                    print("\t\t", "true" if len(nextPs) == 0 else " and ".join(str(p) for p in nextPs))
-                    print("\t\t", " or \n\t\t\t".join(
+                    logging.info("\t\t" + ("true" if len(nextPs) == 0 else " and ".join(str(p) for p in nextPs)))
+                    logging.info("\t\t" + (" or \n\t\t\t".join(
                         "true" if len(nowPs) == 0 else "(" + " and ".join(str(p) for p in nowPs) + ")" for nowPs in
-                        self.abstract_effect[t][E][nextPs]))
+                        self.abstract_effect[t][E][nextPs])))
 
     def add_predicates(self,
                        new_interpolants: [Formula],

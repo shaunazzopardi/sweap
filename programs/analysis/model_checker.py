@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 from tempfile import NamedTemporaryFile
@@ -56,7 +57,7 @@ class ModelChecker:
             try:
                 out = subprocess.check_output([
                     "nuxmv", "-source", commands.name, model.name], encoding="utf-8")
-                print(out)
+                logging.info(out)
             except subprocess.CalledProcessError as err:
                 self.fail(err.output)
             finally:
