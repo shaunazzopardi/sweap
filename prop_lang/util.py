@@ -347,6 +347,21 @@ def ltl_to_propositional(formula):
         raise Exception("ltl_to_propositional: I do not know how to handle " + str(formula))
 
 
+def dnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
+    if f in dnf_cache.keys():
+        return dnf_cache[f]
+
+    f_vars = f.variablesin()
+    if len(f_vars) == 0:
+        return f
+    elif len(f_vars) <= 7:
+        result = dnf(f, symbol_table)
+        dnf_cache[f] = result
+        return result
+    else:
+        return dnf_with_timeout(f, symbol_table, simplify, timeout)
+
+
 def dnf(f: Formula, symbol_table: dict = None, simplify=True):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
@@ -354,8 +369,6 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
     try:
-        if f in dnf_cache.keys():
-            return dnf_cache[f]
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f)
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
@@ -384,7 +397,6 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
             new_disjuncts.append(new_disjunct)
 
         in_dnf_math_back = disjunct_formula_set(new_disjuncts)
-        dnf_cache[f] = in_dnf_math_back
 
         return in_dnf_math_back
     except Exception as e:
@@ -398,9 +410,14 @@ def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeo
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
 
-    ret = run_with_timeout(dnf, [f, symbol_table, simplify], timeout=timeout)
+    success, ret = run_with_timeout(dnf, [f, symbol_table, simplify], timeout=timeout)
 
-    return ret
+    if success:
+        dnf_cache[f] = ret
+        return ret
+    else:
+        return f
+
 
 def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     if isinstance(f, Value) or isinstance(f, MathExpr):
@@ -409,18 +426,33 @@ def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeo
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
 
-    ret = run_with_timeout(cnf, [f, symbol_table], timeout=timeout)
-    if ret == None:
+    success, ret = run_with_timeout(cnf, [f, symbol_table], timeout=timeout)
+    if success:
+        cnf_cache[f] = ret
+        return ret
+    else:
         return f
-    return ret
 
+
+def cnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
+    f_vars = f.variablesin()
+    if len(f_vars) == 0:
+        return f
+    elif f in cnf_cache.keys():
+        return cnf_cache[f]
+    elif len(f_vars) <= 7:
+        result = cnf(f, symbol_table)
+        cnf_cache[f] = result
+        return result
+    else:
+        return cnf_with_timeout(f, symbol_table, simplify, timeout)
+
+cnf_cache = {}
 
 def cnf(f: Formula, symbol_table: dict = None):
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
     try:
-        if f in dnf_cache.keys():
-            return dnf_cache[f]
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f).simplify()
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
@@ -428,20 +460,20 @@ def cnf(f: Formula, symbol_table: dict = None):
         for_sympi = simple_f_without_math.to_sympy()
         if isinstance(for_sympi, int):
             return f
-        # if formula has more than 8 variables it can take a long time, dnf is exponential
+        # if formula has more than 8 variables it can take a long time, cnf is exponential
         in_cnf = to_cnf(for_sympi, simplify=True, force=True)
         # print(str(f) + " after cnf becomes " + str(in_cnf).replace("~", "!"))
         try:
-            in_dnf_formula = sympi_to_formula(in_cnf)
+            in_cnf_formula = sympi_to_formula(in_cnf)
         except Exception as e:
             raise e
-        in_dnf_math_back = in_dnf_formula.replace([BiOp(Variable(key), ":=", value) for key, value in dic.items()])
+        in_cnf_math_back = in_cnf_formula.replace([BiOp(Variable(key), ":=", value) for key, value in dic.items()])
 
-        dnf_cache[f] = in_dnf_math_back
+        cnf_cache[f] = in_cnf_math_back
 
-        return in_dnf_math_back
+        return in_cnf_math_back
     except Exception as e:
-        raise Exception("dnf: I do not know how to handle " + str(f) + ", cannot turn it into dnf." + str(e))
+        raise Exception("cnf: I do not know how to handle " + str(f) + ", cannot turn it into cnf." + str(e))
 
 
 def append_to_variable_name(formula, vars_names, suffix):
@@ -736,24 +768,23 @@ def atomic_predicates(formula):
             raise Exception("atoms: not implemented for " + str(formula))
 
 
-queue = Queue()
-
-
 def run_with_timeout(f, args, timeout=-1):
     if timeout == -1:
         return f(args)
     else:
-        params = tuple([f] + [tuple(args)])
+        queue = Queue()
+        params = tuple([f] + [tuple(args + [queue])])
         p1 = Process(target=evaluate_and_queue, name=f.__name__, args=params)
         p1.start()
-        p1.join(timeout=timeout)
-        if p1.exitcode is None:
+        p1.join(timeout)
+        if p1.is_alive():
             p1.terminate()
-            return None
+            return False, None
         else:
-            return queue.get()
+            return True, queue.get()
 
 
 def evaluate_and_queue(function, args):
-    result = function(*args)
-    queue.put(result)
+    result = function(*args[:-1])
+    print(result)
+    args[-1].put(result)

@@ -12,7 +12,7 @@ from programs.util import ce_state_to_formula, ground_formula_on_ce_state_with_i
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
-from prop_lang.util import true, neg, conjunct_formula_set, dnf, conjunct
+from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -242,7 +242,7 @@ def path_interpolation(program: Program, concurring_transitions: [(Transition, d
     if use_dnf:
         new_Bs = []
         for b in Bs:
-            after_dnf = dnf(b, new_symbol_table)
+            after_dnf = dnf_safe(b, new_symbol_table)
             if isinstance(after_dnf, BiOp) and after_dnf.op[0] == "|":
                 new_Bs += after_dnf.sub_formulas_up_to_associativity()
             else:

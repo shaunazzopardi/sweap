@@ -436,8 +436,7 @@ def stutter_transition(program, state, env: bool):
     if condition in stutter_transition_cache.keys():
         return stutter_transition_cache[program][condition]
     elif smt_checker.check(And(*condition.to_smt(program.symbol_table))):
-        condition_cnfed = cnf_with_timeout(condition, program.symbol_table)
-
+        condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
         stutter_t = Transition(state,
                                condition_cnfed,
                                [],

@@ -16,8 +16,8 @@ from programs.util import label_pred
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, disjunct_formula_set, neg, conjunct, mutually_exclusive_rules, \
-    propagate_negations, dnf, simplify_formula_without_math, project_out_vars, sat, is_tautology, iff
+from prop_lang.util import conjunct_formula_set, disjunct_formula_set, neg, conjunct, dnf_safe, \
+    propagate_negations, simplify_formula_without_math, project_out_vars, sat
 from prop_lang.variable import Variable
 
 
@@ -50,7 +50,7 @@ class MealyMachine:
             con_behaviour = disjunct_formula_set(trans_dict[(src_index, env_behaviour, tgt_index)])
             con_cond = (con_behaviour.simplify()).to_nuxmv()
             con_cond = propagate_negations(con_cond)
-            con_cond_dnf = dnf(con_cond, simplify=False)
+            con_cond_dnf = dnf_safe(con_cond, simplify=False)
             if isinstance(con_cond_dnf, BiOp) and con_cond_dnf.op[0] == "|":
                 con_conds = con_cond_dnf.sub_formulas_up_to_associativity()
             else:

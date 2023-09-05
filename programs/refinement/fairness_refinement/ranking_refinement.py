@@ -14,7 +14,7 @@ from programs.util import get_differently_value_vars, function_is_of_natural_typ
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
-from prop_lang.util import conjunct, conjunct_formula_set, neg, true, is_boolean, dnf, infinite_type, type_constraints, \
+from prop_lang.util import conjunct, conjunct_formula_set, neg, true, is_boolean, dnf_safe, infinite_type, type_constraints, \
     is_tautology, related_to, equivalent, sat
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -417,7 +417,7 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
 
     exit_predicate_grounded = ground_predicate_on_vars(program, exit_condition,
                                                        exit_prestate, bool_vars, symbol_table).simplify()
-    dnf_exit_pred = dnf(exit_predicate_grounded, symbol_table, simplify=True)
+    dnf_exit_pred = dnf_safe(exit_predicate_grounded, symbol_table, simplify=True)
     disjuncts_in_exit_pred = [dnf_exit_pred] if not isinstance(dnf_exit_pred, BiOp) or not dnf_exit_pred.op.startswith(
         "|") else dnf_exit_pred.sub_formulas_up_to_associativity()
 
@@ -488,7 +488,7 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
 
             vars_in_ranking = ranking.variablesin()  # + [Variable(v) for v in updated_in_loop_vars]
 
-            dnf_exit_pred = dnf(exit_predicate_grounded, symbol_table)
+            dnf_exit_pred = dnf_safe(exit_predicate_grounded, symbol_table)
             disjuncts_in_exit_pred = [dnf_exit_pred] if not isinstance(dnf_exit_pred,
                                                                        BiOp) or not dnf_exit_pred.op.startswith(
                 "&") else dnf_exit_pred.sub_formulas_up_to_associativity()

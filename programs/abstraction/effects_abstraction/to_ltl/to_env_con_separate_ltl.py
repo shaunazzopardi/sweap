@@ -7,7 +7,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, conjunct, X, iff, \
-    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_with_timeout
+    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -65,7 +65,7 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
                 E_now = disjunct_formula_set(
                     [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
                 E_now_simplified = simplify_formula_without_math(E_now)
-                E_now_simplified = cnf_with_timeout(E_now_simplified)
+                E_now_simplified = cnf_safe(E_now_simplified)
 
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
                 E_next_simplified = simplify_formula_without_math(E_next)
@@ -110,7 +110,7 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
                 E_now = disjunct_formula_set(
                     [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
                 E_now_simplified = simplify_formula_without_math(E_now)
-                E_now_simplified = cnf_with_timeout(E_now_simplified)
+                E_now_simplified = cnf_safe(E_now_simplified)
 
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
                 E_next_simplified = simplify_formula_without_math(E_next)
