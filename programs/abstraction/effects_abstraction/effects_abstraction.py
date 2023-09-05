@@ -686,7 +686,8 @@ class EffectsAbstraction(PredicateAbstraction):
                 ltlAbstractionType.transition_type == LTLAbstractionTransitionType.env_con_separate and \
                 ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_state and \
                 ltlAbstractionType.output_type == LTLAbstractionOutputType.after_env:
-            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=True)
+
+            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=True, abstraction=self)
 
             return mm
         else:
