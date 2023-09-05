@@ -193,8 +193,6 @@ class EffectsAbstraction(PredicateAbstraction):
     def compute_abstract_effect_with_p(self, t: Transition, Es, old_effects, predicate):
         if len(old_effects) == 0:
             return t, transition_formula(t), [], [], Es, old_effects
-        if t in self.init_program_trans:
-            print()
         # TODO
         #   1. keep track of powersets of preds that are satisfiable with guard
         #   then consider the effects of the actions on the new predicates
@@ -359,8 +357,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
                                            self.program.symbol_table, smt_checker):
                             new_neg_Ps.add(Ps | {neg(predicate)})
-                    if len(new_pos_Ps) == 0 and len(new_neg_Ps) == 0:
-                        print()
+
                     if len(new_pos_Ps) > 0:
                         newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
                     if len(new_neg_Ps) > 0:

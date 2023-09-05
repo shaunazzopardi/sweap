@@ -195,85 +195,9 @@ def effects_to_explicit_automaton_abstraction(predAbs):
             predAbs.state_to_env_transitions[s] = []
         if s not in predAbs.state_to_con_transitions.keys():
             predAbs.state_to_con_transitions[s] = []
-    # old_tate_to_env_transitions = {s: [t for t in env_transitions if t.src == s] for s in states}
-    # old_state_to_con_transitions = {s: [t for t in con_transitions if t.src == s] for s in states}
-
-    # for t in env_transitions:
-    #     if t not in predAbs.env_to_program_transitions.keys():
-    #         print()
-    # for t in con_transitions:
-    #     if t not in predAbs.con_to_program_transitions.keys():
-    #         print()
-
-    for t in new_env_to_program_transitions.keys():
-        if t.tgt not in predAbs.state_to_con_transitions.keys():
-            print()
-    for t in new_con_to_program_transitions.keys():
-        if t.tgt not in predAbs.state_to_env_transitions.keys():
-            print()
-
-
-    # predAbs.state_to_env_transitions = {}
-    # for t in env_transitions:
-    #     safe_update_list_vals(predAbs.state_to_env_transitions, t.src, [t])
-    # predAbs.state_to_con_transitions = {}
-    # for t in con_transitions:
-    #     safe_update_list_vals(predAbs.state_to_con_transitions, t.src, [t])
 
     program = predAbs.get_program()
-    #
-    # # TODO, after this can reduce abstract_effects
-    # keep_env = set()
-    # keep_con = set()
-    # new_state_to_env = {}
-    # new_state_to_con = {}
-    #
-    # env_done_states = set()
-    # con_done_states = set()
-    # next_states = {init_st}
-    # env_turn = True
-    # prog_state_to_preconditions = {s:set() for s in predAbs.program.states}
-    # while len(next_states) > 0:
-    #     new_next = set()
-    #     for st in next_states:
-    #         if env_turn:
-    #             env_done_states.add(st)
-    #             if st not in predAbs.state_to_env_transitions.keys():
-    #                 print()
-    #             current_trans = predAbs.state_to_env_transitions[st]
-    #             new_state_to_env[st] = predAbs.state_to_env_transitions[st]
-    #             keep_env.update(current_trans)
-    #             if st != init_st:
-    #                 prog_state_to_preconditions[st.state].add(frozenset(st.predicates))
-    #             for t in current_trans:
-    #                 if t.tgt not in con_done_states:
-    #                     new_next.add(t.tgt)
-    #         else:
-    #             prog_state_to_preconditions[st.state].add(frozenset(st.predicates))
-    #             con_done_states.add(st)
-    #             current_trans = predAbs.state_to_con_transitions[st]
-    #             new_state_to_con[st] = predAbs.state_to_con_transitions[st]
-    #             keep_con.update(current_trans)
-    #             for t in current_trans:
-    #                 if t.tgt not in env_done_states:
-    #                     new_next.add(t.tgt)
-    #     next_states = new_next
-    #     env_turn = not env_turn
-    #
-    # env_transitions = list(keep_env)
-    # con_transitions = list(keep_con)
-    #
-    # all_prog_trans = predAbs.abstract_effect.keys()
-    # for t in all_prog_trans:
-    #     all_preconditions = prog_state_to_preconditions[t.src]
-    #     all_items = set(predAbs.abstract_effect[t].items())
-    #     for E, effects in all_items:
-    #         effects.keep_only_values(all_preconditions)
-    #         if len(effects) == 0:
-    #             del predAbs.abstract_effect[t][E]
 
-    # predAbs.state_to_env_transitions = new_state_to_env
-    # predAbs.state_to_con_transitions = new_state_to_con
     predAbs.pretty_print_abstract_effect()
 
     one_step_abstraction = Program("pred_abst_" + program.name, states | {init_st},
