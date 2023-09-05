@@ -24,16 +24,15 @@ def hoa_to_transitions(hoa, parallelise=True):
         to_replace.append(BiOp(Variable(str(i)), ":=", Variable(name)))
 
     transitions = {}
-    if parallelise:
-        n_jobs = -1
+    if parallelise and len(hoa_body.split("\n")) > 90:
+        results = Parallel(n_jobs=-1, verbose=11)(
+            delayed(parse_state_trans)(to_replace, raw_tran) for raw_tran in raw_trans)
+
+        for r in results:
+            transitions.update(r)
     else:
-        n_jobs = 1
-
-    results = Parallel(n_jobs=n_jobs, verbose=11)(
-        delayed(parse_state_trans)(to_replace, raw_tran) for raw_tran in raw_trans)
-
-    for r in results:
-        transitions.update(r)
+        for raw_tran in raw_trans:
+            transitions.update(parse_state_trans(to_replace, raw_tran))
 
     return hoa_dict["Start"], transitions
 
