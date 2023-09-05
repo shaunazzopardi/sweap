@@ -3,7 +3,10 @@ from pysmt.shortcuts import And
 from programs.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from programs.analysis.smt_checker import SMTChecker
 from programs.util import looping_to_normal, stutter_transition, preds_in_state, var_to_predicate, is_predicate_var
-from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, propagate_negations
+from prop_lang.biop import BiOp
+from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, propagate_negations, sat, \
+    simplify_formula_with_math
+from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
@@ -33,7 +36,12 @@ def concretize_transitions(program,
     incompatibility_formula = []
     if incompatible_state["compatible_states"] == "FALSE" or incompatible_state["compatible_outputs"] == "FALSE":
         if program.deterministic:
-            return concretized[:-1], ([neg(concretized[-1][0].condition)], concretized[-1][1]), concretized[-1]
+            failed_condition = neg(concretized[-1][0].condition)
+            reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][1][str(v)]))
+                                                for v in program.env_events + program.con_events])
+            reduced_simplified = simplify_formula_with_math(reduced, program.symbol_table)
+
+            return concretized[:-1], ([reduced_simplified], concretized[-1][1]), concretized[-1]
         else:
             # if program is not deterministic, we need to identify the transitions the counterstrategy wanted to take rather than the one the program actually took
             try:
@@ -84,9 +92,12 @@ def concretize_transitions(program,
         if incompatible_state["compatible_state_predicates"] == "FALSE" or incompatible_state[
             "compatible_tran_predicates"] == "FALSE":
             # pred mismatch
-            incompatibility_formula += preds_in_state(incompatible_state)
-            #TODO we wanted to take the wrong transition, but the condition at state concretized[-1][1], not at incompatible_state
-            incompatibility_formula += [neg(concretized[-1][0].condition)]
+            pred_state = preds_in_state(incompatible_state)
+            for p in pred_state:
+                if not sat(conjunct_formula_set([p] + [BiOp(v, "=", Value(incompatible_state[str(v)])) for v in p.variablesin()]),
+                       program.symbol_table):
+                    incompatibility_formula.append(p)
+
             env_pred_state = (incompatibility_formula, incompatible_state)
 
         return concretized, env_pred_state, concretized[-1]
