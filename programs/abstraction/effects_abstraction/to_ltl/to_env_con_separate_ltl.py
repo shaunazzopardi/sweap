@@ -170,7 +170,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
         predicate_vars.update(invar_vars)
 
         transition_fairness.extend([
-            implies(G(F(conjunct(invar_formula, dec_var))),
+            implies(G(F(dec_var)),
                     G(F((disjunct(inc_var, neg(invar_formula)))))).simplify()])
 
 
