@@ -457,6 +457,8 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
                                                                     exit_prestate, irrelevant_vars,
                                                                     symbol_table).simplify() for e in
                                            disjuncts_in_exit_pred]
+        disjuncts_in_exit_pred_grounded = [d for d in disjuncts_in_exit_pred_grounded
+                                           if any(True for v in d.variablesin() if str(v) in relevant_vars)]
 
         loop_before_exit = ground_transitions(program, counterexample_loop, irrelevant_vars + bool_vars, symbol_table)
 
