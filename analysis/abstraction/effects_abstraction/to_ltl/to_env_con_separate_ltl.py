@@ -20,24 +20,32 @@ def empty_abstraction(predicate_abstraction: EffectsAbstraction):
 def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
     rename_pred = lambda x: label_pred(x, predicate_abstraction.get_all_preds())
 
-    # TODO try to put LTL inform of list of G(now -> next), see if it helps
     init_transitions = []
+    pred_next = {}
     for t in predicate_abstraction.init_program_trans:
         for E, effect in predicate_abstraction.abstract_effect[t].items():
             if len(effect.keys()) > 1:
                 raise Exception("init transition " + str(t) + " has more than one possible effect")
             elif len(effect.keys()) == 1:
-                E_effects = [rename_pred(p) for p in list(effect.keys())[0]]
+                E_effects = {rename_pred(p) for p in list(effect.keys())[0]}
             else:
-                E_effects = []
-            E_effects += [neg(rename_pred(p)) for p in predicate_abstraction.abstract_effect_invars[t]]
-            E_effects += [rename_pred(p) for p in predicate_abstraction.abstract_effect_constant[t]]
-            E_effects += [rename_pred(p) for p in predicate_abstraction.abstract_effect_tran_preds_constant[t]]
+                E_effects = {}
+            E_effects.update({neg(rename_pred(p)) for p in predicate_abstraction.abstract_effect_invars[t]})
+            E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_constant[t]})
+            E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_tran_preds_constant[t]})
             if not empty_abstraction(predicate_abstraction) and len(E_effects) == 0:
                 raise Exception("init transition " + str(t) + " has no effect")
-            init_transitions += [conjunct_formula_set(E_effects + [Variable(t.tgt)] + list(E) + t.output)]
+            if frozenset(E_effects) not in pred_next.keys():
+                pred_next[frozenset(E_effects)] = set()
+            pred_next[frozenset(E_effects)].add(conjunct_formula_set([Variable(t.tgt)] + list(E) + t.output))
+            init_transitions.extend([conjunct_formula_set(list(E_effects) + [Variable(t.tgt)] + list(E) + t.output)])
 
-    init_transition_ltl = disjunct_formula_set([conjunct(phi, X(phi)) for phi in init_transitions])
+    init_transition_ltls = []
+    for E_effects in pred_next.keys():
+        init_transition_ltls.append(conjunct(conjunct_formula_set(conjunct(preds, X(preds)) for preds in E_effects),
+                                             disjunct_formula_set(
+                                                 [conjunct(phi, X(phi)) for phi in pred_next[E_effects]])))
+    init_transition_ltl = disjunct_formula_set(init_transition_ltls)
 
     env_transition_ltl = {}
     for env_trans in predicate_abstraction.abstract_guard_env.keys():
