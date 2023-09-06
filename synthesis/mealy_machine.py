@@ -81,50 +81,6 @@ class MealyMachine:
             self.states.add(new_src)
             self.states.add(new_tgt)
 
-    def handle_transition(self,
-                          src_index,
-                          env_cond,
-                          con_cond,
-                          tgt_index,
-                          abstract_problem: AbstractLTLSynthesisProblem):
-        pure_env_events = abstract_problem.get_env_props()
-        prog_out = abstract_problem.get_program_out_props()
-        prog_preds = abstract_problem.get_program_pred_props()
-
-        env_cond = (env_cond.simplify()).to_nuxmv()
-        env_cond = propagate_negations(env_cond)
-
-        env_turn = sat(conjunct(env, env_cond))
-        con_turn = sat(conjunct(con, env_cond))
-
-        if not env_turn and not con_turn:
-            breaking_assumptions = True
-            raise Exception("Environment is breaking the turn logic assumption in transition: "
-                            + str(src_index) + " "
-                            + str(env_cond) + " "
-                            + str(con_cond) + " "
-                            + str(tgt_index))
-
-        # TODO need to populate self.env_prog_state and self.con_prog_state to minimize
-
-        src_prog_state = self.project_out_events(env_cond, pure_env_events + [env])
-
-        if env_turn:
-            pure_env_cond = self.project_out_events(env_cond, prog_out + prog_preds + [env])
-            new_transition = ((src_index, (src_prog_state, None)), pure_env_cond, tgt_index)
-            return True, new_transition
-
-        if con_turn:
-            con_cond = (con_cond.simplify()).to_nuxmv()
-
-            prog_outs = self.project_out_events(propagate_negations(env_cond),
-                                                pure_env_events + prog_preds + [env]).simplify()
-            prog_outs = simplify_formula_without_math(prog_outs)
-
-            new_transition = ((src_index, (src_prog_state, prog_outs)), con_cond, tgt_index)
-
-            return False, new_transition
-
     # TODO add_transitions can be integrated into this
     def add_transitions_env_con_separate(self,
                                          controller: bool,
@@ -158,7 +114,7 @@ class MealyMachine:
 
         env_states = {}
         con_states = {}
-        for env_turn, ((src_index, (src_prog_state, prog_outs)), con_cond, tgt_index) in reworked_transitions:
+        for env_turn, ((src_index, (src_prog_state, prog_outs)), cond, tgt_index) in reworked_transitions:
             if env_turn:
                 if src_index not in env_states.keys():
                     env_states[src_index] = []
@@ -209,7 +165,8 @@ class MealyMachine:
             found_init_state = False
             for init_sub_state in env_states[self.init_index]:
                 pred_state = init_sub_state[0]
-                if sat(conjunct(pred_state, init_prog_pred_state), abstraction.get_symbol_table(), add_missing_vars=True):
+                if sat(conjunct(pred_state, init_prog_pred_state), abstraction.get_symbol_table(),
+                       add_missing_vars=True):
                     self.init_st = init_sub_state
                     found_init_state = True
                     break
@@ -229,7 +186,7 @@ class MealyMachine:
 
     def minimize_env_states(self):
         had_an_effect = False
-        #if env_states have the same program state and the same outgoing transitions, then merge them
+        # if env_states have the same program state and the same outgoing transitions, then merge them
         for prog_state, srcs in self.env_prog_state.items():
             tgts_map = {}
             for src, tgts in self.env_transitions.items():
@@ -330,7 +287,6 @@ class MealyMachine:
                 pred_var = label_pred(pred, pred_list)
                 to_replace += [BiOp(pred_var, ":=", pred)]
 
-
         dot = Digraph(name="MealyMachine",
                       graph_attr=[("overlap", "scalexy"), ("splines", "true"),  # ("rankdir", "LR"),
                                   ("ranksep", "0.8"),
@@ -408,7 +364,7 @@ class MealyMachine:
 
                 if len(self.prog_state.keys()) == 0:
                     act = "next(" + str(env_beh.replace(new_mon_events).to_nuxmv()) + " & " + str(env_tgt) + \
-                      " & " + " & ".join(["!" + st for st in self.states if st != env_tgt]) + ")"
+                          " & " + " & ".join(["!" + st for st in self.states if st != env_tgt]) + ")"
                 else:
                     act = conjunct_formula_set([UniOp("next", env_beh),
                                                 UniOp("next", self.prog_state[env_tgt].replace_vars(new_mon_events)),
@@ -480,8 +436,8 @@ class MealyMachine:
                         {tv.name + "_prev": TypedValuation(tv.name + "_prev", tv.type, tv.value) for tv in
                          program.valuation})
 
-        new_con_transitions = {k:{} for k, _ in self.con_transitions.items()}
-        new_env_transitions = {k:{} for k, _ in self.env_transitions.items()}
+        new_con_transitions = {k: {} for k, _ in self.con_transitions.items()}
+        new_env_transitions = {k: {} for k, _ in self.env_transitions.items()}
 
         smt_checker = SMTChecker()
 
@@ -534,13 +490,12 @@ class MealyMachine:
             tgt_preds = []
             for src_pred in src_preds:
                 if src_pred not in transition.tgt.predicates and \
-                    neg(src_pred) not in transition.tgt.predicates:
+                        neg(src_pred) not in transition.tgt.predicates:
                     tgt_preds.append(src_pred)
             tgt_preds.extend(transition.tgt.predicates)
             new_src = AbstractState(transition.src.state, src_preds)
             new_tgt = AbstractState(transition.tgt.state, tgt_preds)
             return Transition(new_src, transition.condition, transition.action, transition.output, new_tgt)
-
 
         # TODO this needs to be optimised
         while len(current_states) > 0:
@@ -559,7 +514,8 @@ class MealyMachine:
                             compatible = smt_checker.check(formula_smt)
                             if compatible:
                                 if abstract_pa_con_src != pa_con_src:
-                                    new_pa_con_t = concretize_transition(predicate_abstraction, pa_con_t, pa_con_src.predicates)
+                                    new_pa_con_t = concretize_transition(predicate_abstraction, pa_con_t,
+                                                                         pa_con_src.predicates)
                                 else:
                                     new_pa_con_t = pa_con_t
                                 tentative_con_trans.append((mm_con_cond, mm_con_tgt, new_pa_con_t))
@@ -567,7 +523,7 @@ class MealyMachine:
                 for (mm_con_cond, mm_con_tgt, pa_con_t) in tentative_con_trans:
                     (mm_env_src, pa_env_src) = (mm_con_tgt, pa_con_t.tgt)
                     abstract_pa_env_srcs = concretize_state(abstraction.state_to_env.keys(), pa_env_src,
-                                                               symbol_table)
+                                                            symbol_table)
 
                     for (mm_env_cond, mm_env_tgt) in self.env_transitions[mm_env_src]:
                         for abstract_pa_env_src in abstract_pa_env_srcs:
@@ -587,9 +543,12 @@ class MealyMachine:
                                         next_states.append((mm_env_tgt, pa_env_t.tgt))
                                         if (mm_con_cond, mm_con_tgt) not in new_con_transitions[mm_con_src].keys():
                                             new_con_transitions[mm_con_src][(mm_con_cond, mm_con_tgt)] = set()
-                                        new_con_transitions[mm_con_src][(mm_con_cond, mm_con_tgt)] |= {conjunct_formula_set([Variable(pa_env_src.state)]
-                                                                                                                            + [neg(Variable(st)) for st in program.states if st != pa_env_src.state]
-                                                                                                                            + [label_pred(p, pred_list) for p in pa_env_t.src.predicates])}
+                                        new_con_transitions[mm_con_src][(mm_con_cond, mm_con_tgt)] |= {
+                                            conjunct_formula_set([Variable(pa_env_src.state)]
+                                                                 + [neg(Variable(st)) for st in program.states if
+                                                                    st != pa_env_src.state]
+                                                                 + [label_pred(p, pred_list) for p in
+                                                                    pa_env_t.src.predicates])}
 
                                         # TODO repair transition predicates
                                         new_env_transitions[mm_env_src][(mm_env_cond, mm_env_tgt)] = {}
@@ -599,12 +558,14 @@ class MealyMachine:
             done_states += [str(s) for s in current_states]
             current_states = set([x for x in next_states if str(x) not in done_states])
 
-        proper_con_transitions = {k:set() for (k, _) in new_con_transitions.items()}
+        proper_con_transitions = {k: set() for (k, _) in new_con_transitions.items()}
         for k, dict in new_con_transitions.items():
             for (mm_con_cond, mm_con_tgt) in dict.keys():
-                proper_con_transitions[k] |= {(conjunct(mm_con_cond, disjunct_formula_set(dict[(mm_con_cond, mm_con_tgt)])), (mm_con_tgt))}
+                proper_con_transitions[k] |= {
+                    (conjunct(mm_con_cond, disjunct_formula_set(dict[(mm_con_cond, mm_con_tgt)])), (mm_con_tgt))}
 
-        new_mm = MealyMachine(self.name, self.init_index, self.env_events, self.con_events, self.env_transitions, proper_con_transitions)
+        new_mm = MealyMachine(self.name, self.init_index, self.env_events, self.con_events, self.env_transitions,
+                              proper_con_transitions)
 
         return new_mm
 
