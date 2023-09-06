@@ -11,7 +11,7 @@ from analysis.smt_checker import SMTChecker
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import get_differently_value_vars, function_is_of_natural_type, add_prev_suffix, \
-    reduce_up_to_iff, ground_transitions, ground_predicate_on_vars, keep_bool_preds
+    reduce_up_to_iff, ground_transitions, ground_predicate_on_vars, keep_bool_preds, transition_formula
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
@@ -458,8 +458,23 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
                                            disjuncts_in_exit_pred]
         disjuncts_in_exit_pred_grounded = [d for d in disjuncts_in_exit_pred_grounded
                                            if any(True for v in d.variablesin() if str(v) in relevant_vars)]
-
         loop_before_exit = ground_transitions(program, counterexample_loop, irrelevant_vars + bool_vars, symbol_table)
+
+        # check whether disjunct can be true or false after last action in loop
+        # this can avoid some exit conditions
+        pruned_exit_preds = []
+        last_transition_formula = transition_formula(loop_before_exit[-1])
+        print("candidate exit preds " + ", ".join(map(str, disjuncts_in_exit_pred_grounded)) + "")
+
+        for exit_pred in disjuncts_in_exit_pred_grounded:
+            if (sat(conjunct(exit_pred, last_transition_formula), program.symbol_table) and
+                    sat(conjunct(neg(exit_pred), last_transition_formula), program.symbol_table)):
+                pruned_exit_preds.append(exit_pred)
+            else:
+                print("removed exit pred " + str(exit_pred) + " from exit condition")
+
+        disjuncts_in_exit_pred_grounded = pruned_exit_preds
+
 
     logging.info("first preprocessing for fairness refinement took " + str(time.time() - start))
 
@@ -541,6 +556,20 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
                 loop_before_exit = ground_transitions(program, counterexample_loop,
                                                       irrelevant_vars + bool_vars + all_extra_vars,
                                                       symbol_table)
+                # check whether disjunct can be true or false after last action in loop
+                # this can avoid some exit conditions
+                pruned_exit_preds = []
+                last_transition_formula = transition_formula(loop_before_exit[-1])
+                print("candidate exit preds " + ", ".join(map(str, disjuncts_in_exit_pred_grounded)) + "")
+
+                for exit_pred in disjuncts_in_exit_pred_grounded:
+                    if (sat(conjunct(exit_pred, last_transition_formula), program.symbol_table) and
+                            sat(conjunct(neg(exit_pred), last_transition_formula), program.symbol_table)):
+                        pruned_exit_preds.append(exit_pred)
+                    else:
+                        print("removed exit pred " + str(exit_pred) + " from exit condition")
+
+                disjuncts_in_exit_pred_grounded = pruned_exit_preds
 
                 conditions = [(true(), True),
                               (entry_predicate_grounded.simplify(), True),
