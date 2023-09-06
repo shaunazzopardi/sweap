@@ -355,7 +355,7 @@ def dnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     f_vars = f.variablesin()
     if len(f_vars) == 0:
         return f
-    elif len(f_vars) <= 7:
+    elif len(f_vars) <= 6:
         result = dnf(f, symbol_table)
         dnf_cache[f] = result
         return result
@@ -441,7 +441,7 @@ def cnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
         return f
     elif f in cnf_cache.keys():
         return cnf_cache[f]
-    elif len(f_vars) <= 7:
+    elif len(f_vars) <= 6:
         result = cnf(f, symbol_table)
         cnf_cache[f] = result
         return result
