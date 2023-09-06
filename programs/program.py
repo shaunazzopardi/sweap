@@ -37,6 +37,8 @@ class Program:
         if len(self.con_transitions) == 0:
             self.con_transitions = [Transition(s, true(), [], [], s) for s in self.states]
 
+        logging.info("Processing program.")
+        print("Processing program.")
         if preprocess:
             all_vars = [Variable(v.name) for v in self.valuation]
             self.env_transitions = [self.add_type_constraints_to_guards(t)
