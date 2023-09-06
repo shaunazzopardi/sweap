@@ -85,7 +85,7 @@ def synthesize(program: Program,
 def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_guarantees: [Formula], in_acts: [Variable],
                             out_acts: [Variable], docker: bool, project_on_abstraction=False, debug=False) -> \
         Tuple[bool, MealyMachine]:
-    eager = False
+    eager = True
     keep_only_bool_interpolants = False
     use_explicit_loops_abstraction = False
     allow_user_input = False
