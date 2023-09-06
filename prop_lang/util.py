@@ -789,3 +789,7 @@ def evaluate_and_queue(function, args):
     result = function(*args[:-1])
     print(result)
     args[-1].put(result)
+
+
+def project_out_props(env_cond: Formula, env_props: [Variable]):
+    return project_out_vars(env_cond, env_props)

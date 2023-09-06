@@ -17,7 +17,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, disjunct_formula_set, neg, conjunct, dnf_safe, \
-    propagate_negations, simplify_formula_without_math, project_out_vars, sat
+    propagate_negations, simplify_formula_without_math, sat, project_out_props
 from prop_lang.variable import Variable
 
 
@@ -136,23 +136,25 @@ class MealyMachine:
 
         # some preprocessing
         reworked_transitions = []
-        if parallelise and len(trans_dict.keys()) > 50:
-            reworked_transitions = Parallel(n_jobs=-1, verbose=11)(
-                delayed(self.handle_transition)(src_index,
-                                                env_behaviour,
-                                                con_cond,
-                                                tgt_index,
-                                                abstract_ltl_synthesis_problem)
-                for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items()
-                for con_cond in con_conds)
+        if parallelise:  # and len(trans_dict.keys()) > 50:
+            reworked_transitions = Parallel(n_jobs=-1,
+                                            prefer="threads",
+                                            verbose=11)(
+                delayed(handle_transition)(src_index,
+                                           env_behaviour,
+                                           con_conds,
+                                           tgt_index,
+                                           abstract_ltl_synthesis_problem,
+                                           parallelise=True)
+                for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items())
         else:
             for (src_index, env_behaviour, tgt_index), con_conds in trans_dict.items():
-                for con_cond in con_conds:
-                    reworked_transitions.append(self.handle_transition(src_index,
-                                                                       env_behaviour,
-                                                                       con_cond,
-                                                                       tgt_index,
-                                                                       abstract_ltl_synthesis_problem))
+                reworked_transitions.append(handle_transition(src_index,
+                                                              env_behaviour,
+                                                              con_conds,
+                                                              tgt_index,
+                                                              abstract_ltl_synthesis_problem,
+                                                              parallelise=False))
 
         env_states = {}
         con_states = {}
@@ -317,9 +319,6 @@ class MealyMachine:
         #         self.env_transition_tgt[new_src] += new_env_trans
         #     else:
         #         self.env_transition_tgt[new_src] = new_env_trans
-
-    def project_out_events(self, env_cond: Formula, env_events: [Variable]):
-        return simplify_formula_without_math(project_out_vars(env_cond, env_events))
 
     def __str__(self):
         return str(self.to_dot())
@@ -718,3 +717,56 @@ class MealyMachine:
                        abstraction.env_events, abstraction.con_events,
                        abstraction.out_events, False)
 
+
+def handle_transition(src_index,
+                      env_cond,
+                      con_conds,
+                      tgt_index,
+                      abstract_problem: AbstractLTLSynthesisProblem,
+                      parallelise=False):
+    pure_env_events = abstract_problem.get_env_props()
+    prog_out = abstract_problem.get_program_out_props()
+    prog_preds = abstract_problem.get_program_pred_props()
+
+    env_cond = (env_cond.simplify()).to_nuxmv()
+    env_cond = propagate_negations(env_cond)
+
+    if parallelise:
+        smt_checker = SMTChecker()
+        env_turn = sat(conjunct(env, env_cond), solver=smt_checker)
+        con_turn = sat(conjunct(con, env_cond), solver=smt_checker)
+    else:
+        env_turn = sat(conjunct(env, env_cond))
+        con_turn = sat(conjunct(con, env_cond))
+
+    if not env_turn and not con_turn:
+        breaking_assumptions = True
+        raise Exception("Environment is breaking the turn logic assumption in transition: "
+                        + str(src_index) + " "
+                        + str(env_cond) + " "
+                        + ", ".join(map(str, con_conds)) + " "
+                        + str(tgt_index))
+
+    # TODO need to populate self.env_prog_state and self.con_prog_state to minimize
+
+    src_prog_state = project_out_props(env_cond, pure_env_events + [env])
+
+    if env_turn:
+        pure_env_cond = project_out_props(env_cond, prog_out + prog_preds + [env])
+        new_transition = ((src_index, (src_prog_state, None)), pure_env_cond, tgt_index)
+        return True, new_transition
+
+    if con_turn:
+        prog_outs = project_out_props(propagate_negations(env_cond),
+                                      pure_env_events + prog_preds + [env]).simplify()
+        prog_outs = simplify_formula_without_math(prog_outs)
+
+        new_con_conds = []
+        for con_cond_orig in con_conds:
+            con_cond = (con_cond_orig.simplify()).to_nuxmv()
+            new_con_conds.append(con_cond)
+        new_con_cond = simplify_formula_without_math(disjunct_formula_set(new_con_conds))
+
+        new_transition = ((src_index, (src_prog_state, prog_outs)), new_con_cond, tgt_index)
+
+        return False, new_transition
