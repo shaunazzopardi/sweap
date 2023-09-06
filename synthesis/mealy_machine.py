@@ -92,7 +92,7 @@ class MealyMachine:
 
         # some preprocessing
         reworked_transitions = []
-        if parallelise:  # and len(trans_dict.keys()) > 50:
+        if parallelise:
             reworked_transitions = Parallel(n_jobs=-1,
                                             prefer="threads",
                                             verbose=11)(
