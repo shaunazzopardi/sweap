@@ -119,11 +119,17 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
                 E_now = disjunct_formula_set(
                     [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
                 E_now_simplified = simplify_formula_without_math(E_now)
-                E_now_simplified = cnf_safe(E_now_simplified)
+                E_now_simplified_cnfed = cnf_safe(E_now_simplified)
+
+                if not isinstance(E_now_simplified_cnfed, Value) and E_now_simplified_cnfed == E_now_simplified:
+                    E_now_simplified_final = take_out_preds([[rename_pred(p) for p in pred_state] for pred_state in pred_states],
+                    [rename_pred(p) for p in predicate_abstraction.get_all_preds()])
+                else:
+                    E_now_simplified_final = E_now_simplified_cnfed
 
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
                 E_next_simplified = simplify_formula_without_math(E_next)
-                E_effects += [conjunct(E_now_simplified, X(E_next_simplified))]
+                E_effects += [conjunct(E_now_simplified_final, X(E_next_simplified))]
             pred_effects += [conjunct(conjunct_formula_set(E), disjunct_formula_set(E_effects))]
         pred_effect_formula = disjunct_formula_set(pred_effects)
         output_formula = conjunct_formula_set([X(neg(o)) for o in predicate_abstraction.program.out_events])

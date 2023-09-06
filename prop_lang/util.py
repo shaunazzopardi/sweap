@@ -791,5 +791,130 @@ def evaluate_and_queue(function, args):
     args[-1].put(result)
 
 
+def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
+    true_at = set()
+    false_at = set()
+    others_at = set()
+    for disjunct in disjuncts_of_conjuncts:
+        if pred in disjunct:
+            true_at.add(frozenset({d for d in disjunct if d != pred}))
+        elif neg(pred) in disjunct:
+            false_at.add(frozenset({d for d in disjunct if d != neg(pred)}))
+        else:
+            others_at.add(disjunct)
+
+    return true_at, false_at, others_at
+
+
+def take_out_preds(disjuncts_of_conjuncts: [[Variable]], preds: [Variable]):
+    def associated_formula_dict_to_formula(associated_formula):
+        return disjunct_formula_set([conjunct(conjunct_formula_set(preds),
+                                         disjunct_formula_set([conjunct_formula_set(r) for r in rest]))
+                                 for preds, rest in associated_formula.items()])
+    associated_formula = {frozenset(): disjuncts_of_conjuncts}
+
+    if len(preds) == 0:
+        return associated_formula_dict_to_formula(associated_formula)
+
+    common_preds = set(v for D in disjuncts_of_conjuncts for d in D for v in d.variablesin() if v in preds)
+    preds = common_preds
+    # sort according to most common
+    preds = sorted(preds, key=lambda p: sum(1 for D in disjuncts_of_conjuncts if p in D), reverse=True)
+
+    logging.info("Trying to take out preds from dnf formula")
+    prev_formula = associated_formula_dict_to_formula(associated_formula)
+    cnt = 0
+    for pred in preds:
+        new_associated_formula = {}
+
+        for prev_preds, set_of_disjuncts in associated_formula.items():
+            pred_true_disjuncts, pred_false_disjuncts, others_at = take_out_pred(set_of_disjuncts, pred)
+            if len(pred_true_disjuncts) > 0:
+                if frozenset(prev_preds | {pred}) not in new_associated_formula.keys():
+                    new_associated_formula[frozenset(prev_preds | {pred})] = set()
+                new_associated_formula[frozenset(prev_preds | {pred})].update(pred_true_disjuncts)
+
+            if len(pred_false_disjuncts) > 0:
+
+                if frozenset(prev_preds | {neg(pred)}) not in new_associated_formula.keys():
+                    new_associated_formula[frozenset(prev_preds | {neg(pred)})] = set()
+                new_associated_formula[frozenset(prev_preds | {neg(pred)})].update(pred_false_disjuncts)
+
+            if len(others_at) > 0:
+                if frozenset(prev_preds) not in new_associated_formula.keys():
+                    new_associated_formula[frozenset(prev_preds)] = set()
+                new_associated_formula[frozenset(prev_preds)].update(others_at)
+        logging.info(len(new_associated_formula))
+        associated_formula = new_associated_formula
+        current_formula = associated_formula_dict_to_formula(associated_formula)
+        cnt += 1
+        if len(str(prev_formula)) > len(str(current_formula)):
+            prev_formula = current_formula
+            logging.info(str(cnt) + ": " + str(prev_formula))
+    logging.info("final  " + str(cnt) + ": " + str(prev_formula))
+
+    return prev_formula
+
+
+def take_out_pred_sat(disjuncts: [Formula], pred: Variable, symbol_table):
+    true_at = set()
+    false_at = set()
+    others_at = set()
+    for disjunct in disjuncts:
+        if not sat(conjunct(disjunct, neg(pred)), symbol_table):
+            true_at.add(disjunct.replace([BiOp(pred, ":=", true())]))
+        elif not sat(conjunct(disjunct, pred), symbol_table):
+            false_at.add(disjunct.replace([BiOp(pred, ":=", false())]))
+        else:
+            others_at.add(disjunct)
+
+    return true_at, false_at, others_at
+
+
+def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
+    def associated_formula_dict_to_formula(associated_formula):
+        return disjunct_formula_set([conjunct(conjunct_formula_set(preds),
+                                         disjunct_formula_set(rest))
+                                 for preds, rest in associated_formula.items()])
+    associated_formula = {frozenset(): disjuncts}
+
+    if len(preds) == 0:
+        return associated_formula_dict_to_formula(associated_formula)
+
+    logging.info("Trying to take out preds from disjunction of formulas")
+    prev_formula = associated_formula_dict_to_formula(associated_formula)
+    cnt = 0
+    for pred in preds:
+        new_associated_formula = {}
+
+        for prev_preds, set_of_disjuncts in associated_formula.items():
+            pred_true_disjuncts, pred_false_disjuncts, others_at = take_out_pred_sat(set_of_disjuncts, pred, symbol_table)
+            if len(pred_true_disjuncts) > 0:
+                if frozenset(prev_preds | {pred}) not in new_associated_formula.keys():
+                    new_associated_formula[frozenset(prev_preds | {pred})] = set()
+                new_associated_formula[frozenset(prev_preds | {pred})].update(pred_true_disjuncts)
+
+            if len(pred_false_disjuncts) > 0:
+
+                if frozenset(prev_preds | {neg(pred)}) not in new_associated_formula.keys():
+                    new_associated_formula[frozenset(prev_preds | {neg(pred)})] = set()
+                new_associated_formula[frozenset(prev_preds | {neg(pred)})].update(pred_false_disjuncts)
+
+            if len(others_at) > 0:
+                if frozenset(prev_preds) not in new_associated_formula.keys():
+                    new_associated_formula[frozenset(prev_preds)] = set()
+                new_associated_formula[frozenset(prev_preds)].update(others_at)
+        logging.info(len(new_associated_formula))
+        associated_formula = new_associated_formula
+        current_formula = associated_formula_dict_to_formula(associated_formula)
+        cnt += 1
+        if len(str(prev_formula)) > len(str(current_formula)):
+            prev_formula = current_formula
+            logging.info(str(cnt) + ": " + str(prev_formula))
+    logging.info("final  " + str(cnt) + ": " + str(prev_formula))
+
+    return prev_formula
+
+
 def project_out_props(env_cond: Formula, env_props: [Variable]):
     return project_out_vars(env_cond, env_props)
