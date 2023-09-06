@@ -24,8 +24,10 @@ def hoa_to_transitions(hoa, parallelise=True):
         to_replace.append(BiOp(Variable(str(i)), ":=", Variable(name)))
 
     transitions = {}
-    if parallelise and len(hoa_body.split("\n")) > 90:
-        results = Parallel(n_jobs=-1, verbose=11)(
+    if parallelise:
+        results = Parallel(n_jobs=-1,
+                           prefer="threads",
+                           verbose=11)(
             delayed(parse_state_trans)(to_replace, raw_tran) for raw_tran in raw_trans)
 
         for r in results:
