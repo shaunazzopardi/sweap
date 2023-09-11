@@ -7,7 +7,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, conjunct, X, iff, \
-    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe
+    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, take_out_preds
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
