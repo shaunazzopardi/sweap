@@ -917,4 +917,4 @@ def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
 
 
 def project_out_props(env_cond: Formula, env_props: [Variable]):
-    return project_out_vars(env_cond, env_props)
+    return simplify_formula_without_math(project_out_vars(env_cond, env_props))
