@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from parsing.string_to_prop_logic import string_to_prop
-from prop_lang.util import dnf, conjunct, disjunct, neg, false, cnf
+from prop_lang.util import dnf, conjunct, disjunct, neg, cnf
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 import time
