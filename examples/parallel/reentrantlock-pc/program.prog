@@ -1,4 +1,4 @@
-program eventually__allow_grant {
+program reentrantlock-pc {
     STATES {
         start : init, done_unlocking, lock, locking_st, consider_unlock_int, consider_unlock, consider_unlock_int, unlock, locked, con_error_st
     }

@@ -24,7 +24,7 @@ program elevator {
         q0 -> q0 [increase && !decrease$ target := target + 1],
         q0 -> q0 [!increase && decrease $ target := target - 1],
         q0 -> q1 [!increase && !decrease],
-        q1 -> q0 [target == floor $ target_reached],
+        q1 -> q0 [target == floor # target_reached],
     }
 
     CONTROLLER TRANSITIONS {

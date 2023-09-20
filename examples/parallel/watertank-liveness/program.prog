@@ -1,0 +1,30 @@
+program watertank_liveness {
+    STATES {
+        q0 : init
+    }
+
+    ENVIRONMENT EVENTS {
+    }
+
+    CONTROLLER EVENTS {
+        act_on_x
+    }
+
+    PROGRAM EVENTS {
+        xlessthanpoint1, xbiggerthanboundary
+    }
+
+    VALUATION {
+        x : real := 0.0;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        q0 -> q0 [x < 0.1 # xlessthanpoint1],
+        q0 -> q0 [x > 0.4 # xbiggerthanboundary]
+    }
+
+    CONTROLLER TRANSITIONS {
+        q0 -> q0 [act_on_x $ x := 0.9635 * x],
+        q0 -> q0 [!act_on_x $ x := 0.9635 * x + 0.1]
+    }
+}

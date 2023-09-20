@@ -1,0 +1,27 @@
+INFO {
+  TITLE:       "Elevator Study"
+  DESCRIPTION: ""
+  SEMANTICS:   Mealy
+  TARGET:      Mealy
+}
+
+
+MAIN {
+
+  INPUTS {
+    increase;
+    decrease;
+    target_reached;
+    target_set;
+  }
+
+  OUTPUTS {
+    up;
+    down;
+  }
+
+  GUARANTEES {
+    G (target_set -> F target_reached);
+  }
+
+}
