@@ -299,14 +299,14 @@ def is_predicate_var(p):
 
 
 def var_to_predicate(p):
-    if isinstance(p, UniOp) and p.op == "!":
-        p_new = p.right
+    if p in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[p]
+    elif isinstance(p, UniOp) and p.op == "!" and p.right in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[p.right]
+    elif neg(p) in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[neg(p)].right
     else:
-        p_new = p
-    if p_new in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[p_new]
-    else:
-        raise Exception("Could not find predicate for variable: " + str(p_new))
+        raise Exception("Could not find predicate for variable: " + str(p))
 
 
 def label_pred(p, preds):
