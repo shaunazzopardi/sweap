@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from parsing.string_to_program_with_action_guards import string_to_program
+from parsing.string_to_program import string_to_program
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction

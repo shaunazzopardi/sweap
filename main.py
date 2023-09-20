@@ -3,7 +3,7 @@ import os
 
 from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from analysis.model_checker import ModelChecker
-from parsing.string_to_program_with_action_guards import string_to_program
+from parsing.string_to_program import string_to_program
 from synthesis.synthesis import synthesize
 import logging
 

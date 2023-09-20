@@ -3,7 +3,7 @@ from unittest import TestCase
 import time
 
 from parsing.hoa_parser import hoa_to_transitions
-from parsing.string_to_program_with_action_guards import string_to_program
+from parsing.string_to_program import string_to_program
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.mealy_machine import MealyMachine

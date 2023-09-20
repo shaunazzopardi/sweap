@@ -5,9 +5,11 @@ from parsing.string_to_prop_logic import string_to_math_expression, string_to_pr
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
+from programs.util import guarded_action_transitions_to_normal_transitions, resolve_next_references, \
+    symbol_table_from_typed_valuation
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
-from prop_lang.util import true
+from prop_lang.util import true, sat, conjunct, negate, disjunct_formula_set
 from prop_lang.variable import Variable
 
 name_regex = r'[_a-zA-Z][_a-zA-Z0-9$@\_\-]*'
@@ -30,16 +32,45 @@ def program_parser():
     yield spaces()
     initial_vals = yield initial_val_parser
     yield spaces()
-    env_transitions = yield env_transitions_parser
+    env_semantics, env_transitions = yield env_transitions_parser
     yield spaces()
-    con_transitions = yield con_transitions_parser
+    con_semantics, con_transitions = yield con_transitions_parser
     yield spaces() >> string("}") >> spaces()
 
-    program = Program(program_name, states, initial_state, initial_vals, env_transitions, con_transitions, env, con,
+    if env_semantics == "by-order":
+        new_env_transitions = []
+        if len(env_transitions) > 0:
+            new_env_transitions += [env_transitions[0]]
+            prev_conds = [env_transitions[0].condition]
+            for t in env_transitions[1:]:
+                new_env_transitions += [Transition(t.src, conjunct(t.condition,
+                                                                  negate(disjunct_formula_set(prev_conds))),
+                                                                  t.action, t.output, t.tgt)]
+                prev_conds += [t.condition]
+    else:
+        new_env_transitions = env_transitions
+
+    if con_semantics == "by-order":
+        new_con_transitions = []
+        if len(con_transitions) > 0:
+            new_con_transitions += [con_transitions[0]]
+            prev_conds = [con_transitions[0].condition]
+            for t in con_transitions[1:]:
+                new_con_transitions += [Transition(t.src, conjunct(t.condition,
+                                                                  negate(disjunct_formula_set(prev_conds))),
+                                                                  t.action, t.output, t.tgt)]
+                prev_conds += [t.condition]
+    else:
+        new_con_transitions = con_transitions
+
+    symbol_table = symbol_table_from_typed_valuation(initial_vals)
+
+    new_env_transitions = [resolve_next_references(tt, initial_vals) for t in new_env_transitions for tt in guarded_action_transitions_to_normal_transitions(t, initial_vals, env, con, mon, symbol_table)]
+    new_con_transitions = [resolve_next_references(tt, initial_vals) for t in new_con_transitions for tt in guarded_action_transitions_to_normal_transitions(t, initial_vals, env, con, mon, symbol_table)]
+
+    program = Program(program_name, states, initial_state, initial_vals, new_env_transitions, new_con_transitions, env, con,
                       mon)
-
     return program
-
 
 @generate
 def event_parser():
@@ -123,11 +154,17 @@ def bool_decl_parser_untyped():
     var = yield name << spaces() << spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;\]\#]+") << spaces()
+    action_and_guard = raw_value.split(" if ")
     try:
-        value = string_to_prop(raw_value)
+        if len(action_and_guard) == 1:
+            value = string_to_prop(action_and_guard[0])
+            guard = true()
+        else:
+            value = string_to_prop(action_and_guard[0])
+            guard = string_to_prop(action_and_guard[1])
     except Exception as e:
         yield parsec.fail_with(str(e))
-    return BiOp(Variable(var), ":=", value)
+    return (BiOp(Variable(var), ":=", value), guard)
 
 
 @generate
@@ -135,11 +172,36 @@ def num_decl_parser_untyped():
     var = yield name << spaces() << spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;\]\#]+") << spaces()
+    action_and_guard = raw_value.split(" if ")
     try:
-        value = string_to_math_expression(raw_value)
+        if len(action_and_guard) == 1:
+            value = string_to_math_expression(action_and_guard[0])
+            guard = true()
+        else:
+            value = string_to_math_expression(action_and_guard[0])
+            guard = string_to_prop(action_and_guard[1])
+    except Exception as e:
+        print(str(e))
+        yield parsec.fail_with(str(e))
+    return (BiOp(Variable(var), ":=", MathExpr(value)), guard)
+
+
+@generate
+def assignment_parser_with_action_guard():
+    assignment = yield parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped) << spaces()
+    guard = yield action_guard << spaces()
+    return (assignment, guard)
+
+
+@generate
+def action_guard():
+    yield string("if") << spaces() << spaces()
+    raw_value = yield regex("[^,;\]\#]+") << spaces()
+    try:
+        value = string_to_prop(raw_value)
     except Exception as e:
         yield parsec.fail_with(str(e))
-    return BiOp(Variable(var), ":=", MathExpr(value))
+    return value
 
 
 @generate
@@ -164,7 +226,12 @@ def transition_parser():
     raw_cond = yield parsec.optional(spaces() >> regex("[^$#\]]+"), "true")
     cond = string_to_prop(raw_cond)
     yield spaces()
-    act = yield parsec.optional(string("$") >> spaces() >> assignments << spaces() << parsec.lookahead(regex("(#|\])")),
+    act = yield parsec.optional(string("$")
+                                >> spaces()
+                                >> assignments
+                                << spaces()
+                                << parsec.optional(regex("(,|;)") >> spaces())
+                                << parsec.lookahead(regex("(#|\])")),
                                 [])
     yield spaces()
     raw_events = yield parsec.optional(outputs, [])
@@ -193,25 +260,38 @@ def outputs():
 def assignments():
     asss = yield sepBy(parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped),
                        regex("(,|;)") >> spaces()) << parsec.optional(regex("(,|;)") >> spaces())
-    if len(set([v.left for v in asss])) < len(asss):
-        raise Exception("Variables can only be assigned once by a transition.")
+    # if len(set([v[0].left for v in asss])) < len(asss):
+    #     raise Exception("Variables can only be assigned once by a transition.")
     return asss
+
+
+# @generate
+# def assignment():
+#     assign = yield parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped) >> spaces()
+#     guard = yield parsec.optional(action_guard, true())
+#     return (assign, guard)
 
 
 @generate
 def env_transitions_parser():
-    yield string("ENVIRONMENT") >> spaces() >> string("TRANSITIONS") >> spaces() >> string("{") >> spaces()
+    yield string("ENVIRONMENT") >> spaces() >> string("TRANSITIONS") >> spaces()
+    options = "by\-order"
+    semantics = yield parsec.optional(string("[") >> spaces() >> string("semantics") >> spaces() >> string("=") >> spaces() >> regex(options) << spaces() << string("]") << spaces(), "")
+    yield string("{") >> spaces()
     transitions = yield sepBy(transition_parser, spaces() << regex("(,|;)") << spaces())
     yield spaces() >> string("}")
-    return transitions
+    return semantics, transitions
 
 
 @generate
 def con_transitions_parser():
-    yield string("CONTROLLER") >> spaces() >> string("TRANSITIONS") >> spaces() >> string("{") >> spaces()
+    yield string("CONTROLLER") >> spaces() >> string("TRANSITIONS") >> spaces()
+    options = "by\-order"
+    semantics = yield parsec.optional(string("[") >> spaces() >> string("semantics") >> spaces() >> string("=") >> spaces() >> regex(options) << spaces() << string("]") << spaces(), "")
+    yield string("{") >> spaces()
     transitions = yield sepBy(transition_parser, spaces() >> regex("(,|;)") >> spaces())
     yield spaces() >> string("}")
-    return transitions
+    return semantics, transitions
 
 
 parser = program_parser
