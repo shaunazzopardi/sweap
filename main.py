@@ -9,6 +9,7 @@ import logging
 
 import time
 
+
 def main():
     parser = argparse.ArgumentParser()
     # input monitor
@@ -32,19 +33,20 @@ def main():
 
     prog_file = open(args.program, "r")
     prog_str = prog_file.read()
+    program = string_to_program(prog_str)
 
-    if not os.path.exists(str(os.getcwd()) + "\\out"):
-        os.makedirs(str(os.getcwd()) + "\\out")
+    if not os.path.exists(str(os.getcwd()) + "\\out\\" + program.name):
+        os.makedirs(str(os.getcwd()) + "\\out\\" + program.name)
 
     logging.basicConfig(filename=(str(os.getcwd()) + "\\out\\"
-                                  + str(prog_file.name).split("/")[-1].split(".")[0]
+                                  + program.name + "\\"
                                   + str(time.time()) + ".log"),
                         encoding='utf-8',
                         level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        force=True)
 
-    program = string_to_program(prog_str)
     logging.info(program.to_dot())
 
     if args.translate is not None:
