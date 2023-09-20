@@ -6,7 +6,6 @@ import time
 from itertools import chain, combinations
 
 from pysmt.factory import SolverRedefinitionError
-from pysmt.fnode import FNode
 from pysmt.logics import QF_UFLRA
 from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
@@ -199,50 +198,6 @@ def only_this_state_next(states, state):
 
 def get_differently_value_vars(state1: dict, state2: dict):
     return [key for key in state1.keys() if key in state2.keys() and state1[key] != state2[key]]
-
-
-def fnode_to_formula(fnode: FNode) -> Formula:
-    if fnode.is_constant():
-        return Value(fnode.constant_value())
-    elif fnode.is_symbol():
-        return Variable(fnode.symbol_name())
-    else:
-        args = [fnode_to_formula(x) for x in fnode.args()]
-        if fnode.is_le():
-            return MathExpr(BiOp(args[0], "<=", args[1]))
-        elif fnode.is_lt():
-            return MathExpr(BiOp(args[0], "<", args[1]))
-        elif fnode.is_plus():
-            return MathExpr(BiOp(args[0], "+", args[1]))
-        elif fnode.is_minus():
-            return MathExpr(BiOp(args[0], "-", args[1]))
-        elif fnode.is_div():
-            return MathExpr(BiOp(args[0], "/", args[1]))
-        elif fnode.is_times():
-            return MathExpr(BiOp(args[0], "*", args[1]))
-        elif fnode.is_not():
-            return UniOp("!", args[0])
-        else:
-            if fnode.is_equals():
-                op = "="
-            elif fnode.is_and():
-                op = "&"
-            elif fnode.is_or():
-                op = "|"
-            elif fnode.is_implies():
-                op = "<->"
-            elif fnode.is_iff():
-                op = "<->"
-            else:
-                raise NotImplementedError(str(fnode) + " cannot be represented as a Formula.")
-
-            if len(args) < 2:
-                raise Exception("Expected equality to have more that 1 sub-formula.")
-
-            formula = BiOp(args[0], op, args[1])
-            for i in range(2, len(args)):
-                formula = conjunct(formula, BiOp(args[i - 1], op, args[i]))
-            return formula
 
 
 def _check_os():

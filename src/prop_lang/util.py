@@ -264,25 +264,40 @@ def only_dis_or_con_junctions(f: Formula):
 
 dnf_cache = {}
 
-def fnode_to_formula(fnode: FNode):
-    if fnode.is_true():
-        return true()
-    elif fnode.is_false():
-        return false()
-    elif fnode.is_and():
-        return conjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
-    elif fnode.is_or():
-        return disjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
-    elif fnode.is_not():
-        return neg(fnode_to_formula(fnode.arg(0)))
-    elif fnode.is_implies():
-        return implies(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
-    elif fnode.is_iff():
-        return iff(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+def fnode_to_formula(fnode: FNode) -> Formula:
+    if fnode.is_constant():
+        return Value(fnode.constant_value())
     elif fnode.is_symbol():
         return Variable(fnode.symbol_name())
     else:
-        return string_to_prop(serialize(fnode))
+        args = [fnode_to_formula(x) for x in fnode.args()]
+        if fnode.is_le():
+            return MathExpr(BiOp(args[0], "<=", args[1]))
+        elif fnode.is_lt():
+            return MathExpr(BiOp(args[0], "<", args[1]))
+        elif fnode.is_plus():
+            return MathExpr(BiOp(args[0], "+", args[1]))
+        elif fnode.is_minus():
+            return MathExpr(BiOp(args[0], "-", args[1]))
+        elif fnode.is_div():
+            return MathExpr(BiOp(args[0], "/", args[1]))
+        elif fnode.is_times():
+            return MathExpr(BiOp(args[0], "*", args[1]))
+        elif fnode.is_and():
+            return conjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+        elif fnode.is_or():
+            return disjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+        elif fnode.is_not():
+            return neg(fnode_to_formula(fnode.arg(0)))
+        elif fnode.is_implies():
+            return implies(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+        elif fnode.is_iff():
+            return iff(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+        elif fnode.is_symbol():
+            return Variable(fnode.symbol_name())
+        else:
+            return string_to_prop(serialize(fnode))
+
 
 def sympi_to_formula(basic: Basic):
     if isinstance(basic, sympy.logic.boolalg.Not):

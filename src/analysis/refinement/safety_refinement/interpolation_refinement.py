@@ -9,12 +9,12 @@ from analysis.smt_checker import SMTChecker, binary_interpolant
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import ce_state_to_formula, ground_formula_on_ce_state_with_index, project_ce_state_onto_ev, \
-    fnode_to_formula, reduce_up_to_iff
+from programs.util import (ce_state_to_formula, ground_formula_on_ce_state_with_index, project_ce_state_onto_ev,
+                           reduce_up_to_iff)
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
-from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe
+from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe, fnode_to_formula
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
