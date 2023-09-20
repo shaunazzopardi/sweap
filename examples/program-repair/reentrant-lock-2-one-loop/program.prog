@@ -1,0 +1,53 @@
+program eventually__allow_grant {
+    STATES {
+        start : init, lock, unlock, will_i_swap, con_error_st
+    }
+
+    ENVIRONMENT EVENTS {
+        env_lock, swap, env_unlock
+    }
+
+    CONTROLLER EVENTS {
+        dec, inc, allow_swap
+    }
+
+    PROGRAM EVENTS {
+        con_error
+    }
+
+    VALUATION {
+        got_lock : integer := 0;
+        L : integer := 0;
+        owner : bool := false;
+        desired_owner : bool := false;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        start -> will_i_swap [swap],
+
+        start -> lock [env_lock && ((L == 0) || (desired_owner <-> owner)) $ L := L + 1; owner := desired_owner],
+        start -> con_error_st [env_lock && !((L == 0) || (desired_owner <-> owner))],
+
+        start -> unlock [env_unlock && got_lock != 0 && L > 0 $ L := L - 1],
+        start -> con_error_st [env_unlock && got_lock != 0 && L == 0 $],
+        start -> start [env_unlock && got_lock == 0 $],
+
+        con_error_st -> con_error_st [ # con_error]
+    }
+
+    CONTROLLER TRANSITIONS {
+        will_i_swap -> start [!(dec | inc) && allow_swap $ desired_owner := !desired_owner],
+        will_i_swap -> start [!(dec | inc) && !allow_swap],
+        will_i_swap -> con_error_st [dec | inc],
+
+        lock -> start [!allow_swap && dec & !inc $ got_lock := got_lock - 1],
+        lock -> start [!allow_swap && !dec & inc $ got_lock := got_lock + 1],
+        lock -> con_error_st [allow_swap || !((dec & !inc) || (!dec & inc))],
+
+        start -> con_error_st [allow_swap | dec | inc],
+
+        unlock -> start [dec & !inc $ got_lock := got_lock - 1],
+        unlock -> start [!dec & inc $ got_lock := got_lock + 1],
+        unlock -> con_error_st [!((dec & !inc) || (!dec & inc))]
+    }
+}

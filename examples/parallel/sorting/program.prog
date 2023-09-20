@@ -1,0 +1,40 @@
+program eventually__allow_grant {
+    STATES {
+        q0 : init, q1, q2
+    }
+
+    ENVIRONMENT EVENTS {
+        increase
+    }
+
+    CONTROLLER EVENTS {
+        swapab, swapac, swapbc, finished
+    }
+
+    PROGRAM EVENTS {
+        correct
+    }
+
+    VALUATION {
+        a : natural := 0;
+        b : natural := 0;
+        c : natural := 0;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        qa -> qa [increase $ a := a + 1],
+        qa -> qb [!decrease],
+        qb -> qb [increase $ b := b + 1],
+        qb -> qc [!decrease],
+        qc -> qc [increase $ c := c + 1],
+        qc -> qsort [!decrease]
+        qeval -> qeval [a >= b && b >= c $ # correct]
+    }
+
+    CONTROLLER TRANSITIONS {
+        qsort -> qsort [swapab && !swapac && !swapbc $ a := b; b := a],
+        qsort -> qsort [!swapab && swapac && !swapbc $ a := c; c := a],
+        qsort -> qsort [!swapab && !swapac && swapbc $ b := c; c := b],
+        qsort -> qeval [!swapab && !swapac && !swapbc && finished$]
+    }
+}

@@ -1,0 +1,65 @@
+program eventually__allow_grant {
+    STATES {
+        start : init, locked, lock, unlock, unlocked, will_i_swap, consider_unlock, finished_swapping, swapping, con_error_st
+    }
+
+    ENVIRONMENT EVENTS {
+        env_lock, swap, env_unlock
+    }
+
+    CONTROLLER EVENTS {
+        dec, inc, allow_swap
+    }
+
+    PROGRAM EVENTS {
+        con_error, locking, unlocking, out_swapping
+    }
+
+    VALUATION {
+        got_lock : integer := 0;
+        L : integer := 0;
+        owner : bool := false;
+        desired_owner : bool := false;
+    }
+
+    ENVIRONMENT TRANSITIONS {
+        start -> will_i_swap [],
+        swapping -> finished_swapping [swap $ desired_owner := true # out_swapping],
+        swapping -> finished_swapping [!swap $ desired_owner := false # out_swapping],
+
+        finished_swapping -> lock [env_lock # locking],
+        finished_swapping -> consider_unlock [!env_lock],
+
+        lock -> locked [(L == 0) || (desired_owner <-> owner) $ L := L + 1; owner := desired_owner],
+        lock -> con_error_st [!((L == 0) || (desired_owner <-> owner))],
+        locked -> consider_unlock [],
+        consider_unlock -> unlock [env_unlock],
+        consider_unlock -> start [!env_unlock],
+        unlock -> unlocked [got_lock != 0 && L > 0 $ L := L - 1],
+        unlock -> start [got_lock == 0 $],
+        unlock -> con_error_st [got_lock != 0 && !(L > 0)],
+        unlocked -> start [],
+
+        con_error_st -> con_error_st [ # con_error]
+    }
+
+    CONTROLLER TRANSITIONS {
+        will_i_swap -> swapping [!(dec | inc) && allow_swap],
+        will_i_swap -> finished_swapping [!(dec | inc) && !allow_swap],
+
+        swapping -> con_error_st [allow_swap | dec | inc],
+        finished_swapping -> con_error_st [allow_swap | dec | inc],
+        will_i_swap -> con_error_st [dec | inc],
+        start -> con_error_st [allow_swap | dec | inc],
+        lock -> con_error_st [allow_swap | dec | inc],
+        unlock -> con_error_st [allow_swap | dec | inc],
+        consider_unlock -> con_error_st [allow_swap | dec | inc],
+
+        locked -> con_error_st [dec & !inc $ got_lock := got_lock - 1],
+        locked -> locked [!dec & inc $ got_lock := got_lock + 1],
+        locked -> con_error_st [!((dec & !inc) || (!dec & inc))],
+        unlocked -> unlocked [dec & !inc $ got_lock := got_lock - 1],
+        unlocked -> con_error_st [!dec & inc $ got_lock := got_lock + 1],
+        unlocked -> con_error_st [!((dec & !inc) || (!dec & inc))]
+    }
+}

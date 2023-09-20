@@ -1,0 +1,32 @@
+INFO {
+  TITLE:       "Arbiter Case Study"
+  DESCRIPTION: ""
+  SEMANTICS:   Mealy
+  TARGET:      Mealy
+}
+
+
+MAIN {
+
+  INPUTS {
+    env_lock;
+    con_error;
+    env_unlock;
+    swap;
+  }
+
+  OUTPUTS {
+    dec;
+    inc;
+    allow_swap;
+  }
+
+  ASSUMPTIONS {
+      G(!(swap && env_lock) && !(swap && env_unlock) && !(env_lock && env_unlock))
+  }
+
+  GUARANTEES {
+    G(!con_error);
+  }
+
+}
