@@ -219,21 +219,28 @@ class EffectsAbstraction(PredicateAbstraction):
         invars = []
         constants = []
         new_effects = {x: y for x, y in old_effects.items()}
+
+        variable_used_in_guard = any(True for v in predicate.variablesin() if v in t.condition.variablesin())
+        value_modified = any(True for v in predicate.variablesin()
+                                    if v in vars_modified_in_action_without_identity +
+                                            vars_used_in_action_without_identity)
         # if the predicate is a state predicate and is not mentioned in both the guard and action
-        if not is_tran_pred(predicate) and not any(
-                True for v in predicate.variablesin() if v in t.condition.variablesin()
-                                                         or v in vars_modified_in_action_without_identity +
-                                                         vars_used_in_action_without_identity):
+        if not is_tran_pred(predicate) and not variable_used_in_guard and not value_modified:
             invars = [predicate]
-        # if the predicate is a transition predicate and is not mentioned in the action
-        elif is_tran_pred(predicate) and not any(
-                True for v in predicate.variablesin() if v in vars_modified_in_action_without_identity):
+            return t, t_formula, invars, constants, Es, new_effects
+        # if the predicate is an inc or dec transition predicate and is not mentioned in the action
+        elif (is_tran_pred(predicate)
+              and isinstance(predicate, BiOp) and predicate.op in ["<", ">"]  # This is only applicable for decs and incs
+              and not value_modified):
             constants = [neg(predicate)]
+        # if the predicate is always false after the transition
         elif is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table, smt_checker):
             constants = [neg(predicate)]
+        # if the predicate is always true after the transition
         elif is_contradictory(conjunct_formula_set([t_formula, neg(predicate)]), self.program.symbol_table,
                               smt_checker):
             constants = [(predicate)]
+        # if the predicate is maintained by the transition
         elif is_contradictory(conjunct_formula_set([t_formula, add_prev_suffix(predicate), neg(predicate)]),
                               self.program.symbol_table, smt_checker) and \
                 is_contradictory(conjunct_formula_set([t_formula, add_prev_suffix(neg(predicate)), (predicate)]),
@@ -476,6 +483,8 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.add_state_predicates(new_invars, parallelise)
         self.add_transition_predicates(new_tran_preds, parallelise)
+
+        self.pretty_print_abstract_effect()
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:
