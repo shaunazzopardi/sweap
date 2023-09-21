@@ -262,11 +262,13 @@ def only_dis_or_con_junctions(f: Formula):
         return f
 
 
-dnf_cache = {}
-
 def fnode_to_formula(fnode: FNode) -> Formula:
     if fnode.is_constant():
-        return Value(fnode.constant_value())
+        if "/" in str(fnode):
+            numerator = int(str(fnode).split("/")[0].replace("f'", ""))
+            denominator = int(str(fnode).split("/")[1])
+            return Value(str(numerator / denominator).replace("f'", ""))
+        return Value(str(fnode))
     elif fnode.is_symbol():
         return Variable(fnode.symbol_name())
     else:
@@ -361,6 +363,9 @@ def ltl_to_propositional(formula):
             return UniOp(formula.op, ltl_to_propositional(formula.right))
     else:
         raise Exception("ltl_to_propositional: I do not know how to handle " + str(formula))
+
+
+dnf_cache = {}
 
 
 def dnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
@@ -554,6 +559,8 @@ def type_constraint(variable, symbol_table):
             return Value("TRUE")
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return MathExpr(BiOp(variable, ">=", Value("0")))
+        elif typed_val.type == "real":
+            return Value("TRUE")
         elif re.match("[0-9]+..+[0-9]+", typed_val.type):
             split = re.split("..+", typed_val.type)
             lower = split[0]

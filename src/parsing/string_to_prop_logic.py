@@ -6,6 +6,7 @@ from tatsu.tool import compile
 
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.math_op import MathOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
@@ -63,8 +64,8 @@ GRAMMAR = '''
         =
         | 'true'
         | 'false'
-        | atom
         | number
+        | atom
         ;
         
     math_expression
@@ -84,20 +85,22 @@ GRAMMAR = '''
     
     math_0
         = '(' math_expression ')'
+        | number '.' number
+        | '-' number '.' number
         | number
         | '-' number
         | atom
         ;
 
     atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
-    number = /(\d+|\d+\.\d+)/;
+    number = /([0-9]+)/;
 '''
 
 parser: Grammar = compile(GRAMMAR)
 math_config = ParserConfig(start='math_expression_eof')
 
 
-def tuple_to_formula(node, hoa_flag) -> Formula:
+def tuple_to_formula(node, hoa_flag, symbol_table) -> Formula:
     if isinstance(node, str):
         if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF)", node):
             return Value(node)
@@ -106,17 +109,33 @@ def tuple_to_formula(node, hoa_flag) -> Formula:
         else:
             return Variable(node)
     elif len(node) == 2:
-        return UniOp(node[0], (node[1]))
+        if str(node[0]) == "-":
+            return MathOp(UniOp(node[0], (node[1])))
+        else:
+            return UniOp(node[0], (node[1]))
     elif len(node) == 3:
         if node[0] == "(":
             return (node[1])
         else:
-            v0 = ((node[0]))
-            v2 = ((node[2]))
-            if v0 == None or v2 == None:
-                print("None")
-            if re.match("(\+|\-|\*|\/|<|>|<=|>=|==)", node[1]):
-                return MathExpr(BiOp((node[0]), node[1], (node[2])))
+            if node[1] == "/":
+                return Value(str(int(str(node[0].name).replace("f'", "")) / int(str(node[2]))))
+            elif node[1] == ".":
+                return (Value(str(node[0]) + str(node[1]) + str((node[2]))))
+
+            if isinstance(node[0], Variable) and str(node[0]) in symbol_table.keys():
+                if symbol_table[str(node[0])].type == "real":
+                    if isinstance(node[2], Value) and "." not in str(node[2]):
+                        node[2] = Value(str(node[2]) + ".0")
+            elif isinstance(node[2], Variable) and str(node[2]) in symbol_table.keys():
+                if symbol_table[str(node[2])].type == "real":
+                    node[0].replace_math_exprs(symbol_table)
+                    if isinstance(node[0], Value) and "." not in str(node[0]):
+                        node[0] = Value(str(node[0]) + ".0")
+
+            if re.match("(\+|\-|\*)", node[1]):
+                return MathOp(BiOp((node[0]), node[1], (node[2])))
+            elif re.match("(<|>|<=|>=|==)", node[1]):
+                return MathExpr(BiOp(node[0], node[1], node[2]))
             else:
                 return BiOp((node[0]), node[1], (node[2]))
     else:
@@ -124,18 +143,19 @@ def tuple_to_formula(node, hoa_flag) -> Formula:
 
 
 class Semantics:
-    def __init__(self, hoa_flag=False):
+    def __init__(self, hoa_flag=False, symbol_table={}):
         self.hoa_flag = hoa_flag
+        self.symbol_table = symbol_table
 
     def _default(self, ast):
         if isinstance(ast, Formula):
             return ast
         else:
-            return tuple_to_formula(ast, self.hoa_flag)
+            return tuple_to_formula(ast, self.hoa_flag, self.symbol_table)
 
 
-def string_to_math_expression(text: str) -> MathExpr:
-    formula = parser.parse(text, config=math_config, semantics=Semantics(False))
+def string_to_math_expression(text: str, symbol_table={}) -> MathExpr:
+    formula = parser.parse(text, config=math_config, semantics=Semantics(False, symbol_table))
     return formula
 
 

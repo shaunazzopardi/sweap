@@ -286,6 +286,8 @@ def stringify_pred(p):
                               str(p)
                               .replace(" ", "")
                               .replace("_", "")
+                              .replace("f'", "")
+                              .replace(".", "dot")
                               .replace("(", "_")
                               .replace(")", "_")
                               .replace("=", "_EQ_")

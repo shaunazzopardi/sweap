@@ -3,6 +3,7 @@ import re
 import sympy.core.symbol
 from pysmt.fnode import FNode
 from pysmt.shortcuts import INT, BOOL, GE, LE, And, Int, TRUE, Symbol
+from pysmt.typing import REAL
 
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
@@ -76,6 +77,8 @@ class Variable(Atom):
             return Symbol(self.name, BOOL), TRUE()
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return Symbol(self.name, INT), GE(Symbol(self.name, INT), Int(0))
+        elif typed_val.type == "real":
+            return Symbol(self.name, REAL), TRUE()
         elif re.match("[0-9]+..+[0-9]+", typed_val.type):
             split = re.split("\\.\\.+", typed_val.type)
             lower = int(split[0])
@@ -96,3 +99,19 @@ class Variable(Atom):
             return context[self]
         else:
             return self
+
+    def repair_typing(self, type, symbol_table):
+        if self.name in symbol_table.keys():
+            if type == symbol_table[self.name].type:
+                return
+            elif type == None:
+                return
+            else:
+                raise Exception("Variable.repair_typing: Cannot change type of variable " + self.name + " from "
+                                + symbol_table[self.name].type + " to " + str(type) + ".")
+
+    def type(self, symbol_table):
+        if self.name in symbol_table.keys():
+            return [symbol_table[self.name].type]
+        else:
+            raise Exception("Variable.type: variable " + self.name + " not in symbol table.")

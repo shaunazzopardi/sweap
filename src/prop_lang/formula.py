@@ -64,3 +64,11 @@ class Formula(ABC):
     @abstractmethod
     def to_sympy(self):
         pass
+
+    @abstractmethod
+    def repair_typing(self, type, symbol_table):
+        pass
+
+    @abstractmethod
+    def type(self, symbol_table):
+        pass

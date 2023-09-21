@@ -94,6 +94,16 @@ def try_liveness_refinement(counterstrategy_states: [str],
             new_ranking_invars = {ranking: invars}
 
     # check if the ranking function is both increased in the loop
+    new_ranking_invars_copy = {}
+    for ranking in new_ranking_invars.keys():
+        invars = new_ranking_invars[ranking]
+        # repair typing if any variable in the ranking function is of type real
+        if any(True for v in ranking.variablesin() if symbol_table[str(v)].type == "real"):
+            ranking.repair_typing(None, symbol_table)
+        new_ranking_invars_copy[ranking] = invars
+
+    new_ranking_invars = new_ranking_invars_copy
+
     inappropriate_rankings = []
     for ranking in new_ranking_invars.keys():
         for t, _ in loop:
@@ -178,7 +188,7 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
     param_list = param_list.replace("integer", "int") \
         .replace("natural", "int") \
         .replace("nat", "int") \
-        .replace("real", "double")
+        .replace("real", "float")
 
     natural_conditions = [v.split(" ")[1] + " >= 0 " for v in params if
                           not v.endswith("_prev") and symbol_table[v.split(" ")[1]].type in ["natural",
@@ -620,13 +630,13 @@ def interactive_transition_predicates(existing_rankings: dict[Formula, [Formula]
             text = input("Any suggestions of ranking function?")
             if text == "":
                 break
-            ranking = string_to_math_expression(text)
+            ranking = string_to_math_expression(text, symbol_table)
             text = input("Any suggestions of invariants?")
 
             if text == "":
                 invars = []
             else:
-                invars = list(map(string_to_math_expression, text.split(",")))
+                invars = [string_to_math_expression(t, symbol_table) for t in text.split(",")]
             if ranking in existing_rankings.keys():
                 if equivalent(existing_rankings[ranking], conjunct_formula_set(invars)):
                     logging.info("This ranking function with the given invariants is already in use.")

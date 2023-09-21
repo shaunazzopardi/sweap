@@ -1,6 +1,6 @@
 import sympy.core.logic
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Not, Minus, Int
+from pysmt.shortcuts import Not, Minus, Int, Real
 
 from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
@@ -69,7 +69,10 @@ class UniOp(Formula):
         if self.op == "!":
             return Not(expr), invar
         elif self.op == "-":
-            return Minus(Int(0), expr), invar
+            if self.right.type(symbol_table) == ["real"]:
+                return Minus(Real(0.0), expr), invar
+            else:
+                return Minus(Int(0), expr), invar
         else:
             raise NotImplementedError(f"{self.op} unsupported")
 
@@ -89,3 +92,17 @@ class UniOp(Formula):
             return context[self]
         else:
             return UniOp(self.op, self.right.replace_formulas(context))
+    def repair_typing(self, type, symbol_table):
+        if type == "real":
+            if "real" not in self.right.type(symbol_table):
+                self.right.repair_typing("real", symbol_table)
+            else:
+                raise Exception("UniOp.repair_typing: Cannot change to real, value is not an integer: " + self.name)
+
+    def type(self, symbol_table=None):
+        if self.op == "-":
+            right_type = self.right.type(symbol_table)
+            right_type.remove("natural")
+            return right_type
+        else:
+            return self.right.type(symbol_table)

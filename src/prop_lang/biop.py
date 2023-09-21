@@ -1,11 +1,11 @@
+from fractions import Fraction
+
 import sympy
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, Or, Implies
+from pysmt.shortcuts import And, Or, Implies, Real, TRUE
 from pysmt.shortcuts import (
     Plus, Minus, Times, Div, BVSRem, EqualsOrIff, LE, LT, GT, GE, NotEquals
 )
-# from sympy import And, Or, Implies, Equivalent
-
 from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
@@ -26,6 +26,9 @@ class BiOp(Formula):
         self.right = right
 
     def __str__(self):
+        if self.op == "/":
+            return str(self.left) + "/" + str(self.right)
+
         if len(self.sub_formulas_up_to_associativity()) == 1:
             return "(" + str(self.left) + " " + self.op + " " + str(self.right) + ")"
         else:
@@ -182,19 +185,23 @@ class BiOp(Formula):
         "/": Div,
         "%": BVSRem
     }
-    def to_smt(self, symbol_table) -> (FNode, FNode):
-        left_expr, left_invar = self.left.to_smt(symbol_table)
-        right_expr, right_invar = self.right.to_smt(symbol_table)
 
-        try:
-            op = self.ops[self.op]
-            return op(left_expr, right_expr), And(left_invar, right_invar)
-        except KeyError:
-            raise NotImplementedError(f"{self.op} unsupported")
-        except Exception as e:
-            print(str(e))
-            op = self.ops[self.op]
-            return op(left_expr, right_expr), And(left_invar, right_invar)
+    def to_smt(self, symbol_table) -> (FNode, FNode):
+        if self.op == "/":
+            return Real(Fraction(str(self))), TRUE()
+        else:
+            left_expr, left_invar = self.left.to_smt(symbol_table)
+            right_expr, right_invar = self.right.to_smt(symbol_table)
+
+            try:
+                op = self.ops[self.op]
+                return op(left_expr, right_expr), And(left_invar, right_invar)
+            except KeyError:
+                raise NotImplementedError(f"{self.op} unsupported")
+            except Exception as e:
+                print(str(e))
+                op = self.ops[self.op]
+                return op(left_expr, right_expr), And(left_invar, right_invar)
 
     def to_sympy(self):
         if self.op[0] == "|":
@@ -226,3 +233,17 @@ class BiOp(Formula):
             return context[self]
         else:
             return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
+
+    def repair_typing(self, type=None, symbol_table=None):
+        if type == None:
+            left_types = self.left.type(symbol_table)
+            right_types = self.right.type(symbol_table)
+
+            self.right.repair_typing("real", symbol_table)
+            self.left.repair_typing("real", symbol_table)
+        else:
+            self.left.repair_typing(type, symbol_table)
+            self.right.repair_typing(type, symbol_table)
+
+    def type(self, symbol_table=None):
+        return self.left.type(symbol_table) + self.right.type(symbol_table)

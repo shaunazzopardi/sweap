@@ -6,7 +6,7 @@ from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
-class MathExpr(Formula):
+class MathOp(Formula):
 
     def __init__(self, f: Formula):
         self.formula = f
@@ -18,7 +18,7 @@ class MathExpr(Formula):
         return self.formula.__hash__()
 
     def __eq__(self, other):
-        if isinstance(other, MathExpr):
+        if isinstance(other, MathOp):
             return self.formula == other.formula
         else:
             return False
@@ -27,24 +27,24 @@ class MathExpr(Formula):
         return self.formula.variablesin()
 
     def ground(self, context):
-        return MathExpr(self.formula.ground(context))
+        return MathOp(self.formula.ground(context))
 
     def simplify(self):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
             if isinstance(self.formula.left, Value) and self.formula.left.name == "1":
-                return MathExpr(self.formula.right)
+                return MathOp(self.formula.right)
             elif isinstance(self.formula.right, Value) and self.formula.right.name == "1":
-                return MathExpr(self.formula.left)
+                return MathOp(self.formula.left)
         return self
 
     def ops_used(self):
         return []
 
     def replace_vars(self, context):
-        return MathExpr(self.formula.replace_vars(context))
+        return MathOp(self.formula.replace_vars(context))
 
     def to_nuxmv(self):
-        return MathExpr(self.formula.to_nuxmv())
+        return MathOp(self.formula.to_nuxmv())
 
     def to_strix(self):
         return self
@@ -62,7 +62,7 @@ class MathExpr(Formula):
         if self in context.keys():
             return context[self]
         else:
-            return MathExpr(self.formula.replace_formulas(context))
+            return MathOp(self.formula.replace_formulas(context))
 
     def repair_typing(self, type, symbol_table):
         self.formula.repair_typing(type, symbol_table)

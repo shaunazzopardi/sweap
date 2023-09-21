@@ -1,19 +1,19 @@
 import re
 
 import sympy
+from pysmt.constants import Fraction
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Int, TRUE, FALSE
+from pysmt.shortcuts import Int, TRUE, FALSE, Real
 
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.variable import Variable
 
-
 class Value(Atom):
     def __init__(self, name: str):
         if len(str(name)) == 0:
             raise Exception("Value.__init__: name cannot be empty.")
-        self.name = str(name)
+        self.name = str(name).replace("f'","")
 
     def __str__(self):
         return str(self.name)
@@ -71,11 +71,14 @@ class Value(Atom):
             return TRUE(), TRUE()
         elif self.is_false():
             return FALSE(), TRUE()
+        elif re.match("-?[0-9]+$", self.name):
+            return Int(int(self.name)), TRUE()
+        elif re.match("-?[0-9]+\.[0-9]+$", self.name):
+            return Real(float(self.name)), TRUE()
+        elif re.match("(f')?(-?[0-9]+(\.[0-9]+)?) */ *(-?[0-9]+(\.[0-9]+)?)$", self.name):
+            return Real(Fraction(self.name.replace("f'", ""))), TRUE()
         else:
-            try:
-                return Int(int(self.name)), TRUE()
-            except:
-                raise Exception("Value.to_smt: Value is not an integer: " + self.name)
+            raise Exception("Value.to_smt: Value is not a boolean, integer, or real number: " + self.name)
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         if not self.is_true() and not self.is_false():
@@ -93,3 +96,25 @@ class Value(Atom):
             return context[self]
         else:
             return self
+
+    def repair_typing(self, type, symbol_table):
+        if type == "real":
+            if "integer" in self.type():
+                self.name = (self.name) + ".0"
+                return
+            elif "real" in self.type():
+                return
+            else:
+                raise Exception("Value.repair_typing: Cannot change to real, value is not an integer: " + self.name)
+
+    def type(self, symbol_table=None):
+        if re.match("[0-9]+$", self.name):
+            return ["natural", "integer"]
+        elif re.match("-?[0-9]+$", self.name):
+            return ["integer"]
+        elif re.match("-?[0-9]+\.[0-9]+$", self.name):
+            return ["real"]
+        elif re.match("TRUE|FALSE", self.name.upper()):
+            return ["boolean"]
+        else:
+            raise Exception("Value.type: Value is not a boolean, integer, or real number: " + self.name)

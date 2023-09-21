@@ -181,7 +181,7 @@ def num_decl_parser_untyped():
             value = string_to_math_expression(action_and_guard[0])
             guard = string_to_prop(action_and_guard[1])
     except Exception as e:
-        print(str(e))
+        # print(str(e))
         yield parsec.fail_with(str(e))
     return (BiOp(Variable(var), ":=", MathExpr(value)), guard)
 
@@ -258,7 +258,7 @@ def outputs():
 
 @generate
 def assignments():
-    asss = yield sepBy(parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped),
+    asss = yield sepBy(parsec.try_choice(num_decl_parser_untyped, bool_decl_parser_untyped),
                        regex("(,|;)") >> spaces()) << parsec.optional(regex("(,|;)") >> spaces())
     # if len(set([v[0].left for v in asss])) < len(asss):
     #     raise Exception("Variables can only be assigned once by a transition.")
