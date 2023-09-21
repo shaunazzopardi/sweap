@@ -93,13 +93,14 @@ def try_liveness_refinement(counterstrategy_states: [str],
         else:
             new_ranking_invars = {ranking: invars}
 
-    # check if the ranking function is both increased in the loop
     inappropriate_rankings = []
     for ranking in new_ranking_invars.keys():
         for t, _ in loop:
             action_formula = conjunct_formula_set([BiOp(a.left, "==", add_prev_suffix(a.right)) for a in t.action])
-            ranking_increase_with_action = conjunct(BiOp(ranking, ">", add_prev_suffix(ranking)), action_formula)
-            if sat(ranking_increase_with_action, symbol_table):
+            ranking_decrease_or_stutter_with_action = conjunct(BiOp(ranking, "<=", add_prev_suffix(ranking)), action_formula)
+            # if there is an action in the loop where the ranking function does not decrease or stay the same,
+            #    then the ranking function will not help us out of the loop
+            if not sat(ranking_decrease_or_stutter_with_action, symbol_table):
                 inappropriate_rankings.append(ranking)
 
     for inappropriate_ranking in inappropriate_rankings:
