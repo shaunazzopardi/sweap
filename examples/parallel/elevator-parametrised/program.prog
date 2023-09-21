@@ -24,11 +24,11 @@ program elevator-parametrised {
     ENVIRONMENT TRANSITIONS {
         q -> q [increase && !decrease $ max_floor := max_floor + 1],
         q -> q [!increase && decrease $ max_floor := max_floor - 1],
-        q -> q0 [!increase && !decrease],
+        q -> q0 [!(increase && !decrease) && !(!increase && decrease)],
 
         q0 -> q0 [increase && !decrease && target < max_floor $ target := target + 1],
         q0 -> q0 [!increase && decrease $ target := target - 1],
-        q0 -> q1 [!increase && !decrease # target_set],
+        q0 -> q1 [!(increase && !decrease) && !(!increase && decrease) # target_set],
         q1 -> q0 [target == at_floor $ target := 0 # target_reached]
     }
 
