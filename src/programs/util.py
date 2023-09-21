@@ -528,7 +528,7 @@ def safe_update_dict_value(d: dict, k, v_dict):
         d[k] = v_dict
 
 
-def function_is_of_natural_type(f: Formula, invars: Formula, symbol_table):
+def function_bounded_below_by_0(f: Formula, invars: Formula, symbol_table):
     # TODO, should we conjunct or disjunct invars?
     smt_checker = SMTChecker()
 
