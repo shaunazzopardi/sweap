@@ -10,7 +10,7 @@ from analysis.ranker import Ranker
 from analysis.smt_checker import SMTChecker
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import get_differently_value_vars, function_is_of_natural_type, add_prev_suffix, \
+from programs.util import get_differently_value_vars, function_bounded_below_by_0, add_prev_suffix, \
     reduce_up_to_iff, ground_transitions, ground_predicate_on_vars, keep_bool_preds, transition_formula
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -113,7 +113,7 @@ def try_liveness_refinement(counterstrategy_states: [str],
     new_transition_predicates = []
     new_decs = []
     for (ranking, invars) in new_ranking_invars.items():
-        if not function_is_of_natural_type(ranking, invars, symbol_table):
+        if not function_bounded_below_by_0(ranking, invars, symbol_table):
             wellfounded_invar = MathExpr(BiOp(ranking, ">=", Value(0)))
             new_ranking_invars[ranking].append(wellfounded_invar)
 
@@ -639,7 +639,7 @@ def interactive_transition_predicates(existing_rankings: dict[Formula, [Formula]
     for (ranking, invars) in new_rankings:
         new_ranking_invars[ranking] = invars
 
-        if not function_is_of_natural_type(ranking, invars, symbol_table):
+        if not function_bounded_below_by_0(ranking, invars, symbol_table):
             wellfounded_invar = MathExpr(BiOp(ranking, ">=", Value(0)))
             new_ranking_invars[ranking].append(wellfounded_invar)
 
