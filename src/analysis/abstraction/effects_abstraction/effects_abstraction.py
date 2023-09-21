@@ -478,9 +478,9 @@ class EffectsAbstraction(PredicateAbstraction):
             inc = BiOp(add_prev_suffix(ranking), "<", ranking)
             new_tran_preds.append(dec)
             new_tran_preds.append(inc)
-            new_invars.extend(new_ranking_and_invars[ranking])
+            # new_invars.extend(new_ranking_and_invars[ranking])
 
-        self.add_state_predicates(new_invars, parallelise)
+        # self.add_state_predicates(new_invars, parallelise)
         self.add_transition_predicates(new_tran_preds, parallelise)
 
         self.pretty_print_abstract_effect()
