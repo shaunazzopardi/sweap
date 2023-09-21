@@ -408,7 +408,6 @@ class EffectsAbstraction(PredicateAbstraction):
         # for each possibility
         else:
             action_formula = conjunct_formula_set([BiOp(a.left, "=", add_prev_suffix(a.right)) for a in action])
-            prev_predicate = add_prev_suffix(predicate)
             for (guard_disjunct, E) in Es:
                 # E_formula = add_prev_suffix(conjunct_formula_set(E))
                 new_formula = conjunct(action_formula, add_prev_suffix(guard_disjunct))
@@ -428,11 +427,11 @@ class EffectsAbstraction(PredicateAbstraction):
                                self.program.symbol_table, smt_checker):
                             new_pos_Ps.add(Ps)
 
-                        if sat(conjunct(conjunct_formula_set(nextPs_with_p),
+                        if sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
                                         conjunct(new_formula,
                                                  conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
                                self.program.symbol_table, smt_checker):
-                            new_pos_Ps.add(Ps)
+                            new_neg_Ps.add(Ps)
 
                     if len(new_pos_Ps) > 0:
                         newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
