@@ -315,24 +315,24 @@ def sympi_to_formula(basic: Basic):
 
 
 def simplify_formula_with_math(formula, symbol_table):
-    environ = Environment()
-    simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
-    try:
-        to_formula = fnode_to_formula(simplified)
-    except Exception as e:
-        to_formula = fnode_to_formula(simplified)
-        logging.info(str(e))
-    return to_formula
+    with Environment() as environ:
+        simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
+        try:
+            to_formula = fnode_to_formula(simplified)
+        except Exception as e:
+            to_formula = fnode_to_formula(simplified)
+            logging.info(str(e))
+        return to_formula
 
 
 def simplify_formula_without_math(formula, symbol_table=None):
-    environ = Environment()
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
+    with Environment() as environ:
+        if symbol_table == None:
+            symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
 
-    simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
-    to_formula = fnode_to_formula(simplified)
-    return to_formula
+        simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
+        to_formula = fnode_to_formula(simplified)
+        return to_formula
 
 
 def simplify_ltl_formula(formula, symbol_table=None):

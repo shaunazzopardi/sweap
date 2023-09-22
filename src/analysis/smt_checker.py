@@ -7,15 +7,15 @@ from pysmt.shortcuts import Solver, Interpolator, is_sat, serialize
 class SMTChecker:
 
     def __init__(self) -> None:
-        self.solver = Solver(name="msat")
-        # _add_solver(self.SOLVER_NAME, "msat")
+        pass
 
     def check(self, smt: FNode):
         try:
-            return self.solver.is_sat(smt)
+            with Solver(name="msat") as solver:
+                return solver.is_sat(smt)
         except Exception as e:
-            self.solver = Solver(name="z3")
-            return self.solver.is_sat(smt)
+            with Solver(name="z3") as solver:
+                return self.solver.is_sat(smt)
 
 
 def binary_interpolant(A: FNode, B: FNode) -> FNode:
