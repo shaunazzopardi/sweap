@@ -206,6 +206,21 @@ def prime_action(acts: [BiOp]) -> Formula:
     return conjunct_formula_set(primed_acts)
 
 
+def propagate_nexts(formula, add_next=False):
+    if isinstance(formula, Value) or isinstance(formula, Variable):
+        if add_next:
+            return X(formula)
+    if isinstance(formula, UniOp):
+        if formula.op == "X":
+            return propagate_nexts(formula.right, True)
+        else:
+            return UniOp(formula.op, propagate_nexts(formula.right, add_next))
+    elif isinstance(formula, BiOp):
+        return BiOp(propagate_nexts(formula.left, add_next), formula.op, propagate_nexts(formula.right, add_next))
+    else:
+        return formula
+
+
 def only_dis_or_con_junctions(f: Formula):
     if isinstance(f, Atom):
         return f
@@ -297,6 +312,27 @@ def simplify_formula_without_math(formula, symbol_table=None):
 
         simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
         to_formula = fnode_to_formula(simplified)
+        return to_formula
+
+
+def simplify_formula_with_next(formula, symbol_table=None):
+    with Environment() as environ:
+        if symbol_table == None:
+            symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
+        X_propagated_to_atoms = propagate_nexts(formula.to_strix())
+
+        formula_with_no_nexts = X_propagated_to_atoms.replace_formulas(lambda x : None
+                                                                        if not(isinstance(x, UniOp) and x.op == "X")
+                                                                        else Variable("next_" + (x.right.name)))
+        replacings = [BiOp(Variable("next_" + v.name), ":=", X(Variable(v.name))) for v in formula.variablesin()]
+        replacings.append(BiOp(Variable("next_true"), ":=", X(Value("true"))))
+        replacings.append(BiOp(Variable("next_false"), ":=", X(Value("false"))))
+
+        symbol_table |= {str(r.left): TypedValuation(str(r.left), "bool", None) for r in replacings}
+
+        simplified = environ.simplifier.simplify(And(*formula_with_no_nexts.to_smt(symbol_table)))
+        to_formula = fnode_to_formula(simplified)
+        to_formula = to_formula.replace(replacings)
         return to_formula
 
 
