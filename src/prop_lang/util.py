@@ -206,41 +206,6 @@ def prime_action(acts: [BiOp]) -> Formula:
     return conjunct_formula_set(primed_acts)
 
 
-def push_negation(f: Formula):
-    if isinstance(f, Atom):
-        return f
-    elif isinstance(f, BiOp):
-        return BiOp(push_negation(f.left), f.op, push_negation(f.right))
-    elif isinstance(f, UniOp):
-        if isinstance(f.right, Value) or isinstance(f.right, Variable):
-            return f
-        elif f.op != "!":
-            return UniOp("!", push_negation(f.right))
-        else:
-            if isinstance(f.right, UniOp) and f.right.op == "!":
-                return push_negation(f.right.right)
-            elif isinstance(f.right, UniOp) and f.right.op != "!":
-                return UniOp("!", push_negation(f.right))
-            elif isinstance(f.right, BiOp):
-                if f.right.op in ["&", "&&"]:
-                    return BiOp(push_negation(UniOp("!", f.right.left)), "|",
-                                push_negation(UniOp("!", f.right.right)))
-                elif f.right.op in ["|", "||"]:
-                    return BiOp(push_negation(UniOp("!", f.right.left)), "&",
-                                push_negation(UniOp("!", f.right.right)))
-                elif f.right.op in ["->", "=>"]:
-                    return BiOp(push_negation(f.right.left), "&", push_negation(UniOp("!", f.right.right)))
-                elif f.right.op in ["<->", "<=>"]:
-                    return BiOp(
-                        BiOp(push_negation(f.right.left), "&", push_negation(UniOp("!", f.right.right)),
-                             "|",
-                             BiOp(push_negation(UniOp("!", f.right.left)), "&", push_negation(f.right.right))))
-                else:
-                    return UniOp(f.op, push_negation(f.right))
-    else:
-        return f
-
-
 def only_dis_or_con_junctions(f: Formula):
     if isinstance(f, Atom):
         return f
