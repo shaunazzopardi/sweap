@@ -12,6 +12,9 @@ class Formula(ABC):
     def __str__(self):
         pass
 
+    def __len__(self):
+        return len(str(self))
+
     @abstractmethod
     def variablesin(self):
         pass

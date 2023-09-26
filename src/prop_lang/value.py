@@ -89,7 +89,13 @@ class Value(Atom):
         return sympy.core.symbol.Symbol(self.to_nuxmv().name)
 
     def replace_formulas(self, context):
-        if self in context.keys():
-            return context[self]
-        else:
-            return self
+        if isinstance(context, dict):
+            if self in context.keys():
+                return context[self]
+            else:
+                return self
+        elif callable(context):
+            if context(self) is not None:
+                return context(self)
+            else:
+                return self

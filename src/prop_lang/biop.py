@@ -222,7 +222,13 @@ class BiOp(Formula):
                 or isinstance(self.right, Variable) and not symbol_table[str(self.right)].type.lower().startswith("bool")
 
     def replace_formulas(self, context):
-        if self in context.keys():
-            return context[self]
-        else:
-            return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
+        if isinstance(context, dict):
+            if self in context.keys():
+                return context[self]
+            else:
+                return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
+        elif callable(context):
+            if context(self) is not None:
+                return context(self)
+            else:
+                return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))

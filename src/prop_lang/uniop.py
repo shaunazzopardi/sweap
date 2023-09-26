@@ -85,7 +85,13 @@ class UniOp(Formula):
             return sympy.Not(self.right.to_sympy())
 
     def replace_formulas(self, context):
-        if self in context.keys():
-            return context[self]
-        else:
-            return UniOp(self.op, self.right.replace_formulas(context))
+        if isinstance(context, dict):
+            if self in context.keys():
+                return context[self]
+            else:
+                return UniOp(self.op, self.right.replace_formulas(context))
+        elif callable(context):
+            if context(self) is not None:
+                return context(self)
+            else:
+                return UniOp(self.op, self.right.replace_formulas(context))
