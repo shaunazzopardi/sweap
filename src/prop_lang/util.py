@@ -250,7 +250,7 @@ def only_dis_or_con_junctions(f: Formula):
         if f.op in ["&", "&&", "|", "||"]:
             return BiOp(only_dis_or_con_junctions(f.left), f.op, only_dis_or_con_junctions(f.right))
         elif f.op in ["->", "=>"]:
-            return BiOp(UniOp("!", only_dis_or_con_junctions(f.left)), "&", only_dis_or_con_junctions(f.right))
+            return BiOp(UniOp("!", only_dis_or_con_junctions(f.left)), "|", only_dis_or_con_junctions(f.right))
         elif f.op in ["<->", "<=>"]:
             return BiOp(only_dis_or_con_junctions(BiOp(f.left, "->", f.right)), "&",
                         only_dis_or_con_junctions(BiOp(f.right, "->", f.left)))
