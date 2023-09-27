@@ -570,7 +570,9 @@ def type_constraint(variable, symbol_table):
 def propagate_negations(formula):
     if isinstance(formula, UniOp):
         if formula.op == "!":
-            return negate(formula.right)
+            return negate(propagate_negations(formula.right))
+        else:
+            return UniOp(formula.op, propagate_negations(formula))
     elif isinstance(formula, BiOp):
         return BiOp(propagate_negations(formula.left), formula.op, propagate_negations(formula.right))
     else:
