@@ -3,3 +3,4 @@ from prop_lang.variable import Variable
 
 env = Variable("env_turn")
 con = neg(env)
+init_state = Variable("init_state")
