@@ -315,15 +315,23 @@ def simplify_formula_without_math(formula, symbol_table=None):
         return to_formula
 
 
+def formula_with_next_to_without(formula):
+    X_propagated_to_atoms = propagate_nexts(formula.to_strix())
+
+    formula_with_no_nexts = X_propagated_to_atoms.replace_formulas(lambda x: None
+                                    if not (isinstance(x, UniOp) and x.op == "X")
+                                    else Variable("next_" + (x.right.name)))
+
+    return formula_with_no_nexts
+
+
 def simplify_formula_with_next(formula, symbol_table=None):
     with Environment() as environ:
         if symbol_table == None:
             symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-        X_propagated_to_atoms = propagate_nexts(formula.to_strix())
 
-        formula_with_no_nexts = X_propagated_to_atoms.replace_formulas(lambda x : None
-                                                                        if not(isinstance(x, UniOp) and x.op == "X")
-                                                                        else Variable("next_" + (x.right.name)))
+        formula_with_no_nexts = formula_with_next_to_without(formula)
+
         replacings = [BiOp(Variable("next_" + v.name), ":=", X(Variable(v.name))) for v in formula.variablesin()]
         replacings.append(BiOp(Variable("next_true"), ":=", X(Value("true"))))
         replacings.append(BiOp(Variable("next_false"), ":=", X(Value("false"))))
