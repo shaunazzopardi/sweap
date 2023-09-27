@@ -817,6 +817,49 @@ def evaluate_and_queue(function, args):
     args[-1].put(result)
 
 
+def flatten_effects(effects: [(frozenset[Formula], frozenset[frozenset[Formula]])], preds, rename_pred):
+    nows = [set(now) for now, _ in effects]
+    common_nows = set.intersection(*nows)
+
+    reduced_effects = [(now.difference(common_nows), nexts) for now, nexts in effects]
+    common_now_preds = list({p for p in preds for now, _ in reduced_effects if p in now or neg(p) in now})
+    common_now_preds.sort(key=lambda p : abs(len([p for now, _ in reduced_effects if p in now]) - len([p for now, _ in reduced_effects if neg(p) in now])), )
+
+    nexts = [set(next) for _, nexts in reduced_effects for next in nexts]
+    common_nexts = set.intersection(*nexts)
+    reduced_effects = [(now, {next.difference(common_nexts)}) for now, nexts in effects for next in nexts]
+
+    precondition = conjunct_formula_set([rename_pred(p) for p in common_nows])
+    postcondition = conjunct_formula_set([rename_pred(p) for p in common_nexts])
+    formula = take_out_predicate(reduced_effects, common_now_preds, rename_pred)
+    formula = conjunct(conjunct(precondition, postcondition), formula)
+    # TODO remove X TRUE
+    return formula
+
+
+def take_out_predicate(effects: [(frozenset[Formula], frozenset[frozenset[Formula]])], preds : list, rename_pred):
+    if len(preds) == 0:
+        formula = disjunct_formula_set([conjunct(conjunct_formula_set([rename_pred(n) for n in now]),
+                                                      disjunct_formula_set([X(conjunct_formula_set([rename_pred(n) for n in next])) for next in nexts]))
+                                             for now, nexts in effects])
+    else:
+        p = preds[0]
+        p_true = [(now.difference({p}), nexts) for now, nexts in effects if p in now]
+        p_false = [(now.difference({neg(p)}), nexts) for now, nexts in effects if neg(p) in now]
+        true_formula = take_out_predicate(p_true, preds[1:], rename_pred)
+        false_formula = take_out_predicate(p_false, preds[1:], rename_pred)
+
+        true_formula = simplify_formula_with_next(true_formula)
+        false_formula = simplify_formula_with_next(false_formula)
+        true_formula = true_formula.replace_formulas(lambda x : Value("true") if isinstance(x, UniOp) and x.op == "X" and isinstance(x.right, Value) and x.right.is_true() else None)
+        false_formula = false_formula.replace_formulas(lambda x : Value("true") if isinstance(x, UniOp) and x.op == "X" and isinstance(x.right, Value) and x.right.is_true() else None)
+
+        formula = disjunct(conjunct(rename_pred(p), true_formula),
+                           conjunct(neg(rename_pred(p)), false_formula))
+
+        formula = simplify_formula_with_next(formula)
+    return formula
+
 def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
     true_at = set()
     false_at = set()

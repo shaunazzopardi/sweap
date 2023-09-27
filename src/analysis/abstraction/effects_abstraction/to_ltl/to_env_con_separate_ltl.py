@@ -1,5 +1,5 @@
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from analysis.abstraction.interface.Config import env, con
+from analysis.abstraction.interface.Config import env, con, init_state
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.util import add_prev_suffix, label_pred
@@ -7,7 +7,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, conjunct, X, iff, \
-    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, take_out_preds
+    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, flatten_effects
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -69,17 +69,20 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
         pred_effects = []
 
         for E, effect in predicate_abstraction.abstract_effect[env_trans].items():
-            E_effects = []
-            for next_pred_state, pred_states in effect.items():
-                E_now = disjunct_formula_set(
-                    [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
-                E_now_simplified = simplify_formula_without_math(E_now)
-                E_now_simplified = cnf_safe(E_now_simplified)
-
-                E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
-                E_next_simplified = simplify_formula_without_math(E_next)
-                E_effects += [conjunct(E_now_simplified, X(E_next_simplified))]
-            pred_effects += [conjunct(conjunct_formula_set(E), disjunct_formula_set(E_effects))]
+            # E_effects = []
+            formula = flatten_effects(effect.items_inverted(), predicate_abstraction.state_predicates, rename_pred)
+            pred_effects += [conjunct(conjunct_formula_set(E), formula)]
+            # for next_pred_state, pred_states in effect.items():
+            #     E_now = disjunct_formula_set(
+            #         [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
+            #     E_now_simplified = simplify_formula_without_math(E_now)
+            #     E_now_simplified = cnf_safe(E_now_simplified)
+            #
+            #     E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
+            #     E_next_simplified = simplify_formula_without_math(E_next)
+            #     E_effects += [conjunct(E_now_simplified, X(E_next_simplified))]
+            # pred_effects += [conjunct(conjunct_formula_set(E), disjunct_formula_set(E_effects))]
+            # pred_effects += [conjunct(conjunct_formula_set(E), disjunct_formula_set(E_effects))]
 
         pred_effect_formula = disjunct_formula_set(pred_effects)
         output_formula = conjunct_formula_set([X(o) for o in env_trans.output])
@@ -114,23 +117,26 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
         pred_effects = []
 
         for E, effect in predicate_abstraction.abstract_effect[con_trans].items():
-            E_effects = []
-            for next_pred_state, pred_states in effect.items():
-                E_now = disjunct_formula_set(
-                    [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
-                E_now_simplified = simplify_formula_without_math(E_now)
-                E_now_simplified_cnfed = cnf_safe(E_now_simplified)
+            # E_effects = []
 
-                if not isinstance(E_now_simplified_cnfed, Value) and E_now_simplified_cnfed == E_now_simplified:
-                    E_now_simplified_final = take_out_preds([[rename_pred(p) for p in pred_state] for pred_state in pred_states],
-                    [rename_pred(p) for p in predicate_abstraction.get_all_preds()])
-                else:
-                    E_now_simplified_final = E_now_simplified_cnfed
-
-                E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
-                E_next_simplified = simplify_formula_without_math(E_next)
-                E_effects += [conjunct(E_now_simplified_final, X(E_next_simplified))]
-            pred_effects += [conjunct(conjunct_formula_set(E), disjunct_formula_set(E_effects))]
+            formula = flatten_effects(effect.items_inverted(), predicate_abstraction.state_predicates, rename_pred)
+            pred_effects += [conjunct(conjunct_formula_set(E), formula)]
+            # for next_pred_state, pred_states in effect.items():
+            #     E_now = disjunct_formula_set(
+            #         [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
+            #     E_now_simplified = simplify_formula_without_math(E_now)
+            #     E_now_simplified_cnfed = cnf_safe(E_now_simplified)
+            #
+            #     if not isinstance(E_now_simplified_cnfed, Value) and E_now_simplified_cnfed == E_now_simplified:
+            #         E_now_simplified_final = take_out_preds([[rename_pred(p) for p in pred_state] for pred_state in pred_states],
+            #         [rename_pred(p) for p in predicate_abstraction.get_all_preds()])
+            #     else:
+            #         E_now_simplified_final = E_now_simplified_cnfed
+            #
+            #     E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
+            #     E_next_simplified = simplify_formula_without_math(E_next)
+            #     E_effects += [conjunct(E_now_simplified_final, X(E_next_simplified))]
+            # pred_effects += [conjunct(conjunct_formula_set(E), disjunct_formula_set(E_effects))]
         pred_effect_formula = disjunct_formula_set(pred_effects)
         output_formula = conjunct_formula_set([X(neg(o)) for o in predicate_abstraction.program.out_events])
         effect_formula = conjunct(conjunct(pred_effect_formula, invar_preds_formula), output_formula)
@@ -142,9 +148,9 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
         else:
             con_transition_ltl[con_trans.src] = [next]
 
-    _env_transition_ltl = [X(G(implies(conjunct(env, src), disjunct_formula_set(env_transition_ltl[src])))) for src in
+    _env_transition_ltl = [(G(implies(conjunct(conjunct(neg(init_state), env), src), disjunct_formula_set(env_transition_ltl[src])))) for src in
                            env_transition_ltl.keys()]
-    _con_transition_ltl = [X(G((implies(conjunct(con, src), disjunct_formula_set(con_transition_ltl[src]))))) for src in
+    _con_transition_ltl = [(G((implies(conjunct(conjunct(neg(init_state), con), src), disjunct_formula_set(con_transition_ltl[src]))))) for src in
                            con_transition_ltl.keys()]
 
     program = predicate_abstraction.get_program()
@@ -280,9 +286,9 @@ def to_env_con_separate_ltl_organised_by_pred_effects(predicate_abstraction: Eff
         else:
             con_transition_ltl[con_trans.src] = [next]
 
-    _env_transition_ltl = [X(G(implies(conjunct(env, src), disjunct_formula_set(env_transition_ltl[src])))) for src in
+    _env_transition_ltl = [(G(implies(conjunct(conjunct(neg(init_state), env), src), disjunct_formula_set(env_transition_ltl[src])))) for src in
                            env_transition_ltl.keys()]
-    _con_transition_ltl = [X(G((implies(conjunct(con, src), disjunct_formula_set(con_transition_ltl[src]))))) for src in
+    _con_transition_ltl = [(G((implies(conjunct(conjunct(neg(init_state), con), src), disjunct_formula_set(con_transition_ltl[src]))))) for src in
                            con_transition_ltl.keys()]
 
     program = predicate_abstraction.get_program()
@@ -329,9 +335,10 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     program = effects_abstraction.get_program()
     pred_props = [Variable(s) for s in program.states] \
                  + list(predicate_vars) \
-                 + [env]
+                 + [env, init_state]
 
-    turn_logic = [env, G(iff(env, X(con)))]
+
+    turn_logic = [init_state, G(X(neg(init_state))), env, G(iff(env, X(con)))]
 
     original_assumptions_expanded = [expand_ltl_to_env_con_steps(a, original_LTL_problem.env_props)
                                      for a in original_LTL_problem.assumptions]
