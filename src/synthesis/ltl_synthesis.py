@@ -14,12 +14,13 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
     tlsf_script = synthesis_problem.to_tlsf()
     logging.info(tlsf_script)
     try:
-        with NamedTemporaryFile('w', suffix='.tlsf', delete=False) as tmp:
+        with (NamedTemporaryFile('w', suffix='.tlsf', delete=False) as tmp):
             tmp.write(tlsf_script)
             tmp.close()
 
             # cmd = strix_tlsf_command + " -v '" + tmp.name + "':./spec.tlsf -m both "
-            cmd = "docker run" + " -v " + tmp.name + ":/spec.tlsf" + " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + " -m both"
+            cmd = "docker run" + " -v " + tmp.name + ":/spec.tlsf" + \
+            " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + " -m both --onthefly none"
 
             so = subprocess.getstatusoutput(cmd)
             output: str = so[1]
