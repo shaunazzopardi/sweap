@@ -10,7 +10,6 @@ MAIN {
 
   INPUTS {
     increase;
-    decrease;
     target_reached;
     target_set;
   }
