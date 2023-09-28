@@ -854,8 +854,11 @@ def take_out_predicate(effects: [(frozenset[Formula], frozenset[frozenset[Formul
         true_formula = true_formula.replace_formulas(lambda x : Value("true") if isinstance(x, UniOp) and x.op == "X" and isinstance(x.right, Value) and x.right.is_true() else None)
         false_formula = false_formula.replace_formulas(lambda x : Value("true") if isinstance(x, UniOp) and x.op == "X" and isinstance(x.right, Value) and x.right.is_true() else None)
 
-        formula = disjunct(conjunct(rename_pred(p), true_formula),
-                           conjunct(neg(rename_pred(p)), false_formula))
+        if true_formula == false_formula:
+            formula = true_formula
+        else:
+            formula = disjunct(conjunct(rename_pred(p), true_formula),
+                               conjunct(neg(rename_pred(p)), false_formula))
 
         formula = simplify_formula_with_next(formula)
     return formula
@@ -873,6 +876,7 @@ def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
             others_at.add(disjunct)
 
     return true_at, false_at, others_at
+
 
 
 def take_out_preds(disjuncts_of_conjuncts: [[Variable]], preds: [Variable]):
