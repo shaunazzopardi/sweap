@@ -177,7 +177,7 @@ def to_env_con_separate_ltl_organised_by_pred_effects(predicate_abstraction: Eff
             elif len(effect.keys()) == 1:
                 E_effects = {rename_pred(p) for p in list(effect.keys())[0]}
             else:
-                E_effects = {}
+                E_effects = set()
             E_effects.update({neg(rename_pred(p)) for p in predicate_abstraction.abstract_effect_invars[t]})
             E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_constant[t]})
             E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_tran_preds_constant[t]})
