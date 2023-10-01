@@ -1,7 +1,7 @@
 from pysmt.shortcuts import And
 
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from analysis.smt_checker import SMTChecker
+from analysis.smt_checker import check
 from programs.util import looping_to_normal, stutter_transition, preds_in_state, var_to_predicate, is_predicate_var, \
     transition_formula, add_prev_suffix
 from prop_lang.biop import BiOp
@@ -17,7 +17,6 @@ def concretize_transitions(program,
                            indices_and_state_list,
                            incompatible_state):
     transitions = looping_program.env_transitions + looping_program.con_transitions
-    smt_checker = SMTChecker()
 
     # ignore the mismatch state
     new_indices_and_state_list = indices_and_state_list
@@ -38,8 +37,7 @@ def concretize_transitions(program,
     if incompatible_state["compatible_states"] == "FALSE" or incompatible_state["compatible_outputs"] == "FALSE":
         return process_transition_mismatch(program,
                                            concretized,
-                                           incompatible_state,
-                                           smt_checker)
+                                           incompatible_state)
     else:
         if incompatible_state["compatible_state_predicates"] == "FALSE" or incompatible_state[
             "compatible_tran_predicates"] == "FALSE":
@@ -62,14 +60,12 @@ def concretize_transitions(program,
             else:
                 return process_transition_mismatch(program,
                                                     concretized,
-                                                    incompatible_state,
-                                                    smt_checker)
+                                                    incompatible_state)
 
 
 def process_transition_mismatch(program,
                                 concretized,
-                                incompatible_state,
-                                smt_checker):
+                                incompatible_state):
     if program.deterministic:
         failed_condition = neg(concretized[-1][0].condition)
         reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][1][str(v)]))
@@ -117,7 +113,7 @@ def process_transition_mismatch(program,
 
         abstract_state = conjunct_formula_set(compatible_with_abstract_state)
         env_desired_transitions = [t for t in candidate_transitions
-                                   if smt_checker.check(And(*abstract_state.to_smt(program.symbol_table),
+                                   if check(And(*abstract_state.to_smt(program.symbol_table),
                                                             *t.condition.to_smt(program.symbol_table)))]
         formula = disjunct_formula_set([t.condition for t in env_desired_transitions] + [
             propagate_negations(neg(concretized[-1][0].condition))])

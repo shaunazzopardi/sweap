@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 from joblib import Parallel, delayed
 
-from analysis.smt_checker import SMTChecker
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, transition_formula, powerset_complete, label_pred
@@ -166,10 +165,8 @@ class EffectsAbstraction(PredicateAbstraction):
         events_in_cond = [e for e in vars_in_cond if e in events]
         powerset = powerset_complete(events_in_cond)
 
-        solver = SMTChecker()
-
         int_disjuncts_only_events = [E for E in powerset if
-                                     sat(conjunct_formula_set(E | {guard}), self.program.symbol_table, solver)]
+                                     sat(conjunct_formula_set(E | {guard}), self.program.symbol_table)]
 
         satisfying_behaviour = int_disjuncts_only_events
         dnfed = disjunct_formula_set([conjunct_formula_set(d) for d in int_disjuncts_only_events])
@@ -214,8 +211,6 @@ class EffectsAbstraction(PredicateAbstraction):
 
         t_formula = transition_formula(t)
 
-        smt_checker = SMTChecker()
-
         invars = []
         constants = []
         new_effects = {x: y for x, y in old_effects.items()}
@@ -234,17 +229,16 @@ class EffectsAbstraction(PredicateAbstraction):
               and not value_modified):
             constants = [neg(predicate)]
         # if the predicate is always false after the transition
-        elif is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table, smt_checker):
+        elif is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table):
             constants = [neg(predicate)]
         # if the predicate is always true after the transition
-        elif is_contradictory(conjunct_formula_set([t_formula, neg(predicate)]), self.program.symbol_table,
-                              smt_checker):
+        elif is_contradictory(conjunct_formula_set([t_formula, neg(predicate)]), self.program.symbol_table):
             constants = [(predicate)]
         # if the predicate is maintained by the transition
         elif is_contradictory(conjunct_formula_set([t_formula, add_prev_suffix(predicate), neg(predicate)]),
-                              self.program.symbol_table, smt_checker) and \
+                              self.program.symbol_table) and \
                 is_contradictory(conjunct_formula_set([t_formula, add_prev_suffix(neg(predicate)), (predicate)]),
-                                 self.program.symbol_table, smt_checker):
+                                 self.program.symbol_table):
             # TODO This is a bit too much, still need to consider whether predicate is needed to abstract guard
             invars = [(predicate)]
 
@@ -262,13 +256,13 @@ class EffectsAbstraction(PredicateAbstraction):
             #  then add iff a new predicate to be added may be affected by the collected predicates
             for (guard_disjunct, E) in Es:
                 formula_pos = add_prev_suffix(conjunct(guard_disjunct, predicate))
-                if sat(formula_pos, self.program.symbol_table, smt_checker):
+                if sat(formula_pos, self.program.symbol_table):
                     try_pos = True
                 else:
                     try_pos = False
 
                 formula_neg = add_prev_suffix(conjunct(guard_disjunct, neg(predicate)))
-                if sat(formula_neg, self.program.symbol_table, smt_checker):
+                if sat(formula_neg, self.program.symbol_table):
                     try_neg = True
                 else:
                     try_neg = False
@@ -288,14 +282,14 @@ class EffectsAbstraction(PredicateAbstraction):
                         if try_pos and sat(conjunct(conjunct_formula_set(nextPs),
                                                     conjunct(formula_pos,
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                           self.program.symbol_table, smt_checker):
+                                           self.program.symbol_table):
                             new_pos_Ps.add(Ps | {predicate})
 
                         # if p was false before, is p possible next?
                         if try_neg and sat(conjunct(conjunct_formula_set(nextPs),
                                                     conjunct(formula_neg,
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                           self.program.symbol_table, smt_checker):
+                                           self.program.symbol_table):
                             new_neg_Ps.add(Ps | {neg(predicate)})
                     self.all_pred_states.add(frozenset(new_pos_Ps))
                     self.all_pred_states.add(frozenset(new_neg_Ps))
@@ -318,13 +312,13 @@ class EffectsAbstraction(PredicateAbstraction):
                 # E_formula = add_prev_suffix(conjunct_formula_set(E))
                 new_formula = conjunct(action_formula, add_prev_suffix(guard_disjunct))
                 formula_pos = conjunct(new_formula, prev_predicate)
-                if sat(formula_pos, self.program.symbol_table, smt_checker):
+                if sat(formula_pos, self.program.symbol_table):
                     try_pos = True
                 else:
                     try_pos = False
 
                 formula_neg = conjunct(new_formula, neg(prev_predicate))
-                if sat(formula_neg, self.program.symbol_table, smt_checker):
+                if sat(formula_neg, self.program.symbol_table):
                     try_neg = True
                 else:
                     try_neg = False
@@ -341,28 +335,28 @@ class EffectsAbstraction(PredicateAbstraction):
                         if try_pos and sat(conjunct(conjunct_formula_set(nextPs_with_p),
                                                     conjunct(formula_pos,
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                           self.program.symbol_table, smt_checker):
+                                           self.program.symbol_table):
                             new_pos_Ps.add(Ps | {predicate})
 
                         # if p was false before, is p possible next?
                         if try_neg and sat(conjunct(conjunct_formula_set(nextPs_with_p),
                                                     conjunct(formula_neg,
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                           self.program.symbol_table, smt_checker):
+                                           self.program.symbol_table):
                             new_pos_Ps.add(Ps | {neg(predicate)})
 
                         # if p was true before, is not p possible next?
                         if try_pos and sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
                                                     conjunct(formula_pos,
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                           self.program.symbol_table, smt_checker):
+                                           self.program.symbol_table):
                             new_neg_Ps.add(Ps | {predicate})
 
                         # if p was false before, is not p possible next?
                         if try_neg and sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
                                                     conjunct(formula_neg,
                                                              conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                           self.program.symbol_table, smt_checker):
+                                           self.program.symbol_table):
                             new_neg_Ps.add(Ps | {neg(predicate)})
 
                     if len(new_pos_Ps) > 0:
@@ -391,18 +385,15 @@ class EffectsAbstraction(PredicateAbstraction):
 
         t_formula = transition_formula(t)
 
-        smt_checker = SMTChecker()
-
         invars = []
         constants = []
         new_effects = {x: y for x, y in old_effects.items()}
         # if the transition predicate is not mentioned in the action
         if not any(True for v in predicate.variablesin() if v in vars_modified_in_action_without_identity):
             constants = [neg(predicate)]
-        elif is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table, smt_checker):
+        elif is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table):
             constants = [neg(predicate)]
-        elif is_contradictory(conjunct_formula_set([t_formula, neg(predicate)]), self.program.symbol_table,
-                              smt_checker):
+        elif is_contradictory(conjunct_formula_set([t_formula, neg(predicate)]), self.program.symbol_table):
             constants = [(predicate)]
         # if cannot determine exactly whether to the pred is a constant, then for replicate each post state
         # for each possibility
@@ -424,13 +415,13 @@ class EffectsAbstraction(PredicateAbstraction):
                         if sat(conjunct(conjunct_formula_set(nextPs_with_p),
                                         conjunct(new_formula,
                                                  conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                               self.program.symbol_table, smt_checker):
+                               self.program.symbol_table):
                             new_pos_Ps.add(Ps)
 
                         if sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
                                         conjunct(new_formula,
                                                  conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                               self.program.symbol_table, smt_checker):
+                               self.program.symbol_table):
                             new_neg_Ps.add(Ps)
 
                     if len(new_pos_Ps) > 0:

@@ -4,7 +4,6 @@ from typing import Set
 from graphviz import Digraph
 
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from analysis.smt_checker import SMTChecker
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import stutter_transition, symbol_table_from_program, is_deterministic
@@ -50,12 +49,12 @@ class Program:
                                     .complete_action_set(all_vars) for t in self.con_transitions]
             unsat_env_trans = []
             for t in self.env_transitions:
-                if not sat(t.condition, self.symbol_table, SMTChecker()):
+                if not sat(t.condition, self.symbol_table):
                     unsat_env_trans.append(t)
 
             unsat_con_trans = []
             for t in self.con_transitions:
-                if not sat(t.condition, self.symbol_table, SMTChecker()):
+                if not sat(t.condition, self.symbol_table):
                     unsat_con_trans.append(t)
 
             self.env_transitions = [t for t in self.env_transitions if t not in unsat_env_trans]
@@ -75,7 +74,7 @@ class Program:
                                                                   for t in env_transitions
                                                                   if t.src == otherwise_trans.src
                                                                   and t != otherwise_trans]))
-            if sat(condition, self.symbol_table, SMTChecker()):
+            if sat(condition, self.symbol_table):
                 concrete_trans = Transition(otherwise_trans.src,
                                                 condition,
                                                 otherwise_trans.action,
@@ -93,7 +92,7 @@ class Program:
                                                                   for t in con_transitions
                                                                   if t.src == otherwise_trans.src
                                                                   and t != otherwise_trans]))
-            if sat(condition, self.symbol_table, SMTChecker()):
+            if sat(condition, self.symbol_table):
                 concrete_trans = Transition(otherwise_trans.src,
                                             condition,
                                                 otherwise_trans.action,

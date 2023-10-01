@@ -6,7 +6,6 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import Effects
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
 from analysis.compatibility_checking.compatibility_checking import compatibility_checking
-from analysis.smt_checker import SMTChecker
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
@@ -22,8 +21,6 @@ from prop_lang.util import true
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
-
-smt_checker = SMTChecker()
 
 
 def synthesize(program: Program,

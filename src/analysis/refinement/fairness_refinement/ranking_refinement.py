@@ -7,7 +7,7 @@ from pysmt.shortcuts import And
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.ranker import Ranker
-from analysis.smt_checker import SMTChecker
+from analysis.smt_checker import check
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import get_differently_value_vars, function_bounded_below_by_0, add_prev_suffix, \
@@ -19,9 +19,6 @@ from prop_lang.util import conjunct, conjunct_formula_set, neg, true, is_boolean
     is_tautology, related_to, equivalent, sat
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-
-smt_checker = SMTChecker()
-
 
 def try_liveness_refinement(counterstrategy_states: [str],
                             program: Program,
@@ -396,8 +393,9 @@ def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
 
         all_state_preds = predicate_abstraction.get_state_predicates()
 
+
         true_preds = [p for p in all_state_preds if
-                      smt_checker.check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
+                      check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
         false_preds = [neg(p) for p in all_state_preds if p not in true_preds]
         entry_predicate = conjunct_formula_set(true_preds + false_preds)
 
@@ -432,7 +430,7 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
         "|") else dnf_exit_pred.sub_formulas_up_to_associativity()
 
     if isinstance(exit_predicate_grounded, Value) or \
-            is_tautology(exit_predicate_grounded, symbol_table, smt_checker):
+            is_tautology(exit_predicate_grounded, symbol_table):
         # in this case the exit is really happening before the last transition
         # TODO this shouldn't be happening, we should be identifying the real exit transition/condition
         loop_before_exit = ground_transitions(program, counterexample_loop, bool_vars, symbol_table)
@@ -510,7 +508,7 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
     if ranking is not None:
         # analyse ranking function for suitability and re-try
         if not isinstance(exit_predicate_grounded, Value) or \
-                is_tautology(exit_predicate_grounded, symbol_table, smt_checker):
+                is_tautology(exit_predicate_grounded, symbol_table):
             start = time.time()
             # for each variable in ranking function, check if they are related in the exit condition, or transitively so
             updated_in_loop_vars = [str(act.left) for t in loop_before_exit for act in t.action if
@@ -602,9 +600,9 @@ def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, e
                     sufficient_entry_condition = keep_bool_preds(entry_predicate, symbol_table)
                     break
 
-        if not smt_checker.check(And(*neg(exit_predicate_grounded).to_smt(symbol_table))):
+        if not check(And(*neg(exit_predicate_grounded).to_smt(symbol_table))):
             for grounded_t in loop_before_exit:
-                if smt_checker.check(And(*neg(grounded_t.condition).to_smt(symbol_table))):
+                if check(And(*neg(grounded_t.condition).to_smt(symbol_table))):
                     exit_predicate_grounded = neg(grounded_t.condition.simplify())
                     break
         return ranking, invars, sufficient_entry_condition, exit_predicate_grounded

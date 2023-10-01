@@ -10,7 +10,7 @@ from pysmt.logics import QF_UFLRA
 from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
 
-from analysis.smt_checker import SMTChecker
+from analysis.smt_checker import check
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from prop_lang.biop import BiOp
@@ -45,8 +45,6 @@ def symbol_table_from_typed_valuation(tv):
 def ce_state_to_predicate_abstraction_trans(ltl_to_program_transitions, symbol_table, start, middle, end,
                                             env_events, con_events):
     # ltl_to_program_transitions is a dict of the form {now: {(con_ev, env_ev) : [(con_trans, env_trans)]}}
-    smt_checker = SMTChecker()
-
     start = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in start.items() if
                                   (key.startswith("mon_") or key.startswith("pred_") or Variable(
                                       key) in env_events + con_events) and value == "TRUE"]
@@ -69,10 +67,10 @@ def ce_state_to_predicate_abstraction_trans(ltl_to_program_transitions, symbol_t
     for abs_con_start in ltl_to_program_transitions.keys():
         if abs_con_start == "init":
             continue
-        if smt_checker.check(And(*(conjunct(abs_con_start, start).to_smt(symbol_table)))):
+        if check(And(*(conjunct(abs_con_start, start).to_smt(symbol_table)))):
             for (abs_env_start, abs_env_end) in ltl_to_program_transitions[abs_con_start].keys():
-                if smt_checker.check(And(*(conjunct(abs_env_start, middle).to_smt(symbol_table)))):
-                    if smt_checker.check(And(*(conjunct(abs_env_end, end).to_smt(symbol_table)))):
+                if check(And(*(conjunct(abs_env_start, middle).to_smt(symbol_table)))):
+                    if check(And(*(conjunct(abs_env_end, end).to_smt(symbol_table)))):
                         return ltl_to_program_transitions[abs_con_start][(abs_env_start, abs_env_end)]
 
     return []
@@ -333,7 +331,6 @@ def reduce_up_to_iff(old_preds, new_preds, symbol_table):
         return old_preds
     # if len(old_preds) == 0:
     #     return new_preds
-    smt_checker = SMTChecker()
 
     keep_these = set()
     remove_these = set()
@@ -341,7 +338,7 @@ def reduce_up_to_iff(old_preds, new_preds, symbol_table):
     for p in set(new_preds):
         if p and neg(p) not in remove_these and \
                 not has_equiv_pred(p, set(old_preds) | keep_these, symbol_table) and \
-                not (is_tautology(p, symbol_table, smt_checker) or is_tautology(neg(p), symbol_table, smt_checker)):
+                not (is_tautology(p, symbol_table) or is_tautology(neg(p), symbol_table)):
             keep_these.add(p)
         else:
             remove_these.add(p)
@@ -353,12 +350,11 @@ def reduce_up_to_iff(old_preds, new_preds, symbol_table):
 def has_equiv_pred(p, preds, symbol_table):
     if p in preds or neg(p) in preds:
         return True
-    smt_checker = SMTChecker()
 
     for pp in preds:
         # technically should check if it can be expressed using a set of the existing predicates, but can be expensive
-        if is_tautology(iff(p, pp), symbol_table, smt_checker) or \
-                is_tautology(iff(neg(p), pp), symbol_table, smt_checker):
+        if is_tautology(iff(p, pp), symbol_table) or \
+                is_tautology(iff(neg(p), pp), symbol_table):
             return True
 
     return False
@@ -384,14 +380,13 @@ def stutter_transition(program, state, env: bool):
     transitions = program.env_transitions if env else program.con_transitions
     condition = neg(disjunct_formula_set([t.condition
                                           for t in transitions if t.src == state]))
-    smt_checker = SMTChecker()
-
+    
     if program not in stutter_transition_cache.keys():
         stutter_transition_cache[program] = {}
 
     if condition in stutter_transition_cache.keys():
         return stutter_transition_cache[program][condition]
-    elif smt_checker.check(And(*condition.to_smt(program.symbol_table))):
+    elif check(And(*condition.to_smt(program.symbol_table))):
         start = time.time()
         condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
         if condition_cnfed != condition:
@@ -471,19 +466,18 @@ def is_deterministic(program):
     env_state_dict = {s: [t.condition for t in program.env_transitions if t.src == s] for s in program.states}
 
     symbol_table = program.symbol_table
-    smt_checker = SMTChecker()
 
     for (s, conds) in env_state_dict.items():
         # Assuming satisfiability already checked
         sat_conds = [cond for cond in conds]
-        # sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
+        # sat_conds = [cond for cond in conds if check(And(*cond.to_smt(symbol_table)))]
         # for cond in conds:
         #     if cond not in sat_conds:
         #         logging.info("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
 
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
-                if smt_checker.check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
+                if check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
                     logging.info("WARNING: " + str(cond) + " and " + str(
                         cond2) + " are satisfiable together, see environment transitions from state " + str(s))
                     return False
@@ -493,13 +487,13 @@ def is_deterministic(program):
     for (s, conds) in con_state_dict.items():
         # Assuming satisfiability already checked
         sat_conds = [cond for cond in conds]
-        # sat_conds = [cond for cond in conds if smt_checker.check(And(*cond.to_smt(symbol_table)))]
+        # sat_conds = [cond for cond in conds if check(And(*cond.to_smt(symbol_table)))]
         # for cond in conds:
         #     if cond not in sat_conds:
         #         logging.info("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
-                if smt_checker.check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
+                if check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
                     logging.info("WARNING: " + str(cond) + " and " + str(
                         cond2) + " are satisfiable together, see controller transitions from state " + str(s))
                     return False
@@ -530,9 +524,8 @@ def safe_update_dict_value(d: dict, k, v_dict):
 
 def function_bounded_below_by_0(f: Formula, invars: Formula, symbol_table):
     # TODO, should we conjunct or disjunct invars?
-    smt_checker = SMTChecker()
 
-    return not smt_checker.check(
+    return not check(
         And(*conjunct(conjunct_formula_set(invars), BiOp(f, "<", Value(0))).to_smt(symbol_table)))
 
 
@@ -580,7 +573,6 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
 
     transitions = []
 
-    checker = SMTChecker()
     symbol_table = {}
     for t_val in valuation:
         symbol_table[t_val.name] = t_val
@@ -596,15 +588,15 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
         # check that each guard is mutually exclusive with the other guards
         for guard1 in guarded_acts[act]:
             for guard2 in guarded_acts[act]:
-                if guard1 != guard2 and sat(conjunct(guard1, guard2), symbol_table, checker):
+                if guard1 != guard2 and sat(conjunct(guard1, guard2), symbol_table):
                     raise Exception("Guarded actions are not mutually exclusive: " + str(guard1) + " and " + str(
                         guard2) + " in " + str(guarded_transition))
             for act_guard_set in act_guard_sets:
                 guard1true = frozenset(act_guard_set | {(act, guard1)})
                 guard1false = frozenset(act_guard_set | {(None, neg(guard1))})
-                if sat(conjunct_formula_set([g for (_, g) in guard1true]), symbol_table, checker):
+                if sat(conjunct_formula_set([g for (_, g) in guard1true]), symbol_table):
                     new_act_guard_sets.add(guard1true)
-                if sat(conjunct_formula_set([g for (_, g) in guard1false]), symbol_table, checker):
+                if sat(conjunct_formula_set([g for (_, g) in guard1false]), symbol_table):
                     new_act_guard_sets.add(guard1false)
         act_guard_sets = new_act_guard_sets
 
@@ -612,7 +604,7 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
         action_guards = conjunct_formula_set(
             sorted(list({guard for (_, guard) in act_guard_set}), key=lambda x: str(x)))
         new_guard = conjunct(guarded_transition.condition, action_guards)
-        if not sat(new_guard, symbol_table, checker):
+        if not sat(new_guard, symbol_table):
             continue
 
         actions = [act for (act, _) in act_guard_set if act != None]
@@ -624,7 +616,7 @@ def guarded_action_transitions_to_normal_transitions(guarded_transition, valuati
     collect_guards = []
     for t in transitions:
         collect_guards += [t.condition]
-    if sat((conjunct(guarded_transition.condition, neg(disjunct_formula_set(collect_guards)))), symbol_table, checker):
+    if sat((conjunct(guarded_transition.condition, neg(disjunct_formula_set(collect_guards)))), symbol_table):
         raise Exception("Not all transitions are covered by guards")
     return transitions
 

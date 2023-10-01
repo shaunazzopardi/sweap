@@ -1,6 +1,6 @@
 from pysmt.shortcuts import Not, TRUE
 
-from analysis.smt_checker import SMTChecker
+from analysis.smt_checker import check
 from programs.transition import Transition
 from programs.util import safe_update_set_vals
 from prop_lang.uniop import UniOp
@@ -24,7 +24,6 @@ def relevant_pred(transition, relevant_preds, predicate):
 
 
 def merge_transitions(transitions: [Transition], symbol_table, to_program_transitions):
-    smt_checker = SMTChecker()
     # can probably do this while building the initial abstraction
     new_transitions = []
     new_to_program_transitions = {}
@@ -46,7 +45,7 @@ def merge_transitions(transitions: [Transition], symbol_table, to_program_transi
         conditions = disjunct_formula_set(sorted([t.condition for t in trans_here], key=lambda x: str(x)))
         conditions_smt = conditions.to_smt(symbol_table)[0]
         # If negation is unsat
-        if not smt_checker.check(Not(conditions_smt)):
+        if not check(Not(conditions_smt)):
             conditions_simplified_fnode = TRUE()
         else:
             conditions_simplified_fnode = conditions_smt  # simplify(conditions_smt)#.simplify()

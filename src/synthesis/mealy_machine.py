@@ -7,7 +7,7 @@ from analysis.abstraction.explicit_abstraction.util.abstract_state import Abstra
 from analysis.abstraction.interface.Config import env, con
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from analysis.smt_checker import SMTChecker
+from analysis.smt_checker import check
 from programs.program import Program
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.transition import Transition
@@ -20,6 +20,7 @@ from prop_lang.util import conjunct_formula_set, disjunct_formula_set, neg, conj
     propagate_negations, simplify_formula_without_math, sat, project_out_props
 from prop_lang.variable import Variable
 
+import faulthandler
 
 class MealyMachine:
     def __init__(self, name, init_index: int, env_events, con_events, env_transitions={}, con_transitions={}):
@@ -89,7 +90,7 @@ class MealyMachine:
                                          abstraction: PredicateAbstraction,
                                          parallelise=True):
         # this will create a mealy machine with states tagged by program predicates
-
+        # parallelise=False
         # some preprocessing
         reworked_transitions = []
         if parallelise:
@@ -439,8 +440,6 @@ class MealyMachine:
         new_con_transitions = {k: {} for k, _ in self.con_transitions.items()}
         new_env_transitions = {k: {} for k, _ in self.env_transitions.items()}
 
-        smt_checker = SMTChecker()
-
         pred_list = predicate_abstraction.get_state_predicates() + predicate_abstraction.get_transition_predicates()
 
         replace_preds = []
@@ -471,7 +470,7 @@ class MealyMachine:
                     pa_t.tgt.predicates +
                     pa_t.output).replace(replace_preds)
                 formula_smt = And(*formula.to_smt(symbol_table))
-                compatible = smt_checker.check(formula_smt)
+                compatible = check(formula_smt)
                 if compatible:
                     current_states.append((mm_tgt, pa_t.tgt))
                     new_env_transitions[self.init_st][(m_cond, mm_tgt)] = {}
@@ -511,7 +510,7 @@ class MealyMachine:
                             formula = conjunct_formula_set(
                                 [mm_con_cond.replace(replace_preds), pa_con_t.condition]).replace(replace_preds)
                             formula_smt = And(*formula.to_smt(symbol_table))
-                            compatible = smt_checker.check(formula_smt)
+                            compatible = check(formula_smt)
                             if compatible:
                                 if abstract_pa_con_src != pa_con_src:
                                     new_pa_con_t = concretize_transition(predicate_abstraction, pa_con_t,
@@ -538,7 +537,7 @@ class MealyMachine:
                                                                     [at_most_one_state] +
                                                                     f_trans_preds)
                                     formula2_smt = And(*formula2.to_smt(symbol_table))
-                                    compatible = smt_checker.check(formula2_smt)
+                                    compatible = check(formula2_smt)
                                     if compatible:
                                         next_states.append((mm_env_tgt, pa_env_t.tgt))
                                         if (mm_con_cond, mm_con_tgt) not in new_con_transitions[mm_con_src].keys():
@@ -578,8 +577,6 @@ class MealyMachine:
         new_env_transitions = set()
         new_con_transitions = set()
 
-        smt_checker = SMTChecker()
-
         pred_list = predicate_abstraction.state_predicates + predicate_abstraction.transition_predicates
 
         replace_preds = []
@@ -609,7 +606,7 @@ class MealyMachine:
                     pa_t.tgt.predicates +
                     pa_t.output)
                 formula_smt = And(*formula.to_smt(symbol_table))
-                compatible = smt_checker.check(formula_smt)
+                compatible = check(formula_smt)
                 if compatible:
                     new_env_transitions \
                         .add(
@@ -632,7 +629,7 @@ class MealyMachine:
                         formula = conjunct_formula_set(
                             [mm_con_cond.replace(replace_preds), pa_con_t.condition])
                         formula_smt = And(*formula.to_smt(symbol_table))
-                        compatible = smt_checker.check(formula_smt)
+                        compatible = check(formula_smt)
                         if compatible:
                             tentative_con_trans.append(
                                 Transition((mm_con_src, pa_con_src),
@@ -654,7 +651,7 @@ class MealyMachine:
                                                                 [at_most_one_state] +
                                                                 f_trans_preds)
                                 formula2_smt = And(*formula2.to_smt(symbol_table))
-                                compatible = smt_checker.check(formula2_smt)
+                                compatible = check(formula2_smt)
                                 if compatible:
                                     next_states.append((mm_env_tgt, pa_env_t.tgt))
                                     new_con_transitions.add(mm_con_trans)
@@ -692,13 +689,8 @@ def handle_transition(src_index,
     env_cond = (env_cond.simplify()).to_nuxmv()
     env_cond = propagate_negations(env_cond)
 
-    if parallelise:
-        smt_checker = SMTChecker()
-        env_turn = sat(conjunct(env, env_cond), solver=smt_checker)
-        con_turn = sat(conjunct(con, env_cond), solver=smt_checker)
-    else:
-        env_turn = sat(conjunct(env, env_cond))
-        con_turn = sat(conjunct(con, env_cond))
+    env_turn = sat(conjunct(env, env_cond))
+    con_turn = sat(conjunct(con, env_cond))
 
     if not env_turn and not con_turn:
         breaking_assumptions = True

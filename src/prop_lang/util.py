@@ -10,7 +10,7 @@ from sympy import Basic
 from sympy.logic.boolalg import to_dnf, to_cnf
 
 from parsing.string_to_prop_logic import string_to_prop
-from analysis.smt_checker import SMTChecker
+from analysis.smt_checker import check
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
@@ -154,42 +154,35 @@ def nnf(prop: Formula) -> Formula:
         return NotImplemented
 
 
-smt_checker = SMTChecker()
-
-
-def sat(formula: Formula, symbol_table: dict = None,
-        solver: SMTChecker = smt_checker, add_missing_vars:bool=False) -> bool:
+def sat(formula: Formula, symbol_table: dict = None, add_missing_vars:bool=False) -> bool:
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
     if add_missing_vars:
         symbol_table.update({str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()
                                 if str(v) not in symbol_table.keys()})
     try:
-        return solver.check(And(*formula.to_smt(symbol_table)))
+        return check(And(*formula.to_smt(symbol_table)))
     except Exception as e:
         logging.info(str(formula))
-        return solver.check(And(*formula.to_smt(symbol_table)))
+        return check(And(*formula.to_smt(symbol_table)))
 
-def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None,
-                 solver: SMTChecker = smt_checker) -> bool:
+def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None) -> bool:
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula1.variablesin()}
         symbol_table |= {str(v): TypedValuation(str(v), "bool", None) for v in formula2.variablesin()}
-    return not solver.check(And(*neg(iff(formula1, formula2)).to_smt(symbol_table)))
+    return not check(And(*neg(iff(formula1, formula2)).to_smt(symbol_table)))
 
 
-def is_tautology(formula: Formula, symbol_table: dict = None,
-                 solver: SMTChecker = smt_checker) -> bool:
+def is_tautology(formula: Formula, symbol_table: dict = None) -> bool:
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-    return not solver.check(And(*neg(formula).to_smt(symbol_table)))
+    return not check(And(*neg(formula).to_smt(symbol_table)))
 
 
-def is_contradictory(formula: Formula, symbol_table: dict = None,
-                     solver: SMTChecker = smt_checker) -> bool:
+def is_contradictory(formula: Formula, symbol_table: dict = None) -> bool:
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-    return not solver.check(And(*formula.to_smt(symbol_table)))
+    return not check(And(*formula.to_smt(symbol_table)))
 
 
 def negation_closed(predicates: [Formula]):

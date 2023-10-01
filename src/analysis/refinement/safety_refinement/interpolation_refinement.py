@@ -5,7 +5,7 @@ from pysmt.shortcuts import And
 
 from parsing.string_to_prop_logic import string_to_prop
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from analysis.smt_checker import SMTChecker, binary_interpolant
+from analysis.smt_checker import binary_interpolant
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
@@ -180,7 +180,6 @@ def path_interpolation(program: Program, concurring_transitions: [(Transition, d
     assert len(concurring_transitions) > 0
 
     logic = "QF_UFLRA"  # TODO what to put here?
-    smt_checker = SMTChecker()
 
     # this will be used to add intermediate variables for each monitor state
     ith_vars = lambda i: [BiOp(Variable(v), ":=", Variable(v + "_" + str(i))) for v in symbol_table.keys()]
