@@ -7,6 +7,7 @@ from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import guarded_action_transitions_to_normal_transitions, resolve_next_references, \
     symbol_table_from_typed_valuation
+from prop_lang.nondet import NonDeterministic
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import true, sat, conjunct, negate, disjunct_formula_set
@@ -145,7 +146,10 @@ def num_decl_parser():
     try:
         value = string_to_math_expression(raw_value)
     except Exception as e:
-        yield parsec.fail_with(str(e))
+        if raw_value == "*":
+            value = NonDeterministic()
+        else:
+            yield parsec.fail_with(str(e))
     return TypedValuation(var, type, value)
 
 

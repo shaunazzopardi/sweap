@@ -9,6 +9,7 @@ from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import stutter_transition, symbol_table_from_program, is_deterministic
 from prop_lang.biop import BiOp
+from prop_lang.nondet import NonDeterministic
 from prop_lang.uniop import UniOp
 from prop_lang.util import disjunct_formula_set, neg, true, \
     sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology
@@ -308,8 +309,8 @@ class Program:
 
         init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
-        init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation]
-        init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation]
+        init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
+        init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
         update_prevs = "(turn = env | turn == con)" + " & " + " & ".join(["next(" + str(var.name) + "_prev) = " + str(var.name) for var in self.valuation])

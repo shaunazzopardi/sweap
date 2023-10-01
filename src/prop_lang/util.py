@@ -16,6 +16,7 @@ from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
+from prop_lang.nondet import NonDeterministic
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -60,6 +61,8 @@ def conjunct_formula_set(s, sort=False) -> Formula:
 def conjunct_typed_valuation_set(s: set[TypedValuation]) -> Formula:
     ret = true()
     for f in s:
+        if isinstance(f.value, NonDeterministic):
+            continue
         ret = conjunct(ret, BiOp(Variable(f.name), "=", Value(f.value)))
     return ret
 

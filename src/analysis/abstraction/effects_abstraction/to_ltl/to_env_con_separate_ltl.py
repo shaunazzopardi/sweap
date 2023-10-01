@@ -24,12 +24,10 @@ def to_env_con_separate_ltl(predicate_abstraction: EffectsAbstraction):
     pred_next = {}
     for t in predicate_abstraction.init_program_trans:
         for E, effect in predicate_abstraction.abstract_effect[t].items():
-            if len(effect.keys()) > 1:
-                raise Exception("init transition " + str(t) + " has more than one possible effect")
-            elif len(effect.keys()) == 1:
+            if len(effect.keys()) == 1:
                 E_effects = {rename_pred(p) for p in list(effect.keys())[0]}
             else:
-                E_effects = {}
+                E_effects = set()
             E_effects.update({neg(rename_pred(p)) for p in predicate_abstraction.abstract_effect_invars[t]})
             E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_constant[t]})
             E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_tran_preds_constant[t]})
