@@ -171,7 +171,7 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     compatible_state_predicates = "\tcompatible_state_predicates := " + "((turn == mon_env | turn == mon_con) -> (" + str(
         conjunct_formula_set(safety_predicate_truth)) + "))" + ";\n"
     # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
-    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((turn == mon_env) -> (" + str(
+    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((turn == mon_env | turn == mon_con) -> (" + str(
         conjunct_formula_set(tran_predicate_truth)) + "))" + ";\n"
     compatible = "\tcompatible := " + (
         "compatible_state_predicates & compatible_tran_predicates & " if predicate_mismatch else "") + "compatible_outputs & compatible_states" + ";\n"
