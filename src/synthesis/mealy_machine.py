@@ -4,7 +4,7 @@ from pysmt.shortcuts import And
 
 from analysis.abstraction.effects_abstraction.util.effects_util import tran_and_state_preds_after_con_env_step
 from analysis.abstraction.explicit_abstraction.util.abstract_state import AbstractState
-from analysis.abstraction.interface.Config import env, con
+from config import env, con
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from analysis.smt_checker import check

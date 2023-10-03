@@ -1,5 +1,5 @@
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from analysis.abstraction.interface.Config import env, con, init_state
+from config import env, con, init_state
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.util import add_prev_suffix, label_pred
