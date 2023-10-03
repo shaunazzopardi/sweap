@@ -823,7 +823,7 @@ def flatten_effects(effects: [(frozenset[Formula], frozenset[frozenset[Formula]]
 
     nexts = [set(next) for _, nexts in reduced_effects for next in nexts]
     common_nexts = set.intersection(*nexts)
-    reduced_effects = [(now, {next.difference(common_nexts)}) for now, nexts in effects for next in nexts]
+    reduced_effects = [(now, {next.difference(common_nexts)}) for now, nexts in reduced_effects for next in nexts]
 
     precondition = conjunct_formula_set([rename_pred(p) for p in common_nows])
     postcondition = conjunct_formula_set([rename_pred(p) for p in common_nexts])
@@ -856,7 +856,7 @@ def take_out_predicate(effects: [(frozenset[Formula], frozenset[frozenset[Formul
             formula = disjunct(conjunct(rename_pred(p), true_formula),
                                conjunct(neg(rename_pred(p)), false_formula))
 
-        formula = simplify_formula_with_next(formula)
+    formula = simplify_formula_with_next(formula)
     return formula
 
 def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
