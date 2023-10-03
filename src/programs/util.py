@@ -376,7 +376,7 @@ def stutter_transitions(program, env: bool):
 stutter_transition_cache = {}
 
 
-def stutter_transition(program, state, env: bool):
+def stutter_transition(program, state, env: bool, cnf=False):
     transitions = program.env_transitions if env else program.con_transitions
     condition = neg(disjunct_formula_set([t.condition
                                           for t in transitions if t.src == state]))
@@ -387,15 +387,17 @@ def stutter_transition(program, state, env: bool):
     if condition in stutter_transition_cache.keys():
         return stutter_transition_cache[program][condition]
     elif check(And(*condition.to_smt(program.symbol_table))):
-        start = time.time()
-        condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
-        if condition_cnfed != condition:
-            logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
-                     "With result " + str(condition_cnfed))
-        else:
-            logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
+        if cnf:
+            start = time.time()
+            condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
+            if condition_cnfed != condition:
+                logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
+                         "With result " + str(condition_cnfed))
+            else:
+                logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
+            condition = condition_cnfed
         stutter_t = Transition(state,
-                               condition_cnfed,
+                               condition,
                                [],
                                [],
                                state).complete_outputs(program.out_events) \
