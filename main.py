@@ -8,6 +8,7 @@ from synthesis.synthesis import synthesize
 import logging
 
 import time
+from pathlib import Path
 
 
 def main():
@@ -35,12 +36,12 @@ def main():
     prog_str = prog_file.read()
     program = string_to_program(prog_str)
 
-    if not os.path.exists(str(os.getcwd()) + "\\out\\" + program.name):
-        os.makedirs(str(os.getcwd()) + "\\out\\" + program.name)
+    logdir = Path(os.getcwd()) / "out" / program.name
 
-    logging.basicConfig(filename=(str(os.getcwd()) + "\\out\\"
-                                  + program.name + "\\"
-                                  + str(time.time()) + ".log"),
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
+    logging.basicConfig(filename=(logdir / (str(time.time()) + ".log")),
                         encoding='utf-8',
                         level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s',
