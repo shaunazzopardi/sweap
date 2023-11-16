@@ -20,9 +20,12 @@ from parsing.dsl.parsing import (Store, Token, UnaryOp, parse_dsl,
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
+from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
+from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, disjunct_formula_set
 from prop_lang.variable import Variable
+from prop_lang.formula import Formula
 
 
 def powerset(iterable):
@@ -98,10 +101,13 @@ class VarRenamer(NodeWalker):
 
     GLOBAL_PREFIX = "global"
 
-    def __init__(self):
+    def __init__(self, root: ProgramDSL = None):
         super().__init__()
         self.prefix = self.GLOBAL_PREFIX
         self.seen = set()
+        self.method_names = tuple()
+        if root is not None:
+            self.method_names = tuple(x.name for x in root.methods)
 
     def global_name(self, name):
         return f"_{self.GLOBAL_PREFIX}_{name}"
@@ -110,11 +116,25 @@ class VarRenamer(NodeWalker):
         return f"_{self.prefix}_{name}"
 
     def lookup(self, name):
+        if name in self.method_names:
+            return f"_METHOD_{name}"
         if self.prefixed_name(name) in self.seen:
             return self.prefixed_name(name)
         if self.global_name(name) in self.seen:
             return self.global_name(name)
         return name
+
+    def walk_UniOp(self, node: Formula):
+        node.right = self.walk(node.right)
+        return node
+
+    def walk_BiOp(self, node: BiOp):
+        node.left = self.walk(node.left)
+        node.right = self.walk(node.right)
+        return node
+
+    def walk_Variable(self, node: Variable):
+        return Variable(self.lookup(str(node)))
 
     def walk_BaseNode(self, node: BaseNode):
         """Default action: just recurse on all children"""
@@ -130,7 +150,10 @@ class VarRenamer(NodeWalker):
     def walk_Program(self, node: ProgramDSL):
         self.walk(node.decls)
         self.walk(node.methods)
-        self.walk(node.guarantees)
+        for x in (node.assumes or ()):
+            self.walk(x)
+        for x in (node.guarantees or tuple()):
+            self.walk(x)
 
     def walk_Load(self, node: Load):
         node.name = self.lookup(node.name)
@@ -414,7 +437,7 @@ def dsl_to_program(file_name: str, code: str) -> (Program, list):
     """Parse a DSL program and return a Program"""
 
     tree = parse_dsl(code)
-    renamer = VarRenamer()
+    renamer = VarRenamer(tree)
     renamer.walk(tree)
     symex_walker = SymexWalker()
     symex_walker.walk(tree)
@@ -537,21 +560,18 @@ def dsl_to_program(file_name: str, code: str) -> (Program, list):
         for mod in method.modalities
         if method.kind == "intern"]
 
-    gf_methods_ext = [
+    assumes = [
         f"{mod.to_ltl()} (_METHOD_{method.name})"
         for method in tree.methods
         for mod in method.modalities
         if method.kind == "extern"]
 
-    def add_method_prefixes(x):
-        for method in tree.methods:
-            x = x.replace(method.name, f"_METHOD_{method.name}")
-        return x
-
+    if tree.assumes:
+        assumes.extend(str(x) for x in tree.assumes)
     if tree.guarantees:
-        guarantees.extend(add_method_prefixes(x) for x in tree.guarantees)
+        guarantees.extend(str(x) for x in tree.guarantees)
 
-    return prg, guarantees, gf_methods_ext
+    return prg, guarantees, assumes
 
 
 def dsl_to_prog_and_tlsf(prg: Program, ltl: str = None, tlsf: str = None, dsl_guarantees=None, dsl_assumes=None):  # noqa: E501
