@@ -8,6 +8,11 @@ start::Program =
     { decls+:global_decl | enums+:enum_def }*
     methods:{ method }+
     [
+        'assume' '{'
+            assumes:{ ?'[^}]*' }
+        '}'
+    ]
+    [
         'guarantee' '{'
             guarantees:{ ?'[^}]*' }
         '}'
