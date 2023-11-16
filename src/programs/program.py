@@ -289,18 +289,20 @@ class Program:
             transitions = ["(" + " | ".join(guard_act_and_compatible) + ")"] + [
                 "(!(" + " | ".join(guard_and_not_compatible) + ") & (" + " | ".join(guard_and_act) + "))"]
 
+        integer_types = ("nat", "natural", "int", "integer")
+
         vars = ["turn : {env, mon_env, con, mon_con}"]
         vars += [str(st) + " : boolean" for st in self.states]
         vars += [str(var.name) + " : " + (str(var.type) if var.type == "boolean" else str(var.type).replace("bool", "boolean"))
                  for var in self.valuation if
-                 not (var.type == "nat" or var.type == "natural")]
-        vars += [str(var.name) + " : integer" for var in self.valuation if (var.type == "nat" or var.type == "natural")]
+                 var.type not in integer_types]
+        vars += [str(var.name) + " : integer" for var in self.valuation if var.type in integer_types]
         # for transition_predicate checking
         vars += [str(var.name) + "_prev : " + (str(var.type) if var.type == "boolean" else str(var.type).replace("bool", "boolean"))
                  for var in self.valuation if
-                 not (var.type == "nat" or var.type == "natural")]
+                 var.type not in integer_types]
         vars += [str(var.name) + "_prev : integer" for var in self.valuation if
-                 (var.type == "nat" or var.type == "natural")]
+                 var.type in integer_types]
 
         vars += [str(var) + " : boolean" for var in self.env_events]
         vars += [str(var) + " : boolean" for var in self.con_events]

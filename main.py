@@ -1,14 +1,16 @@
 import argparse
-import os
-
-from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
-from analysis.model_checker import ModelChecker
-from parsing.string_to_program import string_to_program
-from synthesis.synthesis import synthesize
 import logging
-
+import os
+from tempfile import NamedTemporaryFile
 import time
 from pathlib import Path
+
+from analysis.compatibility_checking.compatibility_checking import \
+    create_nuxmv_model
+from analysis.model_checker import ModelChecker
+from parsing.dsl.transform import dsl_to_prog_and_tlsf, dsl_to_program
+from parsing.string_to_program import string_to_program
+from synthesis.synthesis import synthesize
 
 
 def main():
@@ -32,9 +34,20 @@ def main():
     if args.program is None:
         raise Exception("Program path not specified.")
 
-    prog_file = open(args.program, "r")
-    prog_str = prog_file.read()
-    program = string_to_program(prog_str)
+    fname = Path(args.program)
+    with open(args.program, "r") as prog_file:
+        prog_str = prog_file.read()
+
+    guarantees, assumes, dsl_prog, dsl_tlsf = None, None, None, None
+    if fname.suffix == ".dsl":
+        program, guarantees, assumes = dsl_to_program(fname.name, prog_str)
+        (dsl_prog, dsl_tlsf) = dsl_to_prog_and_tlsf(
+            program, args.ltl, args.tlsf, guarantees, assumes)
+        with NamedTemporaryFile("w", delete=False) as dsl_tlsf_file:
+            dsl_tlsf_file.write(dsl_tlsf)
+        args.tlsf = dsl_tlsf_file.name
+    else:
+        program = string_to_program(prog_str)
 
     logdir = Path(os.getcwd()) / "out" / program.name
 
@@ -53,12 +66,14 @@ def main():
     if args.translate is not None:
         if args.translate.lower() == "dot":
             print(program.to_dot())
+        elif args.translate.lower() == "prog-tlsf":
+            print(dsl_prog, "\n\n", dsl_tlsf)
         elif args.translate.lower() == "nuxmv":
             print(create_nuxmv_model(program.to_nuXmv_with_turns()))
         elif args.translate.lower() == "vmt":
             model = create_nuxmv_model(program.to_nuXmv_with_turns())
             ltl_spec = None
-            if args.ltl != None:
+            if args.ltl is not None:
                 ltl_spec = args.ltl
             model_checker = ModelChecker()
             model_checker.to_vmt(model, ltl_spec)
