@@ -75,13 +75,15 @@ lhs::Store = name:identifier ;
 
 expression
     =
-    | binary_logic_op
+    | binary_logic_expr
     | comparison
     ;
 
-binary_logic_op::BinLogic
+binary_logic_op = '&&' | '||' | '->' ;
+
+binary_logic_expr::BinLogic
     =
-    left:expression op:('&&'|'||'|'->') ~ right:comparison
+    left:expression op:binary_logic_op ~ right:comparison
     ;
 
 comparison
