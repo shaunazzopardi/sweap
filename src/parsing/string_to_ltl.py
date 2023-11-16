@@ -30,7 +30,7 @@ GRAMMAR = '''
         | level_1
         ;
 
-    level_1 
+    level_1
         =
         | level_0 '&&' level_1
         | level_0 '&' level_1
