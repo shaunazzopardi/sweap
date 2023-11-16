@@ -15,6 +15,7 @@ from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from parsing.dsl.grammar import GRAMMAR
+from parsing.string_to_ltl import string_to_ltl
 
 
 def remove_version(var):
@@ -162,7 +163,19 @@ class Program(BaseNode):
     decls = None
     enums = None
     methods = None
-    guarantees = None
+    assumes: str = None
+    guarantees: str = None
+
+    def __init__(self, ast=None, **attributes):
+        super().__init__(ast, **attributes)
+        if self.assumes:
+            assumes = (x.strip() for a in self.assumes for x in a.split(";"))
+            self.assumes = tuple(string_to_ltl(x) for x in assumes if x)
+
+        if self.guarantees:
+            guarantees = (x.strip() for a in self.guarantees for x in a.split(";"))  # noqa: E501
+            self.guarantees = tuple(string_to_ltl(x) for x in guarantees if x)
+
 
 
 def to_formula(expr: FNode):
