@@ -587,7 +587,7 @@ def dsl_to_prog_and_tlsf(prg: Program, ltl: str = None, tlsf: str = None, dsl_gu
 
         result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"  # noqa: E501
         if t.action is not None and len(t.action) > 0:
-            result += " $ " + ', '.join(map(remove_paren, t.action)).replace("=", ":=")  # noqa: E501
+            result += " $ " + ', '.join(map(remove_paren, t.action))
         if is_env and t.output is not None and len(t.output) > 0:
             result += " # " + ', '.join(map(remove_paren, t.output))
         return result + ']'
@@ -605,7 +605,7 @@ def dsl_to_prog_and_tlsf(prg: Program, ltl: str = None, tlsf: str = None, dsl_gu
 
     valuations = [fmt_valuation(v) for v in prg.valuation]
 
-    INDENT = " " * 16
+    INDENT = " " * 12
     CN = ",\n" + INDENT
     SN = ";\n" + INDENT
     prog = f"""\
