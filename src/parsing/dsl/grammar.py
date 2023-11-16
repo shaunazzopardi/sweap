@@ -144,7 +144,7 @@ base_expr
 var_reference::Load = name:identifier ;
 
 @name
-identifier = /\_?[a-zA-Z][a-zA-Z0-9\_]*/;
+identifier = /[a-zA-Z][a-zA-Z0-9\_]*/;
 
 bool_lit::Literal = value:(true|false) ;
 true::bool = 'true' ;
