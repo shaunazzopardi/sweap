@@ -139,7 +139,7 @@ class Decl(BaseNode):
 
 class EnumDef(BaseNode):
     name = None
-    values = None
+    cases = None
 
 
 class MethodDef(BaseNode):
@@ -153,10 +153,8 @@ class MethodDef(BaseNode):
     body = None
 
     def __init__(self, ast=None, **attributes):
-        global CONTEXT
         super().__init__(ast, **attributes)
         self.modalities = [MethodModality(m) for m in self.modalities]
-        CONTEXT = self
 
 
 class Program(BaseNode):

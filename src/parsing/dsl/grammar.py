@@ -21,7 +21,7 @@ start::Program =
     ;
 
 enum_def::EnumDef =
-    'enum' ~ name:identifier '{'  values:','.{identifier}+ '}' ';'
+    'enum' ~ name:identifier '{'  cases:','.{identifier}+ '}' ';'
     ;
 
 decl::Decl =
