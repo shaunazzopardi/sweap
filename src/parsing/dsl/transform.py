@@ -1,18 +1,22 @@
+from ast import BinOp
 from collections import Counter, defaultdict, deque
 from copy import deepcopy
 from dataclasses import dataclass
 from itertools import chain, combinations
+from math import ceil, log
 from operator import add, mul, sub
 from textwrap import dedent
+from typing import Any
 
 from pysmt.shortcuts import (FALSE, GE, GT, LE, LT, And, Bool, EqualsOrIff,
                              Implies, Int, Not, NotEquals, Or, Symbol,
                              get_free_variables, simplify, substitute)
 from pysmt.typing import BOOL, INT
-from tatsu.walkers import NodeWalker
+from tatsu.walkers import ContextWalker, NodeWalker
 
 from parsing.dsl.parsing import (Assign, BaseNode, Comparison, Decl, Decrement,
-                                 If, Increment, Literal, Load, MethodDef)
+                                 EnumDef, If, Increment, Literal, Load,
+                                 MethodDef)
 from parsing.dsl.parsing import Program as ProgramDSL
 from parsing.dsl.parsing import (Store, Token, UnaryOp, parse_dsl,
                                  remove_all_versions, remove_version,
@@ -300,6 +304,172 @@ class ForkingPath:
         return f"{conds}-->{asgns}"
 
 
+class EnumWalker(ContextWalker):
+
+    def __init__(self, root: ProgramDSL):
+        super().__init__(None)
+        self.cases = {}
+        self.root: ProgramDSL = root
+        self.indices = {}
+        self.enums = {}
+        self.table = SymbolTable()
+
+    def _is_last_case(self, name: str):
+        return self.indices[name] == len(self.cases[name].cases) - 1
+
+    def to_bv(self, n: int, bitwidth: int):
+        return tuple(
+            bool(n >> i & 1)
+            for i in range(bitwidth - 1, -1, -1))
+
+    def case_to_bv(self, case: str):
+        bw = ceil(log(len(self.cases[case].cases), 2))
+        return self.to_bv(self.indices[case], bw)
+
+    def bitwidth_of(self, enum):
+        return ceil(log(len(self.enums[enum].cases), 2))
+
+    def walk_Program(self, node: ProgramDSL):
+        self.walk(node.enums)
+        self.walk_ctx(node.decls)
+        self.walk(node.methods)
+
+    def walk_ctx(self, ctx: Any):
+        self.push_context(ctx)
+        self.walk(ctx)
+        self.pop_context()
+
+    def walk_MethodDef(self, node: MethodDef):
+        self.table = self.table.add_child(node.name)
+        self.walk_ctx(node.params)
+        self.walk_ctx(node.decls)
+        self.walk_ctx(node.body)
+        self.table = self.table.parent
+
+    def walk_EnumDef(self, node: EnumDef):
+        if node.name in self.enums:
+            raise Exception(f"Duplicate enum name {node.name}")
+        self.enums[node.name] = node
+        for index, case in enumerate(node.cases):
+            if case in self.cases:
+                raise Exception(
+                    f"Ambiguous case {case}"
+                    f" (both in {self.cases[case].name} and {node.name})")
+            self.cases[case] = node
+            self.indices[case] = index
+
+    def walk_Decl(self, node: Decl):
+        if node.var_type in self.enums:
+            self.table.add(node, init=node.init)
+            self.context.remove(node)
+            inits = None
+            if node.init is not None:
+                inits = self.case_to_bv(node.init.name)
+            for i in range(self.bitwidth_of(node.var_type)):
+                decl = Decl(var_type="bool", var_name=f"_{i}{node.var_name}")
+                if inits is not None:
+                    decl.init = Literal(None, value=inits[i])
+                    node.parent.decls.append(decl)
+                else:
+                    node.parent.params.append(decl)
+
+    def walk_If(self, node: If):
+        node.cond = self.walk(node.cond) or node.cond
+        self.walk_ctx(node.body)
+        self.walk_ctx(node.or_else)
+
+    def get_bits(self, name: str):
+        if name in self.cases:
+            return (Literal(value=x) for x in self.case_to_bv(name))
+        else:
+            symbol = self.table.lookup(name)
+            return (
+                Load(name=f"_{i}{symbol.name}")
+                for i in range(self.bitwidth_of(symbol.type_)))
+
+    def get_enum(self, name: str):
+        return self.cases.get(name) or self.enums[self.table.lookup(name).type_]
+
+    def is_enum(self, name):
+        return bool(self.table.try_lookup(name) or name in self.cases)
+
+    def walk_Comparison(self, node: Comparison):
+        if node.op not in (Token.EQ, Token.NE):
+            return node
+        try:
+            if not self.is_enum(node.left.name) or not self.is_enum(node.right.name):
+                return node
+        except AttributeError:
+            return node
+
+        l_enum = self.get_enum(node.left.name)
+        r_enum = self.get_enum(node.right.name)
+        if l_enum != r_enum:
+            raise Exception(
+                "Comparison between mismatching enums "
+                f"{node.left.name} ({l_enum.name}) and "
+                f"{node.right.name} ({r_enum.name})")
+
+        def equal_cases(case1: str, case2: str):
+            cmp = [
+                Token.EQ.new(left=b1, right=b2)
+                for b1, b2 in zip(self.get_bits(case1), self.get_bits(case2))]
+            if len(cmp) == 1:
+                return cmp
+            bin_logic = Token.AND.new(left=cmp[0], right=cmp[1])
+            for c in cmp[2:]:
+                bin_logic = Token.EQ.new(left=bin_logic, right=c)
+            return bin_logic
+
+        def is_last_case(name: str):
+            """Create an expression that evaluates to `true`
+            iff `name` evaluates to the last case in its enum.
+
+            The last case is a catch-all: the expression
+            `var == lastCase` is equivalent to `bin(var) >= bin(lastCase)`.
+            """
+            last_case = self.get_enum(name).cases[-1]
+            bits1 = list(self.get_bits(name))
+            bits2 = list(self.get_bits(last_case))
+            disjuncts = []
+            for i in range(len(bits1)):
+                conj = Token.AND.new(
+                    left=bits1[i],
+                    right=Token.NOT.new(expr=bits2[i]))
+                for j in range(i-1, -1, -1):
+                    c = Token.EQ.new(left=bits1[j], right=bits2[j])
+                    conj = Token.AND.new(left=c, right=conj)
+                disjuncts.append(conj)
+            result = equal_cases(name, last_case)
+            for d in disjuncts:
+                result = Token.OR.new(left=result, right=d)
+            return result
+
+        # Two enums are equal if they are bitwise the same...
+        eq = equal_cases(node.left.name, node.right.name)
+        # ...Or they are both the last case
+        both_are_last = Token.AND.new(
+            left=is_last_case(node.left.name),
+            right=is_last_case(node.right.name))
+        eq = Token.OR.new(left=eq, right=both_are_last)
+
+        if node.op == Token.NE:
+            eq = Token.NOT.new(expr=eq)
+        return eq
+
+    def walk_Assign(self, node: Assign):
+        if self.table.try_lookup(node.lhs.name) is None:
+            # Not an assign to enum, so we do not care
+            return
+        assign_index = self.context.index(node)
+        self.context.remove(node)
+        for i, bit in enumerate(self.get_bits(node.rhs.name)):
+            i_assign = Assign(
+                lhs=Store(name=f"_{i}{node.lhs.name}"),
+                rhs=bit)
+            self.context.insert(assign_index + i, i_assign)
+
+
 class SymexWalker(NodeWalker):
 
     def __init__(self):
@@ -445,6 +615,9 @@ def dsl_to_program(file_name: str, code: str) -> (Program, list):
     tree = parse_dsl(code)
     renamer = VarRenamer(tree)
     renamer.walk(tree)
+    enum_walker = EnumWalker(tree)
+    enum_walker.walk(tree)
+
     symex_walker = SymexWalker()
     symex_walker.walk(tree)
     table = symex_walker.fp.get_root().table
