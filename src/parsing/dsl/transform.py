@@ -343,6 +343,11 @@ class EnumWalker(ContextWalker):
         self.table = self.table.add_child(node.name)
         self.walk_ctx(node.params)
         self.walk_ctx(node.decls)
+        if node.assumes is not None:
+            node.assumes = [self.walk(a) or a for a in node.assumes]
+        if node.asserts is not None:
+            node.asserts = [self.walk(a) or a for a in node.asserts]
+
         self.walk_ctx(node.body)
         self.table = self.table.parent
 
@@ -358,6 +363,14 @@ class EnumWalker(ContextWalker):
             self.cases[case] = node
             self.indices[case] = index
 
+    def walk_BinOp(self, node: BinOp):
+        return node.op.new(
+            left=self.walk(node.left) or node.left,
+            right=self.walk(node.right) or node.right)
+
+    def walk_UnaryOp(self, node: UnaryOp):
+        return node.op.new(expr=self.walk(node.expr) or node.expr)
+
     def walk_Decl(self, node: Decl):
         if node.var_type in self.enums:
             self.table.add(node, init=node.init)
@@ -366,7 +379,7 @@ class EnumWalker(ContextWalker):
             if node.init is not None:
                 inits = self.case_to_bv(node.init.name)
             for i in range(self.bitwidth_of(node.var_type)):
-                decl = Decl(var_type="bool", var_name=f"_{i}{node.var_name}")
+                decl = Decl(var_type="bool", var_name=f"_b{i}{node.var_name}")
                 if inits is not None:
                     decl.init = Literal(None, value=inits[i])
                     node.parent.decls.append(decl)
@@ -384,7 +397,7 @@ class EnumWalker(ContextWalker):
         else:
             symbol = self.table.lookup(name)
             return (
-                Load(name=f"_{i}{symbol.name}")
+                Load(name=f"_b{i}{symbol.name}")
                 for i in range(self.bitwidth_of(symbol.type_)))
 
     def get_enum(self, name: str):
@@ -465,7 +478,7 @@ class EnumWalker(ContextWalker):
         self.context.remove(node)
         for i, bit in enumerate(self.get_bits(node.rhs.name)):
             i_assign = Assign(
-                lhs=Store(name=f"_{i}{node.lhs.name}"),
+                lhs=Store(name=f"_b{i}{node.lhs.name}"),
                 rhs=bit)
             self.context.insert(assign_index + i, i_assign)
 
