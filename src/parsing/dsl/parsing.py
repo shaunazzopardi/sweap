@@ -115,6 +115,13 @@ class If(BaseNode):
     body = None
     or_else = None
 
+    def __init__(self, ast=None, **attributes):
+        super().__init__(ast, **attributes)
+        if isinstance(self.body, BaseNode):
+            self.body = [self.body]
+        if isinstance(self.or_else, BaseNode):
+            self.or_else = [self.or_else]
+
 
 class Assign(BaseNode):
     lhs: Store = None
@@ -155,6 +162,8 @@ class MethodDef(BaseNode):
     def __init__(self, ast=None, **attributes):
         super().__init__(ast, **attributes)
         self.modalities = [MethodModality(m) for m in self.modalities]
+        if isinstance(self.body, BaseNode):
+            self.body = [self.body]
 
 
 class Program(BaseNode):
@@ -173,7 +182,6 @@ class Program(BaseNode):
         if self.guarantees:
             guarantees = (x.strip() for a in self.guarantees for x in a.split(";"))  # noqa: E501
             self.guarantees = tuple(string_to_ltl(x) for x in guarantees if x)
-
 
 
 def to_formula(expr: FNode):
@@ -199,7 +207,7 @@ def to_formula(expr: FNode):
                     new_expr = to_formula(arg)
                     continue
                 new_expr = BiOp(new_expr, op, to_formula(arg))
-            return new_expr
+            return new_expr.simplify()
 
     if expr.is_constant():
         return Value(str(expr))
@@ -207,7 +215,7 @@ def to_formula(expr: FNode):
     if expr.is_symbol():
         return Variable(expr.symbol_name())
     elif expr.is_not():
-        return UniOp("!", to_formula(expr.arg(0)))
+        return UniOp("!", to_formula(expr.arg(0))).simplify()
 
     # We've tried so hard & got so far
     raise NotImplementedError(expr, expr.node_type())

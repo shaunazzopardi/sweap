@@ -69,7 +69,11 @@ decr::Decrement = var_name:lhs '--' ';' ;
 
 assignment::Assign = lhs:lhs ':=' rhs:expression ';' ;
 
-if::If = 'if' ~ '(' cond:expression ')' body:statement ['else' or_else:statement] ;
+if::If =
+    'if' ~ '(' cond:expression ')'
+    body:statement
+    ['else' or_else:statement]
+    ;
 
 lhs::Store = name:identifier ;
 

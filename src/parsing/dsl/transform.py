@@ -20,12 +20,10 @@ from parsing.dsl.parsing import (Store, Token, UnaryOp, parse_dsl,
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
-from prop_lang.uniop import UniOp
+from prop_lang.formula import Formula
 from prop_lang.util import conjunct_formula_set, disjunct_formula_set
 from prop_lang.variable import Variable
-from prop_lang.formula import Formula
 
 
 def powerset(iterable):
@@ -45,12 +43,13 @@ class SymbolTableEntry:
 class SymbolTable:
     GLOBAL_CTX = "<global>"
 
-    def __init__(self, name=GLOBAL_CTX, parent=None, is_params=False):
+    def __init__(self, name=GLOBAL_CTX, parent=None, is_params=False, kind=None):  # noqa: E501
         self.name = name
         self.parent = parent
         self.children = []
         self.symbols = {}
         self.is_params = is_params
+        self.kind = kind
 
     def __getitem__(self, key):
         return self.symbols[key]
@@ -66,14 +65,20 @@ class SymbolTable:
         for child in self.children:
             yield from child
 
-    def add_child(self, name, is_params=False):
+    def add_child(self, name, is_params=False, kind=None):
         name = name + "##params" if is_params else name
-        table = SymbolTable(name, parent=self, is_params=is_params)
+        table = SymbolTable(name, parent=self, is_params=is_params, kind=kind)
         self.children.append(table)
         return table
 
     def is_local(self):
         return self.parent is not None and not self.is_params
+
+    def try_lookup(self, name) -> (SymbolTableEntry | None):
+        try:
+            return self.lookup(name)
+        except KeyError:
+            return None
 
     def lookup(self, name, trail=None) -> SymbolTableEntry:
         if name in self.symbols:
@@ -90,8 +95,9 @@ class SymbolTable:
 
     def add(self, node: Decl, init) -> SymbolTableEntry:
         builtin_types = {'int': INT, 'bool': BOOL}
+        t = builtin_types.get(node.var_type, node.var_type)
         symbol = SymbolTableEntry(
-            node.var_name, self, init, builtin_types[node.var_type], node)
+            node.var_name, self, init, t, node)
         self.symbols[node.var_name] = symbol
         return symbol
 
@@ -341,7 +347,7 @@ class SymexWalker(NodeWalker):
     def walk_Load(self, node: Load):
         return self.fp.lookup_or_fresh(node.name)
 
-    def walk_BinOp(self, node: Comparison):
+    def walk_BinOp(self, node: BinOp):
         op = {
             Token.EQ: EqualsOrIff, Token.NE: NotEquals,
             Token.GE: GE, Token.GT: GT, Token.LE: LE, Token.LT: LT,
@@ -399,7 +405,8 @@ class SymexWalker(NodeWalker):
 
     def walk_MethodDef(self, node: MethodDef):
         self.fp = self.fp.add_child(
-            self.fp.table.add_child(node.name, is_params=node.params))
+            self.fp.table.add_child(
+                node.name, is_params=node.params, kind=node.kind))
         if node.params:
             self.walk(node.params)
         assumes = [self.walk(n) for n in node.assumes or []]
@@ -425,7 +432,6 @@ class SymexWalker(NodeWalker):
         while self.fp.parent is not None:
             self.fp = self.fp.parent
 
-        # self.fp.prune()
         for x in self.paths[node.name].leaves():
             if node.kind == "extern":
                 self.extern_triples[node.name].extend(x.to_transitions())
@@ -447,7 +453,7 @@ def dsl_to_program(file_name: str, code: str) -> (Program, list):
     events = {
         kind: [
             Variable(s.name) for s in table
-            if s.context.is_params and s.ast.parent.kind == kind]
+            if s.context.is_params and s.context.kind == kind]
         for kind in ("extern", "intern")}
     events["extern"].extend([Variable(s.symbol_name()) for s in symex_walker.env_choices.values()])  # noqa: E501
     events["intern"].extend([Variable(s.symbol_name()) for s in symex_walker.con_choices.values()])  # noqa: E501
@@ -472,7 +478,7 @@ def dsl_to_program(file_name: str, code: str) -> (Program, list):
 
         def _act_to_formula(act: dict):
             return [
-                BiOp(to_formula(lhs), "=", to_formula(rhs))
+                BiOp(to_formula(lhs), ":=", to_formula(rhs))
                 for lhs, rhs in act.items()]
 
         def _variables(out):
