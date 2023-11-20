@@ -43,6 +43,28 @@ class Token(Enum):
     IMPL    = "->"
     NOT     = "!"
 
+    def new(self, **kwargs):
+        """Creates a new AST node for this operator."""
+        node_of = {
+            Token.ADD: BinOp,
+            Token.AND: BinLogic,
+            Token.DIV: BinOp,
+            Token.EQ: Comparison,
+            Token.GE: Comparison,
+            Token.GT: Comparison,
+            Token.IMPL: BinLogic,
+            Token.LE: Comparison,
+            Token.LT: Comparison,
+            Token.MUL: BinOp,
+            Token.NE: Comparison,
+            Token.NOT: UnaryOp,
+            Token.OR: BinLogic,
+            Token.SUB: BinOp}
+        try:
+            return node_of[self](op=self, **kwargs)
+        except KeyError:
+            raise NotImplementedError()
+
 
 class BaseNode(Node):
     def unparse(self) -> str:
