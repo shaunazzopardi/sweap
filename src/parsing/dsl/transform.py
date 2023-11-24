@@ -8,9 +8,9 @@ from operator import add, mul, sub
 from textwrap import dedent
 from typing import Any
 
-from pysmt.shortcuts import (FALSE, GE, GT, LE, LT, And, Bool, EqualsOrIff,
-                             Implies, Int, Not, NotEquals, Or, Symbol,
-                             get_free_variables, simplify, substitute)
+from pysmt.shortcuts import (FALSE, GE, GT, LE, LT, TRUE, And, Bool,
+                             EqualsOrIff, Implies, Int, Not, NotEquals, Or,
+                             Symbol, get_free_variables, simplify, substitute)
 from pysmt.typing import BOOL, INT
 from tatsu.walkers import ContextWalker, NodeWalker
 
@@ -162,7 +162,7 @@ class VarRenamer(NodeWalker):
         self.walk(node.methods)
         for x in (node.assumes or ()):
             self.walk(x)
-        for x in (node.guarantees or tuple()):
+        for x in (node.guarantees or ()):
             self.walk(x)
 
     def walk_Load(self, node: Load):
@@ -296,7 +296,6 @@ class ForkingPath:
         for x in self.leaves(self.get_root()):
             conds, _ = x.get_path()
             if simplify(And(conds)) == FALSE():
-                # print(f"{conds} is unsat, pruning {x} away")
                 x.parent.children.remove(x)
 
     def pprint(self) -> str:
@@ -616,10 +615,33 @@ class SymexWalker(NodeWalker):
             self.fp = self.fp.parent
 
         for x in self.paths[node.name].leaves():
-            if node.kind == "extern":
-                self.extern_triples[node.name].extend(x.to_transitions())
-            else:
-                self.intern_triples[node.name].extend(x.to_transitions())
+            for tr in x.to_transitions():
+                cond, act, out = tr
+                params_in_tr = set(
+                    y for x in act.values() for y in get_free_variables(x)
+                    if any(p.var_name == y.symbol_name() for p in node.params))
+                if not params_in_tr:
+                    if node.kind == "extern":
+                        self.extern_triples[node.name].append(tr)
+                    else:
+                        self.intern_triples[node.name].append(tr)
+                else:
+                    for tt_params in powerset(params_in_tr):
+                        ff_params = params_in_tr - set(tt_params)
+                        cond1 = [*cond]
+                        cond1.extend(p for p in tt_params)
+                        cond1.extend(Not(p) for p in ff_params)
+                        remap = {
+                            p: TRUE() if p in tt_params else FALSE()
+                            for p in params_in_tr}
+                        act1 = {**act}
+                        for x in act1:
+                            act1[x] = substitute(act1[x], remap)
+                        tr1 = (cond1, act1, out)
+                        if node.kind == "extern":
+                            self.extern_triples[node.name].append(tr1)
+                        else:
+                            self.intern_triples[node.name].append(tr1)
 
 
 def dsl_to_program(file_name: str, code: str) -> (Program, list):
