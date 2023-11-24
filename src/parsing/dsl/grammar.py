@@ -110,7 +110,7 @@ arithmetic
 add_or_sub::BinOp
     =
     | left:arithmetic op:'+' ~ right:term
-    | left:arithmetic op:/-(?!>)/ ~ right:term
+    | left:arithmetic !'->' op:'-' ~ right:term
     ;
 
 term
@@ -134,7 +134,7 @@ factor
 unary::UnaryOp
     =
     | op:'!' ~ expr:base_expr
-    | op:/-(?!>)/ expr:base_expr
+    | !'->' op:'-' expr:base_expr
     ;
 
 base_expr
