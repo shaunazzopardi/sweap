@@ -23,9 +23,7 @@ method extern envChoose (row choice) {
     assume(choice == ONE -> row1 > 0);
     assume(choice == TWO -> row2 > 0);
     assume(choice == THREE -> row3 > 0);
-    // If the board is cleared, controller loses
-    assert(row0 + row1 + row2 + row3 > 1);
-    
+
     if (choice == ZERO) {row0--; }
     if (choice == ONE) { row1--; }
     if (choice == TWO) { row2--; }
@@ -41,8 +39,6 @@ method extern envRemoveNext () {
     assume(chosenRow == ONE -> row1 > 0);
     assume(chosenRow == TWO -> row2 > 0);
     assume(chosenRow == THREE -> row3 > 0);
-    // If the board is cleared, environment wins
-    assert(row0 + row1 + row2 + row3 > 1);
 
     if (chosenRow == ZERO) { row0--; }
     if (chosenRow == ONE) { row1--; }
@@ -50,12 +46,19 @@ method extern envRemoveNext () {
     if (chosenRow == THREE) { row3--; }    
 }
 
-// ... or pass
+// ... or pass ...
 method extern envPass() {
     assume(envTurn && hasChosen);
     envTurn := false;
     hasChosen := false;
 }
+
+// ... or win
+method extern envWins() {
+    assume(envTurn && hasChosen);
+    assert(row0 + row1 + row2 + row3 > 0);
+}
+
 
 // Same for the controller, more or less
 method intern conChoose (row choice) {
@@ -64,9 +67,7 @@ method intern conChoose (row choice) {
     assert(chosenRow == ONE -> row1 > 0);
     assert(chosenRow == TWO -> row2 > 0);
     assert(chosenRow == THREE -> row3 > 0);
-    // If the board is cleared, controller wins
-    assume(row0 + row1 + row2 + row3 > 1);
-    
+
     if (choice == ZERO) {row0--; }
     if (choice == ONE) { row1--; }
     if (choice == TWO) { row2--; }
@@ -81,8 +82,6 @@ method intern conRemoveNext () {
     assert(chosenRow == ONE -> row1 > 0);
     assert(chosenRow == TWO -> row2 > 0);
     assert(chosenRow == THREE -> row3 > 0);
-    // If the board is cleared, controller wins
-    assume(row0 + row1 + row2 + row3 > 1);
 
     if (chosenRow == ZERO) { row0--; }
     else if (chosenRow == ONE) { row1--; }
@@ -95,3 +94,9 @@ method intern conPass() {
     envTurn := true;
     hasChosen := false;
 }
+
+method intern conWins() {
+    assert(!envTurn && hasChosen);
+    assume(row0 + row1 + row2 + row3 > 0);
+}
+
