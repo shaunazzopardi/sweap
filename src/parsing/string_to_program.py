@@ -1,7 +1,7 @@
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
 
-from parsing.string_to_prop_logic import string_to_math_expression, string_to_prop
+from parsing.string_to_prop_logic import string_to_math_expression, string_to_prop, string_to_negated_atom
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
@@ -239,7 +239,7 @@ def transition_parser():
                                 [])
     yield spaces()
     raw_events = yield parsec.optional(outputs, [])
-    events = [Variable(e) for e in raw_events]
+    events = [string_to_negated_atom(e) for e in raw_events]
     yield spaces()
     yield string("]") >> spaces()
     if not cond:
