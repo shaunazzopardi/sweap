@@ -61,7 +61,7 @@ class Program:
             if len(unsat_env_trans) > 0:
                 logging.info("Removed environment transitions with unsat transitions: " + ",\n".join(map(str, unsat_env_trans)))
 
-            if len(unsat_env_trans) > 0:
+            if len(unsat_con_trans) > 0:
                 logging.info("Removed controller transitions with unsat transitions: " + ",\n".join(map(str, unsat_con_trans)))
             self.con_transitions = [t for t in self.con_transitions if t not in unsat_con_trans]
 

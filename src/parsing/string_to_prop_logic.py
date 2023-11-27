@@ -88,6 +88,12 @@ GRAMMAR = '''
         | '-' number
         | atom
         ;
+        
+    negated_atom 
+        =
+        | '!' atom $
+        | atom $
+        ;
 
     atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
     number = /(\d+|\d+\.\d+)/;
@@ -95,6 +101,7 @@ GRAMMAR = '''
 
 parser: Grammar = compile(GRAMMAR)
 math_config = ParserConfig(start='math_expression_eof')
+negated_atom_config = ParserConfig(start='negated_atom')
 
 
 def tuple_to_formula(node, hoa_flag) -> Formula:
@@ -136,6 +143,11 @@ class Semantics:
 
 def string_to_math_expression(text: str) -> MathExpr:
     formula = parser.parse(text, config=math_config, semantics=Semantics(False))
+    return formula
+
+
+def string_to_negated_atom(text: str) -> MathExpr:
+    formula = parser.parse(text, config=negated_atom_config, semantics=Semantics(False))
     return formula
 
 
