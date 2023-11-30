@@ -23,7 +23,8 @@ class Ranker:
                 cmd = ['(/cpachecker/scripts/cpa.sh -preprocess -terminationAnalysis /workdir/prog.c -spec '
                     '/cpachecker/config/properties/termination.prp) && cat output/terminationAnalysisResult.txt']
 
-                out = client.containers.run('cpachecker2.2', command=cmd, entrypoint=["/bin/bash", "-c"],
+                img = "registry.gitlab.com/sosy-lab/software/cpachecker:latest"
+                out = client.containers.run(img, command=cmd, entrypoint=["/bin/bash", "-c"],
                                             volumes={tmp.name: {'bind': '/workdir/prog.c', 'mode': 'rw'}},
                                             remove=True, stdout=True, stderr=True).decode('utf-8')
                 logging.info("cpachecker took " + str(time.time() - start))

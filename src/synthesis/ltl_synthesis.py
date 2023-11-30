@@ -19,8 +19,10 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
             tmp.close()
 
             # cmd = strix_tlsf_command + " -v '" + tmp.name + "':./spec.tlsf -m both "
-            cmd = "docker run" + " -v " + tmp.name + ":/spec.tlsf" + \
-            " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + " -m both --onthefly none"
+            # cmd = "docker run" + " -v " + tmp.name + ":/spec.tlsf" + \
+            # " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + " -m both --onthefly none"
+            # " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + ""
+            cmd = f"strix_tlsf.sh {tmp.name} -m both"
 
             so = subprocess.getstatusoutput(cmd)
             output: str = so[1]

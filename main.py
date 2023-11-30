@@ -6,6 +6,7 @@ from analysis.model_checker import ModelChecker
 from parsing.string_to_program import string_to_program
 from synthesis.synthesis import synthesize
 import logging
+from pathlib import Path
 
 import time
 
@@ -35,12 +36,13 @@ def main():
     prog_str = prog_file.read()
     program, ltl_spec = string_to_program(prog_str)
 
-    if not os.path.exists(str(os.getcwd()) + "\\out\\" + program.name):
-        os.makedirs(str(os.getcwd()) + "\\out\\" + program.name)
+    logdir = Path(os.getcwd()) / "out" / program.name
 
-    logging.basicConfig(filename=(str(os.getcwd()) + "\\out\\"
-                                  + program.name + "\\"
-                                  + str(time.time()) + ".log"),
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
+
+
+    logging.basicConfig(filename=(str(logdir / (str(time.time()) + ".log"))),
                         encoding='utf-8',
                         level=logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s',
