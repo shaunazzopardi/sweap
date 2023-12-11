@@ -20,7 +20,6 @@ def main():
     # Synthesis workflow
     parser.add_argument('--synthesise', dest='synthesise', help="Synthesis workflow.", type=bool, nargs='?', const=True)
 
-    parser.add_argument('--l', dest='ltl', help="Inline LTL formula.", type=str)
     parser.add_argument('--tlsf', dest='tlsf', help="Path to a .tlfs file.", type=str)
 
     # how to connect to strix (default just assume `strix' is in path)
@@ -31,9 +30,10 @@ def main():
     if args.program is None:
         raise Exception("Program path not specified.")
 
+
     prog_file = open(args.program, "r")
     prog_str = prog_file.read()
-    program = string_to_program(prog_str)
+    program, ltl_spec = string_to_program(prog_str)
 
     if not os.path.exists(str(os.getcwd()) + "\\out\\" + program.name):
         os.makedirs(str(os.getcwd()) + "\\out\\" + program.name)
@@ -64,11 +64,15 @@ def main():
         else:
             print(args.translate + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'vmt'.")
     elif args.synthesise:
-        if args.ltl is None and args.tlsf is None:
-            raise Exception("No property specified.")
+        ltl = ltl_spec
+        if ltl is None:
+            if args.tlsf is None:
+                raise Exception("No property specified.")
+        elif args.tlsf is not None:
+            print("Spec in both program and as TLSF given, will use the TLSF.")
 
         start = time.time()
-        (realiz, mm) = synthesize(program, args.ltl, args.tlsf, args.docker)
+        (realiz, mm) = synthesize(program, ltl, args.tlsf, args.docker)
         end = time.time()
 
         if realiz:

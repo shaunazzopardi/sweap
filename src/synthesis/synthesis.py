@@ -24,7 +24,7 @@ import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 
 
 def synthesize(program: Program,
-               ltl_text: str,
+               ltl: Formula,
                tlsf_path: str,
                docker: bool,
                project_on_abstraction=False) -> Tuple[bool, MealyMachine]:
@@ -39,11 +39,11 @@ def synthesize(program: Program,
         ltl_text = ltl_text.replace('"', "")
         in_acts_syfco = syfco_ltl_in(tlsf_path)
         out_acts_syfco = syfco_ltl_out(tlsf_path)
+
+        ltl = string_to_ltl(ltl_text)
     else:
         in_acts_syfco = []
         out_acts_syfco = []
-
-    ltl = string_to_ltl(ltl_text)
 
     if isinstance(ltl, BiOp) and (ltl.op == "->" or ltl.op == "=>"):
         ltl_assumptions_formula = ltl.left

@@ -1,6 +1,7 @@
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
 
+from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
 from parsing.string_to_prop_logic import string_to_math_expression, string_to_prop, string_to_negated_atom
 from programs.program import Program
 from programs.transition import Transition
@@ -36,6 +37,8 @@ def program_parser():
     env_semantics, env_transitions = yield env_transitions_parser
     yield spaces()
     con_semantics, con_transitions = yield con_transitions_parser
+    yield spaces()
+    ltl_spec = yield parsec.optional(specification_parser)
     yield spaces() >> string("}") >> spaces()
 
     if env_semantics == "by-order":
@@ -71,7 +74,8 @@ def program_parser():
 
     program = Program(program_name, states, initial_state, initial_vals, new_env_transitions, new_con_transitions, env, con,
                       mon)
-    return program
+    return program, ltl_spec
+
 
 @generate
 def event_parser():
@@ -296,6 +300,16 @@ def con_transitions_parser():
     transitions = yield sepBy(transition_parser, spaces() >> regex("(,|;)") >> spaces())
     yield spaces() >> string("}")
     return semantics, transitions
+
+
+@generate
+def specification_parser():
+    yield string("SPECIFICATION") >> spaces()
+    yield string("{") >> spaces()
+    ltl_spec_string = yield regex("[^}]*")
+    yield spaces() >> string("}")
+    ltl_spec = string_to_ltl_with_predicates(ltl_spec_string)
+    return ltl_spec
 
 
 parser = program_parser
