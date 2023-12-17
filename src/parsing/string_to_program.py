@@ -11,7 +11,7 @@ from programs.util import guarded_action_transitions_to_normal_transitions, reso
 from prop_lang.nondet import NonDeterministic
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
-from prop_lang.util import true, sat, conjunct, negate, disjunct_formula_set
+from prop_lang.util import true, conjunct, negate, disjunct_formula_set, normalize_ltl
 from prop_lang.variable import Variable
 
 name_regex = r'[_a-zA-Z][_a-zA-Z0-9$@\_\-]*'
@@ -309,6 +309,7 @@ def specification_parser():
     ltl_spec_string = yield regex("[^}]*")
     yield spaces() >> string("}")
     ltl_spec = string_to_ltl_with_predicates(ltl_spec_string)
+    ltl_spec = normalize_ltl(ltl_spec)
     return ltl_spec
 
 

@@ -987,3 +987,21 @@ def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
 
 def project_out_props(env_cond: Formula, env_props: [Variable]):
     return simplify_formula_without_math(project_out_vars(env_cond, env_props))
+
+
+def normalize_ltl(formula: Formula):
+    if isinstance(formula, BiOp):
+        n_left = normalize_ltl(formula.left)
+        n_right = normalize_ltl(formula.right)
+        if formula.op == "W":
+            return disjunct(G(n_left), U(n_left, n_right))
+        elif formula.op == "R":
+            return neg(U(neg(n_left), neg(n_right)))
+        elif formula.op == "M":
+            return U(n_right, conjunct(n_left, n_right))
+        else:
+            return BiOp(n_left, formula.op, n_right)
+    elif isinstance(formula, UniOp):
+        return UniOp(formula.op, normalize_ltl(formula.right))
+    else:
+        return formula
