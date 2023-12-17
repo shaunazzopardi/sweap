@@ -19,13 +19,12 @@ from joblib import Parallel, delayed
 
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import add_prev_suffix, transition_formula, powerset_complete, label_pred
+from programs.util import add_prev_suffix, transition_formula, powerset_complete
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
-    true, false, sat, \
-    simplify_formula_with_math, is_contradictory
+    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred
 
 
 class EffectsAbstraction(PredicateAbstraction):

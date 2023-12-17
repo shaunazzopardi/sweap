@@ -2,10 +2,11 @@ from analysis.abstraction.interface.predicate_abstraction import PredicateAbstra
 from programs.program import Program
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from programs.util import label_preds, label_pred, add_prev_suffix
+from programs.util import add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct, conjunct_formula_set, disjunct_formula_set, iff, X, implies, neg, G, disjunct, F
+from prop_lang.util import (conjunct, conjunct_formula_set, disjunct_formula_set, iff, X, implies, neg, G, disjunct, F,
+                            label_preds, label_pred)
 from prop_lang.variable import Variable
 
 

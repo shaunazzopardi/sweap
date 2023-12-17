@@ -7,10 +7,10 @@ from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from analysis.model_checker import ModelChecker
 from programs.program import Program
 from synthesis.mealy_machine import MealyMachine
-from programs.util import label_pred, parse_nuxmv_ce_output_finite
+from programs.util import parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set
+from prop_lang.util import conjunct_formula_set, label_pred
 from prop_lang.variable import Variable
 
 

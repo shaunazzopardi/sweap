@@ -12,12 +12,11 @@ from programs.program import Program
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import label_pred
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, disjunct_formula_set, neg, conjunct, dnf_safe, \
-    propagate_negations, simplify_formula_without_math, sat, project_out_props
+    propagate_negations, simplify_formula_without_math, sat, project_out_props, label_pred
 from prop_lang.variable import Variable
 
 import faulthandler

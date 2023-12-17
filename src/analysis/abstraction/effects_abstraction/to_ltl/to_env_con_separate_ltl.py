@@ -2,12 +2,12 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import Effects
 from config import env, con, init_state
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from programs.util import add_prev_suffix, label_pred
+from programs.util import add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, conjunct, X, iff, \
-    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, flatten_effects, negate
+    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, flatten_effects, negate, label_pred
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 

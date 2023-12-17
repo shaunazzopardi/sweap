@@ -1,9 +1,9 @@
 from analysis.abstraction.explicit_abstraction.util.abstract_state import AbstractState
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import transition_formula, safe_update_set_vals, stringify_pred_take_out_neg, powerset, \
-    safe_update_list_vals, stringify_pred
-from prop_lang.util import conjunct_formula_set, neg, sat
+from programs.util import transition_formula, safe_update_set_vals, powerset, \
+    safe_update_list_vals
+from prop_lang.util import conjunct_formula_set, neg, sat, stringify_pred, stringify_pred_take_out_neg
 
 
 def effects_to_explicit_automaton_abstraction(predAbs):

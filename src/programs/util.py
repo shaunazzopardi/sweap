@@ -18,7 +18,7 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, conjunct, neg, append_to_variable_name, dnf, disjunct_formula_set, \
-    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_safe
+    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_safe, var_to_predicate
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -236,94 +236,6 @@ def ground_formula_on_ce_state_with_index(formula: Formula, state: dict, i) -> F
     for key, value in state.items():
         to_replace_with.append(BiOp(Variable(key + "_" + str(i)), ":=", Value(value)))
     return formula.replace(to_replace_with)
-
-
-predicate_to_var_cache = {}
-var_to_predicate_cache = {}
-
-
-def is_predicate_var(p):
-    if isinstance(p, str):
-        p = Variable(p)
-    if p in var_to_predicate_cache.keys():
-        return True
-    else:
-        return False
-
-
-def var_to_predicate(p):
-    if p in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[p]
-    elif isinstance(p, UniOp) and p.op == "!" and p.right in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[p.right]
-    elif neg(p) in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[neg(p)].right
-    else:
-        raise Exception("Could not find predicate for variable: " + str(p))
-
-
-def label_pred(p, preds):
-    if p in predicate_to_var_cache.keys():
-        return predicate_to_var_cache[p]
-
-    if p not in preds:
-        representation = stringify_pred_take_out_neg(p)
-    else:
-        representation = stringify_pred(p)
-
-    predicate_to_var_cache[p] = representation
-    var_to_predicate_cache[representation] = p
-    return representation
-
-
-def stringify_pred(p):
-    if p in predicate_to_var_cache.keys():
-        return predicate_to_var_cache[p]
-
-    representation = Variable("pred_" +
-                              str(p)
-                              .replace(" ", "")
-                              .replace("_", "")
-                              .replace("(", "_")
-                              .replace(")", "_")
-                              .replace("=", "_EQ_")
-                              .replace(">", "_GT_")
-                              .replace("<=", "_LTEQ_")
-                              .replace("<", "_LT_")
-                              .replace(">=", "_GTEQ_")
-                              .replace("-", "_MINUS_")
-                              .replace("+", "_PLUS_")
-                              .replace("/", "_DIV_")
-                              .replace("*", "_MULT_")
-                              .replace("%", "_MOD_")
-                              .replace("!", "_NEG_")
-                              .replace("&&", "_AND_")
-                              .replace("&", "_AND_")
-                              .replace("||", "_OR_")
-                              .replace("|", "_OR_")
-                              .replace("->", "_IMPLIES_")
-                              .replace("=>", "_IMPLIES_")
-                              .replace("<->", "_IFF_")
-                              .replace("<=>", "_IFF_")
-                              )
-    predicate_to_var_cache[p] = representation
-    return representation
-
-
-def stringify_pred_take_out_neg(p):
-    res = None
-    if (isinstance(p, UniOp) and p.op == "!"):
-        res = neg(stringify_pred(p.right))
-    else:
-        res = stringify_pred(p)
-    if res == None:
-        raise Exception("Could not stringify predicate: " + str(p))
-    else:
-        return res
-
-
-def label_preds(ps, preds):
-    return {label_pred(p, preds) for p in ps}
 
 
 def reduce_up_to_iff(old_preds, new_preds, symbol_table):
@@ -635,17 +547,6 @@ def transition_formula(t):
         return formula
     else:
         return transition_formulas[t]
-
-
-def stringify_formula(f):
-    if isinstance(f, BiOp):
-        return BiOp(stringify_formula(f.left), f.op, stringify_formula(f.right))
-    elif isinstance(f, UniOp):
-        return UniOp(f.op, stringify_formula(f.right))
-    elif isinstance(f, MathExpr) or isinstance(f, Variable):
-        return stringify_pred(f)
-    else:
-        return f
 
 
 def powerset_complete(SS: iterable):
