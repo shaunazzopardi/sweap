@@ -5,6 +5,7 @@ from tatsu.tool import compile
 
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -102,12 +103,21 @@ def tuple_to_formula(node) -> Formula:
     if isinstance(node, str):
         if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF)", node):
             return Value(node)
+        elif re.match("[0-9]+(\.[0-9]+)?", node):
+            return Value(node)
         else:
             return Variable(node)
     elif len(node) == 2:
         return UniOp(node[0], (node[1]))
     elif len(node) == 3:
-        return BiOp((node[0]), node[1], (node[2]))
+        v0 = ((node[0]))
+        v2 = ((node[2]))
+        if v0 == None or v2 == None:
+            print("None")
+        if node[1] in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "!="]:
+            return MathExpr(BiOp((node[0]), node[1], (node[2])))
+        else:
+            return BiOp((node[0]), node[1], (node[2]))
     else:
         raise Exception("Invalid node: " + str(node))
 

@@ -122,7 +122,7 @@ def tuple_to_formula(node, hoa_flag) -> Formula:
             v2 = ((node[2]))
             if v0 == None or v2 == None:
                 print("None")
-            if re.match("(\+|\-|\*|\/|<|>|<=|>=|==)", node[1]):
+            if node[1] in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "!="]:
                 return MathExpr(BiOp((node[0]), node[1], (node[2])))
             else:
                 return BiOp((node[0]), node[1], (node[2]))
