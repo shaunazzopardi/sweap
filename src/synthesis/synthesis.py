@@ -17,7 +17,7 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true
+from prop_lang.util import true, stringify_formula
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -82,7 +82,7 @@ def synthesize(program: Program,
 def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_guarantees: [Formula], in_acts: [Variable],
                             out_acts: [Variable], docker: bool, project_on_abstraction=False, debug=False) -> \
         Tuple[bool, MealyMachine]:
-    eager = False
+    eager = True
     keep_only_bool_interpolants = False
     use_explicit_loops_abstraction = False
     allow_user_input = False
@@ -102,6 +102,23 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         new_state_preds = [Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool")]
     else:
         new_state_preds = []
+
+    new_ltl_assumptions = []
+    for ltl in ltl_assumptions:
+        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
+        new_state_preds += preds
+        new_ltl_assumptions.append(new_ltl)
+
+    new_ltl_guarantees = []
+    for ltl in ltl_guarantees:
+        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
+        new_state_preds += preds
+        new_ltl_guarantees.append(new_ltl)
+
+    ltl_assumptions = new_ltl_assumptions
+    ltl_guarantees = new_ltl_guarantees
+
+    new_state_preds = list(set(new_state_preds))
 
     ranking_invars = {}
     new_ranking_invars = {}
@@ -134,7 +151,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                     for rank, invars in new_ranking_invars.items()])) + " to predicate abstraction")
         predicate_abstraction.add_predicates(new_state_preds, new_ranking_invars, True)
         timing_data += "\n" + ("adding " + ", ".join(map(str, new_state_preds + [str(rank) + " with invars " + ", ".join([str(i) for i in invars])
-                                    for rank, invars in new_ranking_invars.items()]))  + " took " + str(time.time() - start))
+                                    for rank, invars in new_ranking_invars.items()])) + " took " + str(time.time() - start))
         logging.info(timing_data)
 
         state_predicates.extend(new_state_preds)
