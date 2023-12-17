@@ -12,7 +12,6 @@ program eventually__allow_grant {
     }
 
     PROGRAM EVENTS {
-        pending_ev
     }
 
     VALUATION {
@@ -22,13 +21,10 @@ program eventually__allow_grant {
     }
 
     ENVIRONMENT TRANSITIONS {
-        q0 -> q0 [request & !changeRoom $ cnt := cnt + 1; pending := true # pending_ev],
-        q0 -> q0 [!request & changeRoom & pending $ roomA := !roomA # pending_ev],
-        q0 -> q0 [!request & changeRoom & !pending $ roomA := !roomA #],
-        q0 -> q1 [!request & !changeRoom & pending # pending_ev],
-        q0 -> q1 [!request & !changeRoom & !pending],
-        q1 -> q1 [cnt == 0 $ pending := false;],
-        q1 -> q1 [cnt != 0 $ # pending_ev]
+        q0 -> q0 [request & !changeRoom $ cnt := cnt + 1; pending := true],
+        q0 -> q0 [!request & changeRoom $ roomA := !roomA #],
+        q0 -> q1 [!request & !changeRoom],
+        q1 -> q1 [cnt == 0 $ pending := false;]
     }
 
     CONTROLLER TRANSITIONS {
@@ -38,6 +34,6 @@ program eventually__allow_grant {
     }
 
     SPECIFICATION {
-        G((pending_ev && !request && !changeRoom) -> F(!pending_ev))
+        G((pending && !request && !changeRoom) -> F(!pending))
     }
 }
