@@ -1,13 +1,23 @@
 import re
+from collections import defaultdict
+from itertools import product
+from typing import Any
 
+from pysmt.shortcuts import FALSE, TRUE, And, Iff, Not, Symbol
 from tatsu.grammars import Grammar
+from tatsu.objectmodel import Node
 from tatsu.tool import compile
+from tatsu.walkers import NodeWalker
 
+from programs.program import Program
+from programs.transition import Transition
+from programs.typed_valuation import TypedValuation
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.math_op import MathOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
+from prop_lang.util import conjunct_formula_set, normalize_ltl
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -144,3 +154,86 @@ class Semantics:
 def string_to_ltlmt(text: str) -> Formula:
     formula = parser.parse(text, semantics=Semantics())
     return formula
+
+class ToProgram(NodeWalker):
+    def __init__(self):
+        super().__init__()
+        self.env_events = set()
+        self.updates = defaultdict(set)
+        self.substitutions = {}
+        self.checks = {}
+        self.scan = True
+
+    def walk_BiOp(self, node: BiOp):
+        node.left = self.find_substitute(node.left)
+        node.right = self.find_substitute(node.right)
+        if node.op not in (">", ">=", "<", "<=", "==", "!="):
+            self.walk(node.left)
+            self.walk(node.right)
+
+    def find_substitute(self, n):
+        if isinstance(n, MathOp) and n.formula in self.substitutions:
+            return self.substitutions[n.formula]
+        if isinstance(n, MathExpr) and n.formula in self.substitutions:
+            return self.substitutions[n.formula]
+        return self.substitutions.get(n, n)
+
+    def walk_UniOp(self, node: UniOp):
+        node.right = self.find_substitute(node.right)
+        self.walk(node.right)
+
+    def walk_Variable(self, node: Variable):
+        if self.scan:
+            self.env_events.add(Variable(node.name))
+
+    def walk_MathExpr(self, node: MathExpr):
+        if node.formula in self.substitutions:
+            node.formula = self.substitutions[node.formula]
+        self.walk(node.formula)
+        # if node.op in 
+
+    def walk_MathOp(self, node: MathOp):
+        if node.formula in self.substitutions:
+            node.formula = self.substitutions[node.formula]
+        elif (node.formula.op == ":="):
+            # always add a chance to stutter
+            stutter = BiOp(node.formula.left, ':=', node.formula.left)
+            self.updates[node.formula.left.name].add(stutter)
+            # add actual update
+            self.updates[node.formula.left.name].add(node.formula)
+
+    def generateProgram(self, orig_formula: Formula, name="fromTSL"):
+        enum_updates = {
+            var: set((f"{var}_{i}", x) for i, x in enumerate(ups))
+            for var, ups in self.updates.items()}
+
+        self.substitutions = self.checks | {
+            u[1]: Variable(u[0])
+            for var, ups in enum_updates.items()
+            for u in ups}
+        self.scan = False
+        self.walk(orig_formula)
+
+        con_events = [
+            Variable(u[0])
+            for ups in enum_updates.values() for u in ups]
+        con_t = []
+
+        # TODO how do we initialize?
+        init_values = [TypedValuation(x, "int", Value(0)) for x in self.updates]
+
+        def mk_cond(names):
+            return conjunct_formula_set((
+                x if x.name in names else UniOp("!", x)
+                for x in con_events))
+
+        for ups in product(*enum_updates.values()):
+            con_t.append(Transition(
+                'c0', mk_cond([u[0] for u in ups]),
+                [u[1] for u in ups], [], 'e0'))
+
+        prog = Program(
+            name, ['e0', 'c0'], 'e0', init_values, [], con_t,
+            list(self.env_events), con_events, [])
+
+        return prog, normalize_ltl(orig_formula)
