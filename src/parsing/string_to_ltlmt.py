@@ -1,6 +1,6 @@
 import re
 from collections import defaultdict
-from itertools import product
+from itertools import combinations, product
 from typing import Any
 
 from pysmt.shortcuts import FALSE, TRUE, And, Iff, Not, Symbol
@@ -17,7 +17,7 @@ from prop_lang.formula import Formula
 from prop_lang.math_op import MathOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, normalize_ltl
+from prop_lang.util import conjunct_formula_set, disjunct_formula_set, normalize_ltl
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -220,7 +220,7 @@ class ToProgram(NodeWalker):
         con_t = []
 
         # TODO how do we initialize?
-        init_values = [TypedValuation(x, "int", Value(0)) for x in self.updates]
+        init_values = [TypedValuation(x, "integer", Value(0)) for x in self.updates]
 
         def mk_cond(names):
             return conjunct_formula_set((
@@ -232,8 +232,32 @@ class ToProgram(NodeWalker):
                 'c0', mk_cond([u[0] for u in ups]),
                 [u[1] for u in ups], [], 'e0'))
 
+        env_t = [Transition(
+            'e0', None, [], [], 'c0'
+        )]
+
         prog = Program(
-            name, ['e0', 'c0'], 'e0', init_values, [], con_t,
+            name, ['e0', 'c0'], 'e0', init_values, env_t, con_t,
             list(self.env_events), con_events, [])
 
-        return prog, normalize_ltl(orig_formula)
+        formula = normalize_ltl(orig_formula)
+
+        card_constraint = []
+        for ups in enum_updates.values():
+            up_vars = [Variable(x[0]) for x in ups]
+            at_least_one = disjunct_formula_set(up_vars)
+            at_most_one = conjunct_formula_set([
+                BiOp(UniOp("!", a), "||", UniOp("!", b))
+                for a,b in combinations(up_vars, 2)
+            ])
+            card_constraint.append(
+                BiOp(at_least_one, "&&", at_most_one).simplify())
+        card_constraint = conjunct_formula_set(card_constraint)
+        card_constraint = UniOp("G", card_constraint)
+
+        if isinstance(formula, BiOp) and formula.op == "->":
+            formula.right = BiOp(formula.right, "&&", card_constraint)
+        else:
+            formula = BiOp(formula, "&&", card_constraint)
+
+        return prog, formula
