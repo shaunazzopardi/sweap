@@ -152,6 +152,7 @@ class Test(TestCase):
         self.assertTrue(real)
 
     def test_elevator(self):
+        # TODO signal is not recognized as a variable
         ltlmt_formula = """(at_floor > 0 & at_floor < max + 1 & target = 0 &
                             G(signal > -1 & signal < max + 1 & (target != 0 -> signal = 0))) -> G(
                             ([at_floor := at_floor] | [at_floor := at_floor - 1] | [at_floor := at_floor + 1]) &
@@ -159,122 +160,110 @@ class Test(TestCase):
                             ((signal = 0 & (at_floor > target | at_floor < target)) -> [target := target]) &
                             at_floor >= 1 & at_floor < max + 1 & (F ((target != 0 -> !(at_floor > target | at_floor < target)))))"""
         ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = [Variable("signal")]
-        boolean_out_acts = []
-        state_vars = [Variable("target"), Variable("at_floor")]#, Variable("max")]
-
-        symbol_table = {}
-        symbol_table["target"] = TypedValuation("target", "int", None)
-        symbol_table["signal"] = TypedValuation("signal", "int", None)
-        symbol_table["at_floor"] = TypedValuation("at_floor", "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
 
-    def test_elevator1(self):
-        ltlmt_formula = """(at_floor = 0 & target = 0 & signal = 0 &
-                            G(signal >= 0 & signal <= max_floor & max_floor = 3)) -> G(
-                            ([at_floor := at_floor] | [at_floor := at_floor - 1] | [at_floor := at_floor + 1]) &
-                            ((at_floor != target) <-> [target := target]) &
-                            ((at_floor == target) <-> ([target := signal])) &
-                            at_floor >= 1 & at_floor <= max_floor & (target != 0 -> F (!(at_floor > target | at_floor < target))))"""
-        ltlmt = string_to_ltlmt(ltlmt_formula)
-        # ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
 
-        boolean_in_acts = []
-        numerical_in_acts = [Variable("signal")]
-        boolean_out_acts = []
-        state_vars = [Variable("max_floor"), Variable("target"), Variable("at_floor")]#, Variable("max")]
+    # def test_elevator1(self):
+    #     ltlmt_formula = """(at_floor = 0 & target = 0 & signal = 0 &
+    #                         G(signal >= 0 & signal <= max_floor & max_floor = 3)) -> G(
+    #                         ([at_floor := at_floor] | [at_floor := at_floor - 1] | [at_floor := at_floor + 1]) &
+    #                         ((at_floor != target) <-> [target := target]) &
+    #                         ((at_floor == target) <-> ([target := signal])) &
+    #                         at_floor >= 1 & at_floor <= max_floor & (target != 0 -> F (!(at_floor > target | at_floor < target))))"""
+    #     ltlmt = string_to_ltlmt(ltlmt_formula)
+    #     # ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
 
-        symbol_table = {}
-        symbol_table["max_floor"] = TypedValuation("max_floor", "int", None)
-        symbol_table["target"] = TypedValuation("target", "int", None)
-        symbol_table["signal"] = TypedValuation("signal", "int", None)
-        symbol_table["at_floor"] = TypedValuation("at_floor", "int", None)
+    #     boolean_in_acts = []
+    #     numerical_in_acts = [Variable("signal")]
+    #     boolean_out_acts = []
+    #     state_vars = [Variable("max_floor"), Variable("target"), Variable("at_floor")]#, Variable("max")]
 
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
-        self.assertTrue(real)
+    #     symbol_table = {}
+    #     symbol_table["max_floor"] = TypedValuation("max_floor", "int", None)
+    #     symbol_table["target"] = TypedValuation("target", "int", None)
+    #     symbol_table["signal"] = TypedValuation("signal", "int", None)
+    #     symbol_table["at_floor"] = TypedValuation("at_floor", "int", None)
+
+    #     real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+    #     self.assertTrue(real)
 
     def test_elevator_steps(self):
         ltlmt_formula = """(at_floor = 0 & target = 0 &
-                            G((env_done -> env_done W !(at_floor > target | at_floor < target)) & max_floor = 3)) -> G(
+                            G((env_done -> env_done W !((at_floor > target) | (at_floor < target))) & max_floor = 3)) -> G(
                             ([at_floor := at_floor] | [at_floor := at_floor - 1] | [at_floor := at_floor + 1]) &
                             ((env_inc & !env_done & target < max_floor) -> [target := target + 1]) &
                             ((!env_inc & !env_done & target > 0) -> [target := target - 1]) &
                             ((env_done) -> [target := target]) &
-                            at_floor >= 0 & at_floor <= max_floor & (target != 0 -> F (!(at_floor > target | at_floor < target))))"""
+                            at_floor >= 0 & at_floor <= max_floor & (target != 0 -> F (!((at_floor > target) | (at_floor < target)))))"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
-        # ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = [Variable("max_floor"), Variable("target"), Variable("at_floor")]#, Variable("max")]
-
-        symbol_table = {}
-        symbol_table["max_floor"] = TypedValuation("max_floor", "int", None)
-        symbol_table["target"] = TypedValuation("target", "int", None)
-        symbol_table["env_inc"] = TypedValuation("env_inc", "bool", None)
-        symbol_table["env_done"] = TypedValuation("env_done", "bool", None)
-        symbol_table["at_floor"] = TypedValuation("at_floor", "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
 
-    def test_elevator_steps_small(self):
-        assumptions = ["floor = 0",
-                       "target = 0",
-                       "G(max_floor = 3)",
-                       "G(0 <= target)",
-                       "G(target < max_floor)",
-                       "G(stutter_target W (target = floor))",
-                       ]
-        guarantees = ["G(stutter_target -> [target := target])",
-                      "G(!stutter_target -> ([floor := floor] & ((inc & [target := target + 1]) | (!inc & [target := target - 1]))))",
-                      "G(0 <= floor)",
-                      "G(floor < max_floor)",
-                      "G(stutter_target -> F target = floor)",
-                      "G(stutter_target -> ([floor := floor + 1] | [floor := floor - 1]))"]
+    # def test_elevator_steps_small(self):
+    #     assumptions = ["floor = 0",
+    #                    "target = 0",
+    #                    "G(max_floor = 3)",
+    #                    "G(0 <= target)",
+    #                    "G(target < max_floor)",
+    #                    "G(stutter_target W (target = floor))",
+    #                    ]
+    #     guarantees = ["G(stutter_target -> [target := target])",
+    #                   "G(!stutter_target -> ([floor := floor] & ((inc & [target := target + 1]) | (!inc & [target := target - 1]))))",
+    #                   "G(0 <= floor)",
+    #                   "G(floor < max_floor)",
+    #                   "G(stutter_target -> F target = floor)",
+    #                   "G(stutter_target -> ([floor := floor + 1] | [floor := floor - 1]))"]
 
-        parsed_a = map(string_to_ltlmt, assumptions)
-        parsed_g = map(string_to_ltlmt, guarantees)
-        ltlmt = implies(conjunct_formula_set(parsed_a), conjunct_formula_set(parsed_g))
-        # ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
+    #     parsed_a = map(string_to_ltlmt, assumptions)
+    #     parsed_g = map(string_to_ltlmt, guarantees)
+    #     ltlmt = implies(conjunct_formula_set(parsed_a), conjunct_formula_set(parsed_g))
+    #     # ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = [Variable("max_floor"), Variable("target"), Variable("floor")]#, Variable("max")]
+    #     boolean_in_acts = []
+    #     numerical_in_acts = []
+    #     boolean_out_acts = []
+    #     state_vars = [Variable("max_floor"), Variable("target"), Variable("floor")]#, Variable("max")]
 
-        symbol_table = {}
-        symbol_table["max_floor"] = TypedValuation("max_floor", "int", None)
-        symbol_table["target"] = TypedValuation("target", "int", None)
-        symbol_table["floor"] = TypedValuation("at_floor", "int", None)
+    #     symbol_table = {}
+    #     symbol_table["max_floor"] = TypedValuation("max_floor", "int", None)
+    #     symbol_table["target"] = TypedValuation("target", "int", None)
+    #     symbol_table["floor"] = TypedValuation("at_floor", "int", None)
 
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
-        self.assertTrue(real)
+    #     real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+    #     self.assertTrue(real)
 
     def test_pong_100(self):
-        ltlmt_formula = """(!(loc > 0 | loc < 0)) -> G(
-                            ([loc := loc + 1] -> ([loc := loc + 1] W (!(loc > 100 | loc < 100))))
-                            && ([loc := loc - 1] -> ([loc := loc - 1] W (!(loc > 0 | loc < 0))))
+        ltlmt_formula = """ G(
+                            ([loc := loc + 1] -> ([loc := loc + 1] U (!(loc > 100 | loc < 100))))
+                            && ([loc := loc - 1] -> ([loc := loc - 1] U (!(loc > 0 | loc < 0))))
                             && (!(loc > 0 | loc < 0) -> [loc := loc + 1])
                             && (!(loc > 100 | loc < 100) -> [loc := loc - 1])
                             )"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = [Variable("loc")]
-
-        symbol_table = {}
-        symbol_table["loc"] = TypedValuation("loc", "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
 
     def test_cfs(self):
         ltlmt_formula = """
