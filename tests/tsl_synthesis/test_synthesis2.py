@@ -1,8 +1,8 @@
 from unittest import TestCase
 
 from prop_lang.util import conjunct_formula_set, implies
-from tsl_synthesis.synthesis2 import abstract_synthesis_loop
-from parsing.string_to_ltlmt import string_to_ltlmt
+from synthesis.synthesis import abstract_synthesis_loop, synthesize
+from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from programs.typed_valuation import TypedValuation
 from prop_lang.variable import Variable
 
@@ -302,22 +302,15 @@ class Test(TestCase):
             G([nx := 2] <-> [rt2 := rt2 + 1])
         )"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = []
-        symbol_table = {}
-
-        for x in ("enq1", "deq1", "enq2", "deq2"):
-            boolean_in_acts.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "bool", None)
-        for x in ("rt1", "rt2", "nx"):
-            state_vars.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
 
     def test_rr(self):
         ltlmt_formula = """
@@ -333,18 +326,15 @@ class Test(TestCase):
             ((!(ptr > 1 | ptr < 1)) -> [nx := 1])
         )"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = [Variable("ptr"), Variable("nx")]
-
-        symbol_table = {}
-        symbol_table["ptr"] = TypedValuation("ptr", "int", None)
-        symbol_table["nx"] = TypedValuation("nx", "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
 
     def test_escalator_smart(self):
         ltlmt_formula = """
@@ -361,19 +351,15 @@ class Test(TestCase):
         )
         """
         ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = []
-        symbol_table = {}
-
-        for x in ("botqueue", "topqueue"):
-            state_vars.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
 
     def test_preemptive(self):
         ltlmt_formula = """
@@ -396,24 +382,15 @@ class Test(TestCase):
         )
         """
         ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = []
-        symbol_table = {}
-
-        for x in ("run1", "run2"):
-            boolean_in_acts.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "bool", None)
-
-        for x in ("rt1", "rt2", "nx"):
-            state_vars.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
-
+        print(mm)
 
     def test_load_balancer(self):
         ltlmt_formula = """
@@ -432,20 +409,12 @@ class Test(TestCase):
         )
         """
         ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        tp.walk(ltlmt)
+        prog, ltl = tp.generateProgram(ltlmt)
+        print(prog)
+        print(ltl)
 
-        boolean_in_acts = []
-        numerical_in_acts = []
-        boolean_out_acts = []
-        state_vars = []
-        symbol_table = {}
-
-        for x in ("enqueue",):
-            boolean_in_acts.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "bool", None)
-
-        for x in ("cpu0", "cpu1"):
-            state_vars.append(Variable(x))
-            symbol_table[x] = TypedValuation(x, "int", None)
-
-        real, _ = abstract_synthesis_loop(ltlmt, boolean_in_acts, numerical_in_acts, boolean_out_acts, state_vars, symbol_table)
+        real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
+        print(mm)
