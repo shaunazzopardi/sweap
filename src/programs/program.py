@@ -1,5 +1,6 @@
 import logging
 from typing import Set
+from textwrap import dedent
 
 from graphviz import Digraph
 
@@ -158,6 +159,72 @@ class Program:
             return transition.add_condition(constraints)
         else:
             return transition
+
+    def to_prog(self, spec=None):
+        def state_to_str(x):
+            if not isinstance(x, str) and hasattr(x, "__iter__"):
+                return ", ".join(str[v] for v in list(x))
+            return str(x)
+
+        def fmt_valuation(v: TypedValuation):
+            typ = {
+                "int": "integer", "nat": "integer", "natural": "integer",
+                "bool": "boolean"}.get(str(v.type), str(v.type))
+            return f"{v.name} : {typ} := {str(v.value).lower()}"
+
+        def tr_to_str(t, is_env):
+            def remove_paren(s):
+                s1 = str(s)
+                return s1[1:-1] if s1.startswith('(') else s1
+
+            result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"  # noqa: E501
+            if t.action is not None and len(t.action) > 0:
+                result += " $ " + ', '.join(map(remove_paren, t.action))
+            if is_env and t.output is not None and len(t.output) > 0:
+                result += " # " + ', '.join(map(remove_paren, t.output))
+            return result + ']'
+
+        valuations = [fmt_valuation(v) for v in self.valuation]
+        other_states = ", ".join([
+            state_to_str(s) for s in self.states if s != self.initial_state])
+        INDENT = " " * 16
+        CN = ",\n" + INDENT
+        SN = ";\n" + INDENT
+        spec = f"""
+            SPECIFICATION {{
+              {spec}
+            }}
+        """ if spec is not None else ""
+
+        prog = f"""\
+        program {self.name} {{
+            STATES {{
+                {state_to_str(self.initial_state)}: init, {other_states}
+            }}
+            ENVIRONMENT EVENTS {{
+                {', '.join(str(e) for e in self.env_events)}
+            }}
+            CONTROLLER EVENTS {{
+                {', '.join(str(e) for e in self.con_events)}
+            }}
+            PROGRAM EVENTS {{
+                {', '.join(str(e) for e in self.out_events)}
+            }}
+            VALUATION {{
+                {SN.join(valuations)}{';' if valuations else ''}
+
+            }}
+            ENVIRONMENT TRANSITIONS {{
+                {CN.join(tr_to_str(t, True) for t in self.env_transitions)}
+            }}
+            CONTROLLER TRANSITIONS {{
+                {CN.join(tr_to_str(t, False) for t in self.con_transitions)}
+            }}
+
+            {spec}
+        }}
+        """
+        return dedent(prog)
 
     def to_dot(self):
         dot = Digraph(name=self.name,
