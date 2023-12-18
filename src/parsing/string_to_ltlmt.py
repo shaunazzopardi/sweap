@@ -202,7 +202,9 @@ class ToProgram(NodeWalker):
             # add actual update
             self.updates[node.formula.left.name].add(node.formula)
 
-    def generateProgram(self, orig_formula: Formula, name="fromTSL"):
+    def ltlmt2prog(self, orig_formula: Formula, name="fromTSL"):
+        # First pass to collect stuff
+        self.walk(orig_formula)
         enum_updates = {
             var: set((f"UPD_{var}_{i}", x) for i, x in enumerate(ups))
             for var, ups in self.updates.items()}

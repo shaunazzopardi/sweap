@@ -161,8 +161,7 @@ class Test(TestCase):
                             at_floor >= 1 & at_floor < max + 1 & (F ((target != 0 -> !(at_floor > target | at_floor < target)))))"""
         ltlmt = string_to_ltlmt(ltlmt_formula.replace("max", "3"))
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt)
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -204,8 +203,7 @@ class Test(TestCase):
                             at_floor >= 0 & at_floor <= max_floor & (target != 0 -> F (!((at_floor > target) | (at_floor < target)))))"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt)
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -254,8 +252,7 @@ class Test(TestCase):
                             )"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt, "pong_100")
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -289,8 +286,7 @@ class Test(TestCase):
         )"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt, "cfs")
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -312,8 +308,7 @@ class Test(TestCase):
         )"""
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt, "roundrobin")
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -336,8 +331,7 @@ class Test(TestCase):
         """
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt)
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -366,8 +360,7 @@ class Test(TestCase):
         """
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt, "preemptive")
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
@@ -392,8 +385,7 @@ class Test(TestCase):
         """
         ltlmt = string_to_ltlmt(ltlmt_formula)
         tp = ToProgram()
-        tp.walk(ltlmt)
-        prog, ltl = tp.generateProgram(ltlmt)
+        prog, ltl = tp.ltlmt2prog(ltlmt, "load_balancer")
         print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
