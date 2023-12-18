@@ -204,7 +204,7 @@ class ToProgram(NodeWalker):
 
     def generateProgram(self, orig_formula: Formula, name="fromTSL"):
         enum_updates = {
-            var: set((f"{var}_{i}", x) for i, x in enumerate(ups))
+            var: set((f"UPD_{var}_{i}", x) for i, x in enumerate(ups))
             for var, ups in self.updates.items()}
 
         self.substitutions = self.checks | {
@@ -245,15 +245,16 @@ class ToProgram(NodeWalker):
         card_constraint = []
         for ups in enum_updates.values():
             up_vars = [Variable(x[0]) for x in ups]
+            up_vars.sort(key=lambda x: x.name)
             at_least_one = disjunct_formula_set(up_vars)
             at_most_one = conjunct_formula_set([
                 BiOp(UniOp("!", a), "||", UniOp("!", b))
                 for a,b in combinations(up_vars, 2)
             ])
-            card_constraint.append(
-                BiOp(at_least_one, "&&", at_most_one).simplify())
+            card_constraint.append(at_least_one)
+            card_constraint.append(at_most_one)
         card_constraint = conjunct_formula_set(card_constraint)
-        card_constraint = UniOp("G", card_constraint)
+        card_constraint = UniOp("G", card_constraint).simplify()
 
         if isinstance(formula, BiOp) and formula.op == "->":
             formula.right = BiOp(formula.right, "&&", card_constraint)
