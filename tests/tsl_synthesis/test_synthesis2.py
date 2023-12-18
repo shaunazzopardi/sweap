@@ -163,8 +163,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -207,8 +206,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -249,8 +247,8 @@ class Test(TestCase):
 
     def test_pong_100(self):
         ltlmt_formula = """ G(
-                            ([loc := loc + 1] -> ([loc := loc + 1] U (!(loc > 100 | loc < 100))))
-                            && ([loc := loc - 1] -> ([loc := loc - 1] U (!(loc > 0 | loc < 0))))
+                            ([loc := loc + 1] -> ([loc := loc + 1] W (!(loc > 100 | loc < 100))))
+                            && ([loc := loc - 1] -> ([loc := loc - 1] W (!(loc > 0 | loc < 0))))
                             && (!(loc > 0 | loc < 0) -> [loc := loc + 1])
                             && (!(loc > 100 | loc < 100) -> [loc := loc - 1])
                             )"""
@@ -258,8 +256,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -294,8 +291,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -318,8 +314,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -343,8 +338,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -374,8 +368,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
@@ -401,8 +394,7 @@ class Test(TestCase):
         tp = ToProgram()
         tp.walk(ltlmt)
         prog, ltl = tp.generateProgram(ltlmt)
-        print(prog)
-        print(ltl)
+        print(prog.to_prog(ltl))
 
         real, mm = synthesize(prog, ltl, None, False)
         self.assertTrue(real)
