@@ -38,35 +38,31 @@ def ranking_refinement(ranking, invars):
 
     return atoms, [constraint]
 
+
 def find_ranking_function(symbol_table,
                           program,
                           entry_condition,
                           unfolded_loop: [Transition],
                           exit_predicate_grounded,
                           add_natural_conditions=True):
-    try:
-        c_code = loop_to_c(symbol_table, program, entry_condition, unfolded_loop,
-                           exit_predicate_grounded, add_natural_conditions)
-        logging.info(c_code)
+    c_code = loop_to_c(symbol_table, program, entry_condition, unfolded_loop,
+                       exit_predicate_grounded, add_natural_conditions)
+    logging.info(c_code)
 
-        if c_code in seen_loops_cache.keys():
-            logging.info("Loop already seen..")
-            return True, "already seen"
+    if c_code in seen_loops_cache.keys():
+        logging.info("Loop already seen..")
+        return True, "already seen"
 
-        ranker = Ranker()
-        success, output = ranker.check(c_code)
-        if success:
-            if output is None:
-                return success, None
+    ranker = Ranker()
+    success, output = ranker.check(c_code)
+    if success:
+        if output is None:
+            return success, None
 
-            ranking_function, invars = output
-            seen_loops_cache[c_code] = (ranking_function, invars)
+        ranking_function, invars = output
+        seen_loops_cache[c_code] = (ranking_function, invars)
 
-        return success, output
-    except Exception as e:
-        raise e
-
-
+    return success, output
 
 
 def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_before_exit: [Transition],

@@ -65,7 +65,8 @@ class Ranker:
                         return True, None
                 else:
                     logging.info(out)
-                    raise Exception("Unexpected result during termination checking of:\n" + main_function)
+                    raise Exception("Make sure cpachecker is available. "
+                                    "Unexpected result during termination checking of:\n" + main_function)
             except subprocess.CalledProcessError as err:
                 raise Exception(err.output + "\n\n" + out)
             except Exception as err:
