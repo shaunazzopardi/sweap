@@ -20,6 +20,7 @@ def main():
 
     # Synthesis workflow
     parser.add_argument('--synthesise', dest='synthesise', help="Synthesis workflow.", type=bool, nargs='?', const=True)
+    parser.add_argument('--tlsf', dest='tlsf', help="Path to a .tlsf file.", type=str)
 
     parser.add_argument('--only_ranking', dest='only_ranking', help="For fairness refinements, only use ranking refinement.", type=bool, nargs='?', const=True)
     parser.add_argument('--only_structural', dest='only_structural', help="For fairness refinements, only use structural refinement.", type=bool, nargs='?', const=True)
@@ -61,11 +62,11 @@ def main():
     prog_str = prog_file.read()
     program, ltl_spec = string_to_program(prog_str)
 
-    if not os.path.exists(str(os.getcwd()) + "\\out\\" + program.name):
-        os.makedirs(str(os.getcwd()) + "\\out\\" + program.name)
+    if not os.path.exists(str(os.getcwd()) + "/out/" + program.name):
+        os.makedirs(str(os.getcwd()) + "/out/" + program.name)
 
-    logging.basicConfig(filename=(str(os.getcwd()) + "\\out\\"
-                                  + program.name + "\\"
+    logging.basicConfig(filename=(str(os.getcwd()) + "/out/"
+                                  + program.name + "/"
                                   + str(time.time()) + ".log"),
                         encoding='utf-8',
                         level=logging.INFO,
