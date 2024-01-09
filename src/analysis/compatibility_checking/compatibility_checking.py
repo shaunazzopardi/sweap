@@ -55,7 +55,7 @@ def compatibility_checking(program: Program,
     contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
                                                                                            is_controller,
                                                                                            False,
-                                                                                           debug=True,
+                                                                                           debug=False,
                                                                                            mismatch_condition=mismatch_condition)
 
     if contradictory:
