@@ -380,7 +380,6 @@ class EffectsAbstraction(PredicateAbstraction):
             raise Exception(str(predicate) + " is not a transition predicate.")
 
         action = t.action
-        vars_modified_in_action_without_identity = [a.left for a in action if not a.left == a.right]
 
         t_formula = transition_formula(t)
 
@@ -388,9 +387,7 @@ class EffectsAbstraction(PredicateAbstraction):
         constants = []
         new_effects = {x: y for x, y in old_effects.items()}
         # if the transition predicate is not mentioned in the action
-        if not any(True for v in predicate.variablesin() if v in vars_modified_in_action_without_identity):
-            constants = [neg(predicate)]
-        elif is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table):
+        if is_contradictory(conjunct_formula_set([t_formula, (predicate)]), self.program.symbol_table):
             constants = [neg(predicate)]
         elif is_contradictory(conjunct_formula_set([t_formula, neg(predicate)]), self.program.symbol_table):
             constants = [(predicate)]
