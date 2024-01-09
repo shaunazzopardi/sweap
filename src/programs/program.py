@@ -280,9 +280,12 @@ class Program:
                                                                          + [BiOp(Variable(str(v) + "_prev"), ":=", v)
                                                                                  for v in defn.variablesin()]))
                                                         for pred, defn in pred_definitions.items()])
-                compatible_next = str(compatible_next) + " & " + " & ".join(["mon_" + str(o) for o in outputs if isinstance(o, Variable)] +\
+                next_outputs_and_state = " & ".join(["mon_" + str(o) for o in outputs if isinstance(o, Variable)] +\
                                                                             ["!mon_" + str(o) for o in self.out_events if o not in outputs] + \
                                                                             (["mon_" + str(tgt)] if tgt is not None else []))
+                compatible_next = str(compatible_next)
+                if len(next_outputs_and_state) > 0:
+                    compatible_next += " & " + next_outputs_and_state
                 guard_act_and_compatible.append("(" + ga + " & act_" + str(i) + " & (" + str(compatible_next) + "))")
                 guard_and_not_compatible.append("(guard_" + str(i) + " & " + str(compatible_next) + ")")
 
