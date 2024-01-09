@@ -9,7 +9,7 @@ from analysis.compatibility_checking.compatibility_checking import compatibility
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
-from analysis.refinement.fairness_refinement.ranking_refinement import try_liveness_refinement
+from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
 from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement
 from synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
@@ -82,7 +82,7 @@ def synthesize(program: Program,
 def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_guarantees: [Formula], in_acts: [Variable],
                             out_acts: [Variable], docker: bool, project_on_abstraction=False, debug=False) -> \
         Tuple[bool, MealyMachine]:
-    eager = True
+    eager = False
     keep_only_bool_interpolants = False
     use_explicit_loops_abstraction = False
     allow_user_input = False
@@ -95,8 +95,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     #  a solution here may be to use the atomic predicates appearing the in the transition guard as state predicates
 
     add_all_boolean_vars = True
-
-    state_predicates = []
 
     if add_all_boolean_vars:
         new_state_preds = [Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool")]
@@ -120,8 +118,10 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     new_state_preds = list(set(new_state_preds))
 
-    ranking_invars = {}
-    new_ranking_invars = {}
+    new_tran_preds = set()
+
+    new_ltl_constraints = set()
+    loop_counter = 0
 
     predicate_abstraction = EffectsAbstraction(program)
 
@@ -144,21 +144,20 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     timing_data = ""
     print("Starting abstract synthesis loop.")
+
     while True:
         ## update predicate abstraction
         start = time.time()
-        print("adding " + ", ".join(map(str, new_state_preds + [str(rank) + " with invars " + ", ".join([str(i) for i in invars])
-                                    for rank, invars in new_ranking_invars.items()])) + " to predicate abstraction")
-        predicate_abstraction.add_predicates(new_state_preds, new_ranking_invars, True)
-        timing_data += "\n" + ("adding " + ", ".join(map(str, new_state_preds + [str(rank) + " with invars " + ", ".join([str(i) for i in invars])
-                                    for rank, invars in new_ranking_invars.items()])) + " took " + str(time.time() - start))
+        print("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction")
+        predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, False)
+        timing_data += "\n" + ("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
         logging.info(timing_data)
 
-        state_predicates.extend(new_state_preds)
-        new_state_preds.clear()
+        predicate_abstraction.add_constraints(new_ltl_constraints)
 
-        ranking_invars.update(new_ranking_invars)
-        new_ranking_invars.clear()
+        new_state_preds.clear()
+        new_tran_preds.clear()
+        new_ltl_constraints.clear()
 
         ## LTL abstraction
         start = time.time()
@@ -238,18 +237,17 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                   predicate_abstraction,
                                                   agreed_on_transitions,
                                                   disagreed_on_state,
-                                                  ranking_invars,
+                                                  loop_counter,
                                                   allow_user_input)
 
         timing_data += "\n" + ("liveness refinement took " + str(time.time() - start))
         logging.info(timing_data)
 
         if success:
-            new_ranking_invars, new_transition_predicates = result
-        elif not success and result is not None:
-            # TODO structural refinement
-            logging.error("Structural refinement not implemented yet.")
-            result = None
+            loop_counter = loop_counter + 1
+            new_preds, new_ltl_constraints = result
+            new_state_preds = {p for p in new_preds if all(v for v in p.variablesin() if v in program.local_vars)}
+            new_tran_preds = {p for p in new_preds if any(v for v in p.variablesin() if "_prev" in str(v))}
 
         if eager or (not success and result is None):
             ## do safety refinement

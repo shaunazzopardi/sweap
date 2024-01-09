@@ -29,9 +29,9 @@ class Ranker:
                 logging.info("cpachecker took " + str(time.time() - start))
                 out = str(out)
                 if "Verification result: UNKNOWN" in out:
-                    return None
+                    return False, None
                 elif "Verification result: FALSE" in out:
-                    return None
+                    return False, None
                 elif "Verification result: TRUE" in out:
                     out = out.replace("\\n", "\n")
                     try:
@@ -54,16 +54,15 @@ class Ranker:
                             logging.info("Termination proved, but could only find a nested ranking function, "
                                          "I do not deal with this yet unfortunately for you..: " + str(
                                 ranking_function))
-                            return None
+                            return True, None
 
                         logging.info(main_function + "\n" + out)
-                        return string_to_math_expression(ranking_function).simplify(), [string_to_prop(invar) for
-                                                                                        invar in
-                                                                                        invars]
+                        return True, (string_to_math_expression(ranking_function).simplify(), [string_to_prop(invar) for                                                                                      invar in
+                                                                                        invars])
                     except Exception as err:
                         logging.info(
                             "WARNING: Function terminates, but there is no ranking function, are you sure the loop has at least one iteration?")
-                        return None
+                        return True, None
                 else:
                     logging.info(out)
                     raise Exception("Unexpected result during termination checking of:\n" + main_function)

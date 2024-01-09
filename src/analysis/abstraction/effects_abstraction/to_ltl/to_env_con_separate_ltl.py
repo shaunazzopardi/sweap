@@ -1,13 +1,14 @@
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from config import env, con, init_state
+from prop_lang.mathexpr import MathExpr
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from programs.util import add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, conjunct, X, iff, \
-    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, flatten_effects, negate, label_pred
+    simplify_formula_without_math, G, implies, disjunct, F, U, cnf_safe, flatten_effects, negate, label_pred, \
+    atomic_predicates
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -294,34 +295,20 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
                          effects_abstraction: EffectsAbstraction):
     ltl_abstraction = to_env_con_separate_ltl(effects_abstraction)
 
-    predicate_vars = set()
-    for interpolant in effects_abstraction.get_interpolants():
-        predicate_vars.add(label_pred(interpolant, []))
-
-    transition_fairness = []
-    for ranking, invars in effects_abstraction.get_ranking_and_invars().items():
-        dec = BiOp(add_prev_suffix(ranking), ">", ranking)
-        inc = BiOp(add_prev_suffix(ranking), "<", ranking)
-
-        dec_var = label_pred(dec, effects_abstraction.get_ranking_and_invars().keys())
-        inc_var = label_pred(inc, effects_abstraction.get_ranking_and_invars().keys())
-
-        invar_vars = [label_pred(invar, invars) for invar in invars]
-        invar_formula = conjunct_formula_set(invar_vars)
-
-        predicate_vars.add(dec_var)
-        predicate_vars.add(inc_var)
-        predicate_vars.update(invar_vars)
-
-        transition_fairness.extend([
-            implies(G(F(dec_var)),
-                    G(F((disjunct(inc_var, neg(invar_formula)))))).simplify()])
+    predicate_vars = set(effects_abstraction.var_relabellings.values())
 
     program = effects_abstraction.get_program()
     pred_props = [Variable(s) for s in program.states] \
                  + list(predicate_vars) \
                  + [env, init_state]
 
+    loop_vars = []
+    for ltl_constraint in effects_abstraction.ltl_constraints:
+        all_preds = atomic_predicates(ltl_constraint)
+        loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
+
+    pred_props.extend(list(set(loop_vars)))
+    pred_props = list(set(pred_props))
 
     turn_logic = [init_state, G(X(neg(init_state))), env, G(iff(env, X(con)))]
 
@@ -331,7 +318,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     original_guarantees_expanded = [expand_ltl_to_env_con_steps(g, original_LTL_problem.env_props)
                                     for g in original_LTL_problem.guarantees]
 
-    assumptions = turn_logic + transition_fairness + ltl_abstraction + original_assumptions_expanded
+    assumptions = turn_logic + effects_abstraction.ltl_constraints + ltl_abstraction + original_assumptions_expanded
     guarantees = original_guarantees_expanded
 
     ltl_synthesis_problem = AbstractLTLSynthesisProblem(original_LTL_problem.env_props,
@@ -353,7 +340,7 @@ def expand_ltl_to_env_con_steps_with_until(formula: Formula, env_events: [Variab
 
 
 def expand_ltl_to_env_con_steps(formula: Formula, env_events: [Variable]):
-    if isinstance(formula, Value):
+    if isinstance(formula, Value) or isinstance(formula, MathExpr):
         return formula
     elif isinstance(formula, Variable):
         if formula in env_events:
