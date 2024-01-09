@@ -8,6 +8,7 @@ from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from programs.util import guarded_action_transitions_to_normal_transitions, resolve_next_references, \
     symbol_table_from_typed_valuation
+from prop_lang.formula import Formula
 from prop_lang.nondet import NonDeterministic
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
@@ -316,6 +317,6 @@ def specification_parser():
 parser = program_parser
 
 
-def string_to_program(input: str) -> Program:
-    program = (parser << parsec.eof()).parse(input)
-    return program
+def string_to_program(input: str) -> (Program, Formula):
+    program, ltl_spec = (parser << parsec.eof()).parse(input)
+    return program, ltl_spec
