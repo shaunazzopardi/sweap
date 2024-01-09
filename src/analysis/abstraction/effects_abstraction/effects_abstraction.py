@@ -24,7 +24,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
-    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred
+    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred
 
 
 class EffectsAbstraction(PredicateAbstraction):
@@ -49,8 +49,9 @@ class EffectsAbstraction(PredicateAbstraction):
         self.transition_predicates = []
 
         self.interpolants = set()
-        self.ranking_and_invars = {}
+        self.ltl_constraints = []
         self.loops = []
+        self.var_relabellings = {}
 
         self.con_to_program_transitions = None
         self.env_to_program_transitions = None
@@ -449,28 +450,27 @@ class EffectsAbstraction(PredicateAbstraction):
                         self.abstract_effect[t][E][nextPs])))
 
     def add_predicates(self,
-                       new_interpolants: [Formula],
-                       new_ranking_and_invars: dict[Formula, [Formula]],
+                       new_state_predicates: [Formula],
+                       new_transition_predicates: [Formula],
                        parallelise=True):
-        self.interpolants.update(new_interpolants)
-        all_new_state_preds = (new_interpolants +
-                               list(itertools.chain.from_iterable(new_ranking_and_invars.values())))
-        self.add_state_predicates(all_new_state_preds, parallelise)
+        for p in new_state_predicates:
+            self.var_relabellings[p] = stringify_pred(p)
+        for p in new_transition_predicates:
+            self.var_relabellings[p] = stringify_pred(p)
 
-        self.ranking_and_invars.update(new_ranking_and_invars)
-        new_tran_preds = []
-        new_invars = []
-        for ranking in new_ranking_and_invars.keys():
-            dec = BiOp(add_prev_suffix(ranking), ">", ranking)
-            inc = BiOp(add_prev_suffix(ranking), "<", ranking)
-            new_tran_preds.append(dec)
-            new_tran_preds.append(inc)
-            # new_invars.extend(new_ranking_and_invars[ranking])
+        self.interpolants.update(new_state_predicates)
+        self.add_state_predicates(new_state_predicates, parallelise)
 
-        # self.add_state_predicates(new_invars, parallelise)
-        self.add_transition_predicates(new_tran_preds, parallelise)
+        self.add_transition_predicates(new_transition_predicates, parallelise)
 
         self.pretty_print_abstract_effect()
+
+    def add_constraints(self, new_ltl_constraints: [Formula]):
+        processed_ltl_constraints = []
+        for constraint in new_ltl_constraints:
+            processed = constraint.replace_formulas(self.var_relabellings)
+            processed_ltl_constraints.append(processed)
+        self.ltl_constraints.extend(processed_ltl_constraints)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:
@@ -649,8 +649,8 @@ class EffectsAbstraction(PredicateAbstraction):
     def get_interpolants(self) -> [Formula]:
         return self.interpolants
 
-    def get_ranking_and_invars(self) -> dict[Formula, [Formula]]:
-        return self.ranking_and_invars
+    def get_ranking_and_invars(self):
+        pass
 
     def get_program(self):
         return self.program
