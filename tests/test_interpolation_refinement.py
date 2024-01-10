@@ -4,7 +4,7 @@ from parsing.string_to_program import string_to_program
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from analysis.refinement.fairness_refinement.ranking_refinement import try_liveness_refinement
+from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
 from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement
 from programs.util import parse_nuxmv_ce_output_finite
 

@@ -779,8 +779,17 @@ def depth_of_formula(formula):
         return 0
 
 
+def should_be_math_expr(formula):
+    if isinstance(formula, BiOp):
+        if formula.op in ["<", ">", "<=", ">=", "="]:
+            return True
+    return False
+
+
 def atomic_predicates(formula):
-    if isinstance(formula, Value) or isinstance(formula, Variable) or isinstance(formula, MathExpr):
+    if isinstance(formula, Value):
+        return set()
+    elif isinstance(formula, Variable) or isinstance(formula, MathExpr) or should_be_math_expr(formula):
         return {formula}
     else:
         if isinstance(formula, UniOp):
@@ -788,7 +797,7 @@ def atomic_predicates(formula):
         elif isinstance(formula, BiOp):
             return atomic_predicates(formula.left) | atomic_predicates(formula.right)
         else:
-            raise Exception("atoms: not implemented for " + str(formula))
+            raise Exception("atomic_predicates: not implemented for " + str(formula))
 
 
 def run_with_timeout(f, args, timeout=-1):

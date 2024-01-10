@@ -1,26 +1,21 @@
 import logging
 
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Solver, Interpolator, is_sat, serialize
-
-
-# class SMTChecker:
-#
-#     def __init__(self) -> None:
-#         pass
-#
-#     def check(self, smt: FNode):
-#         try:
-#             solver = Solver(name="msat")
-#             return solver.is_sat(smt)
-#         except Exception as e:
-#             solver = Solver(name="msat")
-#             return solver.is_sat(smt)
+from pysmt.shortcuts import Interpolator, is_sat, serialize, qelim
 
 
 def binary_interpolant(A: FNode, B: FNode) -> FNode:
     with Interpolator(name="msat") as s:
         return s.binary_interpolant(A, B)
+
+
+def sequence_interpolant(formulas: [FNode]) -> [FNode]:
+    with Interpolator(name="msat") as s:
+        return s.sequence_interpolant(formulas)
+
+
+def quantifier_elimination(formula: FNode) -> FNode:
+    return qelim(formula, solver_name="z3")
 
 
 def check(smt: FNode):
