@@ -17,10 +17,66 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true, stringify_formula
+from prop_lang.util import finite_state_preds, true, stringify_formula
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
+
+
+def finite_state_synth(program: Program,
+                       ltl: Formula,
+                       tlsf_path: str):
+    if not program.is_finite_state():
+        raise Exception("Cannot use strix, problem is not finite-state.")
+
+    preds = [
+        pred
+        for val in program.valuation
+        for pred in finite_state_preds(val)]
+    print("Abstracting")
+    abstr = EffectsAbstraction(program)
+    print("encoding into LTL (process specifications)")
+    ltl_assumptions, ltl_guarantees, in_acts, out_acts = process_specifications(program, ltl, tlsf_path)
+    new_ltl_assumptions = []
+    for ltl in ltl_assumptions:
+        new_ltl, new_preds = stringify_formula(ltl, in_acts + out_acts)
+        preds += new_preds
+        new_ltl_assumptions.append(new_ltl)
+
+    new_ltl_guarantees = []
+    for ltl in ltl_guarantees:
+        new_ltl, new_preds = stringify_formula(ltl, in_acts + out_acts)
+        preds += new_preds
+        new_ltl_guarantees.append(new_ltl)
+
+    ltl_assumptions = new_ltl_assumptions
+    ltl_guarantees = new_ltl_guarantees
+
+    print("Adding predicates")
+    abstr.add_predicates(preds, {})
+
+    print("encoding into LTL (ltlsynthesisproblem)")
+    original_LTL_problem = LTLSynthesisProblem(
+        in_acts,
+        out_acts,
+        ltl_assumptions,
+        ltl_guarantees)
+    print("encoding into LTL (ltlabstractiontype)")
+    ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
+        LTLAbstractionBaseType.effects_representation,
+        LTLAbstractionTransitionType.env_con_separate,
+        LTLAbstractionStructureType.control_state,
+        LTLAbstractionOutputType.after_env)
+
+    print("encoding into LTL (to_ltl)")
+    _, abstract_ltl_problem = effects_to_ltl.to_ltl(
+        abstr,
+        original_LTL_problem,
+        ltlAbstractionType)
+    print("running LTL synthesis")
+    (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
+    print(real, mm_hoa)
+    print("REALIZABLE" if real else "UNREALIZABLE")
 
 
 def synthesize(program: Program,
@@ -32,6 +88,16 @@ def synthesize(program: Program,
     #     raise Exception("We do not handle non-deterministic programs yet.")
 
     start = time.time()
+    ltl_assumptions, ltl_guarantees, in_acts, out_acts = process_specifications(program, ltl, tlsf_path)
+    new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
+
+    result = abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
+                                     project_on_abstraction=project_on_abstraction)
+    logging.info("synthesis took " + str(time.time() - start))
+    return result
+
+
+def process_specifications(program, ltl, tlsf_path):
     if tlsf_path is not None:
         ltl_text = syfco_ltl(tlsf_path)
         if " Error\"" in ltl_text:
@@ -72,11 +138,7 @@ def synthesize(program: Program,
 
         if any(x for x in out_acts if x not in out_acts_syfco):
             raise Exception("TLSF file has different output variables than the program.")
-
-    result = abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
-                                     project_on_abstraction=project_on_abstraction)
-    logging.info("synthesis took " + str(time.time() - start))
-    return result
+    return ltl_assumptions, ltl_guarantees, in_acts, out_acts
 
 
 def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_guarantees: [Formula], in_acts: [Variable],

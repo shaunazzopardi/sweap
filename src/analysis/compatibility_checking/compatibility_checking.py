@@ -257,17 +257,18 @@ def there_is_mismatch_between_program_and_strategy(system,
                                                    debug=True,
                                                    mismatch_condition=None):
     model_checker = ModelChecker()
-    if debug:
-        logging.info(system)
-        # Sanity check
-        result, out = model_checker.check(system, "F FALSE", None, livenesstosafety)
-        if result:
-            logging.info("Are you sure the counterstrategy given is complete?")
-            return True, None, out
+    # if debug:
+    #     logging.info(system)
+    #     # Sanity check
+    #     result, out = model_checker.check(system, "F FALSE", None, livenesstosafety)
+    #     if result:
+    #         logging.info("Are you sure the counterstrategy given is complete?")
+    #         return True, None, out
 
     if not controller:
-        there_is_no_mismatch, out = model_checker.check(system, "(! X X mismatch) -> G !(mismatch" + (
-            " & " + mismatch_condition if mismatch_condition is not None else "") + ")", None, livenesstosafety)
+        ltl = "(! X X mismatch) -> G !(mismatch" + (" & " + mismatch_condition if mismatch_condition is not None else "") + ")"
+        logging.info(ltl)
+        there_is_no_mismatch, out = model_checker.check(system, ltl, None, livenesstosafety)
 
         return False, not there_is_no_mismatch, out
     else:

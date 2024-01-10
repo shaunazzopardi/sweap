@@ -6,3 +6,14 @@ class TypedValuation:
 
     def __str__(self) -> str:
         return str(self.name) + " : " + str(self.type) + " := " + str(self.value)
+
+    def is_finite_state(self):
+        if "bool" in self.type:
+            return True
+        if ".." in self.type:
+            lo, hi = self.type.split("..")
+            try:
+                lo, hi = int(lo), int(hi)
+                return True
+            except ValueError:
+                return False

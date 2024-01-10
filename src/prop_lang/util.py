@@ -559,8 +559,8 @@ def type_constraint(variable, symbol_table):
             return Value("TRUE")
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return MathExpr(BiOp(variable, ">=", Value("0")))
-        elif re.match("[0-9]+..+[0-9]+", typed_val.type):
-            split = re.split("..+", typed_val.type)
+        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
+            split = re.split(r"\.\.", typed_val.type)
             lower = split[0]
             upper = split[1]
             return BiOp(MathExpr(BiOp(variable, ">=", Value(lower))), "&&",
@@ -1118,3 +1118,16 @@ def stringify_formula(f, env_con_props):
         return stringify_pred(f), [f]
     else:
         return f, []
+
+
+def finite_state_preds(valuation: TypedValuation):
+    variable = Variable(valuation.name)
+    if not valuation.is_finite_state():
+        raise ValueError(f"Variable '{valuation.name}' is not finite-state")
+    if "bool" in valuation.type:
+        yield variable
+    else:
+        lo, hi = valuation.type.split("..")
+        lo, hi = int(lo), int(hi)
+        for x in range(lo, hi+1):
+            yield MathExpr(BiOp(variable, "=", Value(str(x))))

@@ -76,7 +76,7 @@ class Variable(Atom):
             return Symbol(self.name, BOOL), TRUE()
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return Symbol(self.name, INT), GE(Symbol(self.name, INT), Int(0))
-        elif re.match("[0-9]+..+[0-9]+", typed_val.type):
+        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
             split = re.split("\\.\\.+", typed_val.type)
             lower = int(split[0])
             upper = int(split[1])

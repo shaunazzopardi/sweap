@@ -1,11 +1,13 @@
 import argparse
 import os
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 
 import config
 from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from analysis.model_checker import ModelChecker
 from parsing.string_to_program import string_to_program
-from synthesis.synthesis import synthesize
+from prop_lang.util import finite_state_preds
+from synthesis.synthesis import finite_state_synth, synthesize
 import logging
 from pathlib import Path
 
@@ -112,6 +114,15 @@ def main():
             print(str(mm))
 
         print("Synthesis took: ", (end - start) * 10 ** 3, "ms")
+    elif args.synth_strix:
+        ltl = ltl_spec
+        if ltl is None:
+            if args.tlsf is None:
+                raise Exception("No property specified.")
+        elif args.tlsf is not None:
+            print("Spec in both program and as TLSF given, will use the TLSF.")
+        finite_state_synth(program, ltl, args.tlsf)
+
     else:
         raise Exception("Specify either --translate or --synthesise.")
 
