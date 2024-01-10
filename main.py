@@ -25,6 +25,9 @@ def main():
     parser.add_argument('--synthesise', dest='synthesise', help="Synthesis workflow.", type=bool, nargs='?', const=True)
     parser.add_argument('--tlsf', dest='tlsf', help="Path to a .tlsf file.", type=str)
 
+    # Strix workflow
+    parser.add_argument('--synth-strix', dest='synth_strix', help="Synthesise with Strix (only for finite-state problems).", type=bool, nargs='?', const=True)
+
     parser.add_argument('--only_ranking', dest='only_ranking', help="For fairness refinements, only use ranking refinement.", type=bool, nargs='?', const=True)
     parser.add_argument('--only_structural', dest='only_structural', help="For fairness refinements, only use structural refinement.", type=bool, nargs='?', const=True)
     parser.add_argument('--only_safety', dest='only_safety', help="Do not use fairness refinements.", type=bool, nargs='?', const=True)
