@@ -1109,3 +1109,16 @@ def stringify_formula(f, env_con_props):
         return stringify_pred(f), [f]
     else:
         return f, []
+
+
+def finite_state_preds(valuation: TypedValuation):
+    variable = Variable(valuation.name)
+    if not valuation.is_finite_state():
+        raise ValueError(f"Variable '{valuation.name}' is not finite-state")
+    if "bool" in valuation.type:
+        yield variable
+    else:
+        lo, hi = valuation.type.split("..")
+        lo, hi = int(lo), int(hi)
+        for x in range(lo, hi+1):
+            yield MathExpr(BiOp(variable, "=", Value(str(x))))

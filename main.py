@@ -1,10 +1,12 @@
 import argparse
 import os
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 
 from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from analysis.model_checker import ModelChecker
 from parsing.string_to_program import string_to_program
-from synthesis.synthesis import synthesize
+from prop_lang.util import finite_state_preds
+from synthesis.synthesis import finite_state_synth, synthesize
 import logging
 from pathlib import Path
 
@@ -21,6 +23,9 @@ def main():
     # Synthesis workflow
     parser.add_argument('--synthesise', dest='synthesise', help="Synthesis workflow.", type=bool, nargs='?', const=True)
 
+    # Strix workflow
+    parser.add_argument('--synth-strix', dest='synth_strix', help="Synthesise with Strix (only for finite-state problems).", type=bool, nargs='?', const=True)
+
     parser.add_argument('--tlsf', dest='tlsf', help="Path to a .tlfs file.", type=str)
 
     # how to connect to strix (default just assume `strix' is in path)
@@ -30,7 +35,6 @@ def main():
 
     if args.program is None:
         raise Exception("Program path not specified.")
-
 
     prog_file = open(args.program, "r")
     prog_str = prog_file.read()
@@ -85,6 +89,15 @@ def main():
             print(str(mm))
 
         print("Synthesis took: ", (end - start) * 10 ** 3, "ms")
+    elif args.synth_strix:
+        ltl = ltl_spec
+        if ltl is None:
+            if args.tlsf is None:
+                raise Exception("No property specified.")
+        elif args.tlsf is not None:
+            print("Spec in both program and as TLSF given, will use the TLSF.")
+        finite_state_synth(program, ltl, args.tlsf)
+
     else:
         raise Exception("Specify either --translate or --synthesise.")
 
