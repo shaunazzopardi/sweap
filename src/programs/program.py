@@ -160,6 +160,9 @@ class Program:
         else:
             return transition
 
+    def is_finite_state(self):
+        return all(val.is_finite_state() for val in self.symbol_table.values())
+
     def to_prog(self, spec=None):
         def state_to_str(x):
             if not isinstance(x, str) and hasattr(x, "__iter__"):
