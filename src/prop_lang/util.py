@@ -559,8 +559,8 @@ def type_constraint(variable, symbol_table):
             return Value("TRUE")
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return MathExpr(BiOp(variable, ">=", Value("0")))
-        elif re.match("[0-9]+..+[0-9]+", typed_val.type):
-            split = re.split("..+", typed_val.type)
+        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
+            split = re.split(r"\.\.", typed_val.type)
             lower = split[0]
             upper = split[1]
             return BiOp(MathExpr(BiOp(variable, ">=", Value(lower))), "&&",
