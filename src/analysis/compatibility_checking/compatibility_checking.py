@@ -266,7 +266,7 @@ def there_is_mismatch_between_program_and_strategy(system,
     #         return True, None, out
 
     if not controller:
-        ltl = "(! X X mismatch) -> G !(mismatch" + (" & " + mismatch_condition if mismatch_condition is not None else "") + ")"
+        ltl = "G !(mismatch" + (" & " + mismatch_condition if mismatch_condition is not None else "") + ")"
         logging.info(ltl)
         there_is_no_mismatch, out = model_checker.check(system, ltl, None, livenesstosafety)
 
