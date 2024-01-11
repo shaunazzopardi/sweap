@@ -242,17 +242,23 @@ def liveness_step(program,
     # 1. try TRUE
     conditions.append(true())
     # 2. try pre_cond (i.e. conjunction of preds and neg preds true before entry)
-    conditions.append(pre_cond)
+    cond = pre_cond.to_nuxmv()
+    if cond not in conditions:
+        conditions.append(cond)
     # 3. try entry guard (grounded on E and C)
     entry_guard = (ground_predicate_on_vars(program,
                                            concrete_body[0][0].condition,
                                            concrete_body[0][1], irrelevant_vars, symbol_table)
-                   .simplify())
-    conditions.append(entry_guard)
+                   .simplify()).to_nuxmv()
+    if entry_guard not in conditions:
+        conditions.append(entry_guard)
     # 4. try pre_cond & entry_guard
-    conditions.append(conjunct(pre_cond, entry_guard))
+    cond = conjunct(pre_cond, entry_guard).to_nuxmv()
+    if cond not in conditions:
+        conditions.append(cond)
     # 5. actual initial valuation
-    conditions.append(entry_valuation)
+    if entry_valuation.to_nuxmv() not in conditions:
+        conditions.append(entry_valuation)
 
     # 4. if the above all don t terminate, then failed to weaken loop
 
