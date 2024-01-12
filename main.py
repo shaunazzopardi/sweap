@@ -99,7 +99,7 @@ def main():
             model_checker.to_vmt(model, ltl_spec)
         else:
             print(args.translate + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'vmt'.")
-    elif args.synthesise:
+    elif args.synthesise or args.synth_strix:
         ltl = ltl_spec
         if ltl is None:
             if args.tlsf is None:
@@ -108,7 +108,10 @@ def main():
             print("Spec in both program and as TLSF given, will use the TLSF.")
 
         start = time.time()
-        (realiz, mm) = synthesize(program, ltl, args.tlsf, args.docker)
+        (realiz, mm) = (
+            finite_state_synth(program, ltl, args.tlsf)
+            if args.synth_strix
+            else synthesize(program, ltl, args.tlsf, args.docker))
         end = time.time()
 
         if realiz:
@@ -119,14 +122,6 @@ def main():
             print(str(mm))
 
         print("Synthesis took: ", (end - start) * 10 ** 3, "ms")
-    elif args.synth_strix:
-        ltl = ltl_spec
-        if ltl is None:
-            if args.tlsf is None:
-                raise Exception("No property specified.")
-        elif args.tlsf is not None:
-            print("Spec in both program and as TLSF given, will use the TLSF.")
-        finite_state_synth(program, ltl, args.tlsf)
 
     else:
         raise Exception("Specify either --translate or --synthesise.")
