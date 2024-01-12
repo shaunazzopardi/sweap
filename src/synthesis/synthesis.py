@@ -33,6 +33,7 @@ def finite_state_synth(program: Program,
         pred
         for val in program.valuation
         for pred in finite_state_preds(val)]
+
     print("Abstracting")
     abstr = EffectsAbstraction(program)
     print("encoding into LTL (process specifications)")
@@ -89,7 +90,6 @@ def synthesize(program: Program,
 
     start = time.time()
     ltl_assumptions, ltl_guarantees, in_acts, out_acts = process_specifications(program, ltl, tlsf_path)
-    new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
 
     result = abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
                                      project_on_abstraction=project_on_abstraction)
