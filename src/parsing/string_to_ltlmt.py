@@ -208,8 +208,6 @@ class ToProgram(NodeWalker):
         enum_updates = {
             var: set((stringify_pred(x).name.replace("pred__", "upd__"), x) for i, x in enumerate(ups))
             for var, ups in self.updates.items()}
-        print(enum_updates)
-        input()
 
         self.substitutions = self.checks | {
             u[1]: Variable(u[0])
