@@ -5,6 +5,7 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import Effects
 from config import Config
 from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from analysis.model_checker import ModelChecker
+from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
 from prop_lang.util import finite_state_preds
 from synthesis.synthesis import finite_state_synth, synthesize
@@ -18,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser()
     # input monitor
     parser.add_argument('--p', dest='program', help="Path to a .prog file.", type=str)
+    parser.add_argument('--tsl', dest='tsl', help="Path to a .tsl file.", type=str)
 
     parser.add_argument('--translate', dest='translate', help="Translation workflow.", type=str)
 
@@ -37,8 +39,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.program is None:
-        raise Exception("Program path not specified.")
+    if args.program is None and args.tsl is None:
+        raise Exception("No input given! (Specify either --p or --tsl.)")
+    if args.program is not None and args.tsl is not None:
+        raise Exception("Cannot use both --p and --tsl.")
 
     conf = Config.getConfig()
 
@@ -66,9 +70,16 @@ def main():
         conf.only_structural = False
         conf.only_safety = True
 
-    prog_file = open(args.program, "r")
-    prog_str = prog_file.read()
-    program, ltl_spec = string_to_program(prog_str)
+    if args.program is not None:
+        prog_file = open(args.program, "r")
+        prog_str = prog_file.read()
+        program, ltl_spec = string_to_program(prog_str)
+    elif args.tsl is not None:
+        ltlmt_formula = open(args.tsl, "r").read()
+        ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        prog_name = Path(args.tsl).stem + "_tsl"
+        program, ltl_spec = tp.ltlmt2prog(ltlmt, prog_name)
 
     logdir = Path(os.getcwd()) / "out" / program.name
 
