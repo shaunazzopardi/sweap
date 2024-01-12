@@ -1,0 +1,15 @@
+(G ([steps := 2] <-> (! [bottom := bottom + 1]))) -> G (
+   (([bottom := bottom + 1] && [top := top]) <-> [users := users + 1])
+   &&
+   (([bottom := bottom] && [top := top - 1]) <-> [users := users - 1])
+   &&
+   (([bottom := bottom] && [top := top + 1]) <-> [users := users + 1])
+   &&
+   (([bottom := bottom - 1] && [top := top]) <-> [users := users - 1])
+   &&
+   (((users = 0) && (bottom = 0) && (top = 0)) -> [steps := 0])
+   &&
+   (((users = 0) && (bottom > top)) -> [steps := 1])
+   &&
+   ((users = 0) && (! (bottom > top)) -> [steps := 2])
+)
