@@ -1,0 +1,17 @@
+G (
+    (! ((hit_paddle1) && (hit_paddle2)))
+    &&
+    (((hit_paddle1) || (hit_paddle2)) -> (! ((loc = 0) || (loc = 100))))
+) -> G(
+    ((hit_paddle1) -> [loc := loc + 1])
+    &&
+    ((hit_paddle2) -> [loc := loc - 1])
+    &&
+    ((loc = 0) -> [loc := loc - 1])
+    &&
+    ((loc = 100) -> [loc := loc - 1])
+    &&
+    (([loc := loc - 1] -> [loc := loc - 1]) W ((loc = 0) || (hit_paddle1)))
+    &&
+    (([loc := loc + 1] -> [loc := loc + 1]) W ((loc = 100) || (hit_paddle2)))
+)
