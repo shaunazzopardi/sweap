@@ -129,7 +129,9 @@ def tuple_to_formula(node) -> Formula:
         return UniOp(node[0], (node[1]))
     elif len(node) == 3:
         if re.match("^(<|>|<=|>=|==|=)$", node[1]):
-            return MathExpr(BiOp((node[0]), node[1], (node[2])))
+            # Normalize == to =
+            op = "=" if node[1] == "==" else node[1]
+            return MathExpr(BiOp((node[0]), op, (node[2])))
         elif re.match("(!=)", node[1]):
                 return UniOp("!", MathExpr(BiOp((node[0]), "=", (node[2]))))
         else:
@@ -155,6 +157,7 @@ def string_to_ltlmt(text: str) -> Formula:
     formula = parser.parse(text, semantics=Semantics())
     return formula
 
+
 class ToProgram(NodeWalker):
     def __init__(self):
         super().__init__()
@@ -167,7 +170,7 @@ class ToProgram(NodeWalker):
     def walk_BiOp(self, node: BiOp):
         node.left = self.find_substitute(node.left)
         node.right = self.find_substitute(node.right)
-        if node.op not in (">", ">=", "<", "<=", "==", "!="):
+        if node.op not in (">", ">=", "<", "<=", "==", "=", "!="):
             self.walk(node.left)
             self.walk(node.right)
 
@@ -190,7 +193,6 @@ class ToProgram(NodeWalker):
         if node.formula in self.substitutions:
             node.formula = self.substitutions[node.formula]
         self.walk(node.formula)
-        # if node.op in 
 
     def walk_MathOp(self, node: MathOp):
         if node.formula in self.substitutions:
