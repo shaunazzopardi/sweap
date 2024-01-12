@@ -1,0 +1,37 @@
+(G (
+     (! ((! (fmFreq <= 500) && (! (fmFreq > 500)))))
+     &&
+     (! ((! (amFreq <= 500)) && (! (amFreq > 500))))
+     &&
+     (((amFreq <= 500) && ([amFreq := amFreq + 100] W (amFreq > 500))) -> (F (amFreq > 500)))
+     &&
+     (((amFreq > 500) && ([amFreq := amFreq - 100] W (amFreq <= 500))) -> (F (amFreq <= 500)))
+     &&
+     (((fmFreq <= 500 && ([fmFreq := fmFreq + 100] W (fmFreq > 500))) -> (F (fmFreq > 500))))
+     &&
+     ((fmFreq > 500) && ([fmFreq := fmFreq - 100] W (fmFreq <= 500)) -> (F (fmFreq <= 500)))
+)) -> G (
+    (G (F [amSynthesis := 1]))
+    &&
+    (G (F [amSynthesis := 0]))
+    &&
+    (G (F [fmSynthesis := 1]))
+    &&
+    (G (F [fmSynthesis := 0]))
+    &&
+    (((amFreq <= 500) -> [amSynthesis := 0]) U (amFreq > 500))
+    &&
+    (((amFreq > 500) -> [amSynthesis := 1]) U (amFreq <= 500))
+    &&
+    ([amSynthesis := 0] -> [amFreq := amFreq + 100])
+    &&
+    ([amSynthesis := 1] -> [amFreq := amFreq - 100])
+    &&
+    (((fmFreq <= 500) -> [fmSynthesis := 0]) U (fmFreq > 500))
+    &&
+    (((amFreq > 500) -> [fmSynthesis := 1]) U (fmFreq <= 500))
+    &&
+    ([fmSynthesis := 0] -> [fmFreq := fmFreq + 100])
+    &&
+    ([fmSynthesis := 1] -> [fmFreq := fmFreq - 100])
+)
