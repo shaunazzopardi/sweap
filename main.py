@@ -2,7 +2,7 @@ import argparse
 import os
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 
-import config
+from config import Config
 from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
 from analysis.model_checker import ModelChecker
 from parsing.string_to_program import string_to_program
@@ -40,29 +40,31 @@ def main():
     if args.program is None:
         raise Exception("Program path not specified.")
 
+    conf = Config.getConfig()
+
     if args.only_ranking is not None:
         if args.only_structural is not None:
             raise Exception("Cannot use both only_ranking and only_structural.")
-        config.prefer_ranking = False
-        config.only_ranking = True
-        config.only_structural = False
-        config.only_safety = False
+        conf.prefer_ranking = False
+        conf.only_ranking = True
+        conf.only_structural = False
+        conf.only_safety = False
 
     if args.only_structural is not None:
         if args.only_ranking is not None:
             raise Exception("Cannot use both only_ranking and only_structural.")
-        config.prefer_ranking = False
-        config.only_ranking = False
-        config.only_structural = True
-        config.only_safety = False
+        conf.prefer_ranking = False
+        conf.only_ranking = False
+        conf.only_structural = True
+        conf.only_safety = False
 
     if args.only_safety is not None:
         if args.only_ranking is not None or args.only_structural is not None:
             raise Exception("Cannot use both only_safety with only_ranking and only_structural.")
-        config.prefer_ranking = False
-        config.only_ranking = False
-        config.only_structural = False
-        config.only_safety = True
+        conf.prefer_ranking = False
+        conf.only_ranking = False
+        conf.only_structural = False
+        conf.only_safety = True
 
     prog_file = open(args.program, "r")
     prog_str = prog_file.read()

@@ -2,7 +2,7 @@ import itertools
 import logging
 import time
 
-from config import prefer_ranking, only_structural, only_ranking, only_safety
+from config import Config
 from pysmt.shortcuts import Implies, And, Exists, Symbol, ForAll
 from pysmt.typing import INT
 
@@ -27,7 +27,9 @@ def try_liveness_refinement(counterstrategy_states: [str],
                             disagreed_on_state,
                             loop_counter,
                             allow_user_input):
-    if only_safety:
+    conf = Config.getConfig()
+
+    if conf.only_safety:
         return False, None
 
     symbol_table = predicate_abstraction.get_symbol_table()
@@ -222,6 +224,7 @@ def liveness_step(program,
                   concrete_body,
                   counter,
                   symbol_table):
+    conf = Config.getConfig()
     body = [t.action for t, _ in concrete_body]
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
 
@@ -270,6 +273,7 @@ def liveness_step(program,
     reduced_body_flattened = itertools.chain.from_iterable(reduced_body)
     reduced_body_flattened = [Transition("q0", true(), [a], [], "q0") for a in reduced_body_flattened]
 
+    conf = Config.getConfig()
     for cond in conditions:
         # for exit_pred in disjuncts_in_exit_pred_grounded:
         if len(exit_cond.variablesin()) == 0:
@@ -288,7 +292,7 @@ def liveness_step(program,
             elif sufficient_entry_condition is None:
                 sufficient_entry_condition = cond
 
-            if (prefer_ranking or only_ranking) and output != None:
+            if (conf.prefer_ranking or conf.only_ranking) and output != None:
                 ranking, invars = output
                 # if function_is_ranking_function(ranking, invars, body, symbol_table):
                 if ranking not in used_rankings:
@@ -296,7 +300,7 @@ def liveness_step(program,
                         # if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
                         used_rankings.add(ranking)
                         return True, ranking_refinement(ranking, invars)
-            elif only_structural and not only_ranking:
+            elif conf.only_structural and not conf.only_ranking:
                 if conditions[-1] == cond:
                     return False, None
                 else:
@@ -308,7 +312,7 @@ def liveness_step(program,
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 
-    if not only_ranking:
+    if not conf.only_ranking:
         return True, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter)
     else:
         return False, None
