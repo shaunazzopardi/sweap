@@ -17,7 +17,7 @@ from prop_lang.formula import Formula
 from prop_lang.math_op import MathOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, disjunct_formula_set, normalize_ltl
+from prop_lang.util import conjunct_formula_set, disjunct_formula_set, normalize_ltl, stringify_pred
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -206,8 +206,10 @@ class ToProgram(NodeWalker):
         # First pass to collect stuff
         self.walk(orig_formula)
         enum_updates = {
-            var: set((f"UPD_{var}_{i}", x) for i, x in enumerate(ups))
+            var: set((stringify_pred(x).name.replace("pred__", "upd__"), x) for i, x in enumerate(ups))
             for var, ups in self.updates.items()}
+        print(enum_updates)
+        input()
 
         self.substitutions = self.checks | {
             u[1]: Variable(u[0])
@@ -249,14 +251,14 @@ class ToProgram(NodeWalker):
             up_vars = [Variable(x[0]) for x in ups]
             up_vars.sort(key=lambda x: x.name)
             at_least_one = disjunct_formula_set(up_vars)
-            at_most_one = conjunct_formula_set([
-                BiOp(UniOp("!", a), "||", UniOp("!", b))
-                for a,b in combinations(up_vars, 2)
-            ])
+            card_constraint.extend(
+                BiOp(a, "->", UniOp("!", disjunct_formula_set([
+                    b for b in up_vars if a != b])))
+                for a in up_vars)
             card_constraint.append(at_least_one)
-            card_constraint.append(at_most_one)
-        card_constraint = conjunct_formula_set(card_constraint)
-        card_constraint = UniOp("G", card_constraint).simplify()
+            # card_constraint.append(at_most_one)
+        card_constraint = conjunct_formula_set(
+            UniOp("G", c) for c in card_constraint)
 
         if isinstance(formula, BiOp) and formula.op == "->":
             formula.right = BiOp(formula.right, "&&", card_constraint)

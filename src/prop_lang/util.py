@@ -1064,6 +1064,7 @@ def stringify_pred(p):
                               .replace("_", "")
                               .replace("(", "_")
                               .replace(")", "_")
+                              .replace(":=", "_GETS_")
                               .replace("=", "_EQ_")
                               .replace(">", "_GT_")
                               .replace("<=", "_LTEQ_")
