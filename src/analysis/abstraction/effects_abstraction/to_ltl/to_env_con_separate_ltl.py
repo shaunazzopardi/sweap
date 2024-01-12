@@ -292,8 +292,12 @@ def to_env_con_separate_ltl_organised_by_pred_effects(predicate_abstraction: Eff
 
 
 def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
-                         effects_abstraction: EffectsAbstraction):
-    ltl_abstraction = to_env_con_separate_ltl(effects_abstraction)
+                         effects_abstraction: EffectsAbstraction,
+                         separate_by_effects: bool = False):
+    ltl_abstraction = (
+        to_env_con_separate_ltl_organised_by_pred_effects(effects_abstraction)
+        if separate_by_effects
+        else to_env_con_separate_ltl(effects_abstraction))
 
     predicate_vars = set(effects_abstraction.var_relabellings.values())
 

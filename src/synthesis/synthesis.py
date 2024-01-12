@@ -65,7 +65,7 @@ def finite_state_synth(program: Program,
     print("encoding into LTL (ltlabstractiontype)")
     ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
         LTLAbstractionBaseType.effects_representation,
-        LTLAbstractionTransitionType.env_con_separate,
+        LTLAbstractionTransitionType.env_con_separate_organised_by_effects,
         LTLAbstractionStructureType.control_state,
         LTLAbstractionOutputType.after_env)
 

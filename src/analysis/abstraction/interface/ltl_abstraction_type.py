@@ -9,6 +9,7 @@ class LTLAbstractionBaseType(Enum):
 class LTLAbstractionTransitionType(Enum):
     combined = 1  # combine con transitions with env transitions
     env_con_separate = 2  # keep con and env transitions separate
+    env_con_separate_organised_by_effects = 3
 
 
 class LTLAbstractionStructureType(Enum):
