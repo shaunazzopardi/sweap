@@ -25,7 +25,7 @@ import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 
 def finite_state_synth(program: Program,
                        ltl: Formula,
-                       tlsf_path: str):
+                       tlsf_path: str) -> Tuple[bool, MealyMachine]:
     if not program.is_finite_state():
         raise Exception("Cannot use strix, problem is not finite-state.")
 
@@ -76,8 +76,7 @@ def finite_state_synth(program: Program,
         ltlAbstractionType)
     print("running LTL synthesis")
     (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
-    print(real, mm_hoa)
-    print("REALIZABLE" if real else "UNREALIZABLE")
+    return (real, mm_hoa)
 
 
 def synthesize(program: Program,
