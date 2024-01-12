@@ -29,14 +29,14 @@ def finite_state_synth(program: Program,
     if not program.is_finite_state():
         raise Exception("Cannot use strix, problem is not finite-state.")
 
+    print("constructing initial abstraction")
+    start = time.time()
     preds = [
         pred
         for val in program.valuation
         for pred in finite_state_preds(val)]
 
-    print("Abstracting")
     abstr = EffectsAbstraction(program)
-    print("encoding into LTL (process specifications)")
     ltl_assumptions, ltl_guarantees, in_acts, out_acts = process_specifications(program, ltl, tlsf_path)
     new_ltl_assumptions = []
     for ltl in ltl_assumptions:
@@ -53,27 +53,29 @@ def finite_state_synth(program: Program,
     ltl_assumptions = new_ltl_assumptions
     ltl_guarantees = new_ltl_guarantees
 
-    print("Adding predicates")
     abstr.add_predicates(preds, {})
+    logging.info(f"initial abstraction took {time.time() - start}")
 
-    print("encoding into LTL (ltlsynthesisproblem)")
+    start = time.time()
+    print("constructing LTL abstraction")
     original_LTL_problem = LTLSynthesisProblem(
         in_acts,
         out_acts,
         ltl_assumptions,
         ltl_guarantees)
-    print("encoding into LTL (ltlabstractiontype)")
+
     ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
         LTLAbstractionBaseType.effects_representation,
         LTLAbstractionTransitionType.env_con_separate_organised_by_effects,
         LTLAbstractionStructureType.control_state,
         LTLAbstractionOutputType.after_env)
 
-    print("encoding into LTL (to_ltl)")
     _, abstract_ltl_problem = effects_to_ltl.to_ltl(
         abstr,
         original_LTL_problem,
         ltlAbstractionType)
+    logging.info(f"to ltl abstraction took {time.time() - start}")
+
     print("running LTL synthesis")
     (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
     return (real, mm_hoa)
