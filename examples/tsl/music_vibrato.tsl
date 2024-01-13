@@ -1,10 +1,4 @@
 G (
-    (! ((! (lfoFreq <= 10) && (! ((lfoFreq > 10))))))
-    &&
-    (((lfoFreq <= 10) && ([lfoFreq := lfoFreq + 1] W ((lfoFreq > 10)))) -> (F (lfoFreq > 10)))
-    &&
-    (((lfoFreq > 10) && ([lfoFreq := lfoFreq - 1] W (lfoFreq <= 10))) -> (F (lfoFreq <= 10)))
-) -> G (
    (G (F [lfo := 1]))
    &&
    (G (F [lfo := 0]))

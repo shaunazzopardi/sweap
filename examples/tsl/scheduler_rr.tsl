@@ -1,13 +1,11 @@
 G (
-    ((enqueue && (cpu1 > cpu0)) -> [cpu0 := cpu0 + 1])
+    ([ptr := ptr + 1] || [ptr := ptr - 1])
     &&
-    ((enqueue && (cpu0 > cpu1)) -> [cpu1 := cpu1 + 1])
+    (G F [nx := 0])
     &&
-    ((!enqueue && (cpu1 > cpu0)) -> ([cpu0 := cpu0 + 1] && [cpu1 := cpu1 + 1]))
+    (G F [nx := 1])
     &&
-    ((!enqueue && (cpu0 > cpu1)) -> ([cpu0 := cpu0 - 1] && [cpu1 := cpu1 + 1]))
+    ((ptr = 0) -> [nx := 0])
     &&
-    !(G (cpu0 > cpu1))
-    &&
-    !(G (cpu1 > cpu0))
+    ((ptr = 1) -> [nx := 1])
 )

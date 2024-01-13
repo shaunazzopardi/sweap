@@ -1,16 +1,4 @@
-(G (
-     (! ((! (fmFreq <= 500) && (! (fmFreq > 500)))))
-     &&
-     (! ((! (amFreq <= 500)) && (! (amFreq > 500))))
-     &&
-     (((amFreq <= 500) && ([amFreq := amFreq + 100] W (amFreq > 500))) -> (F (amFreq > 500)))
-     &&
-     (((amFreq > 500) && ([amFreq := amFreq - 100] W (amFreq <= 500))) -> (F (amFreq <= 500)))
-     &&
-     (((fmFreq <= 500 && ([fmFreq := fmFreq + 100] W (fmFreq > 500))) -> (F (fmFreq > 500))))
-     &&
-     ((fmFreq > 500) && ([fmFreq := fmFreq - 100] W (fmFreq <= 500)) -> (F (fmFreq <= 500)))
-)) -> G (
+G (
     (G (F [amSynthesis := 1]))
     &&
     (G (F [amSynthesis := 0]))

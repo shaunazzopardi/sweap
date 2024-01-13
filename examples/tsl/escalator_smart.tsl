@@ -5,9 +5,9 @@
 ) -> G (
     (!([topqueue := topqueue - 1] && [botqueue := botqueue - 1]))
     &&
-    (F (!(topqueue > 0 | topqueue < 0)))
+    (F (topqueue = 0)
     &&
-    (F (!(botqueue > 0 | botqueue < 0)))
+    (F (botqueue = 0)
     &&
     (incrbot -> [botqueue := botqueue + 1])
     &&
