@@ -223,6 +223,9 @@ def liveness_step(program,
                   concrete_body,
                   counter,
                   symbol_table):
+    if any(v for v in exit_cond.variablesin() if "_prev" in str(v)):
+        return False, None
+
     body = [t.action for t, _ in concrete_body]
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
 
