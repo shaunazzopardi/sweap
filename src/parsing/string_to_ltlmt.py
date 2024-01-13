@@ -226,7 +226,11 @@ class ToProgram(NodeWalker):
         # TODO how do we initialize?
         init_values = [TypedValuation(x, "integer", Value(0)) for x in self.updates]
 
-        def mk_cond(names):
+        def mk_cond(names, determinize=False):
+            if not determinize:
+                return conjunct_formula_set(
+                    x for x in con_events
+                    if x.name in names)
             return conjunct_formula_set((
                 x if x.name in names else UniOp("!", x)
                 for x in con_events))
@@ -258,7 +262,7 @@ class ToProgram(NodeWalker):
                     b for b in up_vars if a != b])))
                 for a in up_vars)
             card_constraint.append(at_least_one)
-            # card_constraint.append(at_most_one)
+
         card_constraint = conjunct_formula_set(
             UniOp("G", c) for c in card_constraint)
 
