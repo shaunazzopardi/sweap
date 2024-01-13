@@ -9,3 +9,4 @@ prefer_ranking = True
 only_structural = False
 only_ranking = False
 only_safety = False
+eager_fairness = True

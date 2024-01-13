@@ -2,7 +2,7 @@ import itertools
 import logging
 import time
 
-from config import prefer_ranking, only_structural, only_ranking, only_safety
+from config import prefer_ranking, only_structural, only_ranking, only_safety, eager_fairness
 from pysmt.shortcuts import Implies, And, Exists, Symbol, ForAll
 from pysmt.typing import INT
 
@@ -305,14 +305,12 @@ def liveness_step(program,
                     return False, None
                 else:
                     return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter)
-
-        except Exception as e:
-            print(str(e))
+        except Exception:
             continue
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 
-    if not only_ranking:
+    if not only_ranking and sufficient_entry_condition != conditions[-1]:
         return True, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter)
     else:
         return False, None
