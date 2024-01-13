@@ -27,6 +27,9 @@ def try_liveness_refinement(counterstrategy_states: [str],
                             disagreed_on_state,
                             loop_counter,
                             allow_user_input):
+    conf = Config.getConfig()
+
+    if conf.only_safety:
         return False, None
 
     symbol_table = predicate_abstraction.get_symbol_table()
