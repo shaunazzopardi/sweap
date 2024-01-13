@@ -237,7 +237,9 @@ class ToProgram(NodeWalker):
                 [u[1] for u in ups], [], 'e0'))
 
         env_t = [Transition(
-            'e0', None, [], [], 'c0'
+            'e0', None,
+            [BiOp(Variable(u), ":=", Variable(u)) for u in self.updates],
+            [], 'c0'
         )]
 
         prog = Program(
