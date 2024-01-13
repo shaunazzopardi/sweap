@@ -1,7 +1,5 @@
 (
     G(botqueue >= 0 & topqueue >= 0)
-    &&
-    F G (!incrtop && !incrbot)
 ) -> G (
     (!([topqueue := topqueue - 1] && [botqueue := botqueue - 1]))
     &&
@@ -9,11 +7,7 @@
     &&
     (F (botqueue = 0)
     &&
-    (incrbot -> [botqueue := botqueue + 1])
+    ((botqueue > topqueue) -> [botqueue := botqueue - 1])
     &&
-    (incrtop -> [topqueue := topqueue + 1])
-    &&
-    (!incrbot && (botqueue > topqueue) -> [botqueue := botqueue - 1])
-    &&
-    (!incrtop && (!(botqueue > topqueue)) -> [topqueue := topqueue - 1])
+    ((!(botqueue > topqueue)) -> [topqueue := topqueue - 1])
 )
