@@ -185,7 +185,7 @@ def function_is_ranking_function(f, invars, body, symbol_table):
 
 def cones_of_influence_reduction(exit_cond, body):
     vars_relevant_to_exit = set(exit_cond.variablesin())
-    next_relevant = set()
+    next_relevant = set(vars_relevant_to_exit)
 
     while len(next_relevant) > 0:
         vars_relevant_to_exit.update(next_relevant)
@@ -196,6 +196,7 @@ def cones_of_influence_reduction(exit_cond, body):
                 if act.left != act.right and act.left in vars_relevant_to_exit:
                     act_vars = set(act.right.variablesin() + [act.left])
                     next_relevant.update(act_vars)
+        next_relevant.difference_update(vars_relevant_to_exit)
 
     reduced = False
     reduced_body = []
