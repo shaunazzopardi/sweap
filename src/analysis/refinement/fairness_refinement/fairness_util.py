@@ -300,7 +300,8 @@ def liveness_step(program,
                         # if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
                         used_rankings.add(ranking)
                         return True, ranking_refinement(ranking, invars)
-            elif only_structural and not only_ranking:
+
+            if (only_structural and not only_ranking) or eager_fairness:
                 if conditions[-1] == cond:
                     return False, None
                 else:
