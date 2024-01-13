@@ -27,9 +27,6 @@ def try_liveness_refinement(counterstrategy_states: [str],
                             disagreed_on_state,
                             loop_counter,
                             allow_user_input):
-    conf = Config.getConfig()
-
-    if conf.only_safety:
         return False, None
 
     symbol_table = predicate_abstraction.get_symbol_table()
@@ -187,7 +184,7 @@ def function_is_ranking_function(f, invars, body, symbol_table):
 
 def cones_of_influence_reduction(exit_cond, body):
     vars_relevant_to_exit = set(exit_cond.variablesin())
-    next_relevant = set()
+    next_relevant = set(vars_relevant_to_exit)
 
     while len(next_relevant) > 0:
         vars_relevant_to_exit.update(next_relevant)
@@ -198,6 +195,7 @@ def cones_of_influence_reduction(exit_cond, body):
                 if act.left != act.right and act.left in vars_relevant_to_exit:
                     act_vars = set(act.right.variablesin() + [act.left])
                     next_relevant.update(act_vars)
+        next_relevant.difference_update(vars_relevant_to_exit)
 
     reduced = False
     reduced_body = []
@@ -225,6 +223,9 @@ def liveness_step(program,
                   counter,
                   symbol_table):
     conf = Config.getConfig()
+    if any(v for v in exit_cond.variablesin() if "_prev" in str(v)):
+        return False, None
+
     body = [t.action for t, _ in concrete_body]
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
 
@@ -305,14 +306,12 @@ def liveness_step(program,
                     return False, None
                 else:
                     return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter)
-
-        except Exception as e:
-            print(str(e))
+        except Exception:
             continue
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 
-    if not conf.only_ranking:
+    if not conf.only_ranking and sufficient_entry_condition != conditions[-1]:
         return True, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter)
     else:
         return False, None
