@@ -3,9 +3,9 @@ G (
    &&
    (G (F [lfo := 0]))
    &&
-   ((!(lfoFreq > 10) -> [lfo := 0]) U ((lfoFreq > 10)))
+   ((!(lfoFreq > 10)) -> ([lfo := 0] U (lfoFreq > 10)))
    &&
-   (((lfoFreq > 10) -> [lfo := 1]) U !(lfoFreq > 10))
+   ((lfoFreq > 10) -> ([lfo := 1] U (!(lfoFreq > 10))))
    &&
    ([lfo := 0] -> [lfoFreq := lfoFreq + 1])
    &&
