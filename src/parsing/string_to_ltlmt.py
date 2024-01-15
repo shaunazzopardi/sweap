@@ -226,7 +226,7 @@ class ToProgram(NodeWalker):
         # TODO how do we initialize?
         init_values = [TypedValuation(x, "integer", Value(0)) for x in self.updates]
 
-        def mk_cond(names, determinize=False):
+        def mk_cond(names, determinize=True):
             if not determinize:
                 return conjunct_formula_set(
                     x for x in con_events
@@ -248,7 +248,7 @@ class ToProgram(NodeWalker):
 
         prog = Program(
             name, ['e0', 'c0'], 'e0', init_values, env_t, con_t,
-            list(self.env_events), con_events, [], preprocess=False)
+            list(self.env_events), con_events, [], preprocess=True)
 
         formula = normalize_ltl(orig_formula)
 
