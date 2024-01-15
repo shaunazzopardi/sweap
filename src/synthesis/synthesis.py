@@ -205,7 +205,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                ltl_assumptions,
                                                ltl_guarantees)
 
-    timing_data = ""
     print("Starting abstract synthesis loop.")
 
     while True:
@@ -213,8 +212,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         start = time.time()
         print("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction")
         predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, False)
-        timing_data += "\n" + ("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
-        logging.info(timing_data)
+        logging.info("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
 
         predicate_abstraction.add_constraints(new_ltl_constraints)
 
@@ -229,14 +227,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                                        original_LTL_problem,
                                                                        ltlAbstractionType)
 
-        timing_data += "\n" + ("to ltl abstraction took " + str(time.time() - start))
-        logging.info(timing_data)
+        logging.info("to ltl abstraction took " + str(time.time() - start))
 
         start = time.time()
         print("running LTL synthesis")
         (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
-        timing_data += "\n" + ("ltl synthesis took " + str(time.time() - start))
-        logging.info(timing_data)
+        logging.info("ltl synthesis took " + str(time.time() - start))
 
         if real and not debug:
             logging.info("Realizable")
@@ -261,9 +257,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                          abstract_ltl_problem,
                                                          real)
 
-        timing_data += "\n" + ("massaging mealy machine took " + str(time.time() - start))
         logging.info(mm)
-        logging.info(timing_data)
+        logging.info("massaging mealy machine took " + str(time.time() - start))
 
         ## compatibility checking
         start = time.time()
@@ -279,8 +274,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                        project_on_abstraction,
                                                        prefer_lasso_counterexamples)
 
-        timing_data += "\n" + ("compatibility checking took " + str(time.time() - start))
-        logging.info(timing_data)
+        logging.info("compatibility checking took " + str(time.time() - start))
 
         if determination == False:
             logging.info("Problem is unrealisable.")
@@ -303,8 +297,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                   loop_counter,
                                                   allow_user_input)
 
-        timing_data += "\n" + ("liveness refinement took " + str(time.time() - start))
-        logging.info(timing_data)
+        logging.info("liveness refinement took " + str(time.time() - start))
 
         if success:
             loop_counter = loop_counter + 1
@@ -325,7 +318,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                 keep_only_bool_interpolants,
                                                 conservative_with_state_predicates)
 
-            timing_data += "\n" + ("safety refinement took " + str(time.time() - start))
+            logging.info("safety refinement took " + str(time.time() - start))
             if success:
                 new_state_preds = result
             else:
