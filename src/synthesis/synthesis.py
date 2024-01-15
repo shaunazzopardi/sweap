@@ -208,6 +208,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     print("Starting abstract synthesis loop.")
 
     while True:
+        new_state_preds = [p for p in new_state_preds if p not in predicate_abstraction.state_predicates]
+        new_tran_preds = [p for p in new_tran_preds if p not in predicate_abstraction.transition_predicates]
         ## update predicate abstraction
         start = time.time()
         print("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction")
@@ -302,7 +304,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         if success:
             loop_counter = loop_counter + 1
             new_preds, new_ltl_constraints = result
-            new_state_preds = {p for p in new_preds if all(v for v in p.variablesin() if v in program.local_vars)}
+            new_state_preds = {p for p in new_preds if not any (v for v in p.variablesin() if v not in program.local_vars or "_prev" in str(v))}
             new_tran_preds = {p for p in new_preds if any(v for v in p.variablesin() if "_prev" in str(v))}
 
         if eager or (not success and result is None):

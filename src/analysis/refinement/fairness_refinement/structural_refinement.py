@@ -41,9 +41,12 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
 
     for i in range(0, len(terminating_loop)):
         guard, acts = terminating_loop[i]
-        acts_i = [BiOp(act.left, "=", add_prev_suffix(act.right)) for act in acts]
+        complete_acts = [BiOp(c, ":=", c) for c in exit_condition.variablesin() if not any(act for act in acts if act.left == c)]
+        complete_acts += acts
+
+        acts_i = [BiOp(act.left, "=", add_prev_suffix(act.right)) for act in complete_acts]
         act_i = conjunct_formula_set(acts_i)
-        sts_i = [BiOp(act.left, "=", add_prev_suffix(act.left)) for act in acts]
+        sts_i = [BiOp(act.left, "=", add_prev_suffix(act.left)) for act in complete_acts]
         st_i = conjunct_formula_set(sts_i)
 
         atomic_preds.extend(atomic_predicates(guard))
