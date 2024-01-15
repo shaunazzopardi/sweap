@@ -5,7 +5,7 @@
   &&
   (([bottom <- bottom] && [top <- top - 1]) <-> [ users <- users - 1])
   &&
-  (((users = 0) && [bottom <- bottom]) -> [moving <- 0])
+  ((((users >= 0) && (users <= 0)) && [bottom <- bottom]) -> [moving <- 0])
   &&
   (([moving <- 0] && [bottom <- bottom + 1]) -> [moving <- 1])
   &&

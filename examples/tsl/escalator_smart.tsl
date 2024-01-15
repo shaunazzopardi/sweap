@@ -3,11 +3,11 @@
 ) -> G (
     (!([topqueue := topqueue - 1] && [botqueue := botqueue - 1]))
     &&
-    (F (topqueue = 0)
+    (F ((topqueue >= 0) && (topqueue <= 0))
     &&
-    (F (botqueue = 0)
+    (F ((botqueue >= 0) && (botqueue <= 0))
     &&
-    ((botqueue > topqueue) -> [botqueue := botqueue - 1])
+    ((!(topqueue >= botqueue)) -> [botqueue := botqueue - 1])
     &&
-    ((!(botqueue > topqueue)) -> [topqueue := topqueue - 1])
+    ((botqueue >= topqueue) -> [topqueue := topqueue - 1])
 )
