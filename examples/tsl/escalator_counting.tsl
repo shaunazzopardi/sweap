@@ -1,0 +1,13 @@
+(G(
+    [moving <- 0] -> ![top <- top - 1]
+)) -> G (
+  (([bottom <- bottom + 1] && [top <- top]) <-> [users <- users + 1])
+  &&
+  (([bottom <- bottom] && [top <- top - 1]) <-> [ users <- users - 1])
+  &&
+  (((users = 0) && [bottom <- bottom]) -> [moving <- 0])
+  &&
+  (([moving <- 0] && [bottom <- bottom + 1]) -> [moving <- 1])
+  &&
+  (users >= 0)
+)
