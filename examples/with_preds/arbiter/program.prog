@@ -21,8 +21,8 @@ program eventually__allow_grant {
     ENVIRONMENT TRANSITIONS {
         q0 -> q0 [!request $ cnt := cnt + 1;],
         q0 -> q1 [request],
-        q1 -> q1 [cnt > 0 $ cnt := cnt - 1],
-        q1 -> q2 [cnt == 0]
+        q1 -> q1 [(cnt > 0) $ cnt := cnt - 1],
+        q1 -> q2 [((cnt >= 0) && (cnt <= 0))]
     }
 
     CONTROLLER TRANSITIONS {
@@ -32,6 +32,6 @@ program eventually__allow_grant {
 
     SPECIFICATION{
          G (request -> F grant) &&
-         G (grant -> cnt == 0)
+         G (grant -> ((cnt >= 0) && (cnt <= 0)))
     }
 }
