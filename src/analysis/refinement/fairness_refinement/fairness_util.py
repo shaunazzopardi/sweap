@@ -239,6 +239,11 @@ def liveness_step(program,
                               entry_valuation,
                               concrete_body[0][1], irrelevant_vars, symbol_table)
      .simplify())
+    exit_cond = (ground_predicate_on_vars(program,
+                              exit_cond,
+                              concrete_body[0][1], irrelevant_vars, symbol_table)
+     .simplify())
+
 
     # heuristical search for sufficient weaker precondition for termination
     sufficient_weaker_precondition = None
