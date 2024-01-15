@@ -33,9 +33,9 @@ program eventually__allow_grant {
     SPECIFICATION{
          ((G F dooropen) && (G F (!dooropen)))
          ->
-         ((G F (!(at_floor < target) && !(at_floor > target))) &&
+         ((G F ((at_floor >= target) && (at_floor <= target))) &&
           G(dooropen -> (up <-> down)) &&
           (G F notify) &&
-          G(notify -> X ((!(at_floor < target) && !(at_floor > target)))))
+          G(notify -> X (((at_floor >= target) && (at_floor <= target)))))
     }
 }
