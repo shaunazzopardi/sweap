@@ -77,7 +77,9 @@ def finite_state_synth(program: Program,
     logging.info(f"to ltl abstraction took {time.time() - start}")
 
     print("running LTL synthesis")
+    start = time.time()
     (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
+    logging.info("synthesis took " + str(time.time() - start))
     return (real, mm_hoa)
 
 
