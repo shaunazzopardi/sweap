@@ -7,17 +7,17 @@ G (
     &&
     (G (F [fmSynthesis := 0]))
     &&
-    (((amFreq <= 500) -> [amSynthesis := 0]) U (amFreq > 500))
+    (((!(amFreq > 500)) -> [amSynthesis := 0]) U (amFreq > 500))
     &&
-    (((amFreq > 500) -> [amSynthesis := 1]) U (amFreq <= 500))
+    (((amFreq > 500) -> [amSynthesis := 1]) U (!(amFreq > 500)))
     &&
     ([amSynthesis := 0] -> [amFreq := amFreq + 100])
     &&
     ([amSynthesis := 1] -> [amFreq := amFreq - 100])
     &&
-    (((fmFreq <= 500) -> [fmSynthesis := 0]) U (fmFreq > 500))
+    (((!(fmFreq > 500)) -> [fmSynthesis := 0]) U (fmFreq > 500))
     &&
-    (((amFreq > 500) -> [fmSynthesis := 1]) U (fmFreq <= 500))
+    (((amFreq > 500) -> [fmSynthesis := 1]) U (!(fmFreq > 500)))
     &&
     ([fmSynthesis := 0] -> [fmFreq := fmFreq + 100])
     &&
