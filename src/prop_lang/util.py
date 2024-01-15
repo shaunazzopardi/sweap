@@ -1086,6 +1086,7 @@ def stringify_pred(p):
                               .replace("|", "_OR_")
                               )
     predicate_to_var_cache[p] = representation
+    var_to_predicate_cache[representation] = p
     return representation
 
 
