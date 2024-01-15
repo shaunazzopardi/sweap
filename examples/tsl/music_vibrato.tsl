@@ -1,7 +1,7 @@
 G (
-   (G (F [lfo := 1]))
+   (F [lfo := 1])
    &&
-   (G (F [lfo := 0]))
+   (F [lfo := 0])
    &&
    ((!(lfoFreq > 10)) -> ([lfo := 0] U (lfoFreq > 10)))
    &&
