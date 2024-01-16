@@ -137,19 +137,15 @@ def get_ce_from_nuxmv_output(out: str):
     ce = out.split("Counterexample")[1].strip()
     # ce = re.sub("[^\n]*(act|guard)\_[0-9]+ = [^\n]+", "", ce)
     ce = re.sub("[^\n]*(identity)_[^\n]+", "", ce)
-    prefix_and_loop = re.split("-- Loop starts here", ce)
-    prefix = prefix_and_loop[0].strip()
-    loop = prefix_and_loop[1].strip()
+
+    prefix = ce
 
     prefix = re.split("[^\n]*\->[^<]*<\-", prefix)
     prefix = [[p.strip() for p in re.split("\n", t) if "=" in p] for t in prefix]
     prefix.remove([])
     prefix = [dict([(s.split("=")[0].strip(), s.split("=")[1].strip()) for s in t]) for t in prefix]
 
-    loop = re.split("[^\n]*\->[^<]*<\-", loop.strip())
-    loop = [[p.strip() for p in re.split("\n", t) if "=" in p] for t in loop]
-    loop.remove([])
-    loop = [dict([(s.split("=")[0].strip(), s.split("=")[1].strip()) for s in t if len(s.strip()) > 0]) for t in loop]
+    loop = []
 
     complete_prefix, complete_loop = complete_ce(prefix, loop)
 
@@ -167,9 +163,6 @@ def complete_ce(prefix, loop):
     for i in range(1, len(prefix)):
         complete_ce_state(prefix[i - 1], prefix[i])
 
-    complete_ce_state(prefix[len(prefix) - 1], loop[0])
-    for i in range(1, len(loop)):
-        complete_ce_state(loop[i - 1], loop[i])
     return prefix, loop
 
 
