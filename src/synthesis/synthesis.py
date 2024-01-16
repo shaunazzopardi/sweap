@@ -17,7 +17,7 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import finite_state_preds, true, stringify_formula
+from prop_lang.util import atomic_predicates, finite_state_preds, true, stringify_formula
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -93,7 +93,10 @@ def synthesize(program: Program,
 
     start = time.time()
     ltl_assumptions, ltl_guarantees, in_acts, out_acts = process_specifications(program, ltl, tlsf_path)
-
+    num_preds = sum(len(atomic_predicates(x) for x in ltl_assumptions)
+    num_preds += sum(len(atomic_predicates(x) for x in ltl_assumptions)
+    logging.info(f"spec contains {num_preds} APs"))
+    
     result = abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
                                      project_on_abstraction=project_on_abstraction)
     logging.info("synthesis took " + str(time.time() - start))
