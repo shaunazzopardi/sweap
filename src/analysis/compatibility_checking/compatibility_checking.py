@@ -253,7 +253,7 @@ def create_nuxmv_model(nuxmvModel):
 
 def there_is_mismatch_between_program_and_strategy(system,
                                                    controller: bool,
-                                                   debug=True,
+                                                   debug=False,
                                                    mismatch_condition=None):
     model_checker = ModelChecker()
     if debug:
@@ -265,9 +265,10 @@ def there_is_mismatch_between_program_and_strategy(system,
             return True, None, out
 
     if not controller:
+        if not debug:
+            logging.info(system)
         there_is_no_mismatch, out = model_checker.invar_check(system, "!(mismatch" + (
             " & " + mismatch_condition if mismatch_condition is not None else "") + ")", None, config.mc)
-
         return False, not there_is_no_mismatch, out
     else:
         return False, False, None
