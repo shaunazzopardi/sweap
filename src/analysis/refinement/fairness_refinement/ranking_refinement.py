@@ -92,8 +92,7 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
             params.append("int " + str(v))
         elif re.match(r"-?[0-9]+\.\.-?[0-9]+", type):
             params.append("int " + str(v))
-            lower = type.split("..")[0]
-            upper = type.split("..")[1]
+            lower, upper = type.split("..")[0:2]
             type_constraints_str.append(str(v) + " >= " + lower)
             type_constraints_str.append(str(v) + " <= " + upper)
         else:
