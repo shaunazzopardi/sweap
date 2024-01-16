@@ -12,6 +12,6 @@ class TestModelChecker(TestCase):
             program = string_to_program(data)
             model_checker = ModelChecker()
             nuxmv_model = create_nuxmv_model(program.to_nuXmv_with_turns())
-            out = model_checker.check(nuxmv_model, "F FALSE", None)
+            out = model_checker.invar_check(nuxmv_model, "F FALSE", None)
             print(out[1])
             assert (out[0] is False)
