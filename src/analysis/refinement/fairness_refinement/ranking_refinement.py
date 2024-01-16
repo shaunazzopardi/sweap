@@ -304,10 +304,10 @@ def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
         exit = False
         program = predicate_abstraction.get_program()
 
-        # TODO simplify loop by finding repeated sequences
-        if [] == [t for t, _ in ce_prog_loop_tran_concretised if
-                  [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
-            return False, None, None, None, None
+        # # TODO simplify loop by finding repeated sequences
+        # if [] == [t for t, _ in ce_prog_loop_tran_concretised if
+        #           [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
+        #     return False, None, None, None, None
 
         entry_valuation = conjunct_formula_set([BiOp(Variable(key), "=", Value(value))
                                                 for tv in program.valuation
