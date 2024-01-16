@@ -93,8 +93,8 @@ def synthesize(program: Program,
 
     start = time.time()
     ltl_assumptions, ltl_guarantees, in_acts, out_acts = process_specifications(program, ltl, tlsf_path)
-    num_preds = sum(len(atomic_predicates(x) for x in ltl_assumptions))
-    num_preds += sum(len(atomic_predicates(x) for x in ltl_assumptions))
+    num_preds = sum(len(atomic_predicates(x)) for x in ltl_assumptions)
+    num_preds += sum(len(atomic_predicates(x)) for x in ltl_assumptions)
     logging.info(f"spec contains {num_preds} APs")
     
     result = abstract_synthesis_loop(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts, docker,
