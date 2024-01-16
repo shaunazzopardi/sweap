@@ -1,5 +1,6 @@
 import logging
 
+import config
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
@@ -54,7 +55,6 @@ def compatibility_checking(program: Program,
     logging.info(system)
     contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
                                                                                            is_controller,
-                                                                                           False,
                                                                                            debug=False,
                                                                                            mismatch_condition=mismatch_condition)
 
@@ -253,22 +253,20 @@ def create_nuxmv_model(nuxmvModel):
 
 def there_is_mismatch_between_program_and_strategy(system,
                                                    controller: bool,
-                                                   livenesstosafety: bool,
                                                    debug=True,
                                                    mismatch_condition=None):
     model_checker = ModelChecker()
-    # if debug:
-    #     logging.info(system)
-    #     # Sanity check
-    #     result, out = model_checker.check(system, "F FALSE", None, livenesstosafety)
-    #     if result:
-    #         logging.info("Are you sure the counterstrategy given is complete?")
-    #         return True, None, out
+    if debug:
+        logging.info(system)
+        # Sanity check
+        result, out = model_checker.invar_check(system, "F FALSE", None, True)
+        if result:
+            logging.info("Are you sure the counterstrategy given is complete?")
+            return True, None, out
 
     if not controller:
-        ltl = "G !(mismatch" + (" & " + mismatch_condition if mismatch_condition is not None else "") + ")"
-        logging.info(ltl)
-        there_is_no_mismatch, out = model_checker.check(system, ltl, None, livenesstosafety)
+        there_is_no_mismatch, out = model_checker.invar_check(system, "!(mismatch" + (
+            " & " + mismatch_condition if mismatch_condition is not None else "") + ")", None, config.mc)
 
         return False, not there_is_no_mismatch, out
     else:

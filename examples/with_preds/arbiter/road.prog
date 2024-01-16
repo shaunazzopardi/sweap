@@ -1,6 +1,6 @@
 program road {
     STATES {
-        q0 : init, q1
+        q0 : init
     }
 
     ENVIRONMENT EVENTS {
@@ -17,7 +17,6 @@ program road {
     }
 
     PROGRAM EVENTS {
-        danger; error; empty_l; empty_r;
     }
 
     VALUATION {
@@ -30,12 +29,10 @@ program road {
                      cl := cl + 1 if entry_l && !exit_r;
                      cl := cl - 1 if !entry_l && exit_r && cl > 0;
                      cr := cr + 1 if entry_r && !exit_l;
-                     cr := cr - 1 if !entry_r && exit_l && cr > 0;],
-        q1 -> q1 [ $ # danger]
+                     cr := cr - 1 if !entry_r && exit_l && cr > 0;]
     }
 
     CONTROLLER TRANSITIONS {
-        q0 -> q1 [(cl > 0) & (cr > 0)]
     }
 
     SPECIFICATION {

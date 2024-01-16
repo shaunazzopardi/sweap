@@ -15,8 +15,8 @@ program eventually__allow_grant {
     }
 
     VALUATION {
-        target : integer := 0;
-        at_floor : integer := 0;
+        target : natural := 0;
+        at_floor : natural := 0;
     }
 
     ENVIRONMENT TRANSITIONS {
@@ -34,9 +34,8 @@ program eventually__allow_grant {
     SPECIFICATION{
          ((G F dooropen) && (G F (!dooropen)))
          ->
-         ((G F ((at_floor >= target) && (at_floor <= target))) &&
-          G(dooropen -> (up <-> down)) &&
-          (G F notify) &&
-          G(notify -> X (((at_floor >= target) && (at_floor <= target)))))
+         ((G F (!(at_floor < target) && !(at_floor > target))) &&
+          G(dooropen -> (up <-> down))
+          )
     }
 }
