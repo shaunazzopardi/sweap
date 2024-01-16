@@ -67,28 +67,45 @@ def find_ranking_function(symbol_table,
 
 def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_before_exit: [Transition],
               exit_cond: Formula, add_natural_conditions=True):
+    type_constraints_str = []
     # params
-    params = list(set(symbol_table[str(v)].type + " " + str(v)
-                      for v in {v.name for v in program.valuation} | set(entry_condition.variablesin())
-                      if
-                      not is_boolean(v, program.valuation) and [str(vv) for t in loop_before_exit for vv in
+    params = []
+    for v in {v.name for v in program.valuation} | set(entry_condition.variablesin()):
+        if is_boolean(v, program.valuation):
+            continue
+
+        relevant_vars = [str(vv) for t in loop_before_exit for vv in
                                                                 (t.condition.variablesin()
                                                                  + entry_condition.variablesin()
                                                                  + exit_cond.variablesin()
                                                                  + [act.left for act in t.action]
                                                                  + [a for act in t.action for a in
-                                                                    act.right.variablesin()])]))
+                                                                    act.right.variablesin()])]
+        if v not in relevant_vars:
+            continue
+
+        type = symbol_table[str(v)].type
+        if type in ["natural", "nat"]:
+            params.append("int " + str(v))
+            type_constraints_str.append(str(v) + " >= 0 ")
+        elif type in ["int", "integer"]:
+            params.append("int " + str(v))
+        elif re.match("[0-9]+\.\.[0-9]+", type):
+            params.append("int " + str(v))
+            lower = type.split("..")[0]
+            upper = type.split("..")[1]
+            type_constraints_str.append(str(v) + " >= " + lower)
+            type_constraints_str.append(str(v) + " <= " + upper)
+        else:
+            params.append(type + " " + str(v))
+
     param_list = ", ".join(params)
-    param_list = param_list.replace("integer", "int") \
-        .replace("natural", "int") \
-        .replace("nat", "int") \
-        .replace("real", "double")
 
     natural_conditions = [v.split(" ")[1] + " >= 0 " for v in params if
                           not v.endswith("_prev") and symbol_table[v.split(" ")[1]].type in ["natural",
                                                                                              "nat"]]
     if add_natural_conditions:
-        init = ["if(!(" + " && ".join(natural_conditions) + ")) return;" if len(natural_conditions) > 0 else ""]
+        init = ["if(!(" + " && ".join(type_constraints_str) + ")) return;" if len(type_constraints_str) > 0 else ""]
     else:
         init = []
     choices = []
@@ -287,10 +304,10 @@ def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
         exit = False
         program = predicate_abstraction.get_program()
 
-        # TODO simplify loop by finding repeated sequences
-        if [] == [t for t, _ in ce_prog_loop_tran_concretised if
-                  [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
-            return False, None, None, None, None
+        # # TODO simplify loop by finding repeated sequences
+        # if [] == [t for t, _ in ce_prog_loop_tran_concretised if
+        #           [] != [a for a in t.action if infinite_type(a.left, program.valuation)]]:
+        #     return False, None, None, None, None
 
         entry_valuation = conjunct_formula_set([BiOp(Variable(key), "=", Value(value))
                                                 for tv in program.valuation

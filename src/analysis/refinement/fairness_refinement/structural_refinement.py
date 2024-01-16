@@ -70,16 +70,14 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
 
             if len(in_loop_vars) == 1:
                 reenter = G(implies(conjunct_formula_set([current_var, neg(exit_condition), guard]),
-                         X(conjunct_formula_set([
-                             iff(disjunct(act_i, st_i), next_var),
-                             iff(neg(disjunct(st_i, act_i)), neg(in_loop))]))))
+                         X(iff(disjunct(act_i, st_i), next_var))))
                 constraints.append(reenter)
 
             else:
                 reenter = G(implies(conjunct_formula_set([current_var, neg(exit_condition), guard]),
                          X(conjunct_formula_set([
-                             iff(act_i, next_var),
-                             iff(st_i, current_var),
+                             implies(act_i, next_var),
+                             implies(st_i, current_var),
                              iff(neg(disjunct(st_i, act_i)), neg(in_loop))]))))
                 constraints.append(reenter)
 
@@ -90,8 +88,8 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
         if len(in_loop_vars) > 1:
             constraint = G(implies(conjunct_formula_set([current_var, guard]),
                              X(conjunct_formula_set([
-                                 iff(act_i, next_var),
-                                 iff(st_i, current_var),
+                                 implies(act_i, next_var),
+                                 implies(st_i, current_var),
                                  iff(neg(disjunct(st_i, act_i)), neg(in_loop))]))))
 
             constraints.append(constraint)
