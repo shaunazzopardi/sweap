@@ -1,6 +1,6 @@
 import logging
 
-import config
+from config import Config
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
@@ -265,6 +265,7 @@ def there_is_mismatch_between_program_and_strategy(system,
             return True, None, out
 
     if not controller:
+        config = Config.getConfig()
         if not debug:
             logging.info(system)
         there_is_no_mismatch, out = model_checker.invar_check(system, "!(mismatch" + (
