@@ -90,7 +90,7 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
             type_constraints_str.append(str(v) + " >= 0 ")
         elif type in ["int", "integer"]:
             params.append("int " + str(v))
-        elif re.match("[0-9]+\.\.[0-9]+", type):
+        elif re.match(r"-?[0-9]+\.\.-?[0-9]+", type):
             params.append("int " + str(v))
             lower = type.split("..")[0]
             upper = type.split("..")[1]
