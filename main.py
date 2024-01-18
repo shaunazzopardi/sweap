@@ -101,6 +101,8 @@ def main():
             print(program.to_dot())
         elif args.translate.lower() == "nuxmv":
             print(create_nuxmv_model(program.to_nuXmv_with_turns()))
+        elif args.translate.lower() == "prog":
+            print(program.to_prog(ltl_spec))
         elif args.translate.lower() == "vmt":
             model = create_nuxmv_model(program.to_nuXmv_with_turns())
             ltl_spec = None
@@ -109,7 +111,7 @@ def main():
             model_checker = ModelChecker()
             model_checker.to_vmt(model, ltl_spec)
         else:
-            print(args.translate + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'vmt'.")
+            print(args.translate + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'prog' or 'vmt'.")
     elif args.synthesise or args.synth_strix:
         ltl = ltl_spec
         if ltl is None:
