@@ -34,7 +34,7 @@ always guarantee {
   [grantA <- i1()] -> (eq q i1()) && [grantB <- i0()] && (gt counter i0()) && [counter <- sub counter i1()];
   [grantB <- i1()] -> (eq q i1()) && [grantA <- i0()] && (gt counter i0()) && [counter <- sub counter i1()];
 
-  (eq q i1()) && (eq counter i0()) -> [pending := i0()] && [q <- i0()];
+  (eq q i1()) && (eq counter i0()) -> [pending <- i0()] && [q <- i0()];
 
 
   (eq pending i1() && (eq request i0()) && (eq changeRoom i0())) -> F (eq pending i0());
