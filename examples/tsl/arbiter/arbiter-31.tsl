@@ -1,0 +1,34 @@
+//-- State: counter, grant, q
+//-- Inputs: request
+
+assume {
+  eq counter i0();
+  eq q i0();
+  eq grant i0();
+}
+
+always assume {
+  le request i1();
+  ge request i0();
+}
+
+guarantee {
+  G ((eq request i1()) -> F (eq grant i1()));
+}
+
+always guarantee {
+ ge counter i0(); /* INV */
+ le counter i2147483647(); /* INV */
+
+
+  (eq q i0()) && (eq request i0()) -> [counter <- add counter i1()];
+  (eq q i0()) && (eq request i1()) -> [q <- i1()];
+  
+  (eq q i1()) && (gt counter i0()) -> [counter <- sub counter i1()];
+  (eq q i1()) && (eq counter i0()) -> [q <- i2()];
+  (eq q i2()) -> ([grant <- i0()] && [q <- i1()]) || ([grant <- i1()] && [q <- i0()]);
+
+  [grant <- i0()] || [grant <- i1()];
+  (eq grant i1()) -> (eq counter i0());
+
+}

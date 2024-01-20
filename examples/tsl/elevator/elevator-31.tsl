@@ -1,0 +1,26 @@
+//-- State: floor, target
+//-- Inputs: signal
+
+assume {
+  eq target i0();
+  ge floor i1();
+  ge i2147483647() floor;
+}
+
+always assume {
+  ge signal i0();
+  ge i2147483647() signal;
+  !(eq target i0()) -> eq signal i0();
+}
+
+always guarantee {
+  ge floor i1();
+  ge i2147483647() floor;
+  !(eq signal i0()) && !(eq floor target) -> [target <- signal];
+  eq signal i0() && !(eq floor target) -> [target <- target];
+  eq floor target -> [target <- i0()];
+
+  [floor <- floor] || [floor <- add floor i1()] || [floor <- sub floor i1()];
+
+  F (eq target i0());
+}

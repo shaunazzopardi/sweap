@@ -1,0 +1,17 @@
+//-- State: counter
+
+assume {
+  eq counter i0();
+}
+
+guarantee {
+  F (gt i0() counter);
+}
+
+always guarantee {
+  le (sub i0() counter) i8(); /* INV */
+  le counter i7(); /* INV */
+
+  [ counter <- add counter i1() ];
+
+}
