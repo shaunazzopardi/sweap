@@ -14,8 +14,8 @@ always assume {
 }
 
 always guarantee {
-  ge floor i1();
-  ge i2147483647() floor;
+  ge floor i1(); /* INV */
+  ge i2147483647() floor; /* INV */
   !(eq signal i0()) && !(eq floor target) -> [target <- signal];
   eq signal i0() && !(eq floor target) -> [target <- target];
   eq floor target -> [target <- i0()];
