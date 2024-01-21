@@ -21,8 +21,8 @@ always guarantee {
  le counter i7(); /* INV */
 
 
-  (eq q i0()) && (eq request i0()) -> [counter <- add counter i1()];
-  (eq q i0()) && (eq request i1()) -> [q <- i1()];
+  (eq q i0()) && (eq request i1()) -> [counter <- add counter i1()];
+  (eq q i0()) && (eq request i0()) -> [q <- i1()];
   
   (eq q i1()) && (gt counter i0()) -> [counter <- sub counter i1()];
   (eq q i1()) && (eq counter i0()) -> [q <- i2()];
