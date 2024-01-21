@@ -17,9 +17,6 @@ always assume {
 }
 
 always guarantee {
-  ge counter i0(); /* INV */
-  le counter i1(); /* INV */
-
   ge grantA i0(); /* INV */
   le grantA i1(); /* INV */
   ge grantB i0(); /* INV */
