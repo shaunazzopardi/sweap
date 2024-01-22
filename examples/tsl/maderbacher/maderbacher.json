@@ -1,0 +1,24 @@
+{
+	"predicates": [
+		{
+			"pred": "eq counter 0",
+			"temporal": []
+		},
+		{
+			"pred": "gt 0 counter",
+			"temporal": []
+		}
+	],
+	"updates": [
+		{
+			"update_term": "add counter 1",
+			"var_name": "counter",
+			"depends": []
+		},
+		{
+			"update_term": "sub counter 1",
+			"var_name": "counter",
+			"depends": []
+		}
+	]
+}
