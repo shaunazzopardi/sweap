@@ -4,7 +4,6 @@ from pysmt.shortcuts import And, Or, Implies
 from pysmt.shortcuts import (
     Plus, Minus, Times, Div, BVSRem, EqualsOrIff, LE, LT, GT, GE, NotEquals
 )
-# from sympy import And, Or, Implies, Equivalent
 
 from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
