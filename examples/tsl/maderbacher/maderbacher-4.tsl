@@ -5,7 +5,7 @@ assume {
 }
 
 guarantee {
-  F (gt i0() counter);
+  F (le counter i0());
 }
 
 always guarantee {

@@ -5,7 +5,7 @@
 			"temporal": []
 		},
 		{
-			"pred": "gt 0 counter",
+			"pred": "le counter 0",
 			"temporal": []
 		}
 	],
