@@ -35,7 +35,7 @@
 			"update_term": "2",
 			"var_name": "q",
 			"depends": []
-		}
+		},
 		{
 			"update_term": "1",
 			"var_name": "q",
