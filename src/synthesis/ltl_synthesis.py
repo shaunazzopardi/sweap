@@ -8,6 +8,7 @@ from analysis.abstraction.interface.predicate_abstraction import PredicateAbstra
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.mealy_machine import MealyMachine
 from prop_lang.variable import Variable
+from synthesis.moore_machine import MooreMachine
 
 
 def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool, str]:
@@ -65,6 +66,14 @@ def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem,
                  + synthesis_problem.get_program_pred_props())
 
     con_props = synthesis_problem.get_con_props()
+
+    if one_trans and counterstrategy:
+        mon = MooreMachine("counterstrategy", init_st,
+                           env_props,
+                           con_props,
+                           {})
+        mon.add_transitions(trans)
+        return mon
 
     if not env_con_separate:
         mon = MealyMachine("counterstrategy" if counterstrategy else "controller", init_st,

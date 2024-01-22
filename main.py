@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--translate', dest='translate', help="Translation workflow.", type=str)
 
     # Synthesis workflow
+    parser.add_argument('--debug', dest='debug', help="Debugging mode (sanity checks enabled).", type=bool, nargs='?', const=True)
     parser.add_argument('--synthesise', dest='synthesise', help="Synthesis workflow.", type=bool, nargs='?', const=True)
     parser.add_argument('--tlsf', dest='tlsf', help="Path to a .tlsf file.", type=str)
 
@@ -30,6 +31,9 @@ def main():
     parser.add_argument('--strix_docker', dest='docker', type=str, nargs='?', const=False)
 
     args = parser.parse_args()
+
+    if args.debug is not None:
+        config.debug = True
 
     if args.program is None:
         raise Exception("Program path not specified.")

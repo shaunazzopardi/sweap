@@ -77,7 +77,7 @@ def ce_state_to_predicate_abstraction_trans(ltl_to_program_transitions, symbol_t
 
 
 def check_for_nondeterminism_last_step(state_before_mismatch, program, raise_exception=False, exception=None):
-    transitions = program.env_transitions + program.con_transitions
+    transitions = program.transitions + program.con_transitions
 
     guards = []
     for (key, value) in state_before_mismatch.items():
@@ -100,37 +100,43 @@ def check_for_nondeterminism_last_step(state_before_mismatch, program, raise_exc
             logging.info("WARNING: " + message)
 
 
-def parse_nuxmv_ce_output_finite(transition_no, out: str):
+def parse_nuxmv_ce_output_finite(program, out, cs_alphabet):
     prefix, _ = get_ce_from_nuxmv_output(out)
 
-    tran_indices, incompatible_state = prog_transition_indices_and_state_from_ce(transition_no, prefix)
+    agreed_on_transitions, incompatible_state = prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet)
 
-    return prefix, tran_indices, incompatible_state
+    return agreed_on_transitions, incompatible_state
 
 
-def prog_transition_indices_and_state_from_ce(transition_no, prefix):
-    program_transitions_and_state = []
+def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
+    transition_no = len(program.transitions)
+    program_alphabet = [str(s) for s in program.states] + [tv.name for tv in program.valuation]
+    program_states = []
+    program_transitions = []
+    cs_states = []
 
     for dic in prefix:
         # monitor only makes decisions at env and mon turns
-        if dic["turn"] == "env" or dic["turn"] == "con":
+        if dic["turn"] == "cs":
             transition = "-1"
+            program_state = {}
+            cs_state = {}
             for (key, value) in dic.items():
-                if key.startswith("guard_") and value == "TRUE":
+                if key.split("_prev")[0] in program_alphabet:
+                    program_state[key] = value
+                elif key in cs_alphabet or key.startswith("compatible"):
+                    cs_state[key] = value
+                elif key.startswith("guard_") and value == "TRUE":
                     if dic[key.replace("guard_", "act_")] == "TRUE":
                         no = key.replace("guard_", "")
                         if no != str(transition_no):
                             transition = no
-                        break
-            state = {key: value for key, value in dic.items()}
-            # dic_without_prev_vars = {key: value for key, value in dic.items() if not key.endswith("_prev")}
-            program_transitions_and_state.append((transition, state))
 
-    incompatibility_detetected_at_turn = prefix[-1]["turn"]
-    if incompatibility_detetected_at_turn != "env" or incompatibility_detetected_at_turn != "con":
-        return program_transitions_and_state, prefix[-1]
-    else:
-        return program_transitions_and_state, None
+            program_states.append(program_state)
+            cs_states.append(cs_state)
+            program_transitions.append(transition)
+
+    return (program_transitions[:-1], program_states[:-1], cs_states[:-1]), (program_transitions[-1], program_states[-1], cs_states[-1])
 
 
 def get_ce_from_nuxmv_output(out: str):
@@ -281,8 +287,8 @@ def stutter_transitions(program, env: bool):
 stutter_transition_cache = {}
 
 
-def stutter_transition(program, state, env: bool, cnf=False):
-    transitions = program.env_transitions if env else program.con_transitions
+def stutter_transition(program, state, cnf=False):
+    transitions = program.transitions
     condition = neg(disjunct_formula_set([t.condition
                                           for t in transitions if t.src == state]))
     
@@ -370,7 +376,7 @@ def transition_up_to_dnf(transition: Transition, symbol_table):
 
 
 def is_deterministic(program):
-    env_state_dict = {s: [t.condition for t in program.env_transitions if t.src == s] for s in program.states}
+    env_state_dict = {s: [t.condition for t in program.transitions if t.src == s] for s in program.states}
 
     symbol_table = program.symbol_table
 
@@ -387,22 +393,6 @@ def is_deterministic(program):
                 if check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
                     logging.info("WARNING: " + str(cond) + " and " + str(
                         cond2) + " are satisfiable together, see environment transitions from state " + str(s))
-                    return False
-
-    con_state_dict = {s: [t.condition for t in program.con_transitions if t.src == s] for s in program.states}
-
-    for (s, conds) in con_state_dict.items():
-        # Assuming satisfiability already checked
-        sat_conds = [cond for cond in conds]
-        # sat_conds = [cond for cond in conds if check(And(*cond.to_smt(symbol_table)))]
-        # for cond in conds:
-        #     if cond not in sat_conds:
-        #         logging.info("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
-        for i, cond in enumerate(sat_conds):
-            for cond2 in sat_conds[i + 1:]:
-                if check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
-                    logging.info("WARNING: " + str(cond) + " and " + str(
-                        cond2) + " are satisfiable together, see controller transitions from state " + str(s))
                     return False
 
     return True

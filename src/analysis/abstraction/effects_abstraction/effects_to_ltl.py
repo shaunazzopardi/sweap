@@ -1,4 +1,5 @@
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
+from analysis.abstraction.effects_abstraction.to_ltl import one_trans_to_ltl
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType, LTLAbstractionBaseType, \
     LTLAbstractionStructureType, LTLAbstractionTransitionType, LTLAbstractionOutputType
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
@@ -11,6 +12,12 @@ def to_ltl(effects_abstraction: EffectsAbstraction,
            original_ltl_problem: LTLSynthesisProblem,
            ltlAbstractionType: LTLAbstractionType) -> tuple[object, ([Formula], [Formula])]:
     ltl_abstractions = {}
+    if ltlAbstractionType.base_type == LTLAbstractionBaseType.effects_representation and \
+            ltlAbstractionType.transition_type == LTLAbstractionTransitionType.one_trans and \
+            ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_state and \
+            ltlAbstractionType.output_type == LTLAbstractionOutputType.no_output:
+        return effects_abstraction, one_trans_to_ltl.abstract_ltl_problem(original_ltl_problem, effects_abstraction)
+
     if ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton and \
             ltlAbstractionType.transition_type == LTLAbstractionTransitionType.combined and \
             ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_and_predicate_state and \

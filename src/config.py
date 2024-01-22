@@ -12,3 +12,4 @@ only_safety = False
 eager_fairness = True
 
 mc = False
+debug = False

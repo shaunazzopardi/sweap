@@ -1,7 +1,7 @@
-import itertools
 import logging
 import time
 
+import config
 from analysis.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
 from analysis.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
 from analysis.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
@@ -38,13 +38,10 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_tran_preds_constant = {}
         self.all_pred_states = set()
         self.combined_automata_abstraction = None
-        self.con_env_transitions = {}
 
         self.init_program_trans = None
-        self.abstract_guard_con = None
-        self.abstract_guard_con_disjuncts = None
-        self.abstract_guard_env = None
-        self.abstract_guard_env_disjuncts = None
+        self.abstract_guard = None
+        self.abstract_guard_disjuncts = None
         self.state_predicates = []
         self.transition_predicates = []
 
@@ -53,14 +50,11 @@ class EffectsAbstraction(PredicateAbstraction):
         self.loops = []
         self.var_relabellings = {}
 
-        self.con_to_program_transitions = None
-        self.env_to_program_transitions = None
+        self.abs_trans_to_program_transitions = None
 
-        self.con_program_transitions_to_abstract = None
-        self.env_program_transitions_to_abstract = None
+        self.program_transitions_to_abstract = None
 
-        self.state_to_env_transitions = None
-        self.state_to_con_transitions = None
+        self.state_to_abs_transitions = None
 
         self.abstraction = None
         self.program = program
@@ -85,62 +79,48 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.symbol_table = {v:tv for v, tv in program.symbol_table.items()}
 
-    def abstract_program_transition_env(self, env_trans: Transition, symbol_table):
-        disjuncts, formula = self.abstract_guard(env_trans.condition, self.program.env_events, symbol_table)
-        return env_trans, disjuncts, formula
+    def abstract_program_transition(self, trans: Transition, symbol_table):
+        disjuncts, formula = self.abstract_guard_explicitly(trans.condition, self.program.env_events + self.program.con_events, symbol_table)
+        return trans, disjuncts, formula
 
-    def abstract_program_transition_con(self, con_trans: Transition, symbol_table):
-        disjuncts, formula = self.abstract_guard(con_trans.condition, self.program.con_events, symbol_table)
-        return con_trans, disjuncts, formula
 
     def abstract_program_transitions(self, parallelise=True):
         # TODO here get stutter transitions
         #    can treat them specially by considering the work already done for transitions from their state
-        orig_env_transitions, orig_con_transitions, stutter_env, stutter_cons = self.program.complete_transitions_stutter_explicit()
+        orig_transitions, stutter = self.program.complete_transitions_stutter_explicit()
 
-        self.abstract_guard_env = {}
-        self.abstract_guard_con = {}
-        self.abstract_guard_env_disjuncts = {}
-        self.abstract_guard_con_disjuncts = {}
+        self.abstract_guard = {}
+        self.abstract_guard_disjuncts = {}
 
         self.init_program_trans = []
 
-        all_env_trans = orig_env_transitions + stutter_env
+        all_trans = orig_transitions + stutter
         init_conf = MathExpr(conjunct_typed_valuation_set(self.program.valuation))
-        self.init_program_trans = [t.add_condition(init_conf) for t in all_env_trans if
+        self.init_program_trans = [t.add_condition(init_conf) for t in all_trans if
                                    t.src == self.program.initial_state and sat(conjunct(init_conf, t.condition),
                                                                                self.program.symbol_table)]
-        all_con_trans = orig_con_transitions + stutter_cons
 
         if parallelise:
-            results_env = Parallel(n_jobs=-1,
+            results = Parallel(n_jobs=-1,
                                    prefer="threads",
                                    verbose=11,
-                                   batch_size=len(all_env_trans) // 8 + 1)(
-                delayed(self.abstract_program_transition_env)(t, self.program.symbol_table) for t in all_env_trans)
+                                   batch_size=len(all_trans) // 8 + 1)(
+                delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in all_trans)
             results_init = Parallel(n_jobs=-1,
                                     prefer="threads",
                                     verbose=11
                                     # , batch_size=len(self.init_program_trans)//8 + 1
                                     )(
-                delayed(self.abstract_program_transition_env)(t, self.program.symbol_table) for t in
+                delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
                 self.init_program_trans)
 
-            results_con = Parallel(n_jobs=-1,
-                                   prefer="threads",
-                                   verbose=11
-                                   # , batch_size=len(all_con_trans)//8 + 1
-                                   )(
-                delayed(self.abstract_program_transition_con)(t, self.program.symbol_table) for t in
-                all_con_trans)
         else:
-            results_env = [self.abstract_program_transition_env(t, self.program.symbol_table) for t in all_env_trans]
-            results_init = [self.abstract_program_transition_env(t, self.program.symbol_table) for t in self.init_program_trans]
-            results_con = [self.abstract_program_transition_con(t, self.program.symbol_table) for t in all_con_trans]
+            results = [self.abstract_program_transition(t, self.program.symbol_table) for t in all_trans]
+            results_init = [self.abstract_program_transition(t, self.program.symbol_table) for t in self.init_program_trans]
 
-        for t, disjuncts, formula in results_env + results_init:
-            self.abstract_guard_env[t] = formula
-            self.abstract_guard_env_disjuncts[t] = disjuncts
+        for t, disjuncts, formula in results + results_init:
+            self.abstract_guard[t] = formula
+            self.abstract_guard_disjuncts[t] = disjuncts
             empty_effects = InvertibleMap()
             true_set = {frozenset()}
             empty_effects.put(frozenset(), frozenset(true_set))
@@ -148,23 +128,12 @@ class EffectsAbstraction(PredicateAbstraction):
             self.abstract_effect_relevant_preds[t] = {E: set() for _, E in disjuncts}
             self.abstract_effect_irrelevant_preds[t] = {E: set() for _, E in disjuncts}
 
-        for t, disjuncts, formula in results_con:
-            self.abstract_guard_con[t] = formula
-            self.abstract_guard_con_disjuncts[t] = disjuncts
-            empty_effects = InvertibleMap()
-            true_set = {frozenset()}
-            empty_effects.put(frozenset(), frozenset(true_set))
-            self.abstract_effect[t] = {E: empty_effects for _, E in disjuncts}
-            self.abstract_effect_relevant_preds[t] = {E: set() for _, E in disjuncts}
-            self.abstract_effect_irrelevant_preds[t] = {E: set() for _, E in disjuncts}
-
-        self.all_program_trans = orig_env_transitions + orig_con_transitions + self.init_program_trans + stutter_env + stutter_cons
+        self.all_program_trans = orig_transitions + self.init_program_trans + stutter
 
     def abstract_guard_explicitly(self, guard, events, symbol_table):
         vars_in_cond = guard.variablesin()
         events_in_cond = [e for e in vars_in_cond if e in events]
         powerset = powerset_complete(events_in_cond)
-
         int_disjuncts_only_events = [E for E in powerset if
                                      sat(conjunct_formula_set(E | {guard}), self.program.symbol_table)]
 
@@ -242,6 +211,7 @@ class EffectsAbstraction(PredicateAbstraction):
             # TODO This is a bit too much, still need to consider whether predicate is needed to abstract guard
             invars = [(predicate)]
 
+        action_formula = conjunct_formula_set([BiOp(a.left, "=", add_prev_suffix(a.right)) for a in action])
         if len(constants) > 0 or len(invars) > 0:
             # TODO optimisation: if no variable in predicate is mentioned in guard,
             #  then just explode the precondition set without any sat checks
@@ -256,12 +226,14 @@ class EffectsAbstraction(PredicateAbstraction):
             #  then add iff a new predicate to be added may be affected by the collected predicates
             for (guard_disjunct, E) in Es:
                 formula_pos = add_prev_suffix(conjunct(guard_disjunct, predicate))
+                formula_pos = conjunct(formula_pos, action_formula)
                 if sat(formula_pos, self.program.symbol_table):
                     try_pos = True
                 else:
                     try_pos = False
 
                 formula_neg = add_prev_suffix(conjunct(guard_disjunct, neg(predicate)))
+                formula_neg = conjunct(formula_neg, action_formula)
                 if sat(formula_neg, self.program.symbol_table):
                     try_neg = True
                 else:
@@ -306,7 +278,6 @@ class EffectsAbstraction(PredicateAbstraction):
 
                     Es.remove((guard_disjunct, E))
         else:
-            action_formula = conjunct_formula_set([BiOp(a.left, "=", add_prev_suffix(a.right)) for a in action])
             prev_predicate = add_prev_suffix(predicate)
             for (guard_disjunct, E) in Es:
                 # E_formula = add_prev_suffix(conjunct_formula_set(E))
@@ -444,8 +415,8 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     logging.info("\tevents: " + ", ".join(str(e) for e in E))
                 for nextPs in self.abstract_effect[t][E].keys():
-                    logging.info("\t\t" + ("true" if len(nextPs) == 0 else " and ".join(str(p) for p in nextPs)))
-                    logging.info("\t\t" + (" or \n\t\t\t".join(
+                    logging.info("\t\tnext: " + ("true" if len(nextPs) == 0 else " and ".join(str(p) for p in nextPs)))
+                    logging.info("\t\tnow: " + (" or \n\t\t\t".join(
                         "true" if len(nowPs) == 0 else "(" + " and ".join(str(p) for p in nowPs) + ")" for nowPs in
                         self.abstract_effect[t][E][nextPs])))
 
@@ -489,43 +460,39 @@ class EffectsAbstraction(PredicateAbstraction):
 
             if parallelise:# and len(self.state_predicates) > 4:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
-                results_env = Parallel(n_jobs=-1, 
+                results = Parallel(n_jobs=-1,
                                        prefer="threads",
                                        verbose=11,
-                                       batch_size=len(self.abstract_guard_env.keys())//8 + 1)(
-                    delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_env_disjuncts[t],
+                                       batch_size=len(self.abstract_guard.keys())//8 + 1)(
+                    delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_disjuncts[t],
                                                                  self.abstract_effect[t], p)
-                    for t in self.abstract_guard_env.keys())# if t not in self.init_program_trans)
-                results_con = Parallel(n_jobs=-1,
-                                       prefer="threads",
-                                       verbose=11,
-                                       batch_size=len(self.abstract_guard_con.keys())//8 + 1)(
-                    delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_con_disjuncts[t],
-                                                                 self.abstract_effect[t], p) for t in
-                    self.abstract_guard_con.keys())
+                    for t in self.abstract_guard.keys())# if t not in self.init_program_trans)
             else:
-                results_env = []
-                for t in self.abstract_guard_env.keys():
-                    results_env.append(self.compute_abstract_effect_with_p(t, self.abstract_guard_env_disjuncts[t],
-                                                                           self.abstract_effect[t], p))
-
-                results_con = []
-                for t in self.abstract_guard_con.keys():
-                    results_con.append(self.compute_abstract_effect_with_p(t, self.abstract_guard_con_disjuncts[t],
+                results = []
+                for t in self.abstract_guard.keys():
+                    results.append(self.compute_abstract_effect_with_p(t, self.abstract_guard_disjuncts[t],
                                                                            self.abstract_effect[t], p))
 
             # TODO can optimise, since same t may be both env or con
-            for t, t_formula, invars, constants, Es, new_effects in results_env:
+            for t, t_formula, invars, constants, Es, new_effects in results:
                 self.abstract_effect_invars[t] += invars
                 self.abstract_effect_constant[t] += constants
-                self.abstract_guard_env_disjuncts[t] = Es
+                self.abstract_guard_disjuncts[t] = Es
                 self.abstract_effect[t] = new_effects
 
-            for t, t_formula, invars, constants, Es, new_effects in results_con:
-                self.abstract_effect_invars[t] += invars
-                self.abstract_effect_constant[t] += constants
-                self.abstract_guard_con_disjuncts[t] = Es
-                self.abstract_effect[t] = new_effects
+        if config.debug:
+            # sanity check
+            for t, E_effects in self.abstract_effect.items():
+                t_f = transition_formula(t)
+                for E, next_nows in E_effects.items():
+                    f = conjunct(t_f, add_prev_suffix(conjunct_formula_set(E)))
+                    for next, nows in next_nows.items():
+                        for now in nows:
+                            effects_f = disjunct_formula_set([conjunct(conjunct_formula_set(next),
+                                                               add_prev_suffix(conjunct_formula_set(now)))])
+                            to_check = conjunct(f, effects_f)
+                            if not sat(to_check, self.symbol_table):
+                                raise Exception("something wrong in effectsabsttraction")
 
         end = time.time()
         logger.info(end - start)
@@ -556,46 +523,27 @@ class EffectsAbstraction(PredicateAbstraction):
 
             if parallelise and len(self.state_predicates) > 4:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
-                results_env = Parallel(n_jobs=-1,
+                results = Parallel(n_jobs=-1,
                                        prefer="threads",
                                        verbose=11
                                        # ,
                                        # batch_size=len(self.abstract_guard_env.keys())//8 + 1
                                        )(
-                    delayed(self.add_transition_predicate_to_t)(t, self.abstract_guard_env_disjuncts[t],
+                    delayed(self.add_transition_predicate_to_t)(t, self.abstract_guard_disjuncts[t],
                                                                 self.abstract_effect[t], p) for t in
-                    self.abstract_guard_env.keys())
-                results_con = Parallel(n_jobs=-1,
-                                       prefer="threads",
-                                       verbose=11
-                                       # ,
-                                       # batch_size=len(self.abstract_guard_con.keys())//8 + 1
-                                       )(
-                    delayed(self.add_transition_predicate_to_t)(t, self.abstract_guard_con_disjuncts[t],
-                                                                self.abstract_effect[t], p) for t in
-                    self.abstract_guard_con.keys())
+                    self.abstract_guard.keys())
             else:
-                results_env = []
-                for t in self.abstract_guard_env.keys():
-                    results_env.append(self.add_transition_predicate_to_t(t, self.abstract_guard_env_disjuncts[t],
+                results = []
+                for t in self.abstract_guard.keys():
+                    results.append(self.add_transition_predicate_to_t(t, self.abstract_guard_disjuncts[t],
                                                                           self.abstract_effect[t], p))
 
-                results_con = []
-                for t in self.abstract_guard_con.keys():
-                    results_con.append(self.add_transition_predicate_to_t(t, self.abstract_guard_con_disjuncts[t],
-                                                                          self.abstract_effect[t], p))
 
             # TODO can optimise, since same t may be both env or con
-            for t, t_formula, invars, constants, Es, new_effects in results_env:
+            for t, t_formula, invars, constants, Es, new_effects in results:
                 self.abstract_effect_invars[t] += invars
                 self.abstract_effect_tran_preds_constant[t] += constants
-                self.abstract_guard_env_disjuncts[t] = Es
-                self.abstract_effect[t] = new_effects
-
-            for t, t_formula, invars, constants, Es, new_effects in results_con:
-                self.abstract_effect_invars[t] += invars
-                self.abstract_effect_tran_preds_constant[t] += constants
-                self.abstract_guard_con_disjuncts[t] = Es
+                self.abstract_guard_disjuncts[t] = Es
                 self.abstract_effect[t] = new_effects
 
         end = time.time()
@@ -619,7 +567,7 @@ class EffectsAbstraction(PredicateAbstraction):
         # return init_transition_ltl, [X(G(disjunct_formula_set(transition_ltl)))]
 
     def simplified_transitions_abstraction(self):
-        new_env_transitions, env_to_program_transitions = merge_transitions(self.abstraction.env_transitions,
+        new_env_transitions, env_to_program_transitions = merge_transitions(self.abstraction.transitions,
                                                                             self.program.symbol_table,
                                                                             self.env_to_program_transitions)
         new_con_transitions, con_to_program_transitions = merge_transitions(self.abstraction.con_transitions,
@@ -682,6 +630,15 @@ class EffectsAbstraction(PredicateAbstraction):
             mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=True, abstraction=self)
 
             return mm
+        elif ltlAbstractionType.base_type == LTLAbstractionBaseType.effects_representation and \
+            ltlAbstractionType.transition_type == LTLAbstractionTransitionType.one_trans and \
+            ltlAbstractionType.structure_type == LTLAbstractionStructureType.control_state and \
+            ltlAbstractionType.output_type == LTLAbstractionOutputType.no_output:
+
+            mm = parse_hoa(synthesis_problem, output=mm_hoa, env_con_separate=False, abstraction=self, one_trans=True)
+
+            return mm
+
         else:
             raise NotImplementedError("Options for LTL abstraction not implemented: " + str(ltlAbstractionType))
 
