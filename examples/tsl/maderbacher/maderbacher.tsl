@@ -6,7 +6,7 @@ assume {
 }
 
 guarantee {
-  F (le counter i0());
+  F (lt counter i0());
 }
 
 always guarantee {
