@@ -10,6 +10,7 @@ from pysmt.logics import QF_UFLRA
 from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
 
+import config
 from analysis.smt_checker import check
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
@@ -300,8 +301,10 @@ def stutter_transition(program, state, cnf=False):
     elif check(And(*condition.to_smt(program.symbol_table))):
         if cnf:
             start = time.time()
-            # condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
-            condition_cnfed = condition
+            if config.cnf_optimisations:
+                condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
+            else:
+                condition_cnfed = condition
             if condition_cnfed != condition:
                 logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
                          "With result " + str(condition_cnfed))

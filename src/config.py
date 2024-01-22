@@ -13,3 +13,5 @@ eager_fairness = True
 
 mc = False
 debug = False
+
+cnf_optimisations = False
