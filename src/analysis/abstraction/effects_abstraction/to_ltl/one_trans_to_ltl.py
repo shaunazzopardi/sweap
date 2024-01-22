@@ -74,7 +74,7 @@ def to_ltl_organised_by_pred_effects(predicate_abstraction: EffectsAbstraction):
                 E_now = disjunct_formula_set(
                     [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
                 E_now_simplified = simplify_formula_without_math(E_now)
-                E_now_simplified = cnf_safe(E_now_simplified)
+                # E_now_simplified = cnf_safe(E_now_simplified)
 
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
                 E_next_simplified = simplify_formula_without_math(E_next)

@@ -300,7 +300,8 @@ def stutter_transition(program, state, cnf=False):
     elif check(And(*condition.to_smt(program.symbol_table))):
         if cnf:
             start = time.time()
-            condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
+            # condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
+            condition_cnfed = condition
             if condition_cnfed != condition:
                 logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
                          "With result " + str(condition_cnfed))
