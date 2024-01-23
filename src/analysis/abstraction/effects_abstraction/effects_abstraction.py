@@ -28,7 +28,8 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
-    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, should_be_math_expr
+    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, should_be_math_expr, \
+    is_conjunction_of_atoms
 
 
 class EffectsAbstraction(PredicateAbstraction):
@@ -104,7 +105,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                    t.src == self.program.initial_state and sat(conjunct(init_conf, t.condition),
                                                                                self.program.symbol_table)]
 
-        if False and parallelise:
+        if parallelise:
             arg1 = []
             arg2 = []
             arg3 = []
@@ -114,15 +115,6 @@ class EffectsAbstraction(PredicateAbstraction):
                 arg3.append(self.program.symbol_table)
             with Pool(mp.cpu_count()) as pool:
                 results = pool.map(abstract_guard_explicitly_parallel, zip(arg1, arg2, arg3))
-            # config.parallel(
-            #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
-            #     self.init_program_trans)
-            # results = config.parallel(
-            #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in all_trans)
-            # results_init = config.parallel(
-            #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
-            #     self.init_program_trans)
-
         else:
             results = [self.abstract_program_transition(t, self.program.symbol_table) for t in all_trans + self.init_program_trans]
 
@@ -140,13 +132,18 @@ class EffectsAbstraction(PredicateAbstraction):
 
     def abstract_guard_explicitly(self, guard, events, symbol_table):
         vars_in_cond = guard.variablesin()
-        int_disjuncts_only_events = None
-        if not any(v for v in guard.variablesin() if v not in events):
-            if isinstance(guard, BiOp) and guard.op[0] == "&":
-                conjuncts = guard.sub_formulas_up_to_associativity()
-                if any(c for c in conjuncts if not(isinstance(c, UniOp) or isinstance(c, Value))):
-                    int_disjuncts_only_events = [frozenset(conjuncts)]
-                    return [], int_disjuncts_only_events
+        if is_conjunction_of_atoms(guard):
+            conjuncts = guard.sub_formulas_up_to_associativity()
+            cond = []
+            env_con_events = set()
+            for c in conjuncts:
+                if not any(v for v in c.variablesin() if v not in events):
+                    env_con_events.add(c)
+                else:
+                    cond.append(c)
+            E = frozenset(env_con_events)
+            int_disjuncts_only_events = [E]
+            return [(conjunct_formula_set(cond), E)], int_disjuncts_only_events
 
         events_in_cond = [e for e in vars_in_cond if e in events]
         powerset = powerset_complete(events_in_cond)
@@ -942,15 +939,18 @@ def abstract_guard_explicitly_parallel(arg):
     guard = trans.condition
     vars_in_cond = guard.variablesin()
 
-    if not any(v for v in vars_in_cond if v not in events):
-        if isinstance(guard, BiOp) and guard.op[0] == "&":
-            conjuncts = guard.sub_formulas_up_to_associativity()
-            if any(c for c in conjuncts if not (isinstance(c, UniOp) or isinstance(c, Value))):
-                int_disjuncts_only_events = [frozenset(conjuncts)]
-                return trans, [], int_disjuncts_only_events
-        else:
-            int_disjuncts_only_events = set()
-            return trans, [], frozenset(int_disjuncts_only_events)
+    if is_conjunction_of_atoms(guard):
+        conjuncts = guard.sub_formulas_up_to_associativity()
+        cond = []
+        env_con_events = set()
+        for c in conjuncts:
+            if not any(v for v in c.variablesin() if v not in events):
+                env_con_events.add(c)
+            else:
+                cond.append(c)
+        E = frozenset(env_con_events)
+        int_disjuncts_only_events = [E]
+        return trans, [(conjunct_formula_set(cond), E)], int_disjuncts_only_events
 
     events_in_cond = [e for e in vars_in_cond if e in events]
     powerset = powerset_complete(events_in_cond)
