@@ -1,4 +1,6 @@
 import logging
+import multiprocessing as mp
+from multiprocessing import Pool
 from typing import Set
 
 from graphviz import Digraph
@@ -9,9 +11,8 @@ from programs.typed_valuation import TypedValuation
 from programs.util import stutter_transition, symbol_table_from_program, is_deterministic
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
-from prop_lang.uniop import UniOp
 from prop_lang.util import disjunct_formula_set, neg, true, \
-    sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology
+    sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology, sat_parallel
 from prop_lang.variable import Variable
 
 
@@ -38,19 +39,27 @@ class Program:
         logging.info("Processing program.")
         print("Processing program.")
         if preprocess:
-            all_vars = [Variable(v.name) for v in self.valuation]
+            all_vars = self.local_vars
             self.transitions = [self.add_type_constraints_to_guards(t)
                                     .complete_outputs(self.out_events)
                                     .complete_action_set(all_vars) for t in self.transitions]
             unsat_trans = []
-            for t in self.transitions:
-                if not sat(t.condition, self.symbol_table):
-                    unsat_trans.append(t)
+            with Pool(mp.cpu_count()) as pool:
+                arg1 = []
+                arg2 = []
+                for t in self.transitions:
+                    arg1.append(t.condition)
+                    arg2.append(self.symbol_table)
+                results = pool.map(sat_parallel, zip(arg1, arg2))
+                new_transitions = []
+                for i, t in enumerate(self.transitions):
+                    if not results[i]:
+                        unsat_trans.append(t)
+                    else:
+                        new_transitions.append(t)
 
-            self.transitions = [t for t in self.transitions if t not in unsat_trans]
             if len(unsat_trans) > 0:
                 logging.info("Removed transitions with unsat transitions: " + ",\n".join(map(str, unsat_trans)))
-
 
         otherwise = [t for t in self.transitions if str(t.condition) == "otherwise"]
         if len(otherwise) > 1:
