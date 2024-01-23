@@ -4,7 +4,6 @@ import time
 from multiprocessing import Pool
 
 import config
-from analysis.abstraction.effects_abstraction.util.InvertibleMap import InvertibleMap
 from analysis.abstraction.effects_abstraction.util.effects_to_automaton import effects_to_explicit_automaton_abstraction
 from analysis.abstraction.effects_abstraction.util.effects_util import merge_transitions, relevant_pred
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
@@ -29,7 +28,7 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
     true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, should_be_math_expr, \
-    is_conjunction_of_atoms
+    is_conjunction_of_atoms, sat_parallel
 
 
 class EffectsAbstraction(PredicateAbstraction):
@@ -101,32 +100,71 @@ class EffectsAbstraction(PredicateAbstraction):
 
         all_trans = orig_transitions + stutter
         init_conf = MathExpr(conjunct_typed_valuation_set(self.program.valuation))
-        self.init_program_trans = [t.add_condition(init_conf) for t in all_trans if
+        init_orig_trans_map = {t: t.add_condition(init_conf) for t in all_trans if
                                    t.src == self.program.initial_state and sat(conjunct(init_conf, t.condition),
-                                                                               self.program.symbol_table)]
+                                                                               self.program.symbol_table)}
+        self.init_program_trans = list(init_orig_trans_map.values())
 
+        all_events = self.program.env_events + self.program.con_events
         if parallelise:
             arg1 = []
             arg2 = []
             arg3 = []
-            for t in all_trans + self.init_program_trans:
+            for t in all_trans:
                 arg1.append(t)
-                arg2.append(self.program.env_events + self.program.con_events)
+                arg2.append(all_events)
                 arg3.append(self.program.symbol_table)
             with Pool(mp.cpu_count()) as pool:
-                results = pool.map(abstract_guard_explicitly_parallel, zip(arg1, arg2, arg3))
-        else:
-            results = [self.abstract_program_transition(t, self.program.symbol_table) for t in all_trans + self.init_program_trans]
+                partial_results = pool.map(abstract_guard_explicitly_simple_parallel, zip(arg1, arg2, arg3))
+                results = []
+                for i, r in enumerate(partial_results):
+                    if r is None:
+                        new_r = abstract_guard_explicitly_complex_parallel(arg1[i], all_events, self.program.symbol_table)
+                        results.append(new_r)
+                    else:
+                        t, disjuncts, dnfed = r
+                        results.append(r)
 
+        else:
+            results = [self.abstract_program_transition(t, self.program.symbol_table) for t in all_trans]
+
+        results_init = []
         for t, disjuncts, formula in results:
             self.abstract_guard[t] = formula
             self.abstract_guard_disjuncts[t] = disjuncts
-            empty_effects = InvertibleMap()
+            empty_effects = {}
             true_set = {frozenset()}
-            empty_effects.put(frozenset(), frozenset(true_set))
+            empty_effects[frozenset()] = frozenset(true_set)
             self.abstract_effect[t] = {E: empty_effects for _, E in disjuncts}
             self.abstract_effect_relevant_preds[t] = {E: set() for _, E in disjuncts}
             self.abstract_effect_irrelevant_preds[t] = {E: set() for _, E in disjuncts}
+
+            if t in init_orig_trans_map.keys():
+                t_i = init_orig_trans_map[t]
+                disjuncts_i = []
+                dnfed = []
+
+                with Pool(mp.cpu_count()) as pool:
+                    disj_res = pool.map(sat_parallel, zip([conjunct(guard_E, init_conf) for guard_E, _ in disjuncts],
+                                                          [self.program.symbol_table for i in range(0, len(disjuncts))]))
+
+                for i, res in enumerate(disj_res):
+                    if res:
+                        g_i, E_i = disjuncts[i]
+                        disjuncts_i.append((conjunct(g_i, init_conf), E_i))
+                        dnfed.append(E_i)
+                results_init.append((t_i, disjuncts_i, disjunct_formula_set(dnfed)))
+
+        for t, disjuncts, formula in results_init:
+            self.abstract_guard[t] = formula
+            self.abstract_guard_disjuncts[t] = disjuncts
+            empty_effects = {}
+            true_set = {frozenset()}
+            empty_effects[frozenset()] = frozenset(true_set)
+            self.abstract_effect[t] = {E: empty_effects for _, E in disjuncts}
+            self.abstract_effect_relevant_preds[t] = {E: set() for _, E in disjuncts}
+            self.abstract_effect_irrelevant_preds[t] = {E: set() for _, E in disjuncts}
+
 
         self.all_program_trans = orig_transitions + self.init_program_trans + stutter
 
@@ -251,13 +289,13 @@ class EffectsAbstraction(PredicateAbstraction):
                     try_neg = True
                 else:
                     try_neg = False
-                newNextPss = InvertibleMap()
+                newNextPss = {}
 
                 # old_effects[E] is an InvertibleMap
                 for (nextPs, Pss) in old_effects[E].items():
                     if not relevant_pred(t, nextPs, predicate):
                         # new_effects[E] = old_effects[E]
-                        newNextPss.put(nextPs, Pss)
+                        newNextPss[nextPs] = Pss
                         continue
 
                     new_pos_Ps = set()
@@ -281,7 +319,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
                     new_now = frozenset(P for P in new_neg_Ps | new_pos_Ps)
                     if len(new_now) > 0:
-                        newNextPss.put(nextPs, new_now)
+                        newNextPss[nextPs] = new_now
 
                 if len(newNextPss) > 0:
                     new_effects[E] = newNextPss
@@ -306,7 +344,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     try_neg = True
                 else:
                     try_neg = False
-                newNextPss = InvertibleMap()
+                newNextPss = {}
 
                 # old_effects[E] is an InvertibleMap
                 for (nextPs, Pss) in old_effects[E].items():
@@ -344,9 +382,9 @@ class EffectsAbstraction(PredicateAbstraction):
                             new_neg_Ps.add(Ps | {neg(predicate)})
 
                     if len(new_pos_Ps) > 0:
-                        newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
+                        newNextPss[nextPs_with_p] = frozenset(P for P in new_pos_Ps)
                     if len(new_neg_Ps) > 0:
-                        newNextPss.put(nextPs_with_neg_p, frozenset(P for P in new_neg_Ps))
+                        newNextPss[nextPs_with_neg_p] = frozenset(P for P in new_neg_Ps)
 
                 if len(newNextPss) > 0:
                     new_effects[E] = newNextPss
@@ -384,7 +422,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 # E_formula = add_prev_suffix(conjunct_formula_set(E))
                 new_formula = conjunct(action_formula, add_prev_suffix(guard_disjunct))
 
-                newNextPss = InvertibleMap()
+                newNextPss = {}
 
                 # old_effects[E] is an InvertibleMap
                 for (nextPs, Pss) in old_effects[E].items():
@@ -406,9 +444,9 @@ class EffectsAbstraction(PredicateAbstraction):
                             new_neg_Ps.add(Ps)
 
                     if len(new_pos_Ps) > 0:
-                        newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
+                        newNextPss[nextPs_with_p] = frozenset(P for P in new_pos_Ps)
                     if len(new_neg_Ps) > 0:
-                        newNextPss.put(nextPs_with_neg_p, frozenset(P for P in new_neg_Ps))
+                        newNextPss[nextPs_with_neg_p] = frozenset(P for P in new_neg_Ps)
 
                 if len(newNextPss) > 0:
                     new_effects[E] = newNextPss
@@ -762,13 +800,13 @@ def compute_abstract_effect_with_p_parallel(arg):
                 try_neg = True
             else:
                 try_neg = False
-            newNextPss = InvertibleMap()
+            newNextPss = {}
 
             # old_effects[E] is an InvertibleMap
             for (nextPs, Pss) in old_effects[E].items():
                 if not relevant_pred(t, nextPs, predicate):
                     # new_effects[E] = old_effects[E]
-                    newNextPss.put(nextPs, Pss)
+                    newNextPss[nextPs] = Pss
                     continue
 
                 new_pos_Ps = set()
@@ -792,7 +830,7 @@ def compute_abstract_effect_with_p_parallel(arg):
 
                 new_now = frozenset(P for P in new_neg_Ps | new_pos_Ps)
                 if len(new_now) > 0:
-                    newNextPss.put(nextPs, new_now)
+                    newNextPss[nextPs] = new_now
 
             if len(newNextPss) > 0:
                 new_effects[E] = newNextPss
@@ -817,7 +855,7 @@ def compute_abstract_effect_with_p_parallel(arg):
                 try_neg = True
             else:
                 try_neg = False
-            newNextPss = InvertibleMap()
+            newNextPss = {}
 
             # old_effects[E] is an InvertibleMap
             for (nextPs, Pss) in old_effects[E].items():
@@ -855,9 +893,9 @@ def compute_abstract_effect_with_p_parallel(arg):
                         new_neg_Ps.add(Ps | {neg(predicate)})
 
                 if len(new_pos_Ps) > 0:
-                    newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
+                    newNextPss[nextPs_with_p] = frozenset(P for P in new_pos_Ps)
                 if len(new_neg_Ps) > 0:
-                    newNextPss.put(nextPs_with_neg_p, frozenset(P for P in new_neg_Ps))
+                    newNextPss[nextPs_with_neg_p] = frozenset(P for P in new_neg_Ps)
 
             if len(newNextPss) > 0:
                 new_effects[E] = newNextPss
@@ -897,7 +935,7 @@ def add_transition_predicate_to_t_parallel(arg):
             # E_formula = add_prev_suffix(conjunct_formula_set(E))
             new_formula = conjunct(action_formula, add_prev_suffix(guard_disjunct))
 
-            newNextPss = InvertibleMap()
+            newNextPss = {}
 
             # old_effects[E] is an InvertibleMap
             for (nextPs, Pss) in old_effects[E].items():
@@ -919,9 +957,9 @@ def add_transition_predicate_to_t_parallel(arg):
                         new_neg_Ps.add(Ps)
 
                 if len(new_pos_Ps) > 0:
-                    newNextPss.put(nextPs_with_p, frozenset(P for P in new_pos_Ps))
+                    newNextPss[nextPs_with_p] = frozenset(P for P in new_pos_Ps)
                 if len(new_neg_Ps) > 0:
-                    newNextPss.put(nextPs_with_neg_p, frozenset(P for P in new_neg_Ps))
+                    newNextPss[nextPs_with_neg_p] = frozenset(P for P in new_neg_Ps)
 
             if len(newNextPss) > 0:
                 new_effects[E] = newNextPss
@@ -931,6 +969,72 @@ def add_transition_predicate_to_t_parallel(arg):
 
                 Es.remove((guard_disjunct, E))
     return t, t_formula, invars, constants, Es, new_effects
+
+def abstract_guard_explicitly_simple_parallel(arg):
+    trans, events, symbol_table = arg
+    guard = trans.condition
+
+    if is_conjunction_of_atoms(guard):
+        conjuncts = guard.sub_formulas_up_to_associativity()
+        cond = []
+        env_con_events = set()
+        for c in conjuncts:
+            if not any(v for v in c.variablesin() if v not in events):
+                env_con_events.add(c)
+            else:
+                cond.append(c)
+        E = frozenset(env_con_events)
+        int_disjuncts_only_events = [E]
+        return trans, [(conjunct_formula_set(cond), E)], int_disjuncts_only_events
+    else:
+        return None
+
+
+def abstract_guard_explicitly_complex_parallel(trans, events, symbol_table):
+    guard = trans.condition
+    vars_in_cond = guard.variablesin()
+
+    events_in_cond = [e for e in vars_in_cond if e in events]
+    powerset = powerset_complete(events_in_cond)
+    int_disjuncts_only_events = []
+    disjuncts = []
+
+    arg1 = []
+    arg2 = []
+    arg3 = []
+    for E in powerset:
+        arg1.append(E)
+        arg2.append(guard)
+        arg3.append(symbol_table)
+
+    with Pool(mp.cpu_count()) as pool:
+        results = pool.map(deal_with_powerset, zip(arg1, arg2, arg3))
+
+    for r in results:
+        if r is not None:
+            (guard_E, E) = r
+            int_disjuncts_only_events.append(E)
+            disjuncts.append((guard_E, E))
+
+    dnfed = disjunct_formula_set([conjunct_formula_set(d) for d in int_disjuncts_only_events])
+
+    return trans, disjuncts, dnfed
+
+
+def deal_with_powerset(arg):
+    E, guard, symbol_table = arg
+
+    guard_E = guard.replace_vars(lambda x: true() if x in E else false() if neg(x) in E else x)
+    if sat(guard_E, symbol_table):
+        try:
+            guard_E_simplified = simplify_formula_with_math(guard_E, symbol_table)
+        except Exception as e:
+            # TODO what is this exception caused by??
+            guard_E_simplified = simplify_formula_with_math(guard_E, symbol_table)
+            logging.info(str(e))
+        return guard_E_simplified, E
+    else:
+        return None
 
 
 def abstract_guard_explicitly_parallel(arg):
@@ -953,8 +1057,11 @@ def abstract_guard_explicitly_parallel(arg):
 
     events_in_cond = [e for e in vars_in_cond if e in events]
     powerset = powerset_complete(events_in_cond)
-    int_disjuncts_only_events = [E for E in powerset if
-                                 sat(conjunct_formula_set(E | {guard}), symbol_table)]
+    int_disjuncts_only_events = []
+    for E in powerset:
+        guard = guard.replace_vars(lambda x: true() if x in E else false() if neg(x) in E else x)
+        if sat(guard, symbol_table):
+            int_disjuncts_only_events.append(E)
 
     satisfying_behaviour = int_disjuncts_only_events
     dnfed = disjunct_formula_set([conjunct_formula_set(d) for d in int_disjuncts_only_events])
