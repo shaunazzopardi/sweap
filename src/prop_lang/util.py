@@ -153,6 +153,9 @@ def nnf(prop: Formula) -> Formula:
     else:
         return NotImplemented
 
+def sat_parallel(arg):
+    formula, symbol_table = arg
+    return sat(formula, symbol_table)
 
 def sat(formula: Formula, symbol_table: dict = None, add_missing_vars:bool=False) -> bool:
     if symbol_table == None:
