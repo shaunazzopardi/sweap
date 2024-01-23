@@ -1,4 +1,5 @@
 import logging
+import multiprocessing as mp
 import time
 from multiprocessing import Pool
 
@@ -101,18 +102,21 @@ class EffectsAbstraction(PredicateAbstraction):
                                                                                self.program.symbol_table)]
 
         if parallelise:
-            results = Parallel(n_jobs=-1,
-                                   prefer=config.parallelise_type,
-                                   verbose=11,
-                                   batch_size=len(all_trans) // 8 + 1)(
-                delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in all_trans)
-            results_init = Parallel(n_jobs=-1,
-                                    prefer=config.parallelise_type,
-                                    verbose=11
-                                    # , batch_size=len(self.init_program_trans)//8 + 1
-                                    )(
-                delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
-                self.init_program_trans)
+            arg1 = []
+            arg2 = []
+            for t in all_trans + self.init_program_trans:
+                arg1.append(t)
+                arg2.append(self.program.symbol_table)
+            with Pool(mp.cpu_count()) as pool:
+                results = pool.map(self.abstract_program_transition, zip(arg1, arg2))
+            # config.parallel(
+            #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
+            #     self.init_program_trans)
+            # results = config.parallel(
+            #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in all_trans)
+            # results_init = config.parallel(
+            #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
+            #     self.init_program_trans)
 
         else:
             results = [self.abstract_program_transition(t, self.program.symbol_table) for t in all_trans + self.init_program_trans]
@@ -469,7 +473,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     arg3.append(self.abstract_effect[t])
                     arg4.append(p)
                     arg5.append(self.program.symbol_table)
-                with Pool(mp.cpu_count) as pool:
+                with Pool(mp.cpu_count()) as pool:
                     results = pool.map(compute_abstract_effect_with_p_parallel, zip(arg1, arg2, arg3, arg4, arg5))
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
                 # results = config.parallel(
@@ -544,7 +548,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     arg4.append(p)
                     arg5.append(self.program.symbol_table)
 
-                with Pool(mp.cpu_count) as pool:
+                with Pool(mp.cpu_count()) as pool:
                     results = pool.map(add_transition_predicate_to_t_parallel, zip(arg1, arg2, arg3, arg4, arg5))
                 # results = config.parallel(
                 #     delayed(self.add_transition_predicate_to_t)(t, self.abstract_guard_disjuncts[t],

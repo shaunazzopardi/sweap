@@ -49,7 +49,7 @@ def hoa_to_transitions(hoa, parallelise=True):
         for cond in cond_to_src_tgt.keys():
             arg1.append(to_replace)
             arg2.append(cond)
-        with Pool(mp.cpu_count) as pool:
+        with Pool(mp.cpu_count()) as pool:
             results = pool.map(parse_raw_cond, zip(arg1, arg2))
 
         for cond, env, con in results:
