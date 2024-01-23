@@ -1,0 +1,42 @@
+program evasion {
+    STATES {
+        env : init; con
+    }
+
+    ENVIRONMENT EVENTS {
+        incx; decx; incy; decy;
+    }
+
+    CONTROLLER EVENTS {
+        incxc; decxc; incyc; decyc;
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 0;
+        y : integer := 0;
+        xc : integer := 2;
+        yc : integer := 2;
+    }
+
+    TRANSITIONS {
+        env -> con [$
+                     x := x + 1 if incx && !decx;
+                     x := x - 1 if !incx && decx;
+                     y := y + 1 if incy && !decy;
+                     y := y - 1 if !incy && decy;
+                     ],
+        con -> env [$
+                     xc := xc + 1 if incxc && !decxc;
+                     xc := xc - 1 if !incxc && decxc;
+                     yc := yc + 1 if incyc && !decyc;
+                     yc := yc - 1 if !incyc && decyc;
+                     ]
+        }
+
+    SPECIFICATION {
+        G ((x <= xc - 1 | x >= xc - 1 | y <= yc - 1 | y >= yc - 1))
+    }
+}
