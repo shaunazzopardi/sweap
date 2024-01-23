@@ -5,6 +5,7 @@ from typing import Set
 
 from graphviz import Digraph
 
+import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
@@ -20,7 +21,8 @@ class Program:
 
     def __init__(self, name, sts, init_st, init_val: [TypedValuation],
                  transitions: [Transition],
-                 env_events: [Variable], con_events: [Variable], out_events: [Variable], preprocess=True):
+                 env_events: [Variable], con_events: [Variable], out_events: [Variable],
+                 preprocess=True, is_determ=None):
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
@@ -44,7 +46,7 @@ class Program:
                                     .complete_outputs(self.out_events)
                                     .complete_action_set(all_vars) for t in self.transitions]
             unsat_trans = []
-            with Pool(mp.cpu_count()) as pool:
+            with Pool(config.workers) as pool:
                 arg1 = []
                 arg2 = []
                 for t in self.transitions:
@@ -88,10 +90,10 @@ class Program:
                 self.state_to_trans[t.src] = [t]
 
         if preprocess:
-            self.deterministic = is_deterministic(self)
-            # if not self.deterministic:
-            #     print("We cannot deal with non-deterministic programs yet.\\ "
-            #             "Handle this manually by introducing environment variables to resolve the non-determinism.")
+            if is_determ is None:
+                self.deterministic = is_deterministic(self)
+            else:
+                self.deterministic = is_deterministic
 
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()

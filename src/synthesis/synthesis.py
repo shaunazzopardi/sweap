@@ -21,7 +21,8 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, atomic_predicates
+from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, atomic_predicates, \
+    is_tautology
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -136,7 +137,11 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
                 fs = normalise_mathexpr(state_pred)
                 for f in fs:
-                    rankings.append(ranking_refinement(f.right, [f]))
+                    invar = []
+                    if not is_tautology(f, program.symbol_table):
+                        invar.append(f)
+
+                    rankings.append(ranking_refinement(f.right, invar))
 
         # for tv in program.valuation:
         #     if tv.type.lower().startswith("bool"):
@@ -204,6 +209,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         print("adding " + ", ".join(map(str, new_state_preds + new_tran_preds)) + " to predicate abstraction")
         predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, True)
         timing_data += "\n" + ("adding " + ", ".join(map(str, (new_state_preds + new_tran_preds))) + " to predicate abstraction" + " took " + str(time.time() - start))
+        print ("adding " + ", ".join(map(str, (new_state_preds + new_tran_preds))) + " to predicate abstraction" + " took " + str(time.time() - start))
         logging.info(timing_data)
 
         predicate_abstraction.add_constraints(new_ltl_constraints)

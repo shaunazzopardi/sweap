@@ -23,6 +23,22 @@ def relevant_pred(transition, relevant_preds, predicate):
         return False
 
 
+def relevant_pred_g_u(guard, update, relevant_preds, predicate):
+    # check if relevant for guard
+    if any(True for v in predicate.variablesin() if v in guard.variablesin()):
+        return True
+    # check if used in action (without identities)
+    elif any(True for v in predicate.variablesin()
+             if any(True for act in update
+                    if act.left != act.right
+                       and (v == act.left or v in act.right.variablesin()))):
+        return True
+    elif any(True for v in predicate.variablesin() if any(True for p in relevant_preds if v in p.variablesin())):
+        return True
+    else:
+        return False
+
+
 def merge_transitions(transitions: [Transition], symbol_table, to_program_transitions):
     # can probably do this while building the initial abstraction
     new_transitions = []

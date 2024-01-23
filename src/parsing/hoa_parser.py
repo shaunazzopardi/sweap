@@ -1,8 +1,8 @@
-import multiprocessing as mp
 import re
 
 from multiprocessing import Pool
 
+import config
 from parsing.hoa_util import parse_raw_cond
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
@@ -49,7 +49,7 @@ def hoa_to_transitions(hoa, parallelise=True):
         for cond in cond_to_src_tgt.keys():
             arg1.append(to_replace)
             arg2.append(cond)
-        with Pool(mp.cpu_count()) as pool:
+        with Pool(config.workers) as pool:
             results = pool.map(parse_raw_cond, zip(arg1, arg2))
 
         for cond, env, con in results:

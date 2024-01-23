@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 import re
 import shutil
 import time
@@ -298,19 +299,22 @@ def stutter_transition(program, state, cnf=False):
 
     if condition in stutter_transition_cache.keys():
         return stutter_transition_cache[program][condition]
-    elif check(And(*condition.to_smt(program.symbol_table))):
+
+    cond_fnode = And(*condition.to_smt(program.symbol_table))
+
+    if check(cond_fnode):
         if cnf:
             start = time.time()
             if config.cnf_optimisations:
-                condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
+                condition_simplified = cnf_safe(condition, program.symbol_table, timeout=1)
             else:
-                condition_cnfed = condition
-            if condition_cnfed != condition:
+                condition_simplified = condition
+            if condition_simplified != condition:
                 logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
-                         "With result " + str(condition_cnfed))
+                         "With result " + str(condition_simplified))
             else:
                 logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
-            condition = condition_cnfed
+            condition = condition_simplified
         stutter_t = Transition(state,
                                condition,
                                [],
@@ -387,10 +391,6 @@ def is_deterministic(program):
     for (s, conds) in env_state_dict.items():
         # Assuming satisfiability already checked
         sat_conds = [cond for cond in conds]
-        # sat_conds = [cond for cond in conds if check(And(*cond.to_smt(symbol_table)))]
-        # for cond in conds:
-        #     if cond not in sat_conds:
-        #         logging.info("WARNING: " + str(cond) + " is not satisfiable, see transitions from state " + str(s))
 
         for i, cond in enumerate(sat_conds):
             for cond2 in sat_conds[i + 1:]:
@@ -400,7 +400,6 @@ def is_deterministic(program):
                     return False
 
     return True
-
 
 def safe_update_list_vals(d, k, v_arr):
     if k in d.keys():
@@ -536,6 +535,29 @@ def transition_formula(t):
         return transition_formulas[t]
 
 
+guard_update_formulas = {}
+guard_formulas_unpacked = {}
+
+def guard_update_formula(g, u):
+    key = pickle.dumps((g,u))
+    if key not in transition_formulas.keys():
+        formula = conjunct(add_prev_suffix(g),
+                           conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right))
+                                                 for act in u]))
+        guard_update_formulas[key] = formula
+        guard_formulas_unpacked[formula] = (g,u)
+        return formula
+    else:
+        return guard_update_formulas[key]
+
+def guard_update_formula_to_guard_update(gu):
+    if gu in guard_formulas_unpacked.keys():
+        return guard_formulas_unpacked[gu]
+    else:
+        raise Exception("programs.util: " + str(gu) + " not in guard_update_formulasguard_update_formulas")
+
+
+
 def powerset_complete(SS: iterable):
     if not isinstance(SS, set):
         S = set(SS)
@@ -543,6 +565,8 @@ def powerset_complete(SS: iterable):
         S = SS
     positive_subsets = chain.from_iterable(combinations(S, r) for r in range(len(S) + 1))
     complete_subsets = list()
+
+
     for ps in positive_subsets:
         real_ps = set(ps)
         negative = {neg(s) for s in S if (s) not in real_ps}
@@ -551,6 +575,12 @@ def powerset_complete(SS: iterable):
 
     return complete_subsets
 
+
+def complete_powerset(arg):
+    S, ps = arg
+    real_ps = set(ps)
+    negative = {neg(s) for s in S if (s) not in real_ps}
+    return frozenset(set(real_ps).union(negative))
 
 powersets = {}
 

@@ -10,7 +10,7 @@ from sympy import Basic
 from sympy.logic.boolalg import to_dnf, to_cnf
 
 from parsing.string_to_prop_logic import string_to_prop
-from analysis.smt_checker import check
+from analysis.smt_checker import check, bdd_simplify
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
@@ -29,6 +29,12 @@ def true():
 def false():
     return Value("FALSE")
 
+
+def is_true(f):
+    if isinstance(f, Value):
+        return f.is_true()
+    else:
+        return False
 
 def conjunct(left: Formula, right: Formula):
     if isinstance(left, Value):
@@ -155,6 +161,10 @@ def nnf(prop: Formula) -> Formula:
 
 def sat_parallel(arg):
     formula, symbol_table = arg
+    try:
+        return check(And(*formula.to_smt(symbol_table)))
+    except Exception as e:
+        return check(And(*formula.to_smt(symbol_table)))
     return sat(formula, symbol_table)
 
 def sat(formula: Formula, symbol_table: dict = None, add_missing_vars:bool=False) -> bool:
@@ -205,17 +215,34 @@ def prime_action(acts: [BiOp]) -> Formula:
     return conjunct_formula_set(primed_acts)
 
 
-def propagate_nexts(formula, add_next=False):
+def propagate_nexts(formula, init=False):
     if isinstance(formula, Value) or isinstance(formula, Variable):
-        if add_next:
+        if init:
             return X(formula)
     if isinstance(formula, UniOp):
         if formula.op == "X":
             return propagate_nexts(formula.right, True)
         else:
-            return UniOp(formula.op, propagate_nexts(formula.right, add_next))
+            return UniOp(formula.op, propagate_nexts(formula.right, init))
     elif isinstance(formula, BiOp):
-        return BiOp(propagate_nexts(formula.left, add_next), formula.op, propagate_nexts(formula.right, add_next))
+        return BiOp(propagate_nexts(formula.left, init), formula.op, propagate_nexts(formula.right, init))
+    else:
+        return formula
+
+
+def propagate_nexts_and_atomize(formula, init=False):
+    if isinstance(formula, Value):
+        return formula
+    elif isinstance(formula, Variable):
+        if init:
+            return Variable(str(formula) + "_next")
+    if isinstance(formula, UniOp):
+        if formula.op == "X":
+            return propagate_nexts_and_atomize(formula.right, True)
+        else:
+            return UniOp(formula.op, propagate_nexts_and_atomize(formula.right, init))
+    elif isinstance(formula, BiOp):
+        return BiOp(propagate_nexts_and_atomize(formula.left, init), formula.op, propagate_nexts_and_atomize(formula.right, init))
     else:
         return formula
 
@@ -315,13 +342,9 @@ def simplify_formula_without_math(formula, symbol_table=None):
 
 
 def formula_with_next_to_without(formula):
-    X_propagated_to_atoms = propagate_nexts(formula.to_strix())
+    X_propagated_to_atoms = propagate_nexts_and_atomize(formula.to_strix())
 
-    formula_with_no_nexts = X_propagated_to_atoms.replace_formulas(lambda x: None
-                                    if not (isinstance(x, UniOp) and x.op == "X")
-                                    else Variable("next_" + (x.right.name)))
-
-    return formula_with_no_nexts
+    return X_propagated_to_atoms
 
 
 def simplify_formula_with_next(formula, symbol_table=None):
@@ -343,6 +366,18 @@ def simplify_formula_with_next(formula, symbol_table=None):
         return to_formula
 
 
+
+def bdd_simplify_ltl_formula(formula, symbol_table=None):
+    ltl_to_prop = propagate_nexts_and_atomize(formula)
+    if symbol_table == None:
+        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in ltl_to_prop.variablesin()}
+
+    simplified = string_to_prop(serialize(bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])))
+
+    simplified_ltl = simplified.replace([BiOp(Variable(str(v)), ":=", X(Variable(str(v).split("_next")[0])))
+                                         for v in simplified.variablesin() if str(v).endswith("_next")])
+    return simplified_ltl
+
 def simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = ltl_to_propositional(formula)
     if symbol_table == None:
@@ -359,6 +394,8 @@ def ltl_to_propositional(formula):
     if isinstance(formula, Value) or isinstance(formula, Variable):
         return formula
     elif isinstance(formula, BiOp):
+        if formula.op in ["U", "W", "R", "M"]:
+            raise Exception("ltl_to_propositional: I can only handle propositional formulas with next " + str(formula))
         return BiOp(ltl_to_propositional(formula.left), formula.op, ltl_to_propositional(formula.right))
     elif isinstance(formula, UniOp):
         if formula.op == "X":

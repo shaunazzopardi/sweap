@@ -1,3 +1,5 @@
+import multiprocessing
+
 from prop_lang.util import neg
 from prop_lang.variable import Variable
 
@@ -15,3 +17,4 @@ mc = False
 debug = False
 
 cnf_optimisations = False
+workers = multiprocessing.cpu_count()
