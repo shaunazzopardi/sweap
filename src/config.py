@@ -15,4 +15,3 @@ mc = False
 debug = False
 
 cnf_optimisations = False
-parallelise_type = "processes" # this seems faster

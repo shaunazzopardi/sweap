@@ -1,8 +1,9 @@
+import multiprocessing as mp
 import re
 
-from joblib import Parallel, delayed
+from multiprocessing import Pool
 
-import config
+from parsing.hoa_util import parse_raw_cond
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
 from prop_lang.variable import Variable
@@ -18,7 +19,24 @@ def hoa_to_transitions(hoa, parallelise=True):
     aps = [a.replace('"', "") for a in hoa_dict["AP"].split(" ")[1:]]
 
     hoa_body = preamble_body[1].strip()
-    raw_trans = hoa_body.split("State:")[1:]
+    raw_trans = hoa_body.split("State: ")[1:]
+    raw_trans_with_sts = []
+    cond_to_src_tgt = {}
+    for sttrans in raw_trans:
+        lines = sttrans.strip().split("\n")
+        src = lines[0].split(" ")[0]
+        if lines[-1] == "--END--":
+            lines = lines[:-1]
+
+        for l in lines[1:]:
+            split = l.split("] ")
+            tgt = split[-1]
+            cond = split[0][1:]
+            raw_trans_with_sts.append((src, cond, tgt))
+            if cond in cond_to_src_tgt.keys():
+                cond_to_src_tgt[cond].append((src, tgt))
+            else:
+                cond_to_src_tgt[cond] = [(src, tgt)]
 
     to_replace = []
     for i, name in reversed(list(enumerate(aps))):
@@ -26,16 +44,30 @@ def hoa_to_transitions(hoa, parallelise=True):
 
     transitions = {}
     if parallelise:
-        results = Parallel(n_jobs=-1,
-                           prefer=config.parallelise_type,
-                           verbose=11)(
-            delayed(parse_state_trans)(to_replace, raw_tran) for raw_tran in raw_trans)
+        arg1 = []
+        arg2 = []
+        for cond in cond_to_src_tgt.keys():
+            arg1.append(to_replace)
+            arg2.append(cond)
+        with Pool(mp.cpu_count) as pool:
+            results = pool.map(parse_raw_cond, zip(arg1, arg2))
 
-        for r in results:
-            transitions.update(r)
+        for cond, env, con in results:
+            for src, tgt in cond_to_src_tgt[cond]:
+                key = (src, env, tgt)
+                if key in transitions.keys():
+                    transitions[key].append(con)
+                else:
+                    transitions[key] = [con]
     else:
-        for raw_tran in raw_trans:
-            transitions.update(parse_state_trans(to_replace, raw_tran))
+        for cond, src_tgts in cond_to_src_tgt.items():
+            _, env, con = parse_raw_cond(to_replace, cond)
+            for (src, tgt) in src_tgts:
+                key = (src, env, tgt)
+                if key in transitions.keys():
+                    transitions[key].append(con)
+                else:
+                    transitions[key] = [con]
 
     return hoa_dict["Start"], transitions
 

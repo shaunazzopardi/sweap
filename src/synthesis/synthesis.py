@@ -202,7 +202,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         ## update predicate abstraction
         start = time.time()
         print("adding " + ", ".join(map(str, new_state_preds + new_tran_preds)) + " to predicate abstraction")
-        predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, False)
+        predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, True)
         timing_data += "\n" + ("adding " + ", ".join(map(str, (new_state_preds + new_tran_preds))) + " to predicate abstraction" + " took " + str(time.time() - start))
         logging.info(timing_data)
 
