@@ -10,6 +10,8 @@ from analysis.abstraction.effects_abstraction.util.effects_util import merge_tra
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
     LTLAbstractionStructureType, LTLAbstractionType, LTLAbstractionOutputType
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from prop_lang.uniop import UniOp
+from prop_lang.value import Value
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis import parse_hoa
 from synthesis.mealy_machine import MealyMachine
@@ -26,7 +28,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
-    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred
+    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, should_be_math_expr
 
 
 class EffectsAbstraction(PredicateAbstraction):
@@ -56,6 +58,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.program_transitions_to_abstract = None
 
         self.state_to_abs_transitions = None
+        self.all_program_trans = None
 
         self.abstraction = None
         self.program = program
@@ -66,7 +69,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
         logger.info("Initialising predicate abstraction.")
 
-        self.abstract_program_transitions(parallelise=False)
+        self.abstract_program_transitions(parallelise=True)
 
         # Formula -> (P -> [P])
         for t in self.all_program_trans:
@@ -100,14 +103,17 @@ class EffectsAbstraction(PredicateAbstraction):
         self.init_program_trans = [t.add_condition(init_conf) for t in all_trans if
                                    t.src == self.program.initial_state and sat(conjunct(init_conf, t.condition),
                                                                                self.program.symbol_table)]
-        if parallelise:
+
+        if False and parallelise:
             arg1 = []
             arg2 = []
+            arg3 = []
             for t in all_trans + self.init_program_trans:
                 arg1.append(t)
-                arg2.append(self.program.symbol_table)
+                arg2.append(self.program.env_events + self.program.con_events)
+                arg3.append(self.program.symbol_table)
             with Pool(mp.cpu_count()) as pool:
-                results = pool.map(self.abstract_program_transition, zip(arg1, arg2))
+                results = pool.map(abstract_guard_explicitly_parallel, zip(arg1, arg2, arg3))
             # config.parallel(
             #     delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in
             #     self.init_program_trans)
@@ -134,6 +140,14 @@ class EffectsAbstraction(PredicateAbstraction):
 
     def abstract_guard_explicitly(self, guard, events, symbol_table):
         vars_in_cond = guard.variablesin()
+        int_disjuncts_only_events = None
+        if not any(v for v in guard.variablesin() if v not in events):
+            if isinstance(guard, BiOp) and guard.op[0] == "&":
+                conjuncts = guard.sub_formulas_up_to_associativity()
+                if any(c for c in conjuncts if not(isinstance(c, UniOp) or isinstance(c, Value))):
+                    int_disjuncts_only_events = [frozenset(conjuncts)]
+                    return [], int_disjuncts_only_events
+
         events_in_cond = [e for e in vars_in_cond if e in events]
         powerset = powerset_complete(events_in_cond)
         int_disjuncts_only_events = [E for E in powerset if
@@ -921,3 +935,40 @@ def add_transition_predicate_to_t_parallel(arg):
 
                 Es.remove((guard_disjunct, E))
     return t, t_formula, invars, constants, Es, new_effects
+
+
+def abstract_guard_explicitly_parallel(arg):
+    trans, events, symbol_table = arg
+    guard = trans.condition
+    vars_in_cond = guard.variablesin()
+
+    if not any(v for v in vars_in_cond if v not in events):
+        if isinstance(guard, BiOp) and guard.op[0] == "&":
+            conjuncts = guard.sub_formulas_up_to_associativity()
+            if any(c for c in conjuncts if not (isinstance(c, UniOp) or isinstance(c, Value))):
+                int_disjuncts_only_events = [frozenset(conjuncts)]
+                return trans, [], int_disjuncts_only_events
+        else:
+            int_disjuncts_only_events = set()
+            return trans, [], frozenset(int_disjuncts_only_events)
+
+    events_in_cond = [e for e in vars_in_cond if e in events]
+    powerset = powerset_complete(events_in_cond)
+    int_disjuncts_only_events = [E for E in powerset if
+                                 sat(conjunct_formula_set(E | {guard}), symbol_table)]
+
+    satisfying_behaviour = int_disjuncts_only_events
+    dnfed = disjunct_formula_set([conjunct_formula_set(d) for d in int_disjuncts_only_events])
+    disjuncts = []
+    for E in satisfying_behaviour:
+        if not E:
+            logger.info("empty E " + str(guard))
+        guard_E = guard.replace_vars(lambda x: true() if x in E else false() if neg(x) in E else x)
+        try:
+            guard_E_simplified = simplify_formula_with_math(guard_E, symbol_table)
+        except Exception as e:
+            # TODO what is this exception caused by??
+            guard_E_simplified = simplify_formula_with_math(guard_E, symbol_table)
+            logging.info(str(e))
+        disjuncts.append((guard_E_simplified, E))
+    return trans, disjuncts, dnfed
