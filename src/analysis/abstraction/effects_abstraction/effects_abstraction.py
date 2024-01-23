@@ -481,7 +481,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.abstract_guard_disjuncts[t] = Es
                 self.abstract_effect[t] = new_effects
 
-        if config.debug:
+        if config.Config.getConfig().debug:
             # sanity check
             for t, E_effects in self.abstract_effect.items():
                 t_f = transition_formula(t)

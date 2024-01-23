@@ -300,8 +300,9 @@ def stutter_transition(program, state, cnf=False):
         return stutter_transition_cache[program][condition]
     elif check(And(*condition.to_smt(program.symbol_table))):
         if cnf:
+            conf = config.Config.getConfig()
             start = time.time()
-            if config.cnf_optimisations:
+            if conf.cnf_optimisations:
                 condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
             else:
                 condition_cnfed = condition
