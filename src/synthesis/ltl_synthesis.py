@@ -51,7 +51,8 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
 def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem,
               output: object,
               env_con_separate: bool,
-              abstraction: PredicateAbstraction) -> MealyMachine:
+              abstraction: PredicateAbstraction,
+              one_trans: bool) -> MealyMachine:
     if "UNREALIZABLE" in output:
         counterstrategy = True
     else:
