@@ -1147,6 +1147,10 @@ def normalise_mathexpr(mathexpr):
             new_f1 = BiOp(f.left, "<=", f.right)
             new_f2 = BiOp(f.right, "<=", f.left)
             fs = [new_f1, new_f2]
+        elif f.op == "!=":
+                new_f1 = BiOp(f.left, "<=", f.right)
+                new_f2 = BiOp(f.right, "<=", f.left)
+                fs = [new_f1, new_f2]
 
         new_fs = []
         for new_f in fs:
