@@ -102,12 +102,12 @@ class EffectsAbstraction(PredicateAbstraction):
 
         if parallelise:
             results = Parallel(n_jobs=-1,
-                                   prefer="threads",
+                                   prefer=config.parallelise_type,
                                    verbose=11,
                                    batch_size=len(all_trans) // 8 + 1)(
                 delayed(self.abstract_program_transition)(t, self.program.symbol_table) for t in all_trans)
             results_init = Parallel(n_jobs=-1,
-                                    prefer="threads",
+                                    prefer=config.parallelise_type,
                                     verbose=11
                                     # , batch_size=len(self.init_program_trans)//8 + 1
                                     )(
@@ -461,7 +461,7 @@ class EffectsAbstraction(PredicateAbstraction):
             if parallelise:# and len(self.state_predicates) > 4:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
                 results = Parallel(n_jobs=-1,
-                                       prefer="threads",
+                                       prefer=config.parallelise_type,
                                        verbose=11,
                                        batch_size=len(self.abstract_guard.keys())//8 + 1)(
                     delayed(self.compute_abstract_effect_with_p)(t, self.abstract_guard_disjuncts[t],
@@ -521,10 +521,10 @@ class EffectsAbstraction(PredicateAbstraction):
                 str(label_pred(p, new_transition_predicates)):
                     TypedValuation(str(label_pred(p, new_transition_predicates)), "bool", true())})
 
-            if parallelise and len(self.state_predicates) > 4:
+            if parallelise:
                 # shouldn't parallelize here, but the loop within compute_abstract_effect_with_p
                 results = Parallel(n_jobs=-1,
-                                       prefer="threads",
+                                       prefer=config.parallelise_type,
                                        verbose=11
                                        # ,
                                        # batch_size=len(self.abstract_guard_env.keys())//8 + 1
