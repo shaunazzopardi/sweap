@@ -21,46 +21,23 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
     rename_pred = lambda x: label_pred(x, predicate_abstraction.get_all_preds())
 
     # TODO try to put LTL inform of list of G(now -> next), see if it helps
-    pred_next = {}
-    for t in predicate_abstraction.init_program_trans:
-        for gu, Es in predicate_abstraction.transition_guard_update_to_E[t].items():
-            effect = predicate_abstraction.abstract_effect[gu]
-            if len(effect.keys()) > 1:
-                raise Exception("init transition " + str(t) + " has more than one possible effect")
-            elif len(effect.keys()) == 1:
-                E_effects = {rename_pred(p) for p in list(effect.keys())[0]}
-            else:
-                E_effects = set()
-            E_effects.update({neg(rename_pred(p)) for p in predicate_abstraction.abstract_effect_invars[gu]})
-            E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_constant[gu]})
-            E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_tran_preds_constant[gu]})
-            if not empty_abstraction(predicate_abstraction) and len(E_effects) == 0:
-                raise Exception("init transition " + str(t) + " has no effect")
-            if frozenset(E_effects) not in pred_next.keys():
-                pred_next[frozenset(E_effects)] = set()
-            E_formula = disjunct_formula_set([conjunct_formula_set(E) for E in Es])
-            pred_next[frozenset(E_effects)].add(conjunct((E_formula),
-                                                         X(conjunct_formula_set([Variable(t.tgt)] + t.output))))
+    pred_next = set()
+    for i, (gu, tgt) in enumerate(predicate_abstraction.init_disjuncts):
+        post = predicate_abstraction.second_state_abstraction[i]
+        E_formula = disjunct_formula_set([conjunct_formula_set(E) for E in predicate_abstraction.init_gu_to_E[gu]])
 
-    init_program_formula = conjunct_formula_set(BiOp(Variable(tv.name), "=", tv.value) for tv in predicate_abstraction.program.valuation)
-    init_preds = [p for p in predicate_abstraction.state_predicates if sat(conjunct(init_program_formula, p),
-                                                                           predicate_abstraction.symbol_table)]
-    init_preds += [neg(p) for p in predicate_abstraction.state_predicates if p not in init_preds]
-    init_preds += [neg(p) for p in predicate_abstraction.transition_predicates]
-    init_preds = list(map(rename_pred, init_preds))
-    init_preds += [Variable(predicate_abstraction.program.initial_state)]
-    init_formula = conjunct_formula_set(init_preds)
+        post_renamed = [rename_pred(p) for p in post]
 
-    init_transition_ltls = []
-    for E_effects in pred_next.keys():
-        init_transition_ltls.append(conjunct(conjunct_formula_set(X(preds) for preds in E_effects),
-                                            disjunct_formula_set([(phi) for phi in pred_next[E_effects]])))
-    init_transition_ltl = disjunct_formula_set(init_transition_ltls)
+        pred_next.add(conjunct((conjunct_formula_set([E_formula])),
+                               X(conjunct_formula_set(post_renamed + [Variable(tgt)]))))
+
+    init_state = conjunct_formula_set([Variable(predicate_abstraction.program.initial_state)] +
+                  [rename_pred(p) for p in predicate_abstraction.init_state_abstraction])
+
+    init_transition_ltl = disjunct_formula_set(pred_next)
 
     transition_ltl = {}
-    for trans in predicate_abstraction.abstract_guard.keys():
-        # exclude initial transitions
-        if trans in predicate_abstraction.init_program_trans: continue
+    for trans in predicate_abstraction.non_init_program_trans:
         pred_effects = []
 
         for gu, Es in predicate_abstraction.transition_guard_update_to_E[trans].items():
@@ -93,13 +70,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
 
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
                 E_next_simplified = simplify_formula_without_math(E_next)
-                if is_true(E_now_simplified):
-                    if not is_true(E_next_simplified):
-                        E_effects.append(X(E_next_simplified))
-                elif not is_true(E_next_simplified):
-                    E_effects.append(E_now_simplified)
-                else:
-                    E_effects.append(conjunct(E_now_simplified, X(E_next_simplified)))
+                E_effects.append(conjunct(E_now_simplified, X(E_next_simplified)))
             pred_effects.extend([conjunct(conjunct(E_formula, invar_preds_formula), (disjunct_formula_set(E_effects)))])
 
         pred_effect_formula = disjunct_formula_set(pred_effects)
@@ -128,109 +99,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
 
 
     # logger.info("LTL formula: " + str(ltl))
-    return [init_formula, init_transition_ltl, at_least_and_at_most_one_state] + _transition_ltl
-
-
-def to_ltl_organised_by_pred_effects(predicate_abstraction: EffectsAbstraction):
-    rename_pred = lambda x: label_pred(x, predicate_abstraction.get_all_preds())
-
-    # TODO try to put LTL inform of list of G(now -> next), see if it helps
-    pred_next = {}
-    for t in predicate_abstraction.init_program_trans:
-        for E, effect in predicate_abstraction.abstract_effect[t].items():
-            if len(effect.keys()) > 1:
-                raise Exception("init transition " + str(t) + " has more than one possible effect")
-            elif len(effect.keys()) == 1:
-                E_effects = {rename_pred(p) for p in list(effect.keys())[0]}
-            else:
-                E_effects = set()
-            E_effects.update({neg(rename_pred(p)) for p in predicate_abstraction.abstract_effect_invars[t]})
-            E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_constant[t]})
-            E_effects.update({rename_pred(p) for p in predicate_abstraction.abstract_effect_tran_preds_constant[t]})
-            if not empty_abstraction(predicate_abstraction) and len(E_effects) == 0:
-                raise Exception("init transition " + str(t) + " has no effect")
-            if frozenset(E_effects) not in pred_next.keys():
-                pred_next[frozenset(E_effects)] = set()
-            pred_next[frozenset(E_effects)].add(conjunct((conjunct_formula_set(E)),
-                                                         X(conjunct_formula_set([Variable(t.tgt)] + t.output))))
-
-    init_program_formula = conjunct_formula_set(BiOp(Variable(tv.name), "=", tv.value) for tv in predicate_abstraction.program.valuation)
-    init_preds = [p for p in predicate_abstraction.state_predicates if sat(conjunct(init_program_formula, p),
-                                                                           predicate_abstraction.symbol_table)]
-    init_preds += [neg(p) for p in predicate_abstraction.state_predicates if p not in init_preds]
-    init_preds += [neg(p) for p in predicate_abstraction.transition_predicates]
-    init_preds = list(map(rename_pred, init_preds))
-    init_preds += [Variable(predicate_abstraction.program.initial_state)]
-    init_formula = conjunct_formula_set(init_preds)
-
-    init_transition_ltls = []
-    for E_effects in pred_next.keys():
-        init_transition_ltls.append(conjunct(conjunct_formula_set(X(preds) for preds in E_effects),
-                                            disjunct_formula_set([(phi) for phi in pred_next[E_effects]])))
-    init_transition_ltl = disjunct_formula_set(init_transition_ltls)
-
-    transition_ltl = {}
-    for trans in predicate_abstraction.abstract_guard.keys():
-        # exclude initial transitions
-        if trans in predicate_abstraction.init_program_trans: continue
-        invar_preds_effects = []
-
-        if trans in predicate_abstraction.abstract_effect_invars.keys():
-            invar_preds_effects += [iff(rename_pred(p), X(rename_pred(p))) for p in
-                                    set(predicate_abstraction.abstract_effect_invars[trans])]
-
-        if trans in predicate_abstraction.abstract_effect_constant.keys():
-            invar_preds_effects += [X(rename_pred(p)) for p in
-                                    set(predicate_abstraction.abstract_effect_constant[trans])]
-
-        if trans in predicate_abstraction.abstract_effect_tran_preds_constant.keys():
-            invar_preds_effects += [X(rename_pred(p)) for p in
-                                    set(predicate_abstraction.abstract_effect_tran_preds_constant[trans])]
-
-        invar_preds_formula = conjunct_formula_set(invar_preds_effects)
-        pred_effects = []
-
-        for E, effect in predicate_abstraction.abstract_effect[trans].items():
-            E_effects = []
-            for next_pred_state, pred_states in effect.items():
-                E_now = disjunct_formula_set(
-                    [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
-                E_now_simplified = simplify_formula_without_math(E_now)
-                if config.cnf_optimisations:
-                    E_now_simplified = cnf_safe(E_now_simplified)
-
-                E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
-                E_next_simplified = simplify_formula_without_math(E_next)
-                E_effects.extend([conjunct(E_now_simplified, X(E_next_simplified))])
-            pred_effects.extend([conjunct(conjunct_formula_set(E), (disjunct_formula_set(E_effects)))])
-
-        pred_effect_formula = disjunct_formula_set(pred_effects)
-        output_formula = conjunct_formula_set([X(o) for o in trans.output])
-        # output_formula = conjunct_formula_set([X(o) for o in env_trans.output])
-        effect_formula = conjunct(conjunct(pred_effect_formula, invar_preds_formula), output_formula)
-
-        next = conjunct(effect_formula, X(Variable(trans.tgt)))
-
-        if trans.src in transition_ltl.keys():
-            transition_ltl[trans.src].append(next)
-        else:
-            transition_ltl[trans.src] = [next]
-
-    _transition_ltl = [(G(implies(src, disjunct_formula_set(transition_ltl[src])))) for src in
-                           transition_ltl.keys()]
-
-    program = predicate_abstraction.get_program()
-    at_least_and_at_most_one_state = UniOp("G",
-                                           conjunct_formula_set(
-                                               [BiOp(Variable(q), "<=>", conjunct_formula_set([neg(Variable(r)) for r in
-                                                                                     program.states
-                                                                                     if
-                                                                                     r != q]))
-                                                for q in program.states if "loop" not in str(q)])).to_nuxmv()
-
-
-    # logger.info("LTL formula: " + str(ltl))
-    return [init_formula, init_transition_ltl, at_least_and_at_most_one_state] + _transition_ltl
+    return [init_state, init_transition_ltl, at_least_and_at_most_one_state] + _transition_ltl
 
 
 def to_ltl_reduced(predicate_abstraction: EffectsAbstraction):
