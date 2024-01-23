@@ -153,6 +153,9 @@ def nnf(prop: Formula) -> Formula:
     else:
         return NotImplemented
 
+def sat_parallel(arg):
+    formula, symbol_table = arg
+    return sat(formula, symbol_table)
 
 def sat(formula: Formula, symbol_table: dict = None, add_missing_vars:bool=False) -> bool:
     if symbol_table == None:
@@ -674,7 +677,7 @@ def partially_evaluate(formula, true_vars: [Variable], false_vars: [Variable], s
 
 def is_atomic(f):
     return isinstance(f, Variable) or isinstance(f, Value) or isinstance(f, MathExpr) or (
-                isinstance(f, UniOp) and is_atomic(f.right))
+                isinstance(f, UniOp) and is_atomic(f.right)) or should_be_math_expr(f)
 
 
 def is_conjunction_of_atoms(formula):
