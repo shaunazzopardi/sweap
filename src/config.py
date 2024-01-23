@@ -17,6 +17,7 @@ class Config:
     _mc = False
     _debug = False
     _cnf_optimization = False
+    _parallelise_type = "processes"
 
     def _get_e_f(self):
         return self._eager_fairness
@@ -66,6 +67,13 @@ class Config:
     def _set_cnf_opt(self, value: bool):
         self._cnf_optimization = value
 
+    def _get_parallelise_type(self):
+        return self._parallelise_type
+
+    def _set_parallelise_type(self, value: str):
+        self._parallelise_type = value
+
+
     def _do_nothing(self):
         pass
 
@@ -77,6 +85,7 @@ class Config:
     mc = property(_get_mc, _set_mc, _do_nothing, "")
     debug = property(_get_debug, _set_debug, _do_nothing, "")
     cnf_optimization = property(_get_cnf_opt, _set_cnf_opt, _do_nothing, "")
+    parallelise_type = property(_get_parallelise_type, _set_parallelise_type, _do_nothing, "")
 
     def __init__(self):
         raise RuntimeError("Use getConfig() instead")

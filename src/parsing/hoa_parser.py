@@ -2,6 +2,7 @@ import re
 
 from joblib import Parallel, delayed
 
+import config
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
 from prop_lang.variable import Variable
@@ -26,7 +27,7 @@ def hoa_to_transitions(hoa, parallelise=True):
     transitions = {}
     if parallelise:
         results = Parallel(n_jobs=-1,
-                           prefer="threads",
+                           prefer=config.parallelise_type,
                            verbose=11)(
             delayed(parse_state_trans)(to_replace, raw_tran) for raw_tran in raw_trans)
 
