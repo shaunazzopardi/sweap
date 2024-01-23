@@ -49,7 +49,7 @@ def main():
     if args.debug is not None:
         conf.debug = True
 
-    if args.program is None:
+    if args.program is None and args.tsl is None:
         raise Exception("Program path not specified.")
 
     if args.only_ranking is not None:

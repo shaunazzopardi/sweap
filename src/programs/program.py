@@ -123,6 +123,7 @@ class Program:
             result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"  # noqa: E501
             if t.action is not None and len(t.action) > 0:
                 result += " $ " + ', '.join(map(remove_paren, t.action))
+            # Deprecated: we'll remove output actions altogether at some point
             if is_env and t.output is not None and len(t.output) > 0:
                 result += " # " + ', '.join(map(remove_paren, t.output))
             return result + ']'
@@ -155,13 +156,9 @@ class Program:
             }}
             VALUATION {{
                 {SN.join(valuations)}{';' if valuations else ''}
-
             }}
-            ENVIRONMENT TRANSITIONS {{
-                {CN.join(tr_to_str(t, True) for t in self.env_transitions)}
-            }}
-            CONTROLLER TRANSITIONS {{
-                {CN.join(tr_to_str(t, False) for t in self.con_transitions)}
+            TRANSITIONS {{
+                {CN.join(tr_to_str(t, False) for t in self.transitions)}
             }}
 
             {spec}

@@ -247,7 +247,7 @@ class ToProgram(NodeWalker):
         )]
 
         prog = Program(
-            name, ['e0', 'c0'], 'e0', init_values, env_t, con_t,
+            name, ['e0', 'c0'], 'e0', init_values, env_t + con_t,
             list(self.env_events), con_events, [], preprocess=True)
 
         formula = normalize_ltl(orig_formula)
