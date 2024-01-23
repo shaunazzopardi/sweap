@@ -71,6 +71,7 @@ def main():
     if args.only_safety is not None:
         if args.only_ranking is not None or args.only_structural is not None:
             raise Exception("Cannot use both only_safety with only_ranking and only_structural.")
+        conf.eager_fairness = False
         conf.prefer_ranking = False
         conf.only_ranking = False
         conf.only_structural = False
