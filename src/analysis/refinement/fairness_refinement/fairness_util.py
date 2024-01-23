@@ -7,23 +7,22 @@ from pysmt.shortcuts import Implies, And, Exists, Symbol, ForAll
 from pysmt.typing import INT
 
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from analysis.refinement.fairness_refinement.ranking_refinement import use_fairness_refinement, \
-    interactive_transition_predicates, find_ranking_function, ranking_refinement
+from analysis.refinement.fairness_refinement.ranking_refinement import (use_fairness_refinement, find_ranking_function,
+                                                                        ranking_refinement)
 from analysis.refinement.fairness_refinement.structural_refinement import structural_refinement
 from analysis.smt_checker import quantifier_elimination
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import add_prev_suffix, reduce_up_to_iff, ground_predicate_on_vars
+from programs.util import add_prev_suffix, ground_predicate_on_vars
 from prop_lang.biop import BiOp
-from prop_lang.mathexpr import MathExpr
 from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true
-from prop_lang.value import Value
+from synthesis.mealy_machine import MealyMachine
 
 
-def try_liveness_refinement(counterstrategy_states: [str],
+def try_liveness_refinement(Cs: MealyMachine,
                             program: Program,
                             predicate_abstraction: PredicateAbstraction,
-                            agreed_on_transitions,
+                            agreed_on_execution,
                             disagreed_on_state,
                             loop_counter,
                             allow_user_input):
@@ -34,27 +33,19 @@ def try_liveness_refinement(counterstrategy_states: [str],
 
     symbol_table = predicate_abstraction.get_symbol_table()
     ## check if should use fairness refinement or not
-    try:
-        logging.info("Counterstrategy states before environment step: " + ", ".join(counterstrategy_states))
-        last_counterstrategy_state = counterstrategy_states[-1]
-        start = time.time()
-        use_fairness_refinement_flag, counterexample_loop, entry_valuation, entry_predicate, pred_mismatch \
-            = use_fairness_refinement(predicate_abstraction,
-                                      agreed_on_transitions,
-                                      disagreed_on_state,
-                                      last_counterstrategy_state,
-                                      symbol_table)
-        logging.info("determining whether fairness refinement is appropriate took " + str(time.time() - start))
-    except Exception as e:
-        logging.info("WARNING: " + str(e))
-        logging.info("I will try to use safety instead.")
-        return False, None
+    start = time.time()
+    use_fairness_refinement_flag, counterexample_loop, entry_valuation, entry_predicate, pred_mismatch \
+        = use_fairness_refinement(Cs,
+                                  predicate_abstraction,
+                                  agreed_on_execution,
+                                  disagreed_on_state,
+                                  symbol_table)
+    logging.info("determining whether fairness refinement is appropriate took " + str(time.time() - start))
 
     if not use_fairness_refinement_flag:
         return False, None
 
     ## do fairness refinement
-    exit_trans_state = disagreed_on_state[1]
     loop = counterexample_loop
 
     # TODO this isn't the real exit trans, it's a good approximation for now, but it may be a just
@@ -72,78 +63,6 @@ def try_liveness_refinement(counterstrategy_states: [str],
 
     if True:
         return success, result
-
-
-    # TODO in some cases we can use ranking abstraction as before:
-    #  -DONE if ranking function is a natural number
-    #  -if ranking function does not decrease outside the loop
-    #  -DONE if supporting invariant ensures ranking function is bounded below
-
-    if ranking is None:
-        logging.info("I could not find a ranking function.")
-        if allow_user_input:
-            new_ranking_invars = interactive_transition_predicates(ranking_invars, symbol_table)
-        else:
-            return False, None
-    else:
-        logging.info("Found ranking function: "
-                     + str(ranking)
-                     + (" with invariants: " + ", ".join(map(str, invars))
-                        if len(invars) > 0
-                        else ""))
-        if allow_user_input:
-            text = input("Use suggested ranking function (y/n)?").lower().strip()
-            while text != "y" and text != "n":
-                text = input("Use suggested ranking function (y/n)?")
-                if text == "n":
-                    new_ranking_invars = interactive_transition_predicates(ranking_invars, symbol_table)
-                elif text == "y":
-                    new_ranking_invars = {ranking: invars}
-                    break
-        else:
-            new_ranking_invars = {ranking: invars}
-
-    inappropriate_rankings = []
-    for ranking in new_ranking_invars.keys():
-        for t, _ in loop:
-            action_formula = conjunct_formula_set([BiOp(a.left, "==", add_prev_suffix(a.right)) for a in t.action])
-            ranking_decrease_or_stutter_with_action = conjunct(BiOp(ranking, "<=", add_prev_suffix(ranking)), action_formula)
-            # if there is an action in the loop where the ranking function does not decrease or stay the same,
-            #    then the ranking function will not help us out of the loop
-            if not sat(ranking_decrease_or_stutter_with_action, symbol_table):
-                inappropriate_rankings.append(ranking)
-
-    for inappropriate_ranking in inappropriate_rankings:
-        new_ranking_invars.pop(inappropriate_ranking)
-
-    if len(new_ranking_invars) == 0:
-        logging.info("The found ranking function/s is/are increased in the loop, and thus is/are not appropriate "
-                     "for ranking refinement.")
-        return False, (sufficient_entry_condition, exit_predicate)
-
-    new_transition_predicates = []
-    new_decs = []
-    for (ranking, invars) in new_ranking_invars.items():
-        # if not function_bounded_below_by_0(ranking, invars, symbol_table):
-        if not function_has_well_ordered_range(ranking, invars, symbol_table):
-            wellfounded_invar = MathExpr(BiOp(ranking, ">=", Value(0)))
-            new_ranking_invars[ranking].append(wellfounded_invar)
-
-        dec = BiOp(add_prev_suffix(ranking), ">", ranking)
-        new_decs.append(dec)
-        inc = BiOp(add_prev_suffix(ranking), "<", ranking)
-        new_transition_predicates.extend([dec, inc])
-
-    old_trans_preds_decs = [tp for tp in predicate_abstraction.get_transition_predicates() if tp.op == ">"]
-    new_all_trans_preds_decs = reduce_up_to_iff(old_trans_preds_decs,
-                                                old_trans_preds_decs + new_decs,
-                                                symbol_table)
-
-    if len(new_all_trans_preds_decs) == len(old_trans_preds_decs):
-        logging.info("New transition predicates are equivalent to old ones.")
-        return False, None
-
-    return True, (new_ranking_invars, new_transition_predicates)
 
 
 def function_has_well_ordered_range(f, invars, symbol_table):
@@ -229,7 +148,7 @@ def liveness_step(program,
     if any(v for v in exit_cond.variablesin() if "_prev" in str(v)):
         return False, None
 
-    body = [t.action for t, _ in concrete_body]
+    body = [t.action for t, _, _ in concrete_body]
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
 
     irrelevant_vars = [v for v in program.local_vars if v not in vars_relevant_to_exit]
@@ -284,6 +203,9 @@ def liveness_step(program,
 
     conf = Config.getConfig()
     for cond in conditions:
+        # this avoids loops that are not entered
+        if not sat(conjunct(cond, neg(exit_cond)), symbol_table):
+            return False, None
         # for exit_pred in disjuncts_in_exit_pred_grounded:
         if len(exit_cond.variablesin()) == 0:
             continue
@@ -306,20 +228,22 @@ def liveness_step(program,
                 # if function_is_ranking_function(ranking, invars, body, symbol_table):
                 if ranking not in used_rankings:
                     if function_has_well_ordered_range(ranking, invars, symbol_table):
-                        # if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
-                        used_rankings.add(ranking)
-                        return True, ranking_refinement(ranking, invars)
+                        # this is not enough, doesn t take into accound precondition
+                        if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
+                            used_rankings.add(ranking)
+                            return True, ranking_refinement(ranking, invars)
+
             if (conf.only_structural and not conf.only_ranking) or conf.eager_fairness:
                 if conditions[-1] == cond:
                     return False, None
                 else:
-                    return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter)
+                    return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter, symbol_table)
         except Exception:
             continue
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 
     if not conf.only_ranking and sufficient_entry_condition != conditions[-1]:
-        return True, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter)
+        return True, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter, symbol_table)
     else:
         return False, None

@@ -18,7 +18,7 @@ class UniOp(Formula):
         if self.op == "next" and (
                 isinstance(self.right, UniOp) or isinstance(self.right, Value) or isinstance(self.right, Variable)):
             return self.op + "(" + str(self.right) + ")"
-        if self.op in ["G,F,X"]:
+        if self.op in ["G","F","X"]:
             return self.op + "(" + str(self.right) + ")"
         if self.op != "!" and self.op != "-":
             return self.op + " " + str(self.right)

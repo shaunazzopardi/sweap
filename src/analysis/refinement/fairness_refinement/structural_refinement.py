@@ -4,14 +4,15 @@ from programs.util import add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import disjunct_formula_set, G, conjunct_formula_set, implies, neg, conjunct, X, iff, disjunct, F, \
-    atomic_predicates
+    atomic_predicates, sat
 from prop_lang.variable import Variable
 
 
 def structural_refinement(terminating_loop: [(Formula, [BiOp])],
                           entry_condition: Formula,
                           exit_condition: Formula,
-                          counter):
+                          counter,
+                          symbol_table):
     ## TODO this will encode the loop
     # option 1: action-based encoding, however will miss sequence between con and env combined transitions,
     #           without new actions to combine them; would need an adhoc implementation for the effects abstraction,
@@ -63,6 +64,8 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
             next_var = Variable("in_loop" + str(counter) + "_" + str(i+1))
 
         if i == 0:
+            if not sat(conjunct_formula_set([entry_condition, neg(exit_condition), guard]), symbol_table):
+                print()
             init = G(implies(neg(in_loop),
                      iff(conjunct_formula_set([entry_condition, neg(exit_condition), guard, X(act_i)]),
                          X(next_var))))
@@ -85,7 +88,7 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
                      X(neg(in_loop))))
             constraints.append(exit)
 
-        if len(in_loop_vars) > 1:
+        if i != 0:
             constraint = G(implies(conjunct_formula_set([current_var, guard]),
                              X(conjunct_formula_set([
                                  implies(act_i, next_var),

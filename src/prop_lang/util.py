@@ -781,7 +781,7 @@ def depth_of_formula(formula):
 
 def should_be_math_expr(formula):
     if isinstance(formula, BiOp):
-        if formula.op in ["<", ">", "<=", ">=", "="]:
+        if formula.op in ["<", ">", "<=", ">=", "=", "=="]:
             return True
     return False
 
@@ -1023,19 +1023,19 @@ var_to_predicate_cache = {}
 def is_predicate_var(p):
     if isinstance(p, str):
         p = Variable(p)
-    if p in var_to_predicate_cache.keys():
+    if str(p) in var_to_predicate_cache.keys():
         return True
     else:
         return False
 
 
 def var_to_predicate(p):
-    if p in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[p]
-    elif isinstance(p, UniOp) and p.op == "!" and p.right in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[p.right]
-    elif neg(p) in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[neg(p)].right
+    if str(p) in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[str(p)]
+    elif isinstance(p, UniOp) and p.op == "!" and str(p.right) in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[str(p.right)]
+    elif str(neg(p)) in var_to_predicate_cache.keys():
+        return var_to_predicate_cache[str(neg(p))].right
     else:
         raise Exception("Could not find predicate for variable: " + str(p))
 
@@ -1050,7 +1050,7 @@ def label_pred(p, preds):
         representation = stringify_pred(p)
 
     predicate_to_var_cache[p] = representation
-    var_to_predicate_cache[representation] = p
+    var_to_predicate_cache[str(representation)] = p
     return representation
 
 
@@ -1086,7 +1086,7 @@ def stringify_pred(p):
                               .replace("|", "_OR_")
                               )
     predicate_to_var_cache[p] = representation
-    var_to_predicate_cache[representation] = p
+    var_to_predicate_cache[str(representation)] = p
     return representation
 
 
@@ -1133,3 +1133,41 @@ def finite_state_preds(valuation: TypedValuation):
         lo, hi = int(lo), int(hi)
         for x in range(lo, hi+1):
             yield MathExpr(BiOp(variable, "=", Value(str(x))))
+
+
+def normalise_mathexpr(mathexpr):
+    f = None
+    if isinstance(mathexpr, MathExpr):
+        f = mathexpr.formula
+    elif should_be_math_expr(mathexpr):
+        f = mathexpr
+    else:
+        return [mathexpr]
+
+    if isinstance(f, BiOp):
+        fs = []
+        if f.op == "<=":
+            fs = [f]
+        elif f.op == ">=":
+            new_f = BiOp(f.right, "<=", f.left)
+            fs = [new_f]
+        elif f.op == "<":
+            new_f = BiOp(f.left, "<=", BiOp(f.right, "-", Value("1")))
+            fs = [new_f]
+        elif f.op == ">":
+            new_f = BiOp(f.right, "<=", BiOp(f.left, "-", Value("1")))
+            fs = [new_f]
+        elif f.op[0] == "=":
+            new_f1 = BiOp(f.left, "<=", f.right)
+            new_f2 = BiOp(f.right, "<=", f.left)
+            fs = [new_f1, new_f2]
+
+        new_fs = []
+        for new_f in fs:
+            if new_f.op == "<=":
+                if new_f.left == Value("0"):
+                    new_fs.append(new_f)
+                else:
+                    new_f1 = (BiOp(Value("0"), "<=", BiOp(new_f.right, "-", new_f.left)))
+                    new_fs.append(new_f1)
+        return new_fs

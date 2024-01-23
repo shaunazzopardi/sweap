@@ -15,6 +15,8 @@ class Config:
     _only_safety = False
     _eager_fairness = True
     _mc = False
+    _debug = False
+    _cnf_optimization = False
 
     def _get_e_f(self):
         return self._eager_fairness
@@ -52,6 +54,18 @@ class Config:
     def _set_mc(self, value: bool):
         self._mc = value
 
+    def _get_debug(self):
+        return self._debug
+
+    def _set_debug(self, value: bool):
+        self._debug = value
+
+    def _get_cnf_opt(self):
+        return self._cnf_optimization
+
+    def _set_cnf_opt(self, value: bool):
+        self._cnf_optimization = value
+
     def _do_nothing(self):
         pass
 
@@ -61,6 +75,8 @@ class Config:
     only_safety = property(_get_o_safety, _set_o_safety, _do_nothing, "")
     eager_fairness = property(_get_e_f, _set_e_f, _do_nothing, "")
     mc = property(_get_mc, _set_mc, _do_nothing, "")
+    debug = property(_get_debug, _set_debug, _do_nothing, "")
+    cnf_optimization = property(_get_cnf_opt, _set_cnf_opt, _do_nothing, "")
 
     def __init__(self):
         raise RuntimeError("Use getConfig() instead")

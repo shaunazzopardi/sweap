@@ -35,45 +35,16 @@ def program_parser():
     yield spaces()
     initial_vals = yield initial_val_parser
     yield spaces()
-    env_semantics, env_transitions = yield env_transitions_parser
-    yield spaces()
-    con_semantics, con_transitions = yield con_transitions_parser
+    _, transitions = yield transitions_parser
     yield spaces()
     ltl_spec = yield parsec.optional(specification_parser)
     yield spaces() >> string("}") >> spaces()
 
-    if env_semantics == "by-order":
-        new_env_transitions = []
-        if len(env_transitions) > 0:
-            new_env_transitions += [env_transitions[0]]
-            prev_conds = [env_transitions[0].condition]
-            for t in env_transitions[1:]:
-                new_env_transitions += [Transition(t.src, conjunct(t.condition,
-                                                                  negate(disjunct_formula_set(prev_conds))),
-                                                                  t.action, t.output, t.tgt)]
-                prev_conds += [t.condition]
-    else:
-        new_env_transitions = env_transitions
-
-    if con_semantics == "by-order":
-        new_con_transitions = []
-        if len(con_transitions) > 0:
-            new_con_transitions += [con_transitions[0]]
-            prev_conds = [con_transitions[0].condition]
-            for t in con_transitions[1:]:
-                new_con_transitions += [Transition(t.src, conjunct(t.condition,
-                                                                  negate(disjunct_formula_set(prev_conds))),
-                                                                  t.action, t.output, t.tgt)]
-                prev_conds += [t.condition]
-    else:
-        new_con_transitions = con_transitions
-
     symbol_table = symbol_table_from_typed_valuation(initial_vals)
+    new_transitions = [tt for t in transitions
+                       for tt in guarded_action_transitions_to_normal_transitions(t, initial_vals, env, con, mon, symbol_table)]
 
-    new_env_transitions = [resolve_next_references(tt, initial_vals) for t in new_env_transitions for tt in guarded_action_transitions_to_normal_transitions(t, initial_vals, env, con, mon, symbol_table)]
-    new_con_transitions = [resolve_next_references(tt, initial_vals) for t in new_con_transitions for tt in guarded_action_transitions_to_normal_transitions(t, initial_vals, env, con, mon, symbol_table)]
-
-    program = Program(program_name, states, initial_state, initial_vals, new_env_transitions, new_con_transitions, env, con,
+    program = Program(program_name, states, initial_state, initial_vals, new_transitions, env, con,
                       mon)
     return program, ltl_spec
 
@@ -282,19 +253,8 @@ def assignments():
 
 
 @generate
-def env_transitions_parser():
-    yield string("ENVIRONMENT") >> spaces() >> string("TRANSITIONS") >> spaces()
-    options = "by\-order"
-    semantics = yield parsec.optional(string("[") >> spaces() >> string("semantics") >> spaces() >> string("=") >> spaces() >> regex(options) << spaces() << string("]") << spaces(), "")
-    yield string("{") >> spaces()
-    transitions = yield sepBy(transition_parser, spaces() << regex("(,|;)") << spaces())
-    yield spaces() >> string("}")
-    return semantics, transitions
-
-
-@generate
-def con_transitions_parser():
-    yield string("CONTROLLER") >> spaces() >> string("TRANSITIONS") >> spaces()
+def transitions_parser():
+    yield string("TRANSITIONS") >> spaces()
     options = "by\-order"
     semantics = yield parsec.optional(string("[") >> spaces() >> string("semantics") >> spaces() >> string("=") >> spaces() >> regex(options) << spaces() << string("]") << spaces(), "")
     yield string("{") >> spaces()

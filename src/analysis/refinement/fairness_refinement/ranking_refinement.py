@@ -20,6 +20,7 @@ from prop_lang.util import conjunct, conjunct_formula_set, neg, true, is_boolean
     is_tautology, related_to, equivalent, sat, atomic_predicates, disjunct, G, F, implies
 from prop_lang.value import Value
 from prop_lang.variable import Variable
+from synthesis.moore_machine import MooreMachine
 
 seen_loops_cache = {}
 
@@ -63,6 +64,13 @@ def find_ranking_function(symbol_table,
         seen_loops_cache[c_code] = (ranking_function, invars)
 
     return success, output
+
+
+def loop_to_nuxmv(symbol_table, program: Program, entry_condition: Formula, loop_before_exit: [Transition],
+              exit_cond: Formula, add_natural_conditions=True):
+    nuxmv = ["MODULE main"]
+    nuxmv += ["VAR"]
+    raise NotImplementedError("loop_to_nuxmv not implemented yet")
 
 
 def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_before_exit: [Transition],
@@ -162,45 +170,16 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
     return c_code
 
 
-def use_liveness_refinement_state(env_con_ce: [dict], last_cs_state, disagreed_on_state_dict, symbol_table):
-    ce_with_stutter_states = []
-    env_turn = True
-    new_i_to_old_i = {}
-    i = 0
-    old_i = 0
-    while i < len(env_con_ce):
-        if env_turn:
-            env_turn = False
-            if env_con_ce[i]["turn"] == "env":
-                ce_with_stutter_states.append((i, env_con_ce[i]))
-                new_i_to_old_i[i] = old_i
-            else:
-                env_copy = env_con_ce[max(0, i - 1)]
-                env_copy["turn"] = "env"
-                ce_with_stutter_states.append((i + 1, env_con_ce[max(0, i - 1)]))
-                new_i_to_old_i[old_i] = max(0, i - 1)
-        else:
-            env_turn = True
-            if env_con_ce[i]["turn"] == "con":
-                ce_with_stutter_states.append((i, env_con_ce[i]))
-                new_i_to_old_i[i] = old_i
-            else:
-                con_copy = env_con_ce[max(0, i - 1)]
-                con_copy["turn"] = "con"
-                ce_with_stutter_states.append((i + 1, env_con_ce[max(0, i - 1)]))
-                new_i_to_old_i[old_i] = max(0, i - 1)
-        i += 1
-        old_i += 1
+def use_liveness_refinement_state(ce: [dict], last_cs_state, disagreed_on_state_dict, symbol_table):
+    new_ce = list(enumerate(ce + [disagreed_on_state_dict]))
 
-    ce_with_stutter_states.append((len(env_con_ce), disagreed_on_state_dict))
-
-    previous_visits = [i for i, dict in (ce_with_stutter_states) for key, value in dict.items()
+    previous_visits = [i for i, dict in (new_ce) for key, value in dict.items()
                        if key == last_cs_state and value == "TRUE"]
     if len(previous_visits) - 1 > 0:  # ignoring last visit
         var_differences = []
 
         for i, visit in enumerate(previous_visits[:-1]):
-            corresponding_ce_state = [ce_with_stutter_states[i][1] for i in range(visit, previous_visits[i + 1] + 1)]
+            corresponding_ce_state = [new_ce[i][1] for i in range(visit, previous_visits[i + 1] + 1)]
 
             any_var_differences = [get_differently_value_vars(corresponding_ce_state[i], corresponding_ce_state[i + 1])
                                    for i in range(0, len(corresponding_ce_state) - 1)]
@@ -221,8 +200,8 @@ def use_liveness_refinement_state(env_con_ce: [dict], last_cs_state, disagreed_o
             # index_of_first_loop_entry = var_differences.index(True)
             # first_index = new_i_to_old_i[previous_visits[index_of_first_loop_entry]]
             index_of_last_loop_entry = len(var_differences) - 1 - var_differences[::-1].index(True)
-            first_index = new_i_to_old_i[previous_visits[index_of_last_loop_entry]]
-            return True, first_index
+            first_index = new_ce[previous_visits[index_of_last_loop_entry]]
+            return True, first_index[0]
         else:
             return False, None
     else:
@@ -273,25 +252,44 @@ def use_liveness_refinement_trans(ce: [dict], symbol_table):
         return False, None
 
 
-def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
-                            agreed_on_transitions,
+def massage_ce(Cs: MooreMachine,
+               agreed_on_transitions):
+    # agreed_on_transitions is of form [t, st], st has the next Cs state, and current variable state
+    init_cs_st = {Cs.init_st: "TRUE"}
+    init_cs_st |= {s: "FALSE" for s in Cs.states if s != init_cs_st}
+
+    new_agreed_on_transitions = []
+    prev_cs_st = init_cs_st
+
+    for t, st in agreed_on_transitions:
+        new_st = prev_cs_st
+        new_st |= {k: v for k, v in st.items() if k not in new_st.keys()}
+
+        new_agreed_on_transitions.append((t, new_st))
+        prev_cs_st = {k: v for k, v in st.items() if k in Cs.states}
+
+    return new_agreed_on_transitions
+
+
+def use_fairness_refinement(Cs: MooreMachine,
+                            predicate_abstraction: PredicateAbstraction,
+                            agreed_on_execution,
                             disagreed_on_state,
-                            last_counterstrategy_state,
                             symbol_table):
-    yes = False
-    mon_transitions = [(y, st) for (y, st) in agreed_on_transitions]
-    ce = [x for _, x in agreed_on_transitions]
+    mon_transitions = agreed_on_execution
+    ce = [prog_st | cs_st for _, prog_st, cs_st in mon_transitions]
 
     # TODO we can do more analysis here
     # check first if there are actions that change the value of a variable
-    if not any(a for t, _ in mon_transitions for a in t.action if not isinstance(a.right, Value)
+    if not any(a for t, _, _ in mon_transitions for a in t.action if not isinstance(a.right, Value)
                                                                   and a.left != a.right
                                                                   and not symbol_table[str(a.left)] == "bool"):
         return False, None, None, None, None
 
+    last_counterstrategy_state = [st for st, v in disagreed_on_state[1][2].items() if st in Cs.states and v == "TRUE"][0]
     yes_state, first_index_state = use_liveness_refinement_state(ce,
                                                                  last_counterstrategy_state,
-                                                                 disagreed_on_state[1],
+                                                                 disagreed_on_state[1][1] | disagreed_on_state[1][2],
                                                                  symbol_table)
     if yes_state:
         first_index = first_index_state
@@ -324,251 +322,3 @@ def use_fairness_refinement(predicate_abstraction: PredicateAbstraction,
         return True, ce_prog_loop_tran_concretised, entry_valuation, entry_predicate, pred_mismatch
     else:
         return False, None, None, None, None
-
-
-def liveness_step(program, counterexample_loop, symbol_table, entry_valuation, entry_predicate,
-                  exit_condition, exit_prestate):
-    # ground transitions in the counterexample loop
-    # on the environment and controller events in the counterexample\
-
-    start = time.time()
-    invars = []
-    # TODO consider if sometimes bool vals are needed or not
-    bool_vars = [v for v in symbol_table.keys() if symbol_table[v].type == "bool" or symbol_table[v].type == "boolean"]
-    bool_vars += [Variable(str(v) + "_prev") for v in symbol_table.keys()]
-
-    # first ground on bool vars
-
-    entry_valuation_grounded = ground_predicate_on_vars(program, entry_valuation,
-                                                        counterexample_loop[0][1], bool_vars, symbol_table).simplify()
-    entry_predicate_grounded = ground_predicate_on_vars(program,
-                                                        entry_predicate,
-                                                        counterexample_loop[0][1], bool_vars, symbol_table).simplify()
-
-    exit_predicate_grounded = ground_predicate_on_vars(program, exit_condition,
-                                                       exit_prestate, bool_vars, symbol_table).simplify()
-    dnf_exit_pred = dnf_safe(exit_predicate_grounded, symbol_table, simplify=True)
-    disjuncts_in_exit_pred = [dnf_exit_pred] if not isinstance(dnf_exit_pred, BiOp) or not dnf_exit_pred.op.startswith(
-        "|") else dnf_exit_pred.sub_formulas_up_to_associativity()
-
-    if isinstance(exit_predicate_grounded, Value) or \
-            is_tautology(exit_predicate_grounded, symbol_table):
-        # in this case the exit is really happening before the last transition
-        # TODO this shouldn't be happening, we should be identifying the real exit transition/condition
-        loop_before_exit = ground_transitions(program, counterexample_loop, bool_vars, symbol_table)
-        irrelevant_vars = []
-        disjuncts_in_exit_pred_grounded = disjuncts_in_exit_pred
-    else:
-        # then discover which variables are related to the variables updated in the loop
-        # TODO may also need to look at the guards of the transitions in the loop
-        updated_in_loop_vars = [str(act.left) for t, _ in counterexample_loop for act in t.action if
-                                act.left != act.right]
-
-        relevant_vars = [str(v) for f in disjuncts_in_exit_pred for v in f.variablesin() if
-                         any(v for v in f.variablesin() if str(v) in updated_in_loop_vars)]
-        irrelevant_vars = [v for v in symbol_table.keys() if v not in relevant_vars]
-
-        entry_predicate_grounded = ground_predicate_on_vars(program,
-                                                            entry_predicate_grounded,
-                                                            counterexample_loop[0][1], irrelevant_vars,
-                                                            symbol_table).simplify()
-
-        disjuncts_in_exit_pred_grounded = [ground_predicate_on_vars(program, e,
-                                                                    exit_prestate, irrelevant_vars,
-                                                                    symbol_table).simplify() for e in
-                                           disjuncts_in_exit_pred]
-        disjuncts_in_exit_pred_grounded = [d for d in disjuncts_in_exit_pred_grounded
-                                           if any(True for v in d.variablesin() if str(v) in relevant_vars)]
-        loop_before_exit = ground_transitions(program, counterexample_loop, irrelevant_vars + bool_vars, symbol_table)
-
-        # check whether disjunct can be true or false after last action in loop
-        # this can avoid some exit conditions
-        pruned_exit_preds = []
-        last_transition_formula = transition_formula(loop_before_exit[-1])
-        print("candidate exit preds " + ", ".join(map(str, disjuncts_in_exit_pred_grounded)) + "")
-
-        for exit_pred in disjuncts_in_exit_pred_grounded:
-            if (sat(conjunct(exit_pred, last_transition_formula), program.symbol_table) and
-                    sat(conjunct(neg(exit_pred), last_transition_formula), program.symbol_table)):
-                pruned_exit_preds.append(exit_pred)
-            else:
-                print("removed exit pred " + str(exit_pred) + " from exit condition")
-
-        disjuncts_in_exit_pred_grounded = pruned_exit_preds
-
-
-    logging.info("first preprocessing for fairness refinement took " + str(time.time() - start))
-
-    sufficient_entry_condition = None
-
-    conditions = [(true(), True), (entry_predicate_grounded.simplify(), True), (entry_valuation_grounded, False)]
-
-    ranking = None
-    for (cond, add_natural_conditions) in conditions:
-        for exit_pred in disjuncts_in_exit_pred_grounded:
-            if len(exit_pred.variablesin()) == 0:
-                continue
-            try:
-                success, output = find_ranking_function(symbol_table,
-                                                        program,
-                                                        cond,
-                                                        loop_before_exit,
-                                                        exit_pred,
-                                                        add_natural_conditions)
-                if not success or output is None:
-                    continue
-                ranking, invars = output
-
-                sufficient_entry_condition = keep_bool_preds(entry_predicate, symbol_table)
-                break
-            except:
-                continue
-
-        if ranking is None:
-            continue
-
-        break
-
-    if ranking is not None:
-        # analyse ranking function for suitability and re-try
-        if not isinstance(exit_predicate_grounded, Value) or \
-                is_tautology(exit_predicate_grounded, symbol_table):
-            start = time.time()
-            # for each variable in ranking function, check if they are related in the exit condition, or transitively so
-            updated_in_loop_vars = [str(act.left) for t in loop_before_exit for act in t.action if
-                                    act.left != act.right]
-
-            vars_in_ranking = ranking.variablesin()  # + [Variable(v) for v in updated_in_loop_vars]
-
-            dnf_exit_pred = dnf_safe(exit_predicate_grounded, symbol_table)
-            disjuncts_in_exit_pred = [dnf_exit_pred] if not isinstance(dnf_exit_pred,
-                                                                       BiOp) or not dnf_exit_pred.op.startswith(
-                "&") else dnf_exit_pred.sub_formulas_up_to_associativity()
-
-            # compute related
-            related_dict = {v: set() for v in (vars_in_ranking + [Variable(v) for v in updated_in_loop_vars])}
-            for disjunct in disjuncts_in_exit_pred:
-                for v in (vars_in_ranking + [Variable(v) for v in updated_in_loop_vars]):
-                    related_dict[v] |= related_to(v, disjunct)
-
-            # check if the ranking function relates variables that are related in entry condition
-            if [] != [v for v in vars_in_ranking if v not in related_dict[vars_in_ranking[0]]]:
-                logging.info(
-                    "The ranking function discovered does not relate variables that are related in the exit condition.")
-                all_updated_vars_mentioned_in_ranking = {v for v in vars_in_ranking if str(v) in updated_in_loop_vars}
-                logging.info("Refining the loop code to focus on: " + ", ".join(
-                    [str(v) for v in all_updated_vars_mentioned_in_ranking]) + "...")
-                all_extra_vars = [v for v in vars_in_ranking
-                                  if not any(v in related_dict[vv] for vv in all_updated_vars_mentioned_in_ranking)]
-
-                # ground on these extra vars
-                entry_valuation_grounded = ground_predicate_on_vars(program, entry_valuation,
-                                                                    counterexample_loop[0][1], all_extra_vars,
-                                                                    symbol_table).simplify()
-
-                entry_predicate_grounded = ground_predicate_on_vars(program,
-                                                                    entry_predicate_grounded,
-                                                                    counterexample_loop[0][1], all_extra_vars,
-                                                                    symbol_table).simplify()
-
-                disjuncts_in_exit_pred_grounded = [ground_predicate_on_vars(program, e,
-                                                                            exit_prestate, all_extra_vars,
-                                                                            symbol_table).simplify() for e in
-                                                   disjuncts_in_exit_pred_grounded]
-
-                loop_before_exit = ground_transitions(program, counterexample_loop,
-                                                      irrelevant_vars + bool_vars + all_extra_vars,
-                                                      symbol_table)
-                # check whether disjunct can be true or false after last action in loop
-                # this can avoid some exit conditions
-                pruned_exit_preds = []
-                last_transition_formula = transition_formula(loop_before_exit[-1])
-                print("candidate exit preds " + ", ".join(map(str, disjuncts_in_exit_pred_grounded)) + "")
-
-                for exit_pred in disjuncts_in_exit_pred_grounded:
-                    if (sat(conjunct(exit_pred, last_transition_formula), program.symbol_table) and
-                            sat(conjunct(neg(exit_pred), last_transition_formula), program.symbol_table)):
-                        pruned_exit_preds.append(exit_pred)
-                    else:
-                        print("removed exit pred " + str(exit_pred) + " from exit condition")
-
-                disjuncts_in_exit_pred_grounded = pruned_exit_preds
-
-                conditions = [(true(), True),
-                              (entry_predicate_grounded.simplify(), True),
-                              (entry_valuation_grounded, False)]
-
-                ranking = None
-                logging.info("second preprocessing for fairness refinement took " + str(time.time() - start))
-
-                for (cond, add_natural_conditions) in conditions:
-                    for exit_pred in disjuncts_in_exit_pred_grounded:
-                        if len(exit_pred.variablesin()) == 0:
-                            continue
-                        try:
-                            success, output = find_ranking_function(symbol_table,
-                                                                    program,
-                                                                    cond,
-                                                                    loop_before_exit,
-                                                                    exit_pred,
-                                                                    add_natural_conditions)
-                            if not success or output is None:
-                                continue
-                            ranking, invars = output
-                            sufficient_entry_condition = keep_bool_preds(entry_predicate, symbol_table)
-                            break
-                        except:
-                            continue
-
-                    if ranking is None:
-                        continue
-                    sufficient_entry_condition = keep_bool_preds(entry_predicate, symbol_table)
-                    break
-
-        if not check(And(*neg(exit_predicate_grounded).to_smt(symbol_table))):
-            for grounded_t in loop_before_exit:
-                if check(And(*neg(grounded_t.condition).to_smt(symbol_table))):
-                    exit_predicate_grounded = neg(grounded_t.condition.simplify())
-                    break
-        return ranking, invars, sufficient_entry_condition, exit_predicate_grounded
-    else:
-        return None, None, None, None
-
-
-def interactive_transition_predicates(existing_rankings: dict[Formula, [Formula]],
-                                      body,
-                                      symbol_table):
-    finished = False
-    new_rankings = []
-    while not finished:
-        try:
-            text = input("Any suggestions of ranking function?")
-            if text == "":
-                break
-            ranking = string_to_math_expression(text)
-            text = input("Any suggestions of invariants?")
-
-            if text == "":
-                invars = []
-            else:
-                invars = list(map(string_to_math_expression, text.split(",")))
-            if ranking in existing_rankings.keys():
-                if equivalent(existing_rankings[ranking], conjunct_formula_set(invars)):
-                    logging.info("This ranking function with the given invariants is already in use.")
-                    continue
-            if function_is_ranking_function(ranking, invars, body, symbol_table):
-                new_rankings.append((ranking, invars))
-            else:
-                print("Not a ranking function.")
-        except Exception as e:
-            pass
-
-    new_ranking_invars = {}
-    for (ranking, invars) in new_rankings:
-        new_ranking_invars[ranking] = invars
-
-        if not function_bounded_below_by_0(ranking, invars, symbol_table):
-            wellfounded_invar = MathExpr(BiOp(ranking, ">=", Value(0)))
-            new_ranking_invars[ranking].append(wellfounded_invar)
-
-    return new_ranking_invars

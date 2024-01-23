@@ -21,7 +21,7 @@ def compatibility_checking(program: Program,
                            is_controller: bool,
                            base_abstraction,
                            ltlAbstractionType: LTLAbstractionType,
-                           mon_events,
+                           prog_events,
                            project_on_abstraction: bool,
                            prefer_lasso_counterexamples: bool):
     mealy_nuxmv = mealy_machine.to_nuXmv_with_turns(predicate_abstraction.get_program().states,
@@ -37,7 +37,7 @@ def compatibility_checking(program: Program,
              if str(s).startswith("st_")])
         lasso_mismatch = "(" + " | ".join(strategy_states) + ")"
 
-        mismatch_condition = lasso_mismatch
+        mismatch_condition = "!mismatch &" + lasso_mismatch
     else:
         mismatch_condition = None
 
@@ -46,7 +46,7 @@ def compatibility_checking(program: Program,
 
     system = create_nuxmv_model_for_compatibility_checking(program,
                                                            mealy_nuxmv,
-                                                           mon_events,
+                                                           prog_events,
                                                            all_preds,
                                                            not program.deterministic,
                                                            not program.deterministic,
@@ -55,7 +55,6 @@ def compatibility_checking(program: Program,
     logging.info(system)
     contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
                                                                                            is_controller,
-                                                                                           debug=False,
                                                                                            mismatch_condition=mismatch_condition)
 
     if contradictory:
@@ -77,9 +76,9 @@ def compatibility_checking(program: Program,
                 predicate_abstraction,
                 symbol_table)
 
-            for t in controller_projected_on_program.con_transitions + controller_projected_on_program.env_transitions:
+            for t in controller_projected_on_program.con_transitions + controller_projected_on_program.transitions:
                 ok = False
-                for tt in controller_projected_on_program.con_transitions + controller_projected_on_program.env_transitions:
+                for tt in controller_projected_on_program.con_transitions + controller_projected_on_program.transitions:
                     if t.tgt == tt.src:
                         ok = True
                         break
@@ -105,32 +104,17 @@ def compatibility_checking(program: Program,
 
     logging.info(out)
     ## Compute mismatch trace
-    ce, transition_indices_and_state, incompatible_state = parse_nuxmv_ce_output_finite(
-        len(program.env_transitions) + len(program.con_transitions), out)
-    transitions_without_stutter_program_took, env_desired_abstract_state, _ = \
-                                                            concretize_transitions(program,
-                                                                                   program,
-                                                                                   predicate_abstraction,
-                                                                                   transition_indices_and_state,
-                                                                                   incompatible_state)
+    cs_alphabet = [v.split(":")[0].strip() for v in mealy_nuxmv.vars]
+    agreed_on_transitions_indexed, incompatible_state = parse_nuxmv_ce_output_finite(
+        program, out, cs_alphabet)
+    agreed_on_execution, disagreed_on_state = concretize_transitions(program,
+                                                                     agreed_on_transitions_indexed,
+                                                                     incompatible_state)
 
-    # if pred_state is not None:
-    agreed_on_transitions = transitions_without_stutter_program_took
-    # removing transition predicates for now
-    disagreed_on_state = ([p for p in env_desired_abstract_state[0]], env_desired_abstract_state[1])
-
-    ## check if should use liveness or not
-    counterstrategy_states = [key for ce_state in ce for key, v in ce_state.items()
-                              if key.startswith("st_")
-                              and (ce_state["turn"] in ["env", "con"])
-                              and "_seen" not in key
-                              and v == "TRUE"]
+    return None, (agreed_on_execution, disagreed_on_state)
 
 
-    return None, (ce, agreed_on_transitions, disagreed_on_state, counterstrategy_states)
-
-
-def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel, mon_events,
+def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel, prog_events,
                                                   pred_list, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
     pred_definitions = {label_pred(p, pred_list): p for p in pred_list}
@@ -146,32 +130,33 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
            + sorted([v for v in strategy_model.vars
                      if v not in program_model.vars]) \
            + seen_strategy_states_decs \
-           + ["mismatch : boolean"]
+           + ["mismatch : boolean"] \
+           + ["init_state : boolean"]
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
     text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define) + ";\n"
 
     safety_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                               for p in pred_list if not any([v for v in p.variablesin() if "_prev" in str(
-            v)])]  # this excludes transition predicates from checking since the ones the environment sets may also contain those of the previous controller transition
+            v)])]
 
     tran_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                             for p in pred_list if any([v for v in p.variablesin() if "_prev" in str(
-            v)])]  # this excludes transition predicates from checking since the ones the environment sets may also contain those of the previous controller transition
+            v)])]
 
-    mon_output_equality = [BiOp(o, '=', Variable("mon_" + o.name))
+    prog_output_equality = [BiOp(o, '=', Variable("prog_" + o.name))
                            for o in program.out_events]
 
-    mon_state_equality = [BiOp(Variable(s), '=', Variable("mon_" + s))
+    prog_state_equality = [BiOp(Variable(s), '=', Variable("prog_" + s))
                           for s in program.states]
 
-    compatible_output = "\tcompatible_outputs := " + "((turn == mon_env) -> (" + str(
-        conjunct_formula_set(mon_output_equality)) + "))" + ";\n"
-    compatible_states = "\tcompatible_states := " + "((turn == mon_env | turn == mon_con) -> (" + str(
-        conjunct_formula_set(mon_state_equality)) + "))" + ";\n"
-    compatible_state_predicates = "\tcompatible_state_predicates := " + "((turn == mon_env | turn == mon_con) -> (" + str(
+    compatible_output = "\tcompatible_outputs := " + "((turn == cs) -> (" + str(
+        conjunct_formula_set(prog_output_equality)) + "))" + ";\n"
+    compatible_states = "\tcompatible_states := " + "((turn == cs) -> (" + str(
+        conjunct_formula_set(prog_state_equality)) + "))" + ";\n"
+    compatible_state_predicates = "\tcompatible_state_predicates := " + "((turn == cs) -> (" + str(
         conjunct_formula_set(safety_predicate_truth)) + "))" + ";\n"
     # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
-    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((turn == mon_env | turn == mon_con) -> (" + str(
+    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((!init_state && turn == cs) -> (" + str(
         conjunct_formula_set(tran_predicate_truth)) + "))" + ";\n"
     compatible = "\tcompatible := " + (
         "compatible_state_predicates & compatible_tran_predicates & " if predicate_mismatch else "") + "compatible_outputs & compatible_states" + ";\n"
@@ -181,19 +166,17 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     # TODO consider adding checks that state predicates expected by env are true, for debugging predicate abstraction
 
     text += "INIT\n" + "\t(" + ")\n\t& (".join(
-        program_model.init + strategy_model.init + ["turn = env", "mismatch = FALSE"] +
+        program_model.init + strategy_model.init + ["turn = cs", "mismatch = FALSE", "init_state = TRUE"] +
         ((([s.split(" : ")[0] + "_seen_once = FALSE" for s in strategy_states] +
            [s.split(" : ")[0] + "_seen_more_than_once = FALSE" for s in
             strategy_states])) if prefer_lassos else [])) + ")\n"
     text += "INVAR\n" + "\t((" + ")\n\t& (".join(program_model.invar + strategy_model.invar) + "))\n"
 
-    turn_logic = ["(turn = con -> next(turn) = mon_con)"]
-    turn_logic += ["(turn = env -> next(turn) = mon_env)"]
-    turn_logic += ["(turn = mon_env -> next(turn) = con)"]
-    turn_logic += ["(turn = mon_con -> next(turn) = env)"]
+    turn_logic = ["(turn = prog -> (!next(init_state) && next(turn) = cs))"]
+    turn_logic += ["(turn = cs -> (!next(init_state) && next(turn) = prog))"]
 
-    maintain_mon_vars = str(conjunct_formula_set(
-        [BiOp(UniOp("next", Variable("mon_" + m.name)), ' = ', Variable("mon_" + m.name)) for m in (mon_events)]
+    maintain_prog_vars = str(conjunct_formula_set(
+        [BiOp(UniOp("next", Variable("prog_" + m.name)), ' = ', Variable("prog_" + m.name)) for m in (prog_events)]
         + [BiOp(UniOp("next", Variable(m.name)), ' = ', Variable(m.name)) for m in
            [label_pred(p, pred_list) for p in pred_list]]))
     new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic
@@ -201,22 +184,22 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
 
     normal_trans += "\t | (!compatible & " + \
                     " next(mismatch) & identity_" + program_model.name + \
-                    " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_mon_vars + ")"
+                    " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_prog_vars + ")"
     normal_trans = "(!mismatch -> (" + normal_trans + "))"
 
-    deadlock = "(mismatch -> (next(mismatch) & identity_" + program_model.name + " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_mon_vars + "))"
+    deadlock = "(mismatch -> (next(mismatch) & identity_" + program_model.name + " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_prog_vars + "))"
 
     text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
 
     if prefer_lassos:
         report_if_state_seen = \
-            "\n\t& ".join(["((((turn == con | turn == env) & " + s.split(" : ")[0]
+            "\n\t& ".join(["((((turn == cs) & " + s.split(" : ")[0]
                            + ") " + " | " + s.split(" : ")[0] + "_seen_once) " +
                            "<-> next(" + s.split(" : ")[0] + "_seen_once))"
                            for s in strategy_states])
 
         report_if_state_seen += "\n\t& " + \
-                                "\n\t& ".join(["(((" + ("(turn == con | turn == env)") + " & " + s.split(" : ")[
+                                "\n\t& ".join(["(((" + ("(turn == cs)") + " & " + s.split(" : ")[
                                     0] + " & " + s.split(" : ")[0] + "_seen_once "
                                                + ") " + " | " + s.split(" : ")[0] + "_seen_more_than_once) " +
                                                "<-> next(" + s.split(" : ")[0] + "_seen_more_than_once))"
@@ -238,10 +221,10 @@ def create_nuxmv_model(nuxmvModel):
     text += "INIT\n" + "\t(" + ")\n\t& (".join(nuxmvModel.init + ["turn = env"]) + ")\n"
     text += "INVAR\n" + "\t(" + ")\n\t& (".join(nuxmvModel.invar) + ")\n"
 
-    turn_logic = ["(turn = con -> next(turn) = mon_con)"]
-    turn_logic += ["(turn = env -> next(turn) = mon_env)"]
-    turn_logic += ["(turn = mon_env -> next(turn) = con)"]
-    turn_logic += ["(turn = mon_con -> next(turn) = env)"]
+    turn_logic = ["(turn = con -> next(turn) = prog_con)"]
+    turn_logic += ["(turn = env -> next(turn) = prog_env)"]
+    turn_logic += ["(turn = prog_env -> next(turn) = con)"]
+    turn_logic += ["(turn = prog_con -> next(turn) = env)"]
 
     text += "TRANS\n" + "\t(" + ")\n\t& (".join(nuxmvModel.trans + turn_logic) + ")\n"
     text = text.replace("%", "mod")
@@ -253,10 +236,10 @@ def create_nuxmv_model(nuxmvModel):
 
 def there_is_mismatch_between_program_and_strategy(system,
                                                    controller: bool,
-                                                   debug=False,
                                                    mismatch_condition=None):
     model_checker = ModelChecker()
-    if debug:
+    config = Config.getConfig()
+    if config.debug:
         logging.info(system)
         # Sanity check
         result, out = model_checker.invar_check(system, "F FALSE", None, True)
@@ -265,11 +248,14 @@ def there_is_mismatch_between_program_and_strategy(system,
             return True, None, out
 
     if not controller:
-        config = Config.getConfig()
-        if not debug:
-            logging.info(system)
-        there_is_no_mismatch, out = model_checker.invar_check(system, "!(mismatch" + (
-            " & " + mismatch_condition if mismatch_condition is not None else "") + ")", None, config.mc)
+        if mismatch_condition is None:
+            there_is_no_mismatch, out = model_checker.invar_check(system, "compatible", None, config.mc)
+        else:
+            there_is_no_mismatch, out = model_checker.invar_check(system,
+                                                                  "!(!compatible" + " & " + mismatch_condition + ")", None, config.mc)
+            if there_is_no_mismatch:
+                there_is_no_mismatch, out = model_checker.invar_check(system, "compatible", None, config.mc)
+
         return False, not there_is_no_mismatch, out
     else:
         return False, False, None
