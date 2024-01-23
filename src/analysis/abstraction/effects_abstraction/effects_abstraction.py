@@ -104,7 +104,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                    t.src == self.program.initial_state and sat(conjunct(init_conf, t.condition),
                                                                                self.program.symbol_table)]
 
-        if False and parallelise:
+        if parallelise:
             arg1 = []
             arg2 = []
             arg3 = []
