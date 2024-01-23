@@ -9,7 +9,6 @@ from analysis.compatibility_checking.compatibility_checking import compatibility
 from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement
 
 from parsing.string_to_ltl import string_to_ltl
-from parsing.string_to_prop_logic import string_to_prop
 from programs.program import Program
 from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
 from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement_seq_int
@@ -141,7 +140,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     if not is_tautology(f, program.symbol_table):
                         invar.append(f)
 
-                    rankings.append(ranking_refinement(f.right, invar))
+                    rankings.append(ranking_refinement(f.right, (invar)))
 
         # for tv in program.valuation:
         #     if tv.type.lower().startswith("bool"):
@@ -199,6 +198,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     timing_data = ""
     print("Starting abstract synthesis loop.")
 
+    new_state_preds = list(set(new_state_preds))
     while True:
         new_state_preds = [p for p in new_state_preds if p not in predicate_abstraction.state_predicates]
         new_tran_preds = [p for p in new_tran_preds if p not in predicate_abstraction.transition_predicates]
