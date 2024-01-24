@@ -60,7 +60,7 @@
 			"update_term": "0",
 			"var_name": "cnt",
 			"depends": []
-		}
+		},
 		{
 			"update_term": "cnt",
 			"var_name": "cnt",
