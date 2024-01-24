@@ -31,18 +31,22 @@ class BiOp(Formula):
             return "(" + (" " + self.op + " ").join([str(c) for c in self.sub_formulas_up_to_associativity()]) + ")"
 
     def sub_formulas_up_to_associativity(self):
-        if self.op == "&&" or self.op == "&" or self.op == "||" or self.op == "|":
-            sub_formulas = []
-            if not isinstance(self.left, BiOp) or self.left.op != self.op:
-                sub_formulas += [self.left]
-            else:
-                sub_formulas += self.left.sub_formulas_up_to_associativity()
-            if not isinstance(self.right, BiOp) or self.right.op != self.op:
-                sub_formulas += [self.right]
-            else:
-                sub_formulas += self.right.sub_formulas_up_to_associativity()
+        if self.op == "&&" or self.op == "&":
+            is_same_as_op = lambda x: x[0] == "&"
+        elif self.op == "||" or self.op == "|":
+            is_same_as_op = lambda x: x[0] == "|"
         else:
-            sub_formulas = [self]
+            return [self]
+
+        sub_formulas = []
+        if not isinstance(self.left, BiOp) or not is_same_as_op(self.left.op):
+            sub_formulas += [self.left]
+        else:
+            sub_formulas += self.left.sub_formulas_up_to_associativity()
+        if not isinstance(self.right, BiOp) or not is_same_as_op(self.right.op):
+            sub_formulas += [self.right]
+        else:
+            sub_formulas += self.right.sub_formulas_up_to_associativity()
         return sub_formulas
 
     def __eq__(self, other):

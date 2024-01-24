@@ -1,3 +1,5 @@
+import multiprocessing
+
 from prop_lang.util import neg
 from prop_lang.variable import Variable
 
@@ -85,6 +87,7 @@ class Config:
     debug = property(_get_debug, _set_debug, _do_nothing, "")
     cnf_optimisations = property(_get_cnf_opt, _set_cnf_opt, _do_nothing, "")
     parallelise_type = property(_get_parallelise_type, _set_parallelise_type, _do_nothing, "")
+    workers = multiprocessing.cpu_count()
 
     def __init__(self):
         raise RuntimeError("Use getConfig() instead")

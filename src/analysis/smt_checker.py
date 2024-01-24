@@ -2,6 +2,7 @@ import logging
 
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Interpolator, is_sat, serialize, qelim
+from pysmt.simplifier import BddSimplifier
 
 
 def binary_interpolant(A: FNode, B: FNode) -> FNode:
@@ -29,3 +30,14 @@ def check(smt: FNode):
         except Exception as e:
             logging.info(serialize(smt))
             raise (e)
+
+
+def bdd_simplify(f: FNode):
+    try:
+        s = BddSimplifier()
+        fprime = s.simplify(f)
+        return fprime
+    except Exception as e:
+        print(e)
+
+

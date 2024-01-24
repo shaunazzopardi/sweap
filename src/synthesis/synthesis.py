@@ -10,7 +10,6 @@ from analysis.compatibility_checking.compatibility_checking import compatibility
 from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement
 
 from parsing.string_to_ltl import string_to_ltl
-from parsing.string_to_prop_logic import string_to_prop
 from programs.program import Program
 from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
 from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement_seq_int
@@ -22,8 +21,8 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import atomic_predicates, finite_state_preds, true, stringify_formula
-from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, atomic_predicates
+from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, atomic_predicates, \
+    is_tautology
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -211,7 +210,11 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
                 fs = normalise_mathexpr(state_pred)
                 for f in fs:
-                    rankings.append(ranking_refinement(f.right, [f]))
+                    invar = []
+                    if not is_tautology(f, program.symbol_table):
+                        invar.append(f)
+
+                    rankings.append(ranking_refinement(f.right, (invar)))
 
         # for tv in program.valuation:
         #     if tv.type.lower().startswith("bool"):
@@ -268,6 +271,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     print("Starting abstract synthesis loop.")
 
+    new_state_preds = list(set(new_state_preds))
     while True:
         new_state_preds = [p for p in new_state_preds if p not in predicate_abstraction.state_predicates]
         new_tran_preds = [p for p in new_tran_preds if p not in predicate_abstraction.transition_predicates]
