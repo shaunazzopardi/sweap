@@ -1,18 +1,29 @@
-//-- State: counter
+//-- State: counter, started
+//-- Inputs: start
+
+// This is trivially unrealizable
+
 //#LIA#
 
 assume {
   eq counter i0();
+  eq started i0();
+}
+
+always assume {
+  eq start i0() || eq start i1();
 }
 
 guarantee {
-  F (lt counter i0());
+  G (eq start i1() -> F (lt counter i0()));
 }
 
 always guarantee {
-  ge counter i0();  /* INV */
+  ge counter i0(); /* INV */
   le counter i1(); /* INV */
 
-  [ counter <- add counter i1() ] || [ counter <- sub counter i1() ];
+  eq started i0() && eq start i0() -> [started <- i0()] && [counter <- add counter i1()];
+  eq started i0() && eq start i1() -> [started <- i1()];
+  eq started i1() -> ([ counter <- add counter i1() ] || [ counter <- sub counter i1() ]);
 
 }
