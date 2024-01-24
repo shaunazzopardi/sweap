@@ -4,8 +4,8 @@
 assume {
   (eq x i0());
   (eq y i0());
-  (eq y i2());
-  (eq y i2());
+  (eq xe i2());
+  (eq ye i2());
 }
 
 always assume {
