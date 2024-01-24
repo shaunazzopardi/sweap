@@ -167,7 +167,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     conservative_with_state_predicates = False
     prefer_lasso_counterexamples = True
     add_tran_preds_immediately = False
-    add_tran_preds_after_state_abstraction = True
+    add_tran_preds_after_state_abstraction = not config.Config.getConfig().only_safety
 
     # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
     #  by the program since some information about why the environment chose the wrong predicates is hidden there
