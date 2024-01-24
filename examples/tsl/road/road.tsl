@@ -1,5 +1,6 @@
 //-- State: cl, cr, stopl, stopr
 //-- Inputs: entryl, exitl, entryr, exitr, l2r
+//#LIA#
 
 assume {
   eq cl i0(); 

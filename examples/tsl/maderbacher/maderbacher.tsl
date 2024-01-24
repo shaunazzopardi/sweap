@@ -1,5 +1,5 @@
 //-- State: counter
-// #LIA#
+//#LIA#
 
 assume {
   eq counter i0();
