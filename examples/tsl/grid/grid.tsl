@@ -12,15 +12,9 @@ assume {
 }
 
 always assume {
-  ge inb1 i0();
-  le inb1 i1();
-  
-  ge inb2 i0();
-  le inb2 i1();
-  
-  ge start i0();
-  le start i1();
-
+  eq inb1 i0() || eq inb1 i1();
+  eq inb2 i0() || eq inb2 i1();
+  eq start i0() || eq start i1();
 }
 
 guarantee {
