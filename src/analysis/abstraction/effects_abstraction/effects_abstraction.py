@@ -79,7 +79,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
         all_events = self.program.env_events + self.program.con_events
 
-        no_of_workers = config.workers if parallelise else 1
+        no_of_workers = config.Config.getConfig().workers if parallelise else 1
 
         arg1 = []
         arg2 = []
@@ -674,7 +674,7 @@ def abstract_guard_explicitly_complex_parallel(trans, events, symbol_table):
         arg2.append(guard)
         arg3.append(symbol_table)
 
-    with Pool(config.workers) as pool:
+    with Pool(config.Config.getConfig().workers) as pool:
         results = pool.map(deal_with_powerset, zip(arg1, arg2, arg3))
 
     for r in results:

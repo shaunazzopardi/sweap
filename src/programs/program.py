@@ -47,7 +47,7 @@ class Program:
                                     .complete_outputs(self.out_events)
                                     .complete_action_set(all_vars) for t in self.transitions]
             unsat_trans = []
-            with Pool(config.workers) as pool:
+            with Pool(config.Config.getConfig().workers) as pool:
                 arg1 = []
                 arg2 = []
                 for t in self.transitions:
