@@ -1,0 +1,37 @@
+//-- State: floor, target, q
+//-- Inputs: inc, dooropen
+
+//#LIA#
+
+assume {
+  eq target i0();
+  eq floor i0();
+  eq q i0();
+}
+
+always assume {
+  eq inc i0() || eq inc i1();
+  eq dooropen i0() || eq dooropen i1();
+
+  G F (eq dooropen i0());
+  G F (eq dooropen i1());
+}
+
+always guarantee {
+  ge floor i0(); /* INV */
+  le floor i7(); /* INV */
+  ge target i0(); /* INV */
+  le target i7(); /* INV */
+
+  (eq q i0() && (eq dooropen i1()) && (eq inc i1())) -> ([target <- add target i1()] && [q <- i0()]);
+  (eq q i0() && (eq dooropen i1()) && (eq inc i0()) && (gt target i0()) ) -> ([target <- sub target i1()] && [q <- i0()]);
+  (eq q i0() && eq dooropen i0()) -> ([target <- target] && [q <- i1()]);
+
+  (eq q i1()) -> [floor <- add floor i1()] || [floor <- sub floor i1()] || [floor <- floor];
+  (eq q i1() && eq floor target) -> [q <- i0()];
+
+  (eq dooropen i1()) -> [floor <- floor];
+
+  G F (eq floor target);
+
+}
