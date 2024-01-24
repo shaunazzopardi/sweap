@@ -1,3 +1,5 @@
+[lfoFreq := lfoFreq]
+&& 
 G (
     ((!(amFreq > 500)) -> [amSynthesis := 0]  U (amFreq > 500))
     &&
