@@ -1146,15 +1146,15 @@ def label_preds(ps, preds):
 
 
 def stringify_formula(f, env_con_props):
-    if isinstance(f, BiOp):
+    if isinstance(f, MathExpr) or should_be_math_expr(f):
+        return stringify_pred(f), [f]
+    elif isinstance(f, BiOp):
         new_left, left_preds = stringify_formula(f.left, env_con_props)
         new_right, right_preds = stringify_formula(f.right, env_con_props)
         return BiOp(new_left, f.op, new_right), left_preds + right_preds
     elif isinstance(f, UniOp):
         new_right, right_preds = stringify_formula(f.right, env_con_props)
         return UniOp(f.op, new_right), right_preds
-    elif isinstance(f, MathExpr):
-        return stringify_pred(f), [f]
     elif isinstance(f, Variable) and f not in env_con_props:
         return stringify_pred(f), [f]
     else:
