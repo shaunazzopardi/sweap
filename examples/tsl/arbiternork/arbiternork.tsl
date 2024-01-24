@@ -18,7 +18,6 @@ always assume {
 always guarantee {
     ((eq q i0()) && (eq request i1())) -> [cnt <- add cnt i1()];
     ((eq q i0()) && (eq request i0())) -> [q <- i1()];
-    ((eq q i1()) && (ge cnt i2())) -> [q <- i2()] && [cnt <- sub cnt i2()];
     (eq q i1()) -> 
         ((ge cnt i2()) && [q <- i2()] && [cnt <- sub cnt i2()])
         ||
