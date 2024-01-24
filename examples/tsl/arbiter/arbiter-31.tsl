@@ -1,6 +1,8 @@
 //-- State: counter, grant, q
 //-- Inputs: request
 
+//#LIA#
+
 assume {
   eq counter i0();
   eq q i0();
