@@ -19,8 +19,7 @@
 		{
 			"pred": "eq env_x_move 0",
 			"temporal": []
-		},
-		
+		}
 	],
 	"updates": [
 		{
