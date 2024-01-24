@@ -21,7 +21,7 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate
+from prop_lang.util import atomic_predicates, true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
