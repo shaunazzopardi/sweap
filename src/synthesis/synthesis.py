@@ -20,8 +20,7 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, atomic_predicates, \
-    is_tautology
+from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -113,12 +112,14 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     new_ltl_assumptions = []
     for ltl in ltl_assumptions:
+        ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
         new_state_preds += preds
         new_ltl_assumptions.append(new_ltl)
 
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
+        ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
         new_state_preds += preds
         new_ltl_guarantees.append(new_ltl)
@@ -207,13 +208,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             rankings = []
             for state_pred in new_state_preds + predicate_abstraction.state_predicates:
                 if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
-                    fs = normalise_mathexpr(state_pred)
-                    for f in fs:
-                        invar = []
-                        if not is_tautology(f, program.symbol_table):
-                            invar.append(f)
-
-                        rankings.append(ranking_refinement(f.right, (invar)))
+                    f, invar = ranking_from_predicate(state_pred)
+                    rankings.append(ranking_refinement(f, [invar]))
 
             for atoms, constraints in rankings:
                 for atom in atoms:

@@ -1168,36 +1168,41 @@ def normalise_mathexpr(mathexpr):
     elif should_be_math_expr(mathexpr):
         f = mathexpr
     else:
-        return [mathexpr]
+        return None
 
+    rewrite_lte = lambda x,y: MathExpr(BiOp(x, "<=", y)) \
+                                if x == zero else \
+                                MathExpr(BiOp(zero, "<=", BiOp(y, "-", x)))
+
+    zero = Value("0")
     if isinstance(f, BiOp):
-        fs = []
         if f.op == "<=":
-            fs = [f]
+            return rewrite_lte(f.left, f.right)
         elif f.op == ">=":
-            new_f = BiOp(f.right, "<=", f.left)
-            fs = [new_f]
+            return rewrite_lte(f.right, f.left)
         elif f.op == "<":
-            new_f = BiOp(f.left, "<=", BiOp(f.right, "-", Value("1")))
-            fs = [new_f]
+            f_le_than = rewrite_lte(f.left, f.right)
+            f_not_gte_than = neg(rewrite_lte(f.right, f.left))
+            return conjunct(f_le_than, f_not_gte_than)
         elif f.op == ">":
-            new_f = BiOp(f.right, "<=", BiOp(f.left, "-", Value("1")))
-            fs = [new_f]
+            f_le_than = rewrite_lte(f.right, f.left)
+            f_not_gte_than = neg(rewrite_lte(f.left, f.right))
+            return conjunct(f_le_than, f_not_gte_than)
         elif f.op[0] == "=":
-            new_f1 = BiOp(f.left, "<=", f.right)
-            new_f2 = BiOp(f.right, "<=", f.left)
-            fs = [new_f1, new_f2]
+            new_f1 = rewrite_lte(f.left, f.right)
+            new_f2 = rewrite_lte(f.right, f.left)
+            return conjunct(new_f1, new_f2)
         elif f.op == "!=":
-                new_f1 = BiOp(f.left, "<=", f.right)
-                new_f2 = BiOp(f.right, "<=", f.left)
-                fs = [new_f1, new_f2]
+            new_f1 = neg(rewrite_lte(f.left, f.right))
+            new_f2 = neg(rewrite_lte(f.right, f.left))
+            return disjunct(new_f1, new_f2)
 
-        new_fs = []
-        for new_f in fs:
-            if new_f.op == "<=":
-                if new_f.left == Value("0"):
-                    new_fs.append(new_f)
-                else:
-                    new_f1 = (BiOp(Value("0"), "<=", BiOp(new_f.right, "-", new_f.left)))
-                    new_fs.append(new_f1)
-        return new_fs
+    return None
+
+
+def ranking_from_predicate(predicate):
+    if isinstance(predicate, MathExpr):
+        if predicate.formula.op == "<=":
+            if predicate.formula.left == Value("0"):
+                return predicate.formula.right, predicate.formula
+    raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
