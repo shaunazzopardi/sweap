@@ -268,29 +268,29 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     self.second_state_abstraction[i].append(neg(p))
 
-            no_of_workers = config.Config.getConfig().workers if parallelise else 1
+        no_of_workers = config.Config.getConfig().workers if parallelise else 1
 
-            arg1 = []
-            arg2 = []
-            arg3 = []
-            arg4 = []
-            arg5 = []
-            arg6 = []
-            for gu in self.guard_updates:
-                g, u = guard_update_formula_to_guard_update(gu)
-                arg1.append(g)
-                arg2.append(u)
-                arg3.append(gu)
-                arg4.append(self.abstract_effect[gu])
-                arg5.append(p)
-                arg6.append(self.program.symbol_table)
-            with Pool(no_of_workers) as pool:
-                results = pool.map(compute_abstract_effect_with_p_guard_update, zip(arg1, arg2, arg3, arg4, arg5, arg6))
+        arg1 = []
+        arg2 = []
+        arg3 = []
+        arg4 = []
+        arg5 = []
+        arg6 = []
+        for gu in self.guard_updates:
+            g, u = guard_update_formula_to_guard_update(gu)
+            arg1.append(g)
+            arg2.append(u)
+            arg3.append(gu)
+            arg4.append(self.abstract_effect[gu])
+            arg5.append(new_state_predicates)
+            arg6.append(self.program.symbol_table)
+        with Pool(no_of_workers) as pool:
+            results = pool.map(compute_abstract_effect_for_guard_update, zip(arg1, arg2, arg3, arg4, arg5, arg6))
 
-            for g, u, gu, invars, constants, new_effects in results:
-                self.abstract_effect_invars[gu] += invars
-                self.abstract_effect_constant[gu] += constants
-                self.abstract_effect[gu] = new_effects
+        for g, u, gu, invars, constants, new_effects in results:
+            self.abstract_effect_invars[gu].extend(invars)
+            self.abstract_effect_constant[gu].extend(constants)
+            self.abstract_effect[gu] = new_effects
 
         # if config.debug:
         #     # sanity check
@@ -337,30 +337,30 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     self.second_state_abstraction[i].append(neg(p))
 
-            no_of_workers = config.Config.getConfig().workers if parallelise else 1
+        no_of_workers = config.Config.getConfig().workers if parallelise else 1
 
-            arg1 = []
-            arg2 = []
-            arg3 = []
-            arg4 = []
-            arg5 = []
-            arg6 = []
-            for gu in self.guard_updates:
-                g, u = guard_update_formula_to_guard_update(gu)
-                arg1.append(g)
-                arg2.append(u)
-                arg3.append(gu)
-                arg4.append(self.abstract_effect[gu])
-                arg5.append(p)
-                arg6.append(self.program.symbol_table)
+        arg1 = []
+        arg2 = []
+        arg3 = []
+        arg4 = []
+        arg5 = []
+        arg6 = []
+        for gu in self.guard_updates:
+            g, u = guard_update_formula_to_guard_update(gu)
+            arg1.append(g)
+            arg2.append(u)
+            arg3.append(gu)
+            arg4.append(self.abstract_effect[gu])
+            arg5.append(new_transition_predicates)
+            arg6.append(self.program.symbol_table)
 
-            with Pool(no_of_workers) as pool:
-                results = pool.map(add_transition_predicate_to_t_guard_updates, zip(arg1, arg2, arg3, arg4, arg5, arg6))
+        with Pool(no_of_workers) as pool:
+            results = pool.map(add_transition_predicates_to_t_guard_updates, zip(arg1, arg2, arg3, arg4, arg5, arg6))
 
-            for g, u, gu, invars, constants, new_effects in results:
-                self.abstract_effect_invars[gu] += invars
-                self.abstract_effect_tran_preds_constant[gu] += constants
-                self.abstract_effect[gu] = new_effects
+        for g, u, gu, invars, constants, new_effects in results:
+            self.abstract_effect_invars[gu] += invars
+            self.abstract_effect_tran_preds_constant[gu] += constants
+            self.abstract_effect[gu] = new_effects
 
         end = time.time()
         logger.info(end - start)
@@ -450,6 +450,36 @@ class EffectsAbstraction(PredicateAbstraction):
 
     def concretise_counterexample(self, counterexample: [dict]):
         pass
+
+
+def compute_abstract_effect_for_guard_update(arg):
+    g, u, gu_formula, old_effects, predicates, symbol_table = arg
+
+    invars = []
+    constants = []
+    for p in predicates:
+        g, u, gu_formula, invars_p, constants_p, effects = (
+            compute_abstract_effect_with_p_guard_update((g, u, gu_formula, old_effects, p, symbol_table)))
+        old_effects = effects
+        invars.extend(invars_p)
+        constants.extend(constants_p)
+
+    return g, u, gu_formula, invars, constants, old_effects
+
+
+def add_transition_predicates_to_t_guard_updates(arg):
+    g, u, gu_formula, old_effects, predicates, symbol_table = arg
+
+    invars = []
+    constants = []
+    for p in predicates:
+        g, u, gu_formula, invars_p, constants_p, effects = (
+            add_transition_predicate_to_t_guard_updates((g, u, gu_formula, old_effects, p, symbol_table)))
+        old_effects = effects
+        invars.extend(invars_p)
+        constants.extend(constants_p)
+
+    return g, u, gu_formula, invars, constants, old_effects
 
 
 def compute_abstract_effect_with_p_guard_update(arg):

@@ -95,7 +95,10 @@ class Value(Atom):
             else:
                 return self
         elif callable(context):
-            if context(self) is not None:
-                return context(self)
+            ret = context(self)
+            if ret is not None:
+                return ret
             else:
                 return self
+        else:
+            return self

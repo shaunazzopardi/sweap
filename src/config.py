@@ -11,7 +11,7 @@ init_state = Variable("init_state")
 
 class Config:
     _instance = None
-    _prefer_ranking = True
+    _prefer_ranking = False
     _only_structural = False
     _only_ranking = False
     _only_safety = False

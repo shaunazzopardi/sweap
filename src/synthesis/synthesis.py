@@ -21,8 +21,7 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, atomic_predicates, \
-    is_tautology
+from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -167,7 +166,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     choose_predicates = False
     conservative_with_state_predicates = False
     prefer_lasso_counterexamples = True
-    add_tran_preds = not config.Config.getConfig().only_safety
+    add_tran_preds_immediately = False
+    add_tran_preds_after_state_abstraction = True
 
     # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
     #  by the program since some information about why the environment chose the wrong predicates is hidden there
@@ -186,12 +186,14 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     new_ltl_assumptions = []
     for ltl in ltl_assumptions:
+        ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
         new_state_preds += preds
         new_ltl_assumptions.append(new_ltl)
 
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
+        ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
         new_state_preds += preds
         new_ltl_guarantees.append(new_ltl)
@@ -204,62 +206,40 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_tran_preds = set()
     new_ltl_constraints = set()
 
-    if add_tran_preds:
-        rankings = []
-        for state_pred in new_state_preds:
-            if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
-                fs = normalise_mathexpr(state_pred)
-                for f in fs:
-                    invar = []
-                    if not is_tautology(f, program.symbol_table):
-                        invar.append(f)
+    # for tv in program.valuation:
+    #     if tv.type.lower().startswith("bool"):
+    #         continue
+    #     if tv.type.lower().startswith("int"):
+    #         ranking_bot = Variable(tv.name)
+    #         invars_bot = [BiOp(ranking_bot, ">=", 0)]
+    #         rankings += [ranking_refinement(ranking_bot, invars_bot)]
+    #
+    #         ranking_top = BiOp(Value("1"), "-", Variable(tv.name))
+    #         invars_top = [BiOp(ranking_top, ">=", 0)]
+    #         rankings += [ranking_refinement(ranking_top, invars_top)]
+    #     elif tv.type.lower().startswith("nat"):
+    #         ranking = Variable(tv.name)
+    #         invars = []
+    #         rankings += [ranking_refinement(ranking, invars)]
+    #     elif ".." in tv.type:
+    #         ranking_bot = Variable(tv.name)
+    #         invars_bot = []
+    #         rankings += [ranking_refinement(ranking_bot, invars_bot)]
+    #
+    #         ranking_top = BiOp(Value("1"), "-", Variable(tv.name))
+    #         invars_top = []
+    #         rankings += [ranking_refinement(ranking_top, invars_top)]
 
-                    rankings.append(ranking_refinement(f.right, (invar)))
-
-        # for tv in program.valuation:
-        #     if tv.type.lower().startswith("bool"):
-        #         continue
-        #     if tv.type.lower().startswith("int"):
-        #         ranking_bot = Variable(tv.name)
-        #         invars_bot = [BiOp(ranking_bot, ">=", 0)]
-        #         rankings += [ranking_refinement(ranking_bot, invars_bot)]
-        #
-        #         ranking_top = BiOp(Value("1"), "-", Variable(tv.name))
-        #         invars_top = [BiOp(ranking_top, ">=", 0)]
-        #         rankings += [ranking_refinement(ranking_top, invars_top)]
-        #     elif tv.type.lower().startswith("nat"):
-        #         ranking = Variable(tv.name)
-        #         invars = []
-        #         rankings += [ranking_refinement(ranking, invars)]
-        #     elif ".." in tv.type:
-        #         ranking_bot = Variable(tv.name)
-        #         invars_bot = []
-        #         rankings += [ranking_refinement(ranking_bot, invars_bot)]
-        #
-        #         ranking_top = BiOp(Value("1"), "-", Variable(tv.name))
-        #         invars_top = []
-        #         rankings += [ranking_refinement(ranking_top, invars_top)]
-
-        for atoms, constraints in rankings:
-            for atom in atoms:
-                if any(v for v in atom.variablesin() if "_prev" in str(v)):
-                    new_tran_preds.add(atom)
-                else:
-                    new_state_preds.append(atom)
-            new_ltl_constraints.update(constraints)
 
     loop_counter = 0
 
-    predicate_abstraction = EffectsAbstraction(program)
-
-    # ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.explicit_automaton,
-    #                                                             LTLAbstractionTransitionType.combined,
-    #                                                             LTLAbstractionStructureType.control_and_predicate_state,
-    #                                                             LTLAbstractionOutputType.after_env)
     ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.effects_representation,
                                                                 LTLAbstractionTransitionType.one_trans,
                                                                 LTLAbstractionStructureType.control_state,
                                                                 LTLAbstractionOutputType.no_output)
+
+
+    predicate_abstraction = EffectsAbstraction(program)
 
     mon_events = program.out_events \
                  + [Variable(s) for s in program.states]
@@ -271,10 +251,26 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     print("Starting abstract synthesis loop.")
 
-    new_state_preds = list(set(new_state_preds))
     while True:
-        new_state_preds = [p for p in new_state_preds if p not in predicate_abstraction.state_predicates]
-        new_tran_preds = [p for p in new_tran_preds if p not in predicate_abstraction.transition_predicates]
+        if add_tran_preds_immediately:
+            rankings = []
+            for state_pred in new_state_preds + predicate_abstraction.state_predicates:
+                if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
+                    f, invar = ranking_from_predicate(state_pred)
+                    rankings.append(ranking_refinement(f, [invar]))
+
+            for atoms, constraints in rankings:
+                for atom in atoms:
+                    if any(v for v in atom.variablesin() if "_prev" in str(v)):
+                        new_tran_preds.append(atom)
+                    else:
+                        new_state_preds.append(atom)
+                new_ltl_constraints.update(constraints)
+            add_tran_preds_after_state_abstraction = False
+            add_tran_preds_immediately = False
+
+        new_state_preds = [p for p in set(new_state_preds) if p not in predicate_abstraction.state_predicates]
+        new_tran_preds = [p for p in set(new_tran_preds) if p not in predicate_abstraction.transition_predicates]
         # new_state_preds = list(map(string_to_prop, ["(cnt < 2)", "(cnt <= 0)", "(cnt >= 0)", "(cnt >= 2)"]))
         # new_state_preds = list(map(string_to_prop, ["(cnt >= 0)", "(cnt < 2)", "(cnt >= 2)", "(cnt <= 0)"]))
         ## update predicate abstraction
@@ -317,6 +313,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             else:
                 return True, mm_hoa
 
+        if add_tran_preds_after_state_abstraction:
+            add_tran_preds_immediately = True
+            continue
 
         start = time.time()
         print("massaging abstract counterstrategy")

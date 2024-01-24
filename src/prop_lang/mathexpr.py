@@ -59,7 +59,14 @@ class MathExpr(Formula):
         raise Exception("Unsupported operator: " + self.op)
 
     def replace_formulas(self, context):
-        if self in context.keys():
-            return context[self]
+        if isinstance(context, dict):
+            if self in context.keys():
+                return context[self]
+        elif callable(context):
+            ret = context(self)
+            if ret is not None:
+                return ret
+            else:
+                return MathExpr(self.formula.replace_formulas(context))
         else:
             return MathExpr(self.formula.replace_formulas(context))

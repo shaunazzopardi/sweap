@@ -23,6 +23,7 @@ class BiOp(Formula):
         self.op = op.strip()
         assert(isinstance(right, Formula), "right is not a formula")
         self.right = right
+        self.vars = None
 
     def __str__(self):
         if len(self.sub_formulas_up_to_associativity()) == 1:
@@ -62,8 +63,11 @@ class BiOp(Formula):
     # ordered as they appear in the formula
     # without already appearing variables
     def variablesin(self) -> [Variable]:
+        if self.vars is not None:
+            return self.vars
         vars = self.left.variablesin() + self.right.variablesin()
         vars_unique = [v for (i, v) in enumerate(vars) if v not in vars[:i]]
+        self.vars = vars_unique
         return vars_unique
 
     def ground(self, context: [TypedValuation]):
@@ -231,7 +235,10 @@ class BiOp(Formula):
             else:
                 return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
         elif callable(context):
-            if context(self) is not None:
-                return context(self)
+            ret = context(self)
+            if ret is not None:
+                return ret
             else:
                 return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
+        else:
+            return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))

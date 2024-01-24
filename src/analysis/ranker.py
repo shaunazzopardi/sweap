@@ -5,14 +5,9 @@ import time
 from tempfile import NamedTemporaryFile
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 
-import docker
-
-client = docker.from_env()
-
-
 class Ranker:
 
-    def check(self, main_function: str):
+    def check(self, main_function: str, only_check_for_termination=True):
         with NamedTemporaryFile('w', suffix='.c', delete=False) as tmp:
             tmp.write(main_function)
             tmp.close()
