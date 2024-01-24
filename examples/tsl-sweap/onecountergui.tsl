@@ -1,0 +1,17 @@
+( G ( 
+  (pressUp -> !pressDown)
+  &&
+  ([buttonUp := 0] -> (X ([buttonUp := 1] R !pressUp)))
+  &&
+  ([buttonDown := 0] -> (X ([buttonDown := 1] R !pressDown)))
+)) -> G (
+  (((counter + 2 <= 100) && (counter + 1 <= 100)) -> [buttonUp := 1])
+  &&
+  ((counter - 2 >= 0 && counter - 1 >= 0) -> [buttonDown := 1])
+  &&
+  (pressUp <-> [counter := counter + 1])
+  &&
+  (pressDown <-> [counter := counter - 1])
+  &&
+  (counter >= 0) && (counter <= 100)
+)
