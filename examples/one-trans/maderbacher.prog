@@ -27,6 +27,6 @@ program eventually__allow_grant {
     }
 
     SPECIFICATION {
-        F x < 0
+        G(start -> (F (x < 0)))
     }
 }
