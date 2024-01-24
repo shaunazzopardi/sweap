@@ -1,0 +1,39 @@
+//-- State: firstCounter, secondCounter, selected
+//-- Inputs: buttonPressedUp, buttonPressedDown, buttonPressedSwitch
+
+assume {
+  ge firstCounter i0();
+  le firstCounter i100();
+  ge secondCounter i0();
+  le secondCounter i100();
+  (eq selected i1()) || (eq selected i2());
+}
+
+always assume {
+  ! (!(eq buttonPressedUp i0()) && !(eq buttonPressedDown i0()));
+}
+
+always guarantee {
+  (eq selected i1())
+    -> ((!(eq buttonPressedUp i0()) && le (add firstCounter i1()) i100()
+        <-> [ firstCounter <- add firstCounter i1() ])
+    && (!(eq buttonPressedDown i0())) && ge (sub firstCounter i1()) i0()
+        <-> [ firstCounter <- sub firstCounter i1() ]);
+
+  (eq selected i2())
+    -> ((!(eq buttonPressedUp i0()) && le (add secondCounter i1()) i100()
+        <-> [ secondCounter <- add secondCounter i1() ])
+    && (!(eq buttonPressedDown i0())) && ge (sub secondCounter i1()) i0()
+        <-> [ secondCounter <- sub secondCounter i1() ]);
+  
+  (!(eq buttonPressedSwitch i0()) && eq selected i1())
+    <-> [ selected <- i2() ];
+  (!(eq buttonPressedSwitch i0()) && eq selected i2())
+    <-> [ selected <- i1() ];
+
+  ge firstCounter i0();    /* INV */
+  le firstCounter i100();  /* INV */
+  ge secondCounter i0();   /* INV */
+  le secondCounter i100(); /* INV */
+  (eq selected i1()) || (eq selected i2());
+}
