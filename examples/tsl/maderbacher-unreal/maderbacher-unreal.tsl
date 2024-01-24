@@ -1,4 +1,4 @@
-//-- State: counter
+//-- State: counter, started
 //-- Inputs: start
 
 //#LIA#
@@ -20,5 +20,4 @@ always guarantee {
   eq started i0() && eq start i0() -> [started <- i0()] && [ counter <- add counter i1() ];
   eq started i0() && eq start i1() -> [started <- i1()];
   eq started i1() -> [ counter <- add counter i1() ];
-
 }
