@@ -70,9 +70,9 @@ def finite_state_synth(program: Program,
 
     ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
         LTLAbstractionBaseType.effects_representation,
-        LTLAbstractionTransitionType.env_con_separate_organised_by_effects,
+        LTLAbstractionTransitionType.one_trans,
         LTLAbstractionStructureType.control_state,
-        LTLAbstractionOutputType.after_env)
+        LTLAbstractionOutputType.no_output)
 
     _, abstract_ltl_problem = effects_to_ltl.to_ltl(
         abstr,
