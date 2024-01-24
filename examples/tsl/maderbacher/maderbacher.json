@@ -1,5 +1,4 @@
 {
-//#LIA#
 	"predicates": [
 		{
 			"pred": "eq counter 0",
