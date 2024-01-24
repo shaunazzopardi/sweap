@@ -165,7 +165,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     allow_user_input = False
     choose_predicates = False
     conservative_with_state_predicates = False
-    prefer_lasso_counterexamples = True
+    prefer_lasso_counterexamples = False
     add_tran_preds_immediately = False
     add_tran_preds_after_state_abstraction = not config.Config.getConfig().only_safety
 
