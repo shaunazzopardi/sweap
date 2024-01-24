@@ -91,7 +91,10 @@ class UniOp(Formula):
             else:
                 return UniOp(self.op, self.right.replace_formulas(context))
         elif callable(context):
-            if context(self) is not None:
-                return context(self)
+            ret = context(self)
+            if ret is not None:
+                return ret
             else:
                 return UniOp(self.op, self.right.replace_formulas(context))
+        else:
+            return UniOp(self.op, self.right.replace_formulas(context))
