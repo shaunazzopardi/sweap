@@ -1,5 +1,7 @@
-( G ( 
+( (!pressUp && !pressDown) && G ( 
   (pressUp -> !pressDown)
+  &&
+  (pressDown -> pressUp)
   &&
   ([buttonUp := 0] -> (X ([buttonUp := 1] R !pressUp)))
   &&
