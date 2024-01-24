@@ -116,6 +116,6 @@
 			"update_term": "cr",
 			"var_name": "cr",
 			"depends": []
-		},
+		}
 	]
 }
