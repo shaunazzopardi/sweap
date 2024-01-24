@@ -65,7 +65,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
                 E_now = disjunct_formula_set(
                     [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in pred_states])
                 E_now_simplified = simplify_formula_without_math(E_now)
-                if config.cnf_optimisations:
+                if config.Config.getConfig().cnf_optimisations:
                     E_now_simplified = cnf_safe(E_now_simplified)
 
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
@@ -193,7 +193,7 @@ def to_ltl_reduced(predicate_abstraction: EffectsAbstraction):
         _transition_f_ltl.append(formula)
         srcs.append(src)
 
-    with Pool(config.workers) as pool:
+    with Pool(config.Config.getConfig().workers) as pool:
         results = pool.map(simplify_ltl, _transition_f_ltl)
 
         _transition_ltl = [G(implies(srcs[i], f)) for i, f in enumerate(results)]
