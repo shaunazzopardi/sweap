@@ -1,0 +1,40 @@
+//-- State: counter, buttonUp, buttonDown
+//-- Inputs: buttonPressedUp, buttonPressedDown
+
+//#LIA#
+
+assume {
+  //inRange counter;
+  eq counter i0();
+  eq buttonPressedUp i0();
+  eq buttonPressedDown i0();
+}
+
+always assume {
+  (eq buttonPressedUp i0() || eq buttonPressedDown i0());
+  eq buttonPressedUp i0() || eq buttonPressedUp i1();
+  eq buttonPressedDown i0() || eq buttonPressedDown i1();
+
+  [ buttonUp <- i0() ]
+    -> X ([ buttonUp <- i1() ] R (eq buttonPressedUp i0()));
+
+  [ buttonDown <- i0() ]
+    -> X ([ buttonDown <- i1() ] R (eq buttonPressedDown i0()));
+}
+
+always guarantee {
+  le (add counter i2()) i100() &&
+  le (add counter i1()) i100()
+    -> [ buttonUp <- i1() ];
+
+  ge (sub counter i2()) i0() &&
+  ge (sub counter i1()) i0()
+    -> [ buttonDown <- i1() ];
+
+  (eq buttonPressedUp i1())   <-> [ counter <- add counter i1() ];
+  (eq buttonPressedDown i1()) <-> [ counter <- sub counter i1() ];
+
+  //inRange counter;
+  ge counter i0();
+  le counter i100();
+}
