@@ -1,0 +1,70 @@
+{
+	"predicates": [
+		{
+			"pred": "eq cnt 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq q 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq q 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq q 2",
+			"temporal": []
+		},
+		{
+		 	"pred": "eq request 0",
+			"temporal": []
+		},
+		{
+		 	"pred": "eq request 1",
+			"temporal": []
+		}
+	],
+	"updates": [
+		{
+			"update_term": "0",
+			"var_name": "q",
+			"depends": []
+		},
+		{
+			"update_term": "1",
+			"var_name": "q",
+			"depends": []
+		},
+		{
+			"update_term": "2",
+			"var_name": "q",
+			"depends": []
+		},
+		{
+			"update_term": "0",
+			"var_name": "0",
+			"depends": []
+		},
+		{
+			"update_term": "add cnt 1",
+			"var_name": "cnt",
+			"depends": []
+		},
+		{
+			"update_term": "sub cnt 2",
+			"var_name": "cnt",
+			"depends": []
+		},
+		{
+			"update_term": "0",
+			"var_name": "cnt",
+			"depends": []
+		}
+		{
+			"update_term": "cnt",
+			"var_name": "cnt",
+			"depends": []
+		}
+	]
+}
