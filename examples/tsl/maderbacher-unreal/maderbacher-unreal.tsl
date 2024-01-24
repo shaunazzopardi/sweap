@@ -1,23 +1,13 @@
-//-- State: counter, started
-//-- Inputs: start
-
-//#LIA#
+//-- State: counter
 
 assume {
-  eq counter i0();
-  eq started i0();
-}
-
-always assume {
-  eq start i0() || eq start i1();
+  eq counter i1();
 }
 
 guarantee {
-  G (eq start i1() -> F (gt i0() counter));
+  F (eq i0() counter);
 }
 
 always guarantee {
-  eq started i0() && eq start i0() -> [started <- i0()] && [ counter <- add counter i1() ];
-  eq started i0() && eq start i1() -> [started <- i1()];
-  eq started i1() -> [ counter <- add counter i1() ];
+  [ counter <- add counter i1() ];
 }
