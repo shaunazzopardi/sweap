@@ -238,17 +238,11 @@ class ToProgram(NodeWalker):
         for ups in product(*enum_updates.values()):
             con_t.append(Transition(
                 'c0', mk_cond([u[0] for u in ups]),
-                [u[1] for u in ups], [], 'e0'))
-
-        env_t = [Transition(
-            'e0', None,
-            [BiOp(Variable(u), ":=", Variable(u)) for u in self.updates],
-            [], 'c0'
-        )]
+                [u[1] for u in ups], [], 'c0'))
 
         prog = Program(
-            name, ['e0', 'c0'], 'e0', init_values, env_t + con_t,
-            list(self.env_events), con_events, [], preprocess=True)
+            name, ['c0'], 'c0', init_values, con_t,
+            list(self.env_events), con_events, [], preprocess=False)
 
         formula = normalize_ltl(orig_formula)
 

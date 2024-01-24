@@ -90,11 +90,21 @@ class Program:
             else:
                 self.state_to_trans[t.src] = [t]
 
+        self.deterministic = None
         if preprocess:
             if is_determ is None:
                 self.deterministic = is_deterministic(self)
             else:
-                self.deterministic = is_deterministic
+                self._det = None
+
+                def lazy_det(slf):
+                    if slf._det is None:
+                        slf._det = is_deterministic(slf)
+                    return slf._det
+
+                def skip(_):
+                    pass
+                self.deterministic = property(lazy_det, skip, skip, "")
 
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()
