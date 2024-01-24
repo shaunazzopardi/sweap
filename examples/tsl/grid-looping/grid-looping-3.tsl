@@ -1,6 +1,7 @@
 //-- State: b1, b2, cnt1, cnt2, q
 //-- Inputs: inb1, inb2, start
 
+//#LIA#
 
 assume {
   eq b1 i0();
@@ -12,31 +13,38 @@ assume {
 
 always assume {
   ge inb1 i0();
-  le inb1 i7();
+  le inb1 i1();
   
   ge inb2 i0();
-  le inb2 i7();
+  le inb2 i1();
   
   ge start i0();
-  le start i7();
+  le start i1();
 
 }
 
 guarantee {
-  (G F (eq q i7())) -> G F (eq cnt1 b1 && eq cnt2 b2);
+  (G F (eq q i1())) -> G F (eq cnt1 b1 && eq cnt2 b2);
 }
 
 always guarantee {
   ge cnt1 i0(); /* INV */
   le cnt1 i7(); /* INV */
   ge cnt2 i0(); /* INV */
-  le cnt1 i7(); /* INV */
+  le cnt2 i7(); /* INV */
+  ge b1 i0(); /* INV */
+  le b1 i7(); /* INV */
+  ge b2 i0(); /* INV */
+  le b2 i7(); /* INV */
 
-  (eq q i0() && eq start i0()) -> [b1 <- inb1] && [b2 <- inb2];
-  (eq q i0() && eq start i7()) -> [q <- i7()];
+  (eq q i0() && eq start i0() && eq inb1 i1()) -> [b1 <- add b1 i1()];
+  (eq q i0() && eq start i0() && eq inb2 i1()) -> [b2 <- add b2 i1()];
+  (eq q i0() && eq start i1()) -> ([b1 <- b1] && [b2 <- b2] && [q <- i1()]);
 
-  (eq q i7() && !(eq cnt1 b1 && eq cnt2 b2)) -> [cnt1 <- add cnt1 i7()] || [cnt1 <- sub cnt1 i7()];
-  (eq q i7() && !(eq cnt1 b1 && eq cnt2 b2)) -> [cnt2 <- add cnt2 i7()] || [cnt2 <- sub cnt2 i7()];
-  (eq q i7() && eq cnt1 b1 && eq cnt2 b2) -> [cnt1 <- i0()] && [cnt2 <- i0()] && [b1 <- i0()] && [b2 <- i0()] && [q <- i0()]
+  eq q i1() -> [b1 <- b1] && [b2 <- b2];
+
+  (eq q i1() && !(eq cnt1 b1 && eq cnt2 b2)) -> [cnt1 <- add cnt1 i1()] || [cnt1 <- sub cnt1 i1()];
+  (eq q i1() && !(eq cnt1 b1 && eq cnt2 b2)) -> [cnt2 <- add cnt2 i1()] || [cnt2 <- sub cnt2 i1()];
+  (eq q i1() && eq cnt1 b1 && eq cnt2 b2) -> [cnt1 <- i0()] && [cnt2 <- i0()] && [b1 <- i0()] && [b2 <- i0()] && [q <- i0()];
 
 }

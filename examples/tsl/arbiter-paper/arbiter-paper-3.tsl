@@ -1,6 +1,8 @@
 //-- State: counter, roomA, pending, q, grantA, grantB
 //-- Inputs: request, changeRoom
 
+//#LIA#
+
 assume {
   eq counter i0();
   eq q i0();
