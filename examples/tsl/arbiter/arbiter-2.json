@@ -25,11 +25,11 @@
 			"temporal": []
 		},
 		{
-		 	"pred": "ge counter 0",
+		 	"pred": "gte counter 0",
 			"temporal": []
 		},
 		{
-		 	"pred": "le counter 3",
+		 	"pred": "lte counter 3",
 			"temporal": []
 		}
 	],
