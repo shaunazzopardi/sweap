@@ -1,6 +1,6 @@
 program arbiternork {
     STATES {
-        env : init, con, con1, err
+        env : init, con, con1
     }
 
     ENVIRONMENT EVENTS {
@@ -15,22 +15,21 @@ program arbiternork {
     }
 
     VALUATION {
-        cnt : 0..200 := 0;
-        error_env : boolean := false;
-        error_con : boolean := false;
+        cnt : 0..5 := 0;
     }
 
     TRANSITIONS {
-        env -> env [request && cnt < 200 $ cnt := cnt + 1],
-        env -> con1 [!request || cnt == 200],
+        env -> env [request & cnt < 5 $ cnt := cnt + 1],
+        env -> env [request & cnt >= 5 $ cnt := 5],
+        env -> con1 [!request],
         con -> con1 [grant && cnt >= 2 $ cnt := cnt - 2],
         con -> con1 [grant && cnt < 2 $ cnt := 0],
-        con1 -> con [ cnt < 200 $ cnt := cnt + 1],
-        con1 -> con [ cnt == 200],
+        con1 -> con [cnt < 5 $ cnt := cnt + 1],
+        con1 -> con [cnt >= 5 $ cnt := 5],
         con -> env [!grant]
     }
 
     SPECIFICATION {
-        ((G F !request) && (G F request) && G(!error_env || !error_con)) -> (G F (cnt <= 0 && cnt >= 0))
+        ((G F !request) && (G F request)) -> (G F (cnt <= 0 && cnt >= 0))
     }
 }

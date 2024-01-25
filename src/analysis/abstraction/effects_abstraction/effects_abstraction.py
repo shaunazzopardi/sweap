@@ -229,9 +229,7 @@ class EffectsAbstraction(PredicateAbstraction):
             self.var_relabellings[p] = stringify_pred(p)
 
         self.interpolants.update(new_state_predicates)
-        self.add_state_predicates(new_state_predicates, parallelise)
-
-        self.add_transition_predicates(new_transition_predicates, parallelise)
+        self.add_state_predicates(new_state_predicates | new_transition_predicates, parallelise)
 
         # self.pretty_print_abstract_effect()
 
