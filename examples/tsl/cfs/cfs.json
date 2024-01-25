@@ -13,35 +13,19 @@
 			"temporal": []
 		},
 		{
-			"pred": "eq enqueue1 0",
+			"pred": "eq enqueue 1",
 			"temporal": []
 		},
 		{
-			"pred": "eq enqueue1 1",
+			"pred": "eq enqueue 2",
 			"temporal": []
 		},
 		{
-			"pred": "eq dequeue1 0",
+			"pred": "eq dequeue 1",
 			"temporal": []
 		},
 		{
-			"pred": "eq dequeue1 1",
-			"temporal": []
-		},
-		{
-			"pred": "eq enqueue2 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq enqueue2 1",
-			"temporal": []
-		},
-		{
-			"pred": "eq dequeue2 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq dequeue2 1",
+			"pred": "eq dequeue 2",
 			"temporal": []
 		},
 		{
