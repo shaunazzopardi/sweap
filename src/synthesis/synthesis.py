@@ -21,7 +21,8 @@ from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import atomic_predicates, finite_state_preds, true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate
+from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate, \
+    conjunct_formula_set, atomic_predicates, finite_state_preds
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -168,6 +169,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     prefer_lasso_counterexamples = False
     add_tran_preds_immediately = False
     add_tran_preds_after_state_abstraction = not config.Config.getConfig().only_safety
+    only_safety = False
 
     # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
     #  by the program since some information about why the environment chose the wrong predicates is hidden there
@@ -201,7 +203,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     ltl_assumptions = new_ltl_assumptions
     ltl_guarantees = new_ltl_guarantees
 
-    new_state_preds = list(set(new_state_preds))
+    new_state_preds = (set(new_state_preds))
 
     new_tran_preds = set()
     new_ltl_constraints = set()
@@ -251,33 +253,34 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     print("Starting abstract synthesis loop.")
 
+    to_add_rankings_for = [s for s in new_state_preds]
     while True:
-        if add_tran_preds_immediately:
-            rankings = []
-            for state_pred in new_state_preds + predicate_abstraction.state_predicates:
+        if add_tran_preds_immediately and not only_safety:
+            to_add_rankings_for.extend(new_state_preds)
+            for state_pred in to_add_rankings_for:
                 if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
-                    f, invar = ranking_from_predicate(state_pred)
+                    result = ranking_from_predicate(state_pred)
+                    if result == None: continue
+                    f, invar = result
                     rankings.append(ranking_refinement(f, [invar]))
 
             for atoms, constraints in rankings:
                 for atom in atoms:
                     if any(v for v in atom.variablesin() if "_prev" in str(v)):
-                        new_tran_preds.append(atom)
+                        new_tran_preds.add(atom)
                     else:
-                        new_state_preds.append(atom)
+                        new_state_preds.add(atom)
                 new_ltl_constraints.update(constraints)
-            add_tran_preds_after_state_abstraction = False
-            add_tran_preds_immediately = False
+            to_add_rankings_for.clear()
 
-        new_state_preds = [p for p in set(new_state_preds) if p not in predicate_abstraction.state_predicates]
-        new_tran_preds = [p for p in set(new_tran_preds) if p not in predicate_abstraction.transition_predicates]
-        # new_state_preds = list(map(string_to_prop, ["(cnt < 2)", "(cnt <= 0)", "(cnt >= 0)", "(cnt >= 2)"]))
-        # new_state_preds = list(map(string_to_prop, ["(cnt >= 0)", "(cnt < 2)", "(cnt >= 2)", "(cnt <= 0)"]))
+        new_state_preds = {p for p in set(new_state_preds) if p not in predicate_abstraction.state_predicates}
+        new_tran_preds = {p for p in set(new_tran_preds) if p not in predicate_abstraction.transition_predicates}
+
         ## update predicate abstraction
         start = time.time()
-        print("adding " + ", ".join(map(str, new_state_preds + new_tran_preds)) + " to predicate abstraction")
+        print("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction")
         predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, False)
-        logging.info("adding " + ", ".join(map(str, new_state_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
+        logging.info("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
 
         predicate_abstraction.add_constraints(new_ltl_constraints)
 
@@ -364,8 +367,22 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                   disagreed_on_state,
                                                   loop_counter,
                                                   allow_user_input)
+        if not only_safety:
+            ## try fairness refinement
+            start = time.time()
+            print("trying fairness refinement")
+            success, result = try_liveness_refinement(mm,
+                                                      program,
+                                                      predicate_abstraction,
+                                                      agreed_on_execution,
+                                                      disagreed_on_state,
+                                                      loop_counter,
+                                                      allow_user_input)
 
-        logging.info("liveness refinement took " + str(time.time() - start))
+            logging.info("liveness refinement took " + str(time.time() - start))
+        else:
+            success = False
+            result = None
 
         if success:
             loop_counter = loop_counter + 1

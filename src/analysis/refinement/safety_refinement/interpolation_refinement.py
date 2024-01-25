@@ -131,7 +131,7 @@ def safety_refinement_seq_int(program: Program,
 
     logging.info("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates]))
 
-    return True, [p for p in new_all_preds if p not in state_predicates]
+    return True, {p for p in new_all_preds if p not in state_predicates}
 
 
 def interactive_state_predicates():

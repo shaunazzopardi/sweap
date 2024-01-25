@@ -100,4 +100,4 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
     fairness = disjunct(G(F(neg(in_loop))), disjunct_formula_set([F(G(stay)) for stay in stutters]))
     constraints.append(fairness)
 
-    return atomic_preds, constraints
+    return atomic_preds, set(constraints)

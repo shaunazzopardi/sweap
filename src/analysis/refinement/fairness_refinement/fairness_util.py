@@ -61,8 +61,7 @@ def try_liveness_refinement(Cs: MealyMachine,
                       loop_counter,
                       symbol_table)
 
-    if True:
-        return success, result
+    return success, result
 
 
 def function_has_well_ordered_range(f, invars, symbol_table):

@@ -539,17 +539,19 @@ def transition_formula(t):
 guard_update_formulas = {}
 guard_formulas_unpacked = {}
 
-def guard_update_formula(g, u):
+def guard_update_formula(g, u, symbol_table):
     key = pickle.dumps((g,u))
     if key not in transition_formulas.keys():
         formula = conjunct(add_prev_suffix(g),
                            conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right))
                                                  for act in u]))
+        formula = conjunct(formula, type_constraints(formula, symbol_table))
         guard_update_formulas[key] = formula
         guard_formulas_unpacked[formula] = (g,u)
         return formula
     else:
         return guard_update_formulas[key]
+
 
 def guard_update_formula_to_guard_update(gu):
     if gu in guard_formulas_unpacked.keys():

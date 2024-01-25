@@ -1,6 +1,6 @@
 program arbiternork {
     STATES {
-        env : init, con, con1
+        env : init, con
     }
 
     ENVIRONMENT EVENTS {
@@ -19,12 +19,11 @@ program arbiternork {
     }
 
     TRANSITIONS {
-        env -> env [request $ cnt := cnt + 1],
-        env -> con1 [!request],
-        con -> con1 [grant && cnt >= 2 $ cnt := cnt - 2],
-        con -> con1 [grant && cnt < 2 $ cnt := 0],
-        con1 -> con [ $ cnt := cnt + 1],
-        con -> env [!grant]
+        env -> con [request $ cnt := cnt + 1],
+        env -> con [!request],
+        con -> con [grant $ cnt := cnt - 1],
+        con -> con [!grant $ cnt := cnt - 1],
+        con -> env [!grant && cnt <= 0 && cnt >= 0]
     }
 
     SPECIFICATION {
