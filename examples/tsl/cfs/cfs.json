@@ -5,7 +5,27 @@
 			"temporal": []
 		},
 		{
+			"pred": "eq next 0",
+			"temporal": []
+		},
+		{
 			"pred": "eq vruntime2 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq enqueue 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq enqueue 2",
+			"temporal": []
+		},
+		{
+			"pred": "eq dequeue 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq dequeue 2",
 			"temporal": []
 		},
 		{
@@ -26,6 +46,21 @@
 		{
 			"update_term": "add vruntime2 1",
 			"var_name": "vruntime2",
+			"depends": []
+		},
+		{
+			"update_term": "0",
+			"var_name": "next",
+			"depends": []
+		},
+		{
+			"update_term": "1",
+			"var_name": "next",
+			"depends": []
+		},
+		{
+			"update_term": "2",
+			"var_name": "next",
 			"depends": []
 		}
 	]
