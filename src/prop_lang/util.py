@@ -1161,6 +1161,23 @@ def stringify_formula(f, env_con_props):
         return f, []
 
 
+def ltl_back_to_vars(formula):
+    if isinstance(formula, Value):
+        return formula
+    elif isinstance(formula, Variable):
+        if str(formula) in var_to_predicate_cache.keys():
+            return var_to_predicate_cache[str(formula)]
+        else:
+            return formula
+    elif isinstance(formula, MathExpr):
+        return MathExpr(ltl_back_to_vars(formula))
+    elif isinstance(formula, UniOp):
+        return UniOp(formula.op, ltl_back_to_vars(formula.right))
+    elif isinstance(formula, BiOp):
+        return BiOp(ltl_back_to_vars(formula.left), formula.op, ltl_back_to_vars(formula.right))
+    else:
+        raise Exception("not implemented")
+
 def normalise_mathexpr(mathexpr):
     f = None
     if isinstance(mathexpr, MathExpr):
@@ -1170,9 +1187,7 @@ def normalise_mathexpr(mathexpr):
     else:
         return None
 
-    rewrite_lte = lambda x,y: MathExpr(BiOp(x, "<=", y)) \
-                                if x == zero else \
-                                MathExpr(BiOp(zero, "<=", BiOp(y, "-", x)))
+    rewrite_lte = lambda x,y: MathExpr(BiOp(x, "<=", y))
 
     zero = Value("0")
     if isinstance(f, BiOp):
@@ -1205,4 +1220,7 @@ def ranking_from_predicate(predicate):
         if predicate.formula.op == "<=":
             if predicate.formula.left == Value("0"):
                 return predicate.formula.right, predicate.formula
-    raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
+            else:
+                return BiOp(predicate.formula.right, "-", predicate.formula.left), predicate.formula
+    return None
+    # raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
