@@ -10,8 +10,6 @@ assume {
 }
 
 always assume {
-    eq dequeue i0() || eq enqueue i1() || eq enqueue i2();
-    eq dequeue i0() || eq dequeue i1() || eq dequeue i2();
     !(eq enqueue i1() && eq dequeue i1());
     !(eq enqueue i2() && eq dequeue i2());
 }
@@ -33,7 +31,6 @@ always guarantee {
     eq enqueue i2() -> ((gt vruntime1 vruntime2 -> ![next <- i1()]) W eq dequeue i2());
     eq enqueue i1() -> ((gt vruntime2 vruntime1 -> ![next <- i2()]) W eq dequeue i1());
 
-    [next <- i0()] <-> [vruntime1 <- vruntime1] && [vruntime2 <- vruntime2];
-    [next <- i1()] <-> [vruntime1 <- add vruntime1 i1()] && [vruntime2 <- vruntime2];
-    [next <- i2()] <-> [vruntime2 <- add vruntime2 i1()] && [vruntime1 <- vruntime1];
+    [next <- i1()] <-> [vruntime1 <- add vruntime1 i1()];
+    [next <- i2()] <-> [vruntime2 <- add vruntime2 i1()];
 }

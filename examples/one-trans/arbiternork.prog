@@ -24,6 +24,7 @@ program arbiternork {
         con -> con1 [grant && cnt >= 2 $ cnt := cnt - 2],
         con1 -> con [request $ cnt := cnt + 1],
         con -> env [grant && cnt < 2 $ cnt := 0],
+        con1 -> con [!request],
         con -> env [!grant]
     }
 

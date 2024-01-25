@@ -1,4 +1,8 @@
-(G (!(enq1 && deq1) && !(enq2 && deq2))) -> (
+(G (
+    !(enq1 && enq2) && !(deq1 && deq2)
+    &&
+    !(enq1 && deq1) && !(enq2 && deq2))
+) -> (
     (![nx := 1] W enq1)
     &&
     (![nx := 2] W enq2)
