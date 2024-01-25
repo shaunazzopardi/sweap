@@ -1,5 +1,5 @@
 //-- State: next, vruntime1, vruntime2
-//-- Inputs: enqueue, dequeue
+//-- Inputs: enqueue1, enqueue2, dequeue1, dequeue2
 // A simplified version of the Linux Completely Fair Scheduler.
 //#LIA#
 
@@ -10,15 +10,19 @@ assume {
 }
 
 always assume {
-    eq enqueue i1() || eq enqueue i2();
-    eq dequeue i1() || eq dequeue i2();
-    !(eq enqueue i1() && eq dequeue i1());
-    !(eq enqueue i2() && eq dequeue i2());
+    eq enqueue1 i0() || eq enqueue1 i1();
+    eq enqueue2 i0() || eq enqueue2 i1();
+    
+    eq dequeue1 i0() || eq dequeue1 i1();
+    eq dequeue2 i0() || eq dequeue2 i1();
+    
+    !(eq enqueue1 i1() && eq dequeue1 i1());
+    !(eq enqueue1 i1() && eq dequeue1 i1());
 }
 
 guarantee {
-    ![next <- i1()] W eq enqueue i1();
-    ![next <- i2()] W eq enqueue i2();
+    ![next <- i1()] W eq enqueue1 i1();
+    ![next <- i2()] W eq enqueue2 i1();
 }
 
 always guarantee {
@@ -26,17 +30,17 @@ always guarantee {
     le vruntime1 i2147483647(); /* INV */
     ge vruntime2 i0(); /* INV */
     le vruntime2 i2147483647(); /* INV */
-
+    
     [next <- i1()] || [next <- i2()] || [next <- i0()];
 
-    eq enqueue i1() -> (F [next <- i1()]) || F eq dequeue i1();
-    eq enqueue i2() -> (F [next <- i2()]) || F eq dequeue i2();
+    eq enqueue1 i1() -> (F [next <- i1()]) || F eq dequeue1 i1();
+    eq enqueue2 i1() -> (F [next <- i2()]) || F eq dequeue2 i1();
 
-    eq dequeue i1() -> ![next <- i1()] W eq enqueue i1();
-    eq dequeue i2() -> ![next <- i2()] W eq enqueue i2();
+    eq dequeue1 i1() -> ![next <- i1()] W eq enqueue1 i1();
+    eq dequeue2 i1() -> ![next <- i2()] W eq enqueue2 i1();
 
-    eq enqueue i2() -> ((gt vruntime1 vruntime2 -> ![next <- i1()]) W eq dequeue i2());
-    eq enqueue i1() -> ((gt vruntime2 vruntime1 -> ![next <- i2()]) W eq dequeue i1());
+    eq enqueue2 i1() -> ((gt vruntime1 vruntime2 -> ![next <- i1()]) W eq dequeue2 i1());
+    eq enqueue1 i1() -> ((gt vruntime2 vruntime1 -> ![next <- i2()]) W eq dequeue1 i1());
 
     [next <- i1()] <-> [vruntime1 <- add vruntime1 i1()];
     [next <- i2()] <-> [vruntime2 <- add vruntime2 i1()];
