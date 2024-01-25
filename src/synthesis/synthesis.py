@@ -204,6 +204,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     timing_data = ""
     print("Starting abstract synthesis loop.")
+    rankings = []
 
     to_add_rankings_for = [s for s in new_state_preds]
     while True:
