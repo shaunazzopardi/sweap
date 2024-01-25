@@ -5,6 +5,11 @@ import time
 from tempfile import NamedTemporaryFile
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 
+import docker
+
+client = docker.from_env()
+
+
 class Ranker:
 
     def check(self, main_function: str, only_check_for_termination=True):
@@ -15,7 +20,7 @@ class Ranker:
             try:
                 start = time.time()
 
-                cmd = ['(/cpachecker/scripts/cpa.sh -preprocess -terminationAnalysis /workdir/prog.c -spec '
+                cmd = ['(/cpachecker/scripts/cpa.sh -preprocess -terminationAnalysis -benchmark -heap 1024M /workdir/prog.c -spec '
                     '/cpachecker/config/properties/termination.prp) && cat output/terminationAnalysisResult.txt']
 
                 img = "registry.gitlab.com/sosy-lab/software/cpachecker:latest"
