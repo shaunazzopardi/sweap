@@ -30,11 +30,11 @@
 		},
 		{
 			"pred": "gt vruntime1 vruntime2",
-			"temporal": ["F"]
+			"temporal": []
 		},
 		{
 			"pred": "gt vruntime2 vruntime1",
-			"temporal": ["F"]
+			"temporal": []
 		}
 	],
 	"updates": [
