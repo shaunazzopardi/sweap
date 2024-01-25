@@ -135,7 +135,7 @@ class Program:
 
             result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"  # noqa: E501
             if t.action is not None and len(t.action) > 0:
-                result += " $ " + ', '.join(map(remove_paren, t.action))
+                result += " $ " + '; '.join(map(remove_paren, t.action))
             # Deprecated: we'll remove output actions altogether at some point
             if is_env and t.output is not None and len(t.output) > 0:
                 result += " # " + ', '.join(map(remove_paren, t.output))
