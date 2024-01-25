@@ -13,11 +13,19 @@
 			"temporal": []
 		},
 		{
+			"pred": "eq enqueue 0",
+			"temporal": []
+		},
+		{
 			"pred": "eq enqueue 1",
 			"temporal": []
 		},
 		{
 			"pred": "eq enqueue 2",
+			"temporal": []
+		},
+		{
+			"pred": "eq dequeue 0",
 			"temporal": []
 		},
 		{

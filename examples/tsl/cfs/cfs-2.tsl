@@ -10,8 +10,8 @@ assume {
 }
 
 always assume {
-    eq enqueue i1() || eq enqueue i2();
-    eq dequeue i1() || eq dequeue i2();
+    eq enqueue i0() || eq enqueue i1() || eq enqueue i2();
+    eq dequeue i0() || eq dequeue i1() || eq dequeue i2();
     !(eq enqueue i1() && eq dequeue i1());
     !(eq enqueue i2() && eq dequeue i2());
 }
