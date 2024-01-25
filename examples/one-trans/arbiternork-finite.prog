@@ -1,0 +1,36 @@
+program arbiternork {
+    STATES {
+        env : init, con, con1, err
+    }
+
+    ENVIRONMENT EVENTS {
+        request
+    }
+
+    CONTROLLER EVENTS {
+        grant
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        cnt : 0..200 := 0;
+        error_env : boolean := false;
+        error_con : boolean := false;
+    }
+
+    TRANSITIONS {
+        env -> env [request && cnt < 200 $ cnt := cnt + 1],
+        env -> con1 [!request || cnt == 200],
+        con -> con1 [grant && cnt >= 2 $ cnt := cnt - 2],
+        con -> con1 [grant && cnt < 2 $ cnt := 0],
+        con1 -> con [ cnt < 200 $ cnt := cnt + 1],
+        con1 -> con [ cnt == 200],
+        con -> env [!grant]
+    }
+
+    SPECIFICATION {
+        ((G F !request) && (G F request) && G(!error_env || !error_con)) -> (G F (cnt <= 0 && cnt >= 0))
+    }
+}
