@@ -37,6 +37,14 @@
 			"temporal": []
 		},
 		{
+			"pred": "lt vruntime1 15",
+			"temporal": []
+		},
+		{
+			"pred": "lt vruntime2 15",
+			"temporal": []
+		},
+		{
 		 	"pred": "gte vruntime1 0",
 			"temporal": []
 		},

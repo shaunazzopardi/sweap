@@ -51,7 +51,15 @@
 		{
 		 	"pred": "lte vruntime2 1",
 			"temporal": []
-		}
+		},
+		{
+			"pred": "lt vruntime1 1",
+			"temporal": []
+		},
+		{
+			"pred": "lt vruntime2 1",
+			"temporal": []
+		},
 	],
 	"updates": [
 		{
