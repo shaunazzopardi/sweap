@@ -1,0 +1,72 @@
+{
+	"predicates": [
+		{
+			"pred": "eq x 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq y 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq env_x_move 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq env_x_move -1",
+			"temporal": []
+		},
+		{
+			"pred": "eq env_x_move 0",
+			"temporal": []
+		},
+		{
+		 	"pred": "gte x -4",
+			"temporal": []
+		},
+		{
+		 	"pred": "lte x 3",
+			"temporal": []
+		},
+		{
+		 	"pred": "gte y -4",
+			"temporal": []
+		},
+		{
+		 	"pred": "lte y 3",
+			"temporal": []
+		}
+	],
+	"updates": [
+		{
+			"update_term": "sub x 2",
+			"var_name": "x",
+			"depends": []
+		},
+		{
+			"update_term": "add x 2",
+			"var_name": "x",
+			"depends": []
+		},
+		{
+		"update_term": "add x env_x_move",
+			"var_name": "x",
+			"depends": []
+		},
+		{
+			"update_term": "y",
+			"var_name": "y",
+			"depends": []
+		},
+		{
+			"update_term": "add y 1",
+			"var_name": "y",
+			"depends": []
+		},
+		{
+			"update_term": "sub y 1",
+			"var_name": "y",
+			"depends": []
+		}
+	]
+}

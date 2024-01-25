@@ -1,7 +1,7 @@
 {
 	"predicates": [
 		{
-			"pred": "eq counter 0",
+			"pred": "eq cnt 0",
 			"temporal": []
 		},
 		{
@@ -9,35 +9,11 @@
 			"temporal": []
 		},
 		{
-			"pred": "eq grantA 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq grantB 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq pending 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq grantA 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq grantA 1",
-			"temporal": []
-		},
-		{
-			"pred": "eq grantB 0",
-			"temporal": []
-		},
-		{
-			"pred": "eq grantB 1",
-			"temporal": []
-		},
-		{
 			"pred": "eq q 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq q 2",
 			"temporal": []
 		},
 		{
@@ -46,6 +22,14 @@
 		},
 		{
 		 	"pred": "eq request 1",
+			"temporal": []
+		},
+		{
+		 	"pred": "gte cnt 0",
+			"temporal": []
+		},
+		{
+		 	"pred": "lte cnt 3",
 			"temporal": []
 		}
 	],
@@ -71,25 +55,24 @@
 			"depends": []
 		},
 		{
-			"update_term": "add counter 1",
-			"var_name": "counter",
+			"update_term": "add cnt 1",
+			"var_name": "cnt",
 			"depends": []
 		},
 		{
-			"update_term": "sub counter 1",
-			"var_name": "counter",
+			"update_term": "sub cnt 2",
+			"var_name": "cnt",
 			"depends": []
 		},
 		{
 			"update_term": "0",
-			"var_name": "grant",
+			"var_name": "cnt",
 			"depends": []
 		},
 		{
-			"update_term": "1",
-			"var_name": "grant",
+			"update_term": "cnt",
+			"var_name": "cnt",
 			"depends": []
 		}
-
 	]
 }

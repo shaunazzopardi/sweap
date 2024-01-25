@@ -47,6 +47,14 @@
 		{
 		 	"pred": "eq request 1",
 			"temporal": []
+		},
+		{
+		 	"pred": "gte counter 0",
+			"temporal": []
+		},
+		{
+		 	"pred": "lte counter 1",
+			"temporal": []
 		}
 	],
 	"updates": [
