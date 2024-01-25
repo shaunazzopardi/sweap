@@ -14,8 +14,8 @@ class MooreMachine:
     def __init__(self, name, init_index: int, env_events, con_events, transitions={}):
         self.name = name
         self.init_index = init_index
-        self.init_st = "st_" + str(init_index)
-        self.states = {self.init_st} | transitions.keys()
+        self.init_st = {"st_" + str(init_index)}
+        self.states = self.init_st | transitions.keys()
         self.env_events = env_events
         self.con_events = con_events
         self.transitions = transitions
@@ -60,6 +60,8 @@ class MooreMachine:
             else:
                 self.transitions[src].append((con_cond, new_tgt))
 
+        for new_st in new_sts[list(self.init_st)[0]]:
+            self.init_st.add(new_st)
 
     def __str__(self):
         return str(self.to_dot())
@@ -88,7 +90,8 @@ class MooreMachine:
             else:
                 dot.node(str(s))
 
-        dot.edge("init", str(self.init_st), style="solid")
+        for s in self.init_st:
+            dot.edge("init", str(s), style="solid")
 
         for src in self.transitions.keys():
             for (beh, tgt) in self.transitions.get(src):
@@ -110,8 +113,12 @@ class MooreMachine:
 
         guards_acts = {}
 
-        init_cond = conjunct_formula_set(([self.out[self.init_st].replace(new_prog_events), Variable(self.init_st)] +
-                           [neg(Variable(st)) for st in self.states if st != self.init_st]))
+        init_cond = []
+        for st in self.init_st:
+            st_guard = self.out[st].replace(new_prog_events)
+            init_cond.append(conjunct_formula_set([neg(Variable(stt)) for stt in self.states if stt != st] +
+                                                  [Variable(st), st_guard]))
+        init_cond = disjunct_formula_set(init_cond)
 
         for src in self.transitions.keys():
             for (con_beh, tgt) in self.transitions.get(src):
