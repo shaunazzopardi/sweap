@@ -1,8 +1,6 @@
 //-- State: counter, started
 //-- Inputs: start
 
-// This is trivially unrealizable
-
 //#LIA#
 
 assume {
@@ -22,7 +20,7 @@ always guarantee {
   le (sub i0() counter) i2();  /* INV */
   le counter i1(); /* INV */
 
-  eq started i0() && eq start i0() -> [started <- i0()] && [counter <- add counter i1()];
+  eq started i0() && eq start i0() && lt counter i1() -> [started <- i0()] && [counter <- add counter i1()];
   eq started i0() && eq start i1() -> [started <- i1()];
   eq started i1() -> ([ counter <- add counter i1() ] || [ counter <- sub counter i1() ]);
 
