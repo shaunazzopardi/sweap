@@ -52,10 +52,21 @@
 			"depends": []
 		},
 		{
+			"update_term": "vruntime1",
+			"var_name": "vruntime1",
+			"depends": []
+		},		
+
+		{
 			"update_term": "add vruntime2 1",
 			"var_name": "vruntime2",
 			"depends": []
 		},
+		{
+			"update_term": "vruntime2",
+			"var_name": "vruntime2",
+			"depends": []
+		},		
 		{
 			"update_term": "0",
 			"var_name": "next",
