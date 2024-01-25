@@ -108,7 +108,7 @@ class EffectsAbstraction(PredicateAbstraction):
             self.transition_E_to_guard_update[t] = {}
             u = t.action
             for g, E in disjuncts:
-                gu = guard_update_formula(g, u)
+                gu = guard_update_formula(g, u, self.program.symbol_table)
                 self.guard_updates.add(gu)
                 if gu in self.transition_guard_update_to_E[t].keys():
                     self.transition_guard_update_to_E[t][gu].append(E)
@@ -622,7 +622,7 @@ def add_transition_predicate_to_t_guard_updates(arg):
 
     action = u
 
-    t_formula = guard_update_formula(g, u)
+    t_formula = gu
 
     invars = []
     constants = []
