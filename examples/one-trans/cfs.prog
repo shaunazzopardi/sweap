@@ -1,0 +1,65 @@
+program scheduler_cfs_tsl {
+    STATES {
+        c0: init, 
+    }
+    ENVIRONMENT EVENTS {
+        enq2, deq2, enq1, deq1
+    }
+    CONTROLLER EVENTS {
+        upd__nx_GETS_1_, upd__nx_GETS_nx_, upd__nx_GETS_2_, upd__nx_GETS_0_, upd__rt1_GETS__rt1_PLUS_1__, upd__rt1_GETS_rt1_, upd__rt2_GETS_rt2_, upd__rt2_GETS__rt2_PLUS_1__
+    }
+    PROGRAM EVENTS {
+
+    }
+    VALUATION {
+        nx : integer := 0;
+        rt1 : integer := 0;
+        rt2 : integer := 0;
+    }
+    TRANSITIONS {
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & upd__nx_GETS_1_ $ nx := 1; rt1 := (rt1 + 1); rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & upd__nx_GETS_1_ $ nx := 1; rt1 := (rt1 + 1); rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & upd__nx_GETS_1_ $ nx := 1; rt1 := rt1; rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & upd__nx_GETS_1_ $ nx := 1; rt1 := rt1; rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := nx; rt1 := (rt1 + 1); rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := nx; rt1 := (rt1 + 1); rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := nx; rt1 := rt1; rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & !upd__nx_GETS_2_ & upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := nx; rt1 := rt1; rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 2; rt1 := (rt1 + 1); rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 2; rt1 := (rt1 + 1); rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 2; rt1 := rt1; rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & !upd__nx_GETS_0_ & upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 2; rt1 := rt1; rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 0; rt1 := (rt1 + 1); rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & !upd__rt1_GETS_rt1_ & upd__rt1_GETS__rt1_PLUS_1__ & upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 0; rt1 := (rt1 + 1); rt2 := (rt2 + 1)],
+        c0 -> c0 [!upd__rt2_GETS__rt2_PLUS_1__ & upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 0; rt1 := rt1; rt2 := rt2],
+        c0 -> c0 [upd__rt2_GETS__rt2_PLUS_1__ & !upd__rt2_GETS_rt2_ & upd__rt1_GETS_rt1_ & !upd__rt1_GETS__rt1_PLUS_1__ & upd__nx_GETS_0_ & !upd__nx_GETS_2_ & !upd__nx_GETS_nx_ & !upd__nx_GETS_1_ $ nx := 0; rt1 := rt1; rt2 := (rt2 + 1)]
+    }
+
+
+    SPECIFICATION {
+      (G((!(enq1 && enq2) && !(deq2 && deq2) && !(enq1 && deq1) && !(enq2 && deq2))) -> ((G(!upd__nx_GETS_1_) | (!upd__nx_GETS_1_ U enq1)) &&
+       (G(!upd__nx_GETS_2_) | (!upd__nx_GETS_2_ U enq2)) &&
+       G((upd__nx_GETS_0_ || upd__nx_GETS_1_ || upd__nx_GETS_2_)) &&
+       G((enq1 -> (F upd__nx_GETS_1_ || F deq1 ))) &&
+       G((enq2 -> (F upd__nx_GETS_2_ || F deq2 ))) &&
+       G((deq1 -> (G(!upd__nx_GETS_1_) | (!upd__nx_GETS_1_ U enq1)))) &&
+       G((deq2 -> (G(!upd__nx_GETS_2_) | (!upd__nx_GETS_2_ U enq2)))) &&
+       G((enq2 -> (G(((rt1 > rt2) -> !upd__nx_GETS_1_)) | (((rt1 > rt2) -> !upd__nx_GETS_1_) U deq2)))) &&
+       G((enq1 -> (G(((rt2 > rt1) -> !upd__nx_GETS_2_)) | (((rt2 > rt1) -> !upd__nx_GETS_2_) U deq1)))) &&
+       G((upd__nx_GETS_1_ <-> upd__rt1_GETS__rt1_PLUS_1__)) &&
+       G((upd__nx_GETS_2_ <-> upd__rt2_GETS__rt2_PLUS_1__)) &&
+       G((upd__rt2_GETS_rt2_ | upd__rt2_GETS__rt2_PLUS_1__)) &&
+       G((upd__rt2_GETS_rt2_ -> !upd__rt2_GETS__rt2_PLUS_1__)) &&
+       G((upd__rt2_GETS__rt2_PLUS_1__ -> !upd__rt2_GETS_rt2_)) &&
+       G((upd__rt1_GETS_rt1_ | upd__rt1_GETS__rt1_PLUS_1__)) &&
+       G((upd__rt1_GETS_rt1_ -> !upd__rt1_GETS__rt1_PLUS_1__)) &&
+       G((upd__rt1_GETS__rt1_PLUS_1__ -> !upd__rt1_GETS_rt1_)) &&
+       G((upd__nx_GETS_nx_ | upd__nx_GETS_2_ | upd__nx_GETS_1_ | upd__nx_GETS_0_)) &&
+       G((upd__nx_GETS_nx_ -> !(upd__nx_GETS_2_ | upd__nx_GETS_1_ | upd__nx_GETS_0_))) &&
+       G((upd__nx_GETS_2_ -> !(upd__nx_GETS_nx_ | upd__nx_GETS_1_ | upd__nx_GETS_0_))) &&
+       G((upd__nx_GETS_1_ -> !(upd__nx_GETS_nx_ | upd__nx_GETS_2_ | upd__nx_GETS_0_))) &&
+       G((upd__nx_GETS_0_ -> !(upd__nx_GETS_nx_ | upd__nx_GETS_2_ | upd__nx_GETS_1_)))))
+    }
+
+}
+
