@@ -22,8 +22,10 @@ always guarantee {
   ge counter i0(); /* INV */
   le counter i1(); /* INV */
 
-  (eq grantA i0()) || (eq grantA i1()); /* INV */
-  (eq grantB i0()) || (eq grantB i1()); /* INV */
+  ge grantA i0(); /* INV */
+  le grantA i1(); /* INV */
+  ge grantB i0(); /* INV */
+  le grantB i1(); /* INV */
 
   ((eq q i0()) && (eq request i1() && (eq changeRoom i0()) && (lt counter i1()))) -> ([counter <- add counter i1()] && [pending <- i1()]);
   ((eq q i0()) && (eq request i0() && (eq changeRoom i1()) && (eq roomA i0()))) -> [roomA <- i1()];
