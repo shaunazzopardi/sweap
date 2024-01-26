@@ -104,7 +104,12 @@ def safety_refinement_seq_int(program: Program,
     if len(new_all_preds) < len(set(state_predicates)):
         raise Exception("There are somehow less state predicates than previously.")
 
-    if len(new_all_preds) == len(set(state_predicates)):
+    if len(set(new_all_preds)) == len(set(state_predicates)):
+        new_state_preds = []
+        for _, prog_state, _ in agreed_on_transitions:
+            for v in program.local_vars:
+                new_state_preds.append(BiOp(v, "=", Value(prog_state[str(v)])))
+        new_all_preds = new_state_preds + state_predicates
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         raise Exception("Could not find new state predicates..")
 
@@ -129,9 +134,9 @@ def safety_refinement_seq_int(program: Program,
         new_all_preds = state_predicates + (ordered_according_to_no_of_vars_used[0] if len(
             ordered_according_to_no_of_vars_used) > 0 else [])
 
-    logging.info("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates]))
+    logging.info("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates]))
 
-    return True, {p for p in new_all_preds if p not in state_predicates}
+    return True, {p for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates}
 
 
 def interactive_state_predicates():
