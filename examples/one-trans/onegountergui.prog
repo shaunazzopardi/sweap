@@ -1,0 +1,76 @@
+program onecountergui_tsl {
+    STATES {
+        c0: init, 
+    }
+    ENVIRONMENT EVENTS {
+        pressUp, pressDown
+    }
+    CONTROLLER EVENTS {
+        upd__buttonUp_GETS_1_, upd__buttonUp_GETS_buttonUp_, upd__buttonUp_GETS_0_, upd__buttonDown_GETS_1_, upd__buttonDown_GETS_0_, upd__buttonDown_GETS_buttonDown_, upd__counter_GETS_counter_, upd__counter_GETS__counter_PLUS_1__, upd__counter_GETS__counter_MINUS_1__
+    }
+    PROGRAM EVENTS {
+
+    }
+    VALUATION {
+        buttonUp : integer := 0;
+        buttonDown : integer := 0;
+        counter : integer := 0;
+    }
+    TRANSITIONS {
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := 1; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := 1; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := 1; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := 0; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := 0; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := 0; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := buttonDown; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := buttonDown; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & upd__buttonUp_GETS_1_ $ buttonUp := 1; buttonDown := buttonDown; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := 1; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := 1; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := 1; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := 0; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := 0; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := 0; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := buttonDown; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := buttonDown; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & !upd__buttonUp_GETS_0_ & upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := buttonUp; buttonDown := buttonDown; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := 1; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := 1; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := 1; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := 0; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := 0; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & !upd__buttonDown_GETS_buttonDown_ & upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := 0; counter := (counter - 1)],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := buttonDown; counter := counter],
+        c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := buttonDown; counter := (counter + 1)],
+        c0 -> c0 [upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & !upd__counter_GETS_counter_ & upd__buttonDown_GETS_buttonDown_ & !upd__buttonDown_GETS_0_ & !upd__buttonDown_GETS_1_ & upd__buttonUp_GETS_0_ & !upd__buttonUp_GETS_buttonUp_ & !upd__buttonUp_GETS_1_ $ buttonUp := 0; buttonDown := buttonDown; counter := (counter - 1)]
+    }
+
+
+    SPECIFICATION {
+      ((!pressUp && !pressDown && G(((pressUp -> !pressDown) && (pressDown -> pressUp) && (upd__buttonUp_GETS_0_ -> X !(!upd__buttonUp_GETS_1_ U pressUp)) && (upd__buttonDown_GETS_0_ -> X !(!upd__buttonDown_GETS_1_ U pressDown))))) -> (
+            G((((counter + 2 <= 100 && counter + 1 <= 100) -> upd__buttonUp_GETS_1_) && ((counter - 2 >= 0 && counter - 1 >= 0) -> upd__buttonDown_GETS_1_) && (pressUp <-> upd__counter_GETS__counter_PLUS_1__) && (pressDown <-> upd__counter_GETS__counter_MINUS_1__) && counter >= 0 && counter <= 100))
+            && 
+            G (upd__counter_GETS_counter_ | upd__counter_GETS__counter_PLUS_1__ | upd__counter_GETS__counter_MINUS_1__)
+            && 
+            G((upd__counter_GETS_counter_ -> !(upd__counter_GETS__counter_PLUS_1__ | upd__counter_GETS__counter_MINUS_1__)))
+            && 
+            G((upd__counter_GETS__counter_PLUS_1__ -> !(upd__counter_GETS_counter_ | upd__counter_GETS__counter_MINUS_1__)))
+            && 
+            G((upd__counter_GETS__counter_MINUS_1__ -> !(upd__counter_GETS_counter_ | upd__counter_GETS__counter_PLUS_1__)))
+            && 
+            G((upd__buttonDown_GETS_buttonDown_ | upd__buttonDown_GETS_1_ | upd__buttonDown_GETS_0_))
+            && 
+            G((upd__buttonDown_GETS_buttonDown_ -> !(upd__buttonDown_GETS_1_ | upd__buttonDown_GETS_0_))) && G((upd__buttonDown_GETS_1_ -> !(upd__buttonDown_GETS_buttonDown_ | upd__buttonDown_GETS_0_)))
+            &&
+            G((upd__buttonDown_GETS_0_ -> !(upd__buttonDown_GETS_buttonDown_ | upd__buttonDown_GETS_1_)))
+            &&
+            G((upd__buttonUp_GETS_buttonUp_ | upd__buttonUp_GETS_1_ | upd__buttonUp_GETS_0_)) && G((upd__buttonUp_GETS_buttonUp_ -> !(upd__buttonUp_GETS_1_ | upd__buttonUp_GETS_0_)))
+            &&
+            G((upd__buttonUp_GETS_1_ -> !(upd__buttonUp_GETS_buttonUp_ | upd__buttonUp_GETS_0_))) && G((upd__buttonUp_GETS_0_ -> !(upd__buttonUp_GETS_buttonUp_ | upd__buttonUp_GETS_1_)))
+        )
+    )
+    }
+
+}
+
