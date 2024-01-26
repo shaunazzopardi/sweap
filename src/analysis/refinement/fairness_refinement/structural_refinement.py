@@ -26,9 +26,10 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
 
     in_loop = disjunct_formula_set(in_loop_vars)
 
-    atomic_preds = []
-    atomic_preds.extend(atomic_predicates(entry_condition))
-    atomic_preds.extend(atomic_predicates(exit_condition))
+    atomic_state_preds = []
+    atomic_tran_preds = []
+    atomic_state_preds.extend(atomic_predicates(entry_condition))
+    atomic_state_preds.extend(atomic_predicates(exit_condition))
     constraints = [neg(in_loop)]
 
     if len(in_loop_vars) > 1:
@@ -50,9 +51,9 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
         sts_i = [BiOp(act.left, "=", add_prev_suffix(act.left)) for act in complete_acts]
         st_i = conjunct_formula_set(sts_i)
 
-        atomic_preds.extend(atomic_predicates(guard))
-        atomic_preds.extend(acts_i)
-        atomic_preds.extend(sts_i)
+        atomic_state_preds.extend(atomic_predicates(guard))
+        atomic_tran_preds.extend(acts_i)
+        atomic_tran_preds.extend(sts_i)
 
         current_var = Variable("in_loop" + str(counter) + "_" + str(i))
 
@@ -100,4 +101,4 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
     fairness = disjunct(G(F(neg(in_loop))), disjunct_formula_set([F(G(stay)) for stay in stutters]))
     constraints.append(fairness)
 
-    return atomic_preds, set(constraints)
+    return (set(atomic_state_preds + atomic_tran_preds), set()), set(constraints)

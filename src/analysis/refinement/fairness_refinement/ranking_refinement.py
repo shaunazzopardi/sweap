@@ -28,16 +28,17 @@ seen_loops_cache = {}
 def ranking_refinement(ranking, invars):
     dec = BiOp(add_prev_suffix(ranking), ">", ranking)
     inc = BiOp(add_prev_suffix(ranking), "<", ranking)
-    atoms = {dec, inc}
+    tran_preds = {dec, inc}
 
     if len(invars) > 0:
         inv = conjunct_formula_set(invars)
-        atoms |= atomic_predicates(inv)
+        state_preds = atomic_predicates(inv)
         constraint = implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))
     else:
         constraint = implies(G(F(dec)), G(F(inc)))
+        state_preds = set()
 
-    return atoms, [constraint]
+    return (tran_preds, state_preds), [constraint]
 
 
 def find_ranking_function(symbol_table,

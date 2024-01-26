@@ -265,12 +265,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     f, invar = result
                     rankings.append(ranking_refinement(f, [invar]))
 
-            for atoms, constraints in rankings:
-                for atom in atoms:
-                    if any(v for v in atom.variablesin() if "_prev" in str(v)):
-                        new_tran_preds.add(atom)
-                    else:
-                        new_state_preds.add(atom)
+            for (tran_pr, invars), constraints in rankings:
+                new_tran_preds.update(tran_pr)
+                new_state_preds.update(invars)
                 new_ltl_constraints.update(constraints)
             to_add_rankings_for.clear()
 
@@ -319,6 +316,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
         if add_tran_preds_after_state_abstraction:
             add_tran_preds_immediately = True
+            to_add_rankings_for.extend(predicate_abstraction.state_predicates)
 
         start = time.time()
         print("massaging abstract counterstrategy")
@@ -375,9 +373,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
         if success:
             loop_counter = loop_counter + 1
-            new_preds, new_ltl_constraints = result
-            new_state_preds = {p for p in new_preds if not any (v for v in p.variablesin() if v not in program.local_vars or "_prev" in str(v))}
-            new_tran_preds = {p for p in new_preds if any(v for v in p.variablesin() if "_prev" in str(v))}
+            (new_state_preds, new_tran_preds), new_ltl_constraints = result
 
         if eager or (not success and result is None):
             ## do safety refinement
