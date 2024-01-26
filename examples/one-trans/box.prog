@@ -1,0 +1,34 @@
+program diagonal {
+    STATES {
+        q : init
+    }
+
+    ENVIRONMENT EVENTS {
+        incxe; decxe; incye; decye;
+    }
+
+    CONTROLLER EVENTS {
+        incxc; decxc; incyc; decyc;
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 0;
+        y : integer := 0;
+    }
+
+    TRANSITIONS {
+        q -> q [$
+                     x := x + 1 if (incxe || incxc) && !(decxe || decxc);
+                     x := x - 1 if !(incxe || incxc) && (decxe || decxc);
+                     y := y + 1 if (incye || incyc) && !(decye || decyc);
+                     y := y - 1 if !(incye || incyc) && (decye || decyc);
+                     ]
+        }
+
+    SPECIFICATION {
+        G (x >= 0 && x <= 2)
+    }
+}
