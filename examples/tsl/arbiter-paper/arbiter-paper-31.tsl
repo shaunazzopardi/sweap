@@ -27,10 +27,10 @@ always guarantee {
   ge grantB i0(); /* INV */
   le grantB i1(); /* INV */
 
-  ((eq q i0()) && (eq request i1() && (eq changeRoom i0())&& (lt counter i2147483647())) -> ([counter <- add counter i1()] && [pending <- i1()]);
-  (eq q i0()) && (eq request i0() && (eq changeRoom i1()) && (eq roomA i0())) -> [roomA <- i1()];
-  (eq q i0()) && (eq request i0() && (eq changeRoom i1()) && (eq roomA i1())) -> [roomA <- i0()];
-  (eq q i0()) && (eq request i0() && (eq changeRoom i0())) -> [q <- i1()];
+  ((eq q i0()) && (eq request i1()) && (eq changeRoom i0()) && (lt counter i2147483647())) -> ([counter <- add counter i1()] && [pending <- i1()]);
+  ((eq q i0()) && (eq request i0()) && (eq changeRoom i1()) && (eq roomA i0())) -> [roomA <- i1()];
+  ((eq q i0()) && (eq request i0()) && (eq changeRoom i1()) && (eq roomA i1())) -> [roomA <- i0()];
+  ((eq q i0()) && (eq request i0()) && (eq changeRoom i0())) -> [q <- i1()];
   
   [grantA <- i1()] -> ((eq q i1()) && [grantB <- i0()] && (gt counter i0()) && [counter <- sub counter i1()]);
   [grantB <- i1()] -> ((eq q i1()) && [grantA <- i0()] && (gt counter i0()) && [counter <- sub counter i1()]);
