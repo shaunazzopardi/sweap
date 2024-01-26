@@ -319,7 +319,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
         if add_tran_preds_after_state_abstraction:
             add_tran_preds_immediately = True
-            continue
 
         start = time.time()
         print("massaging abstract counterstrategy")
@@ -357,17 +356,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             agreed_on_execution, disagreed_on_state = result
 
         # write_counterexample_state(program, agreed_on_transitions, disagreed_on_state)
-
-        ## try fairness refinement
-        start = time.time()
-        print("trying fairness refinement")
-        success, result = try_liveness_refinement(mm,
-                                                  program,
-                                                  predicate_abstraction,
-                                                  agreed_on_execution,
-                                                  disagreed_on_state,
-                                                  loop_counter,
-                                                  allow_user_input)
         if not only_safety:
             ## try fairness refinement
             start = time.time()
