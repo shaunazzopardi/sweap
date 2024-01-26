@@ -39,11 +39,48 @@
 		{
 			"pred": "eq start 1",
 			"temporal": []
+		},
+		{
+			"pred": "ge inb1 0",
+			"temporal": []
+		},
+		{
+			"pred": "le inb1 1",
+			"temporal": []
+		},
+		{
+			"pred": "ge inb2 0",
+			"temporal": []
+		},
+		{
+			"pred": "le inb2 1",
+			"temporal": []
+		},
+		{
+			"pred": "ge cnt1 0",
+			"temporal": []
+		},
+		{
+			"pred": "le cnt1 2147483647",
+			"temporal": []
+		},
+		{
+			"pred": "ge cnt2 0",
+			"temporal": []
+		},
+		{
+			"pred": "le cnt2 2147483647",
+			"temporal": []
 		}
 	],
 	"updates": [
 		{
 			"update_term": "0",
+			"var_name": "q",
+			"depends": []
+		},
+		{
+			"update_term": "1",
 			"var_name": "q",
 			"depends": []
 		},

@@ -53,7 +53,23 @@
 			"temporal": []
 		},
 		{
-			"pred": "le inb12 1",
+			"pred": "le inb2 1",
+			"temporal": []
+		},
+		{
+			"pred": "ge cnt1 0",
+			"temporal": []
+		},
+		{
+			"pred": "le cnt1 15",
+			"temporal": []
+		},
+		{
+			"pred": "ge cnt2 0",
+			"temporal": []
+		},
+		{
+			"pred": "le cnt2 15",
 			"temporal": []
 		}
 	],
