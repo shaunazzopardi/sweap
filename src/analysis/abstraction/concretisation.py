@@ -51,8 +51,7 @@ def concretize_transitions(program,
         if (incompatible_state[2]["compatible_state_predicates"] == "FALSE" or
                 incompatible_state[2]["compatible_tran_predicates"] == "FALSE"):
             pred_state = preds_in_state(incompatible_state[2])
-            predicate_state_before_incompatibility = list(map(add_prev_suffix, preds_in_state(concretized[-2][1])))
-
+            predicate_state_before_incompatibility = list(map(add_prev_suffix, preds_in_state(concretized[-1][2])))
             # we check if this incompatible state formula is ever possibly true after the last transition
                 # if it is then the problem is with the predicate state
             if sat(conjunct_formula_set(pred_state + predicate_state_before_incompatibility +
@@ -68,10 +67,10 @@ def concretize_transitions(program,
                 return concretized, env_pred_state
             #if not, then we choose the wrong transition
             else:
-                failed_condition = neg(concretized[-1][0].condition)
+                failed_condition = concretized[-1][0].condition
                 reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][2][str(v)]))
                                                     for v in program.env_events + program.con_events])
-                reduced_simplified = simplify_formula_with_math(reduced, program.symbol_table)
+                reduced_simplified = neg(simplify_formula_with_math(reduced, program.symbol_table))
 
                 return concretized[:-1], ([reduced_simplified], concretized[-1])
 
