@@ -71,7 +71,16 @@
 		{
 			"pred": "gt cr 15",
 			"temporal": []
+		},
+		{
+			"pred": "eq cl 15",
+			"temporal": []
+		},
+		{
+			"pred": "eq cr 15",
+			"temporal": []
 		}
+
 		
 	],
 	"updates": [

@@ -24,6 +24,9 @@ always assume {
   gt cl i0() -> F eq exitl i1();
   gt cr i0() -> F eq exitr i1();
 
+  eq cl i15() -> eq entryl i0();
+  eq cr i15() -> eq entryr i0();
+
 }
 
 always guarantee {

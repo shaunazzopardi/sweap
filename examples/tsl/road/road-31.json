@@ -71,7 +71,16 @@
 		{
 			"pred": "gt cr 2147483647",
 			"temporal": []
+		},
+		{
+			"pred": "eq cl 2147483647",
+			"temporal": []
+		},
+		{
+			"pred": "eq cr 2147483647",
+			"temporal": []
 		}
+
 		
 	],
 	"updates": [
