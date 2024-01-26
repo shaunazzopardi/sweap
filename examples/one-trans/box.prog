@@ -20,12 +20,13 @@ program diagonal {
     }
 
     TRANSITIONS {
-        q -> q [$
-                     x := x + 1 if (incxe || incxc) && !(decxe || decxc);
-                     x := x - 1 if !(incxe || incxc) && (decxe || decxc);
-                     y := y + 1 if (incye || incyc) && !(decye || decyc);
-                     y := y - 1 if !(incye || incyc) && (decye || decyc);
-                     ]
+        q -> q [incxe && incxe && !(decxe || decxc) $ x := x + 2],
+        q -> q [((incxe && !incxe) || (!incxe && incxe)) && !(decxe || decxc) $ x := x + 1],
+        q -> q [((!incxe && !incxe)) && !(decxe || decxc) $ x := x],
+
+        q -> q [incye && incye && !(decye || decyc) $ y := y + 2],
+        q -> q [((incye && !incye) || (!incye && incye)) && !(decxe || decxc) $ y := y + 1],
+        q -> q [((!incye && !incye)) && !(decye || decyc) $ y := y]
         }
 
     SPECIFICATION {
