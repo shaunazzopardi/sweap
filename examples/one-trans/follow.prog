@@ -17,8 +17,8 @@ program evasion {
     VALUATION {
         x : integer := 0;
         y : integer := 0;
-        xc : integer := 2;
-        yc : integer := 2;
+        xc : integer := 0;
+        yc : integer := 0;
     }
 
     TRANSITIONS {
