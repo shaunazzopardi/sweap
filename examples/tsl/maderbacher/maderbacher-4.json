@@ -40,6 +40,11 @@
 			"depends": []
 		},
 		{
+			"update_term": "sub counter 1",
+			"var_name": "counter",
+			"depends": []
+		},
+		{
 			"update_term": "0",
 			"var_name": "started",
 			"depends": []

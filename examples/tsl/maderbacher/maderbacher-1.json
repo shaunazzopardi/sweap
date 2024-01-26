@@ -23,19 +23,16 @@
 		{
 			"pred": "lt counter 0",
 			"temporal": []
-		},
-		{
-			"pred": "lt counter 7",
-			"temporal": []
-		},
-		{
-			"pred": "lt counter 8",
-			"temporal": []
 		}
 	],
 	"updates": [
 		{
 			"update_term": "add counter 1",
+			"var_name": "counter",
+			"depends": []
+		},
+		{
+			"update_term": "sub counter 1",
 			"var_name": "counter",
 			"depends": []
 		},

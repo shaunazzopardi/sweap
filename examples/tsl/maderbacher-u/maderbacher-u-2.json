@@ -27,6 +27,10 @@
 		{
 			"pred": "lt counter 1",
 			"temporal": []
+		},
+		{
+			"pred": "lt counter 2",
+			"temporal": []
 		}
 	],
 	"updates": [
