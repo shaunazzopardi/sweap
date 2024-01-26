@@ -19,9 +19,9 @@ class Ranker:
 
             try:
                 start = time.time()
-
-                cmd = ['(/cpachecker/scripts/cpa.sh -preprocess -terminationAnalysis -benchmark -heap 1024M /workdir/prog.c -spec '
-                    '/cpachecker/config/properties/termination.prp) && cat output/terminationAnalysisResult.txt']
+                cmd = [
+                    f'(/cpachecker/scripts/cpa.sh -preprocess -terminationAnalysis /workdir/prog.c -spec '
+                    '/cpachecker/config/properties/termination.prp && cat output/terminationAnalysisResult.txt)']
 
                 img = "registry.gitlab.com/sosy-lab/software/cpachecker:latest"
                 out = client.containers.run(img, command=cmd, entrypoint=["/bin/bash", "-c"],
