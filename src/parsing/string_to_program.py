@@ -1,6 +1,9 @@
+from multiprocessing import Pool
+
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
 
+import config
 from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
 from parsing.string_to_prop_logic import string_to_math_expression, string_to_prop, string_to_negated_atom
 from programs.program import Program
@@ -41,8 +44,12 @@ def program_parser():
     yield spaces() >> string("}") >> spaces()
 
     symbol_table = symbol_table_from_typed_valuation(initial_vals)
-    new_transitions = [tt for t in transitions
-                       for tt in guarded_action_transitions_to_normal_transitions(t, initial_vals, env, con, mon, symbol_table)]
+    arg = []
+    for t in transitions:
+        arg.append((t, initial_vals, env, con, mon, symbol_table))
+    with Pool(config.Config.getConfig().workers) as pool:
+        results = pool.map(guarded_action_transitions_to_normal_transitions, arg)
+        new_transitions = [t for tt in results for t in tt]
 
     program = Program(program_name, states, initial_state, initial_vals, new_transitions, env, con,
                       mon)

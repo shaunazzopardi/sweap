@@ -450,8 +450,8 @@ def resolve_next_references(transition, valuation):
         return transition
 
 
-def guarded_action_transitions_to_normal_transitions(guarded_transition, valuation, env_events, con_events, outputs,
-                                                     symbol_table):
+def guarded_action_transitions_to_normal_transitions(arg):
+    guarded_transition, valuation, env_events, con_events, outputs, symbol_table = arg
     if str(guarded_transition.condition) == "otherwise":
         # check that no guarded actions
         for (act, guard) in guarded_transition.action:
