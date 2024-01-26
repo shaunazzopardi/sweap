@@ -59,7 +59,7 @@
 		{
 			"pred": "lt vruntime2 7",
 			"temporal": []
-		},
+		}
 	],
 	"updates": [
 		{
