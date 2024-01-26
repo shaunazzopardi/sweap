@@ -14,6 +14,6 @@ always guarantee {
   le (sub i0() counter) i8(); /* INV */
   le counter i7(); /* INV */
 
-  [ counter <- add counter i1() ];
+  (lt counter i7()) -> [ counter <- add counter i1() ];
 
 }
