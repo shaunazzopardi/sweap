@@ -19,7 +19,7 @@ always guarantee {
     ge cnt i0(); /* INV */
     le cnt i15(); /* INV */
 
-    ((eq q i0()) && (eq request i1())) -> ([q <- i0()] && [cnt <- add cnt i1()]);
+    ((eq q i0()) && (eq request i1()) && (lt cnt i15())) -> ([q <- i0()] && [cnt <- add cnt i1()]);
     ((eq q i0()) && (eq request i0())) -> ([cnt <- cnt] && [q <- i1()]);
     (eq q i1()) -> (
         ((ge cnt i2()) && [q <- i2()] && [cnt <- sub cnt i2()])
@@ -28,6 +28,7 @@ always guarantee {
         ||
         [q <- i1()] && [cnt <- cnt]);
 
-    ((eq q i2()) && (eq request i1())) -> [q <- i1()] && [cnt <- add cnt i1()];
+    ((eq q i2()) && (eq request i1()) && (lt cnt i15())) -> [q <- i1()] && [cnt <- add cnt i1()];
+    ((eq q i2()) && (eq request i1()) && !(lt cnt i15())) -> [q <- i1()] && [cnt <- cnt];
     F (eq cnt i0());
 }

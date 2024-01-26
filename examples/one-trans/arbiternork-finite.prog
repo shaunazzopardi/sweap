@@ -15,17 +15,17 @@ program arbiternork {
     }
 
     VALUATION {
-        cnt : 0..5 := 0;
+        cnt : 0..2147483647 := 0;
     }
 
     TRANSITIONS {
-        env -> env [request & cnt < 5 $ cnt := cnt + 1],
-        env -> env [request & cnt >= 5 $ cnt := 5],
+        env -> env [request & cnt < 2147483647 $ cnt := cnt + 1],
+        env -> env [request & cnt >= 2147483647 $ cnt := 2147483647],
         env -> con1 [!request],
         con -> con1 [grant && cnt >= 2 $ cnt := cnt - 2],
         con -> con1 [grant && cnt < 2 $ cnt := 0],
-        con1 -> con [cnt < 5 $ cnt := cnt + 1],
-        con1 -> con [cnt >= 5 $ cnt := 5],
+        con1 -> con [cnt < 2147483647 $ cnt := cnt + 1],
+        con1 -> con [cnt >= 2147483647 $ cnt := 2147483647],
         con -> env [!grant]
     }
 

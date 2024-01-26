@@ -55,6 +55,10 @@
 		{
 		 	"pred": "lte counter 2147483647",
 			"temporal": []
+		},
+		{
+		 	"pred": "lt counter 2147483647",
+			"temporal": []
 		}
 	],
 	"updates": [

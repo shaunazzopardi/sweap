@@ -1,11 +1,19 @@
 {
 	"predicates": [
 		{
-			"pred": "eq x 0",
+			"pred": "eq x 1",
 			"temporal": []
 		},
 		{
-			"pred": "eq y 1",
+			"pred": "eq x -8",
+			"temporal": []
+		},
+		{
+			"pred": "eq x 7",
+			"temporal": []
+		},
+		{
+			"pred": "eq y 0",
 			"temporal": []
 		},
 		{

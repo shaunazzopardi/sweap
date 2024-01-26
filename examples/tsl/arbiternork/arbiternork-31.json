@@ -31,6 +31,10 @@
 		{
 		 	"pred": "lte cnt 2147483647",
 			"temporal": []
+		},
+		{
+		 	"pred": "lt cnt 2147483647",
+			"temporal": []
 		}
 	],
 	"updates": [

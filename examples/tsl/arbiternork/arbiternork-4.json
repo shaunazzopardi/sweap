@@ -31,6 +31,10 @@
 		{
 		 	"pred": "lte cnt 15",
 			"temporal": []
+		},
+		{
+		 	"pred": "lt cnt 15",
+			"temporal": []
 		}
 	],
 	"updates": [
