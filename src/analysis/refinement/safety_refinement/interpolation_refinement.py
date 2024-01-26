@@ -111,7 +111,7 @@ def safety_refinement_seq_int(program: Program,
                 new_state_preds.append(BiOp(v, "=", Value(prog_state[str(v)])))
         new_all_preds = new_state_preds + state_predicates
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
-        raise Exception("Could not find new state predicates..")
+        # raise Exception("Could not find new state predicates..")
 
     if keep_only_bool_interpolants:
         bool_interpolants = [p for p in new_state_preds if
