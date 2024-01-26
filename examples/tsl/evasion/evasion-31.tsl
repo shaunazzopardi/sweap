@@ -11,17 +11,21 @@ assume {
 always assume {
   eq env_x_move i1() || eq env_x_move im1() || eq env_x_move i0();
   eq env_y_move i1() || eq env_y_move im1() || eq env_y_move i0();
+  (eq x im1073741824()) -> !(eq env_x_move im1());
+  (eq x i1073741823()) -> !(eq env_x_move i1());
+  (eq y im1073741824()) -> !(eq env_y_move im1());
+  (eq y i1073741823()) -> !(eq env_y_move i1());
 }
 
 always guarantee {
-  ge x im2147483648();
-  le x i2147483647();
-  ge y im2147483648();
-  le y i2147483647();
-  ge xe im2147483648();
-  le xe i2147483647();
-  ge ye im2147483648();
-  le ye i2147483647();
+  ge x im1073741824();
+  le x i1073741823();
+  ge y im1073741824();
+  le y i1073741823();
+  ge xe im1073741824();
+  le xe i1073741823();
+  ge ye im1073741824();
+  le ye i1073741823();
 
   !(eq x xe);
   !(eq y ye);

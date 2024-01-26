@@ -13,11 +13,15 @@
 			"temporal": []
 		},
 		{
-			"pred": "eq xe 2",
+			"pred": "eq ye 2",
 			"temporal": []
 		},
 		{
 			"pred": "eq x xe",
+			"temporal": []
+		},
+		{
+			"pred": "eq y ye",
 			"temporal": []
 		},
 		{

@@ -11,6 +11,10 @@ assume {
 always assume {
   eq env_x_move i1() || eq env_x_move im1() || eq env_x_move i0();
   eq env_y_move i1() || eq env_y_move im1() || eq env_y_move i0();
+  (eq x im2()) -> !(eq env_x_move im1());
+  (eq x i1()) -> !(eq env_x_move i1());
+  (eq y im2()) -> !(eq env_y_move im1());
+  (eq y i1()) -> !(eq env_y_move i1());
 }
 
 always guarantee {
