@@ -1,0 +1,129 @@
+{
+	"predicates": [
+		{
+			"pred": "eq entryl 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq entryl 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq entryr 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq entryr 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq exitl 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq exitl 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq exitr 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq exitr 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq l2r 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq l2r 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq stopl 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq stopl 1",
+			"temporal": []
+		},
+		{
+			"pred": "eq stopr 0",
+			"temporal": []
+		},
+		{
+			"pred": "eq stopr 1",
+			"temporal": []
+		},
+		{
+			"pred": "gt cl 0",
+			"temporal": []
+		},
+		{
+			"pred": "gt cl 15",
+			"temporal": []
+		},
+		{
+			"pred": "gt cr 0",
+			"temporal": []
+		},
+		{
+			"pred": "gt cr 15",
+			"temporal": []
+		}
+		
+	],
+	"updates": [
+		{
+			"update_term": "0",
+			"var_name": "stopl",
+			"depends": []
+		},		
+		{
+			"update_term": "1",
+			"var_name": "stopl",
+			"depends": []
+		},
+		{
+			"update_term": "0",
+			"var_name": "stopr",
+			"depends": []
+		},		
+		{
+			"update_term": "1",
+			"var_name": "stopr",
+			"depends": []
+		},
+		{
+			"update_term": "add cl 1",
+			"var_name": "cl",
+			"depends": []
+		},
+		{
+			"update_term": "sub cl 1",
+			"var_name": "cl",
+			"depends": []
+		},
+		{
+			"update_term": "cl",
+			"var_name": "cl",
+			"depends": []
+		},
+		{
+			"update_term": "add cr 1",
+			"var_name": "cr",
+			"depends": []
+		},
+		{
+			"update_term": "sub cr 1",
+			"var_name": "cr",
+			"depends": []
+		},
+		{
+			"update_term": "cr",
+			"var_name": "cr",
+			"depends": []
+		}
+	]
+}
