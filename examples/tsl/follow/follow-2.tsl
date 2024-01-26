@@ -1,5 +1,6 @@
 //-- State: x, y, xe, ye
 //-- Inputs: env_x_move, env_y_move
+//#LIA#
 
 assume {
   (eq x i0());
