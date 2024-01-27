@@ -12,7 +12,7 @@ program onecountergui_tsl {
 
     }
     VALUATION {
-        counter : -1073741824..1073741823 := 0;
+        counter : -2..102 := 0;
     }
     TRANSITIONS {
         c0 -> c0 [!upd__counter_GETS__counter_MINUS_1__ & !upd__counter_GETS__counter_PLUS_1__ & upd__counter_GETS_counter_ $ counter := counter],
