@@ -19,7 +19,15 @@
         {
             "pred": "eq buttonPressedDown 1",
             "temporal": []
-        }        
+        },
+        {
+            "pred": "gte counter 0",
+            "temporal": []
+        },
+        {
+            "pred": "lte counter 100",
+            "temporal": []
+        }
     ],
     "updates": [
         {

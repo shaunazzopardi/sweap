@@ -1,0 +1,84 @@
+{
+    "predicates": [
+        {
+            "pred": "eq firstCounter 0",
+            "temporal": []
+        },
+        {
+            "pred": "eq secondCounter 0",
+            "temporal": []
+        },
+        {
+            "pred": "eq selected 0",
+            "temporal": []
+        },
+        {
+            "pred": "eq selected 1",
+            "temporal": []
+        },
+        {
+            "pred": "eq buttonPressedUp 0",
+            "temporal": []
+        },
+        {
+            "pred": "eq buttonPressedUp 1",
+            "temporal": []
+        },
+        {
+            "pred": "eq buttonPressedDown 0",
+            "temporal": []
+        },
+        {
+            "pred": "eq buttonPressedDown 1",
+            "temporal": []
+        },
+        {
+            "pred": "gte firstCounter 0",
+            "temporal": []
+        },
+        {
+            "pred": "lte firstCounter 100",
+            "temporal": []
+        },
+        {
+            "pred": "gte secondCounter 0",
+            "temporal": []
+        },
+        {
+            "pred": "lte secondCounter 100",
+            "temporal": []
+        }
+    ],
+    "updates": [
+        {
+            "update_term": "add firstCounter 1",
+            "var_name": "firstCounter",
+            "depends": []
+        },
+        {
+            "update_term": "sub firstCounter 1",
+            "var_name": "firstCounter",
+            "depends": []
+        },
+        {
+            "update_term": "add secondCounter 1",
+            "var_name": "secondCounter",
+            "depends": []
+        },
+        {
+            "update_term": "sub secondCounter 1",
+            "var_name": "secondCounter",
+            "depends": []
+        },
+        {
+            "update_term": "0",
+            "var_name": "selected",
+            "depends": []
+        },
+        {
+            "update_term": "1",
+            "var_name": "selected",
+            "depends": []
+        }
+    ]
+}
