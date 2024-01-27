@@ -1,0 +1,38 @@
+program twocountersinrange {
+    STATES {
+        q0 : init, q1
+    }
+
+    ENVIRONMENT EVENTS {
+        up, down, switch
+    }
+
+    CONTROLLER EVENTS {
+        
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        c1 :  -2..102 := 0;
+        c2 :  -2..102 := 0;
+    }
+
+    TRANSITIONS {
+        q0 -> q0 [!switch && up && c1 < 100 $ c1 := c1 + 1],
+        q0 -> q1 [switch && up && c1 < 100 $ c1 := c1 + 1],
+        q0 -> q0 [!switch && down && c1 > 0 $ c1 := c1 - 1],
+        q0 -> q1 [switch && down && c1 > 0 $ c1 := c1 - 1],
+
+        q1 -> q1 [!switch && up && c2 < 100 $ c2 := c2 + 1],
+        q1 -> q0 [switch && up && c2 < 100 $ c2 := c2 + 1],
+        q1 -> q1 [!switch && down && c2 > 0 $ c2 := c2 - 1],
+        q1 -> q0 [switch && down && c2 > 0 $ c2 := c2 - 1]
+        
+    }
+
+    SPECIFICATION {
+        (G !(up && down)) -> G (c1 >= 0 && c1 <= 100 && c2 >= 0 && c2 <= 100)
+    }
+}
