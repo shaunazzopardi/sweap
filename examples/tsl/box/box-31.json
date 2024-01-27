@@ -21,11 +21,11 @@
       "temporal": []
     },
     {
-      "pred": "ge x 0",
+      "pred": "gte x 0",
       "temporal": []
     },
     {
-      "pred": "le x 2147483647",
+      "pred": "lte x 2147483647",
       "temporal": []
     }
   ],
