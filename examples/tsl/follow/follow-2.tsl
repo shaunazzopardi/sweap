@@ -15,13 +15,13 @@ always assume {
 }
 
 always guarantee {
-  ge x im2(); /* INV */
+  ge x im2();
   le x i1(); /* INV */
-  ge y im2(); /* INV */
+  ge y im2();
   le y i1(); /* INV */
-  ge xe im2(); /* INV */
+  ge xe im2();
   le xe i1(); /* INV */
-  ge ye im2(); /* INV */
+  ge ye im2();
   le ye i1(); /* INV */
 
 
