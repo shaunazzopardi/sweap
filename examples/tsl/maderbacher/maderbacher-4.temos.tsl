@@ -1,0 +1,27 @@
+//-- State: counter, started
+//-- Inputs: start
+
+//#LIA#
+
+assume {
+  eq counter c0();
+  eq started c0();
+}
+
+always assume {
+  eq start c0() || eq start c1();
+}
+
+guarantee {
+  G (eq start c1() -> F (lt counter c0()));
+}
+
+always guarantee {
+  le (sub c0() counter) c8();  /* INV */
+  le counter c7(); /* INV */
+
+  eq started c0() && eq start c0() && lt counter c7() -> [started <- c0()] && [counter <- add counter c1()];
+  eq started c0() && eq start c1() -> [started <- c1()];
+  eq started c1() -> ([ counter <- add counter c1() ] || [ counter <- sub counter c1() ]);
+
+}

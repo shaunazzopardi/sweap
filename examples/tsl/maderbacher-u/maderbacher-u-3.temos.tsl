@@ -1,0 +1,19 @@
+//-- State: counter
+
+//#LIA#
+
+assume {
+  eq counter c0();
+}
+
+guarantee {
+  F (gt c0() counter);
+}
+
+always guarantee {
+  le (sub c0() counter) c4(); /* INV */
+  le counter c3(); /* INV */
+
+  (lt counter c3()) -> [ counter <- add counter c1() ];
+
+}

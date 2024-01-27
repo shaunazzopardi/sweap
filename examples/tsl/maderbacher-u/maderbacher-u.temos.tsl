@@ -1,0 +1,13 @@
+//-- State: counter
+
+assume {
+  eq counter c1();
+}
+
+guarantee {
+  F (eq c0() counter);
+}
+
+always guarantee {
+  [ counter <- add counter c1() ];
+}

@@ -1,0 +1,36 @@
+//-- State: next, vruntime1, vruntime2
+//-- Inputs: enqueue, dequeue
+// A simplified version of the Linux Completely Fair Scheduler.
+//#LIA#
+
+assume {
+  eq next c0();
+  eq vruntime1 c0();
+  eq vruntime2 c0();
+}
+
+always assume {
+    !(eq enqueue c1() && eq dequeue c1());
+    !(eq enqueue c2() && eq dequeue c2());
+}
+
+guarantee {
+    ![next <- c1()] W eq enqueue c1();
+    ![next <- c2()] W eq enqueue c2();
+}
+
+always guarantee {
+    [next <- c1()] || [next <- c2()] || [next <- c0()];
+
+    eq enqueue c1() -> (F [next <- c1()]) || F eq dequeue c1();
+    eq enqueue c2() -> (F [next <- c2()]) || F eq dequeue c2();
+
+    eq dequeue c1() -> ![next <- c1()] W eq enqueue c1();
+    eq dequeue c2() -> ![next <- c2()] W eq enqueue c2();
+
+    eq enqueue c2() -> ((gt vruntime1 vruntime2 -> ![next <- c1()]) W eq dequeue c2());
+    eq enqueue c1() -> ((gt vruntime2 vruntime1 -> ![next <- c2()]) W eq dequeue c1());
+
+    [next <- c1()] <-> [vruntime1 <- add vruntime1 c1()];
+    [next <- c2()] <-> [vruntime2 <- add vruntime2 c1()];
+}

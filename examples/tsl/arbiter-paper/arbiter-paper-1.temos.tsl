@@ -1,0 +1,45 @@
+//-- State: counter, roomA, pending, q, grantA, grantB
+//-- Inputs: request, changeRoom
+
+//#LIA#
+
+assume {
+  eq counter c0();
+  eq q c0();
+  eq grantA c0();
+  eq grantB c0();
+  eq pending c0();
+}
+
+always assume {
+  ge request c0();
+  le request c1();
+  ge changeRoom c0();
+  le changeRoom c1();
+}
+
+always guarantee {
+  ge counter c0(); /* INV */
+  le counter c1(); /* INV */
+
+  ge grantA c0(); /* INV */
+  le grantA c1(); /* INV */
+  ge grantB c0(); /* INV */
+  le grantB c1(); /* INV */
+
+  ((eq q c0()) && (eq request c1()) && (eq changeRoom c0()) && (lt counter c1())) -> ([counter <- add counter c1()] && [pending <- c1()]);
+  ((eq q c0()) && (eq request c0()) && (eq changeRoom c1()) && (eq roomA c0())) -> [roomA <- c1()];
+  ((eq q c0()) && (eq request c0()) && (eq changeRoom c1()) && (eq roomA c1())) -> [roomA <- c0()];
+  ((eq q c0()) && (eq request c0()) && (eq changeRoom c0())) -> [q <- c1()];
+  
+  [grantA <- c1()] -> ((eq q c1()) && [grantB <- c0()] && (gt counter c0()) && [counter <- sub counter c1()]);
+  [grantB <- c1()] -> ((eq q c1()) && [grantA <- c0()] && (gt counter c0()) && [counter <- sub counter c1()]);
+
+  ((eq q c1()) && (eq counter c0())) -> ([pending <- c0()] && [q <- c0()]);
+
+
+
+  (eq pending c1() && (eq request c0()) && (eq changeRoom c0())) -> F (eq pending c0());
+
+
+}

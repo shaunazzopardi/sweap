@@ -1,0 +1,34 @@
+//-- State: cnt, q
+//-- Inputs: request
+
+//#LIA#
+
+assume {
+    eq cnt c0();
+    eq q c0();
+}
+
+always assume {
+    eq request c0() || eq request c1();
+    F (eq request c0());
+    F (eq request c1());
+}
+
+
+always guarantee {
+    ge cnt c0(); /* INV */
+    le cnt c7(); /* INV */
+
+    ((eq q c0()) && (eq request c1()) && (lt cnt c7())) -> ([q <- c0()] && [cnt <- add cnt c1()]);
+    ((eq q c0()) && (eq request c0())) -> ([cnt <- cnt] && [q <- c1()]);
+    (eq q c1()) -> (
+        ((ge cnt c2()) && [q <- c2()] && [cnt <- sub cnt c2()])
+        ||
+        ((lt cnt c2()) && [q <- c0()] && [cnt <- c0()])
+        ||
+        [q <- c1()] && [cnt <- cnt]);
+
+    ((eq q c2()) && (eq request c1()) && (lt cnt c7())) -> [q <- c1()] && [cnt <- add cnt c1()];
+    ((eq q c2()) && (eq request c1()) && !(lt cnt c7())) -> [q <- c1()] && [cnt <- cnt];
+    F (eq cnt c0());
+}
