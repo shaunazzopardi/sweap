@@ -26,7 +26,8 @@
             "update_term": "add counter 1",
             "var_name": "counter",
             "depends": []
-        }{
+        },
+        {
             "update_term": "add counter 2",
             "var_name": "counter",
             "depends": []
