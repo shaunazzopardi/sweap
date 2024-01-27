@@ -41,35 +41,35 @@
 			"temporal": []
 		},
 		{
-			"pred": "ge inb1 0",
+			"pred": "gte inb1 0",
 			"temporal": []
 		},
 		{
-			"pred": "le inb1 1",
+			"pred": "lte inb1 1",
 			"temporal": []
 		},
 		{
-			"pred": "ge inb2 0",
+			"pred": "gte inb2 0",
 			"temporal": []
 		},
 		{
-			"pred": "le inb2 1",
+			"pred": "lte inb2 1",
 			"temporal": []
 		},
 		{
-			"pred": "ge cnt1 0",
+			"pred": "gte cnt1 0",
 			"temporal": []
 		},
 		{
-			"pred": "le cnt1 2147483647",
+			"pred": "lte cnt1 2147483647",
 			"temporal": []
 		},
 		{
-			"pred": "ge cnt2 0",
+			"pred": "gte cnt2 0",
 			"temporal": []
 		},
 		{
-			"pred": "le cnt2 2147483647",
+			"pred": "lte cnt2 2147483647",
 			"temporal": []
 		}
 	],
