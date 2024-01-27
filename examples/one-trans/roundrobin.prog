@@ -1,0 +1,43 @@
+program roundrobin {
+    STATES {
+        q : init
+    }
+
+    ENVIRONMENT EVENTS {
+        
+    }
+
+    CONTROLLER EVENTS {
+        ptrup; ptrdown
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        ptr : integer := 0;
+        nxt : natural := 0;
+    }
+
+    TRANSITIONS {
+        q -> q [ptrup && !ptrdown && ptr == 0 $ ptr := 1; nxt := 0],
+        q -> q [!ptrup && ptrdown && ptr == 0 $ ptr := -1; nxt:= 0],
+        q -> q [!ptrup && !ptrdown && ptr == 0 $ nxt := 0],
+
+        q -> q [ptrup && !ptrdown && ptr == 1 $ ptr := 2; nxt := 1],
+        q -> q [!ptrup && ptrdown && ptr == 1 $ ptr := 0; nxt:= 1],
+        q -> q [!ptrup && !ptrdown && ptr == 1 $ nxt := 1],
+        
+        q -> q [ptrup && !ptrdown && ptr != 1 && ptr != 0 $ ptr := ptr + 1],
+        q -> q [!ptrup && ptrdown && ptr != 1 && ptr != 0 $ ptr := ptr - 1],
+        q -> q [!ptrup && !ptrdown && ptr != 1 && ptr != 0 $ ptr := ptr]
+    }
+
+    SPECIFICATION {
+        G (!(ptrup && ptrdown))
+        &&
+        G F (nxt == 0)
+        &&
+        G F (nxt == 1)
+    }
+}
