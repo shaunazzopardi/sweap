@@ -462,8 +462,12 @@ def guarded_action_transitions_to_normal_transitions(arg):
     unguarded_acts = []
     guarded_acts = {act: set() for (act, _) in guarded_transition.action}
     for (act, guard) in guarded_transition.action:
-        new_guard = conjunct(guard, type_constraints(act.left, symbol_table))
-        guarded_acts[act].add(new_guard)
+        if isinstance(guard, Value):
+            if guard.is_true():
+                unguarded_acts += [act]
+        else:
+            new_guard = conjunct(guard, type_constraints(act.left, symbol_table))
+            guarded_acts[act].add(new_guard)
 
     guarded_acts = {act: g_set for act, g_set in guarded_acts.items() if len(g_set) > 0}
 
