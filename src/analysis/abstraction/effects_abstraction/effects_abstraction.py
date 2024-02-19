@@ -33,7 +33,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_tran_preds_constant = {}
 
         self.init_conf = None
-        self.init_disjuncts = set()
+        self.init_disjuncts = []
         self.init_gu_to_E = {}
         self.init_state_abstraction = []
         self.second_state_abstraction = []
@@ -103,6 +103,8 @@ class EffectsAbstraction(PredicateAbstraction):
         true_set = {frozenset()}
         empty_effects[frozenset()] = frozenset(true_set)
 
+        init_disjuncts_set = set()
+
         for t, disjuncts, formula in results:
             self.transition_guard_update_to_E[t] = {}
             self.transition_E_to_guard_update[t] = {}
@@ -140,8 +142,10 @@ class EffectsAbstraction(PredicateAbstraction):
                             self.init_gu_to_E[gu_init].append(E_i)
                         else:
                             self.init_gu_to_E[gu_init] = [E_i]
-                        self.init_disjuncts.add((gu_init, t.tgt))
-                        self.second_state_abstraction.append([])
+                        init_disjuncts_set.add((gu_init, t.tgt))
+        for t in init_disjuncts_set:
+            self.init_disjuncts.append(t)
+            self.second_state_abstraction.append([])
 
     def add_transition_predicate_to_t(self, t: Transition, Es, old_effects, predicate):
         if len(old_effects) == 0:
