@@ -186,17 +186,18 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     #     preds_in_cond = atomic_predicates(t.condition)
     #     new_state_preds.extend([p for p in preds_in_cond if p not in program.con_events + program.env_events])
 
+    prog_state_vars = [Variable(s) for s in program.states]
     new_ltl_assumptions = []
     for ltl in ltl_assumptions:
         ltl = ltl.replace_formulas(normalise_mathexpr)
-        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
+        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
         new_state_preds += preds
         new_ltl_assumptions.append(new_ltl)
 
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
         ltl = ltl.replace_formulas(normalise_mathexpr)
-        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts)
+        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
         new_state_preds += preds
         new_ltl_guarantees.append(new_ltl)
 
