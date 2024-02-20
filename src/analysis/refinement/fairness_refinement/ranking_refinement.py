@@ -10,14 +10,12 @@ from analysis.ranker import Ranker
 from analysis.smt_checker import check
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import get_differently_value_vars, function_bounded_below_by_0, ground_transitions, \
-    ground_predicate_on_vars, keep_bool_preds, transition_formula, add_prev_suffix
+from programs.typed_valuation import TypedValuation
+from programs.util import get_differently_value_vars, ground_predicate_on_vars, add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.mathexpr import MathExpr
-from prop_lang.util import conjunct, conjunct_formula_set, neg, true, is_boolean, dnf_safe, infinite_type, \
-    type_constraints, \
-    is_tautology, related_to, equivalent, sat, atomic_predicates, disjunct, G, F, implies
+from prop_lang.util import (conjunct, conjunct_formula_set, neg, is_boolean, type_constraints, is_tautology, sat,
+                            atomic_predicates, disjunct, G, F, implies, iff, stringify_pred)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from synthesis.moore_machine import MooreMachine
@@ -198,8 +196,87 @@ def use_liveness_refinement_state(ce: [dict], last_cs_state, disagreed_on_state_
                 var_differences += [False]
 
         if True in var_differences:
-            # index_of_first_loop_entry = var_differences.index(True)
-            # first_index = new_i_to_old_i[previous_visits[index_of_first_loop_entry]]
+            index_of_last_loop_entry = len(var_differences) - 1 - var_differences[::-1].index(True)
+            first_index = new_ce[previous_visits[index_of_last_loop_entry]]
+            return True, first_index[0]
+        else:
+            return False, None
+    else:
+        return False, None
+
+
+def use_liveness_refinement_state_joined(Cs: MooreMachine,
+                                         program,
+                                         predicate_abstraction: PredicateAbstraction,
+                                         ce: [dict],
+                                         prog_trans,
+                                         last_cs_state,
+                                         disagreed_on_state_dict,
+                                         symbol_table):
+    # processing last_cs_state to ignore env behaviour
+    tran_preds = [stringify_pred(t) for t in predicate_abstraction.get_transition_predicates()]
+    tran_preds += [stringify_pred(t) for t in predicate_abstraction.get_state_predicates() if "_prev" in str(t)]
+    # TODO do this better later
+    inloop_vars = [Variable(k) for k in ce[0].keys() if k.startswith("in_loop")]
+    irrelevant_vars = program.env_events + tran_preds + inloop_vars
+
+    symbol_table_with_inloop_vars = symbol_table | {str(l): TypedValuation(str(l), "bool", None) for l in inloop_vars}
+
+    last_props_state_dict = {str(p): disagreed_on_state_dict[str(p)]
+                             for p in irrelevant_vars}
+
+    last_pred_state = ground_predicate_on_vars(program,
+                                               Cs.out[last_cs_state],
+                                               last_props_state_dict,
+                                               inloop_vars,
+                                               symbol_table_with_inloop_vars)
+
+    last_pred_state_wo_props = ground_predicate_on_vars(program,
+                                                        last_pred_state,
+                                                        last_props_state_dict,
+                                                        irrelevant_vars,
+                                                        symbol_table_with_inloop_vars)
+    previous_visits = []
+    for i, ce_state in enumerate(ce):
+        cs_st = [str(st) for st in Cs.states if ce_state[str(st)] == "TRUE"][0]
+
+        pred_state_wo_props = ground_predicate_on_vars(program,
+                                                       Cs.out[cs_st],
+                                                       ce_state,
+                                                       irrelevant_vars,
+                                                       symbol_table_with_inloop_vars)
+        tran_cond = prog_trans[i][0].condition
+
+        f = iff(pred_state_wo_props, last_pred_state_wo_props)
+        if is_tautology(f, symbol_table_with_inloop_vars):
+            if sat(conjunct(tran_cond, last_pred_state), symbol_table_with_inloop_vars):
+                previous_visits.append(i)
+
+    new_ce = list(enumerate(ce + [disagreed_on_state_dict]))
+    previous_visits.append(len(ce))
+
+    if len(previous_visits) - 1 > 0:  # ignoring last visit
+        var_differences = []
+
+        for i, visit in enumerate(previous_visits[:-1]):
+            corresponding_ce_state = [new_ce[i][1] for i in range(visit, previous_visits[i + 1] + 1)]
+
+            any_var_differences = [get_differently_value_vars(corresponding_ce_state[i], corresponding_ce_state[i + 1])
+                                   for i in range(0, len(corresponding_ce_state) - 1)]
+            any_var_differences = [[re.sub("_[0-9]+$", "", v) for v in vs] for vs in any_var_differences]
+            any_var_differences = [[v for v in vs if v in symbol_table.keys() and not str(v).endswith("_prev")] for vs
+                                   in any_var_differences]
+            any_var_differences = [[] != [v for v in vs if
+                                          not re.match("(bool(ean)?)", symbol_table[v].type)] for vs in
+                                   # the below only identifies loops when there are changes in infinite-domain variables in the loop
+                                   # re.match("(int(eger)?|nat(ural)?|real|rational)", symbol_table[v].type)] for vs in
+                                   any_var_differences]
+            if True in any_var_differences:
+                var_differences += [True]
+            else:
+                var_differences += [False]
+
+        if True in var_differences:
             index_of_last_loop_entry = len(var_differences) - 1 - var_differences[::-1].index(True)
             first_index = new_ce[previous_visits[index_of_last_loop_entry]]
             return True, first_index[0]
@@ -292,6 +369,17 @@ def use_fairness_refinement(Cs: MooreMachine,
                                                                  last_counterstrategy_state,
                                                                  disagreed_on_state[1][1] | disagreed_on_state[1][2],
                                                                  symbol_table)
+    if not yes_state:
+        yes_state, first_index_state = use_liveness_refinement_state_joined(Cs,
+                                                                            predicate_abstraction.get_program(),
+                                                                            predicate_abstraction,
+                                                                            ce,
+                                                                            mon_transitions,
+                                                                            last_counterstrategy_state,
+                                                                            disagreed_on_state[1][1] | disagreed_on_state[1][
+                                                                                 2],
+                                                                            symbol_table)
+
     if yes_state:
         first_index = first_index_state
         ce_prog_loop_tran_concretised = mon_transitions[first_index:]
