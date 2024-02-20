@@ -260,7 +260,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 str(label_pred(p, new_state_predicates)):
                     TypedValuation(str(label_pred(p, new_state_predicates)), "bool", true())})
 
-            if sat(conjunct(self.init_conf, p), self.symbol_table):
+            if any(v for v in p.variablesin() if str(v).endswith("_prev")):
+                self.init_state_abstraction.append(neg(p))
+            elif sat(conjunct(self.init_conf, p), self.symbol_table):
                 self.init_state_abstraction.append(p)
             else:
                 self.init_state_abstraction.append(neg(p))
