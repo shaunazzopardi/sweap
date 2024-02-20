@@ -151,18 +151,22 @@ def liveness_step(program,
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
 
     irrelevant_vars = [v for v in program.local_vars if v not in vars_relevant_to_exit]
+    irrelevant_vars += program.env_events
+    irrelevant_vars += program.con_events
+
+    init_valuation = concrete_body[0][1] | concrete_body[0][2]
     # remove booleans from loop
     pre_cond = (ground_predicate_on_vars(program,
                               pre_cond,
-                              concrete_body[0][1], irrelevant_vars, symbol_table)
+                              init_valuation, irrelevant_vars, symbol_table)
      .simplify())
     entry_valuation = (ground_predicate_on_vars(program,
                               entry_valuation,
-                              concrete_body[0][1], irrelevant_vars, symbol_table)
+                              init_valuation, irrelevant_vars, symbol_table)
      .simplify())
     exit_cond = (ground_predicate_on_vars(program,
                               exit_cond,
-                              concrete_body[0][1], irrelevant_vars, symbol_table)
+                              init_valuation, irrelevant_vars, symbol_table)
      .simplify())
 
 
@@ -178,7 +182,7 @@ def liveness_step(program,
     # 3. try entry guard (grounded on E and C)
     entry_guard = (ground_predicate_on_vars(program,
                                            concrete_body[0][0].condition,
-                                           concrete_body[0][1], irrelevant_vars, symbol_table)
+                                           init_valuation, irrelevant_vars, symbol_table)
                    .simplify()).to_nuxmv()
     if entry_guard not in conditions:
         conditions.append(entry_guard)
