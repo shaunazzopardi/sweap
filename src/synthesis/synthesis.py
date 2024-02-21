@@ -22,7 +22,7 @@ from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate, \
-    conjunct_formula_set, atomic_predicates, finite_state_preds
+    atomic_predicates, finite_state_preds, strip_outer_mathexpr
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -272,7 +272,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                 new_ltl_constraints.update(constraints)
             to_add_rankings_for.clear()
 
-        new_state_preds = {p for p in set(new_state_preds) if p not in predicate_abstraction.state_predicates}
+        new_state_preds = {strip_outer_mathexpr(p) for p in new_state_preds}
+        new_state_preds = {p for p in new_state_preds if p not in predicate_abstraction.state_predicates}
         new_tran_preds = {p for p in set(new_tran_preds) if p not in predicate_abstraction.transition_predicates}
 
         ## update predicate abstraction

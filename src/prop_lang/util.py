@@ -1237,3 +1237,10 @@ def ranking_from_predicate(predicate):
                 return BiOp(predicate.formula.right, "-", predicate.formula.left), predicate.formula
     return None
     # raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
+
+
+def strip_outer_mathexpr(f):
+    if isinstance(f, MathExpr):
+        return strip_outer_mathexpr(f.formula)
+    else:
+        return f
