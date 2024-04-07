@@ -31,7 +31,8 @@ def safety_refinement_seq_int(program: Program,
     if allow_user_input:
         new_state_preds = interactive_state_predicates()
     else:
-        ith_vars = lambda i: [BiOp(Variable(v), ":=", Variable(v + "_" + str(i))) for v in symbol_table.keys()]
+        ith_vars = lambda i: [BiOp(Variable(v), ":=", Variable(v + "_" + str(i))) for v in symbol_table.keys() if "_prev" not in v] + \
+                              [BiOp(Variable(v), ":=", Variable(v.removesuffix("_prev") + "_" + str(i - 1))) for v in symbol_table.keys() if "_prev" in v]
 
         for i, (tran, prog_state, cs_state) in enumerate(agreed_on_transitions):
             if i == 0:
