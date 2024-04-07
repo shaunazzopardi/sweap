@@ -13,8 +13,10 @@ from programs.util import (ce_state_to_formula, ground_formula_on_ce_state_with_
                            reduce_up_to_iff)
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
-from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe, fnode_to_formula, var_to_predicate
+from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe, fnode_to_formula, var_to_predicate, \
+    is_tautology, is_contradictory
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -75,6 +77,22 @@ def safety_refinement_seq_int(program: Program,
         new_state_preds = ([fnode_to_formula(f).replace_vars(reset_vars) for f in new_state_preds_fnode])
         new_state_preds = [p for ps in new_state_preds for p in ps.sub_formulas_up_to_associativity()]
         new_state_preds = list(set(new_state_preds))
+        new_state_preds = [x for x in new_state_preds if
+                           not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
+
+        new_new_state_preds = []
+        for p in new_state_preds:
+            if isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (
+                    p.formula.op in ["<=", ">=", ">", "<", "=", "=="]):
+                new_new_state_preds.append(BiOp(p.formula.left, "<=", p.formula.right))
+                new_new_state_preds.append(BiOp(p.formula.left, ">=", p.formula.right))
+            elif isinstance(p, BiOp) and (p.op in ["<=", ">=", ">", "<", "=", "=="]):
+                new_new_state_preds.append(BiOp(p.left, "<=", p.right))
+                new_new_state_preds.append(BiOp(p.left, ">=", p.right))
+            else:
+                new_new_state_preds.append(p)
+
+        new_state_preds = new_new_state_preds
         # if len(new_state_preds) == 0:
         #     logging.info("No state predicates identified.")
         #     if allow_user_input:
