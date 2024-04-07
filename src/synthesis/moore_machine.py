@@ -6,7 +6,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, disjunct_formula_set, neg, conjunct, dnf_safe, \
-    propagate_negations, simplify_formula_without_math, sat, project_out_props, label_pred
+    propagate_negations, simplify_formula_without_math, sat, project_out_props, label_pred, is_tautology, iff
 from prop_lang.variable import Variable
 
 
@@ -23,7 +23,7 @@ class MooreMachine:
         self.counter = -1
         self.out = {}
 
-    def add_transitions(self, trans_dict: dict):
+    def add_transitions(self, trans_dict: dict, symbol_table):
         intermed_trans = {}
         new_sts = {}
         for src_index, env_behaviour, tgt_index in trans_dict.keys():
@@ -33,13 +33,17 @@ class MooreMachine:
             new_src = "st_" + str(src_index)
             if new_src not in new_sts.keys():
                 new_sts |= {new_src: [new_src]}
+                self.transitions[new_src] = []
+                self.out[new_src] = env_cond
+                intermed_trans[new_src] = []
             else:
-                new_new_src = new_src + "_" + str(len(new_sts[new_src]))
-                new_sts[new_src].append(new_new_src)
-                new_src = new_new_src
+                if not is_tautology(iff(env_cond, self.out[new_src]), symbol_table):
+                    new_new_src = new_src + "_" + str(len(new_sts[new_src]))
+                    new_sts[new_src].append(new_new_src)
+                    new_src = new_new_src
+                    self.transitions[new_src] = []
+                    self.out[new_src] = env_cond
 
-            self.out[new_src] = env_cond
-            self.transitions[new_src] = []
 
             con_behaviour = disjunct_formula_set(trans_dict[(src_index, env_behaviour, tgt_index)])
             con_cond = (con_behaviour.simplify()).to_nuxmv()
@@ -47,18 +51,19 @@ class MooreMachine:
 
             new_tgt = "st_" + str(tgt_index)
 
-            intermed_trans[new_src] = (con_cond, new_tgt)
+            intermed_trans[new_src] += [(con_cond, new_tgt)]
 
             self.states.add(new_src)
             self.states.add(new_tgt)
 
-        for src, (con_cond, new_tgt) in intermed_trans.items():
-            if len(new_sts[new_tgt]) > 1:
-                for i in range(1, len(new_sts[new_tgt])):
-                    self.transitions[src].append((con_cond, new_tgt + "_" + str(i)))
-                self.transitions[src].append((con_cond, new_tgt))
-            else:
-                self.transitions[src].append((con_cond, new_tgt))
+        for src, con_trans in intermed_trans.items():
+            for (con_cond, new_tgt) in con_trans:
+                if len(new_sts[new_tgt]) > 1:
+                    for i in range(1, len(new_sts[new_tgt])):
+                        self.transitions[src].append((con_cond, new_tgt + "_" + str(i)))
+                    self.transitions[src].append((con_cond, new_tgt))
+                else:
+                    self.transitions[src].append((con_cond, new_tgt))
 
         for new_st in new_sts[list(self.init_st)[0]]:
             self.init_st.add(new_st)
