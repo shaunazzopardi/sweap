@@ -57,13 +57,13 @@ runRpgsolve() {
 }
 
 TEMOS_DIR=examples/benchmarks/temos
-for f in `ls $TEMOS_DIR`
+for f in `ls $TEMOS_DIR/*.tslt`
 do
-  runTemos $TEMOS_DIR/$f
+  runTemos $f
 done
 
 RPGSOLVE_DIR=examples/benchmarks/rpgsolve
 for f in `ls $RPGSOLVE_DIR/*.rpg`
 do
-  runRpgsolve $RPGSOLVE_DIR/$f
+  runRpgsolve $f
 done
