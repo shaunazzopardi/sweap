@@ -62,6 +62,8 @@ class MathExpr(Formula):
         if isinstance(context, dict):
             if self in context.keys():
                 return context[self]
+            else:
+                return MathExpr(self.formula.replace_formulas(context))
         elif callable(context):
             ret = context(self)
             if ret is not None:
