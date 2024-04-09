@@ -16,7 +16,7 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe, fnode_to_formula, var_to_predicate, \
-    is_tautology, is_contradictory
+    is_tautology, is_contradictory, atomic_predicates
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -75,7 +75,7 @@ def safety_refinement_seq_int(program: Program,
                       range(0, len(agreed_on_transitions) + 1)]
 
         new_state_preds = ([fnode_to_formula(f).replace_vars(reset_vars) for f in new_state_preds_fnode])
-        new_state_preds = [p for ps in new_state_preds for p in ps.sub_formulas_up_to_associativity()]
+        new_state_preds = [p for ps in new_state_preds for p in atomic_predicates(ps)]
         new_state_preds = list(set(new_state_preds))
         new_state_preds = [x for x in new_state_preds if
                            not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
