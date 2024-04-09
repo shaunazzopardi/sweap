@@ -1111,14 +1111,14 @@ def label_pred(p, preds):
     else:
         representation = stringify_pred(p)
 
-    predicate_to_var_cache[p] = representation
+    predicate_to_var_cache[strip_outer_mathexpr(p)] = representation
     var_to_predicate_cache[str(representation)] = p
     return representation
 
 
 def stringify_pred(p):
-    if p in predicate_to_var_cache.keys():
-        return predicate_to_var_cache[p]
+    if strip_outer_mathexpr(p) in predicate_to_var_cache.keys():
+        return predicate_to_var_cache[strip_outer_mathexpr(p)]
 
     representation = Variable("pred_" +
                               str(p)
@@ -1147,7 +1147,7 @@ def stringify_pred(p):
                               .replace("||", "_OR_")
                               .replace("|", "_OR_")
                               )
-    predicate_to_var_cache[p] = representation
+    predicate_to_var_cache[strip_outer_mathexpr(p)] = representation
     var_to_predicate_cache[str(representation)] = p
     return representation
 
