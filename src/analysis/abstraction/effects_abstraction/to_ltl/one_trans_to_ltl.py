@@ -56,10 +56,8 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
                 invar_preds_effects += [X(rename_pred(p)) for p in
                                         set(predicate_abstraction.abstract_effect_tran_preds_constant[gu])]
 
-            invar_preds_formula = conjunct_formula_set(invar_preds_effects)
-
             E_formula = disjunct_formula_set([conjunct_formula_set(E) for E in Es])
-
+            E_formula = conjunct_formula_set([E_formula] + invar_preds_effects)
             E_effects = []
             for next_pred_state, pred_states in effect.items():
                 E_now = disjunct_formula_set(
@@ -71,12 +69,14 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
                 E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
                 E_next_simplified = simplify_formula_without_math(E_next)
                 E_effects.append(conjunct(E_now_simplified, X(E_next_simplified)))
-            pred_effects.extend([conjunct(conjunct(E_formula, invar_preds_formula), (disjunct_formula_set(E_effects)))])
+            pred_effects.extend([conjunct(E_formula, (disjunct_formula_set(E_effects)))])
 
         pred_effect_formula = disjunct_formula_set(pred_effects)
-        output_formula = conjunct_formula_set([X(o) for o in trans.output])
-        # output_formula = conjunct_formula_set([X(o) for o in env_trans.output])
-        effect_formula = conjunct(pred_effect_formula, output_formula)
+        if len(trans.output) > 0:
+            output_formula = conjunct_formula_set([X(o) for o in trans.output])
+            effect_formula = conjunct_formula_set(pred_effect_formula, output_formula)
+        else:
+            effect_formula = pred_effect_formula
 
         next = conjunct(effect_formula, X(Variable(trans.tgt)))
 
