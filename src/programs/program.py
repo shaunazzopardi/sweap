@@ -339,7 +339,7 @@ class Program:
         complete_trans = []
 
         reachable_states = set(
-            [s for t in self.transitions for s in [t.tgt, t.src]])
+            [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state])
 
         for s in reachable_states:
             from_s = [t for t in self.transitions if t.src == s]
@@ -357,7 +357,7 @@ class Program:
         complete_trans = []
 
         reachable_states = set(
-            [s for t in self.transitions for s in [t.tgt, t.src]])
+            [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state])
         stutter_trans_candidates = []
         for s in reachable_states:
             from_s = [t.complete_outputs(self.out_events) for t in self.transitions if t.src == s]
