@@ -648,6 +648,19 @@ def negate(formula):
         elif formula.op == "<->" or formula.op == "<=>":
             return BiOp(BiOp(formula.left, "&", negate(formula.right)), "|",
                         BiOp(negate(formula.left), "&", formula.right))
+        elif formula.op == ">":
+            return BiOp(formula.left, "<=", formula.right)
+        elif formula.op == "<":
+            return BiOp(formula.left, ">=", formula.right)
+        elif formula.op == ">":
+            return BiOp(formula.left, "<=", formula.right)
+        elif formula.op == ">=":
+            return BiOp(formula.left, "<", formula.right)
+        elif formula.op == "<=":
+            return BiOp(formula.left, ">", formula.right)
+        elif formula.op == "=" or formula.op == "==":
+            return BiOp(BiOp(formula.left, ">", formula.right), "||",
+                        BiOp(formula.left, "<", formula.right))
         else:
             return UniOp("!", formula)
     elif isinstance(formula, MathExpr):
