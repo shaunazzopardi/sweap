@@ -690,7 +690,9 @@ def abstract_guard_explicitly_simple_parallel(arg):
                 cond.append(c)
         E = frozenset(env_con_events)
         int_disjuncts_only_events = [E]
-        return trans, [(conjunct_formula_set(cond), E)], int_disjuncts_only_events
+        return trans, [(conjunct_formula_set(cond), E)], conjunct_formula_set(int_disjuncts_only_events)
+    elif not any(v for v in guard.variablesin() if v not in events):
+        return trans, [(true(), guard)], guard
     else:
         return None
 
