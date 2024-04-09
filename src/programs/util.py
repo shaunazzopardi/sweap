@@ -11,8 +11,7 @@ from pysmt.logics import QF_UFLRA
 from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
 
-import config
-from analysis.smt_checker import check
+from analysis.smt_checker import check, bdd_simplify
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
 from prop_lang.biop import BiOp
@@ -289,6 +288,15 @@ def stutter_transitions(program, env: bool):
 stutter_transition_cache = {}
 
 
+def bdd_simplify_guards(program, guard):
+    fnode = And(*guard.to_smt(program.symbol_table))
+    order = [v for v in fnode.get_free_variables() if Variable(str(v)) in program.env_events + program.con_events]
+    condition_simplified = bdd_simplify(fnode, static_ordering=order)
+    condition_simplified = fnode_to_formula(condition_simplified)
+    print("simplified " + str(guard) + " (len " + str(len(guard)) + ") to " + str(condition_simplified) + " (len " + str(len(condition_simplified)) + ")")
+    return condition_simplified
+
+
 def stutter_transition(program, state, cnf=False):
     transitions = program.transitions
     condition = neg(disjunct_formula_set([t.condition
@@ -304,18 +312,20 @@ def stutter_transition(program, state, cnf=False):
 
     if check(cond_fnode):
         if cnf:
-            conf = config.Config.getConfig()
-            start = time.time()
-            if conf.cnf_optimisations:
-                condition_cnfed = cnf_safe(condition, program.symbol_table, timeout=1)
-            else:
-                condition_simplified = condition
-            if condition_simplified != condition:
-                logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
-                         "With result " + str(condition_simplified))
-            else:
-                logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
-            condition = condition_simplified
+            # conf = config.Config.getConfig()
+            # start = time.time()
+            # if conf.cnf_optimisations:
+            #     condition_simplified = cnf_safe(condition, program.symbol_table, timeout=2)
+            # else:
+            args = [program, condition]
+            success, condition_simplified = run_with_timeout(bdd_simplify_guards, args, timeout=0.2)
+            # if condition_simplified != condition:
+            #     logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
+            #              "With result " + str(condition_simplified))
+            # else:
+            #     logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
+            if success:
+                condition = condition_simplified
         stutter_t = Transition(state,
                                condition,
                                [],
