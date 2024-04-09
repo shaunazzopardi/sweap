@@ -1,0 +1,13 @@
+[
+    "TB",
+    {
+        "verbose": true,
+        "kind": [
+            "Ord_DNF",
+            [
+                "Filename",
+                "./config/pcsat/template/dbg_predicate_dnf_template.json"
+            ]
+        ]
+    }
+]
