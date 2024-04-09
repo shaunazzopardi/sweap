@@ -13,6 +13,8 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
                           exit_condition: Formula,
                           counter,
                           symbol_table):
+    print("Structural Refinement: \nentry_cond:" + str(entry_condition) + "\nexit_cond:" + str(exit_condition) +
+          "\nloop:" + ", ".join(map(str, [a for _, acts in terminating_loop for a in acts])))
     ## TODO this will encode the loop
     # option 1: action-based encoding, however will miss sequence between con and env combined transitions,
     #           without new actions to combine them; would need an adhoc implementation for the effects abstraction,
