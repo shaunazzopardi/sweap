@@ -274,7 +274,12 @@ def only_dis_or_con_junctions(f: Formula):
 
 dnf_cache = {}
 
+
 def fnode_to_formula(fnode: FNode) -> Formula:
+    return string_to_prop(serialize(fnode))
+
+
+def fnode_to_formula_direct(fnode: FNode) -> Formula:
     if fnode.is_constant():
         return Value(fnode.constant_value())
     elif fnode.is_symbol():
