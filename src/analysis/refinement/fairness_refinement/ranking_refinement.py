@@ -23,6 +23,31 @@ from synthesis.moore_machine import MooreMachine
 seen_loops_cache = {}
 
 
+def ranking_refinement_both_sides(ranking, invar_pos, invar_neg):
+    dec = BiOp(add_prev_suffix(ranking), ">", ranking)
+    inc = BiOp(add_prev_suffix(ranking), "<", ranking)
+    tran_preds = {dec, inc}
+
+    constraints = []
+    state_preds = set()
+
+    if len(invar_pos) > 0:
+        inv = conjunct_formula_set(invar_pos)
+        state_preds |= atomic_predicates(inv)
+        constraints += [implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))]
+    else:
+        constraints += [implies(G(F(dec)), G(F(inc)))]
+
+    if len(invar_neg) > 0:
+        inv = conjunct_formula_set(invar_neg)
+        state_preds |= atomic_predicates(inv)
+        constraints += [implies(G(F(inc)), G(F(disjunct(dec, neg(inv)))))]
+    else:
+        constraints += [implies(G(F(inc)), G(F(dec)))]
+
+    return (tran_preds, state_preds), constraints
+
+
 def ranking_refinement(ranking, invars):
     dec = BiOp(add_prev_suffix(ranking), ">", ranking)
     inc = BiOp(add_prev_suffix(ranking), "<", ranking)
