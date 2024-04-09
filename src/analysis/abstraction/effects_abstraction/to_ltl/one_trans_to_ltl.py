@@ -85,7 +85,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
         else:
             transition_ltl[trans.src] = [next]
 
-    _transition_ltl = [(G(implies(src, disjunct_formula_set(transition_ltl[src])))) for src in
+    _transition_ltl = [(G(implies(Variable(src), disjunct_formula_set(transition_ltl[src])))) for src in
                            transition_ltl.keys()]
 
     program = predicate_abstraction.get_program()
