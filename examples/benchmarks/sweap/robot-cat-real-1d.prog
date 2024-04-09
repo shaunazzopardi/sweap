@@ -1,0 +1,51 @@
+program robot-cat-real-1d {
+    STATES {
+        setrx : init, incrx, decrx, setox, i, mover, moveo, goal, fail
+    }
+
+    ENVIRONMENT EVENTS {
+        stay, inc
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        rx : integer := 0;
+        ox : integer := 0;
+    }
+
+    TRANSITIONS {
+        setrx -> incrx [inc],
+        setrx -> decrx [!inc],
+
+        incrx -> incrx [inc $ rx := rx + 1; ox := ox + 1],
+        incrx -> setox [!inc],
+
+        decrx -> decrx [!inc $ rx := rx - 1; ox := ox - 1],
+        decrx -> setox [inc],
+
+        setox -> setox [inc & stay $ ox := ox + 1],
+        setox -> setox [!inc & stay $ ox := ox - 1],
+        setox -> i [!stay],
+
+        i -> mover [(rx < ox && rx >= 0) || (rx > ox && rx <= 0)],
+        i -> goal [!((rx < ox && rx >= 0) || (rx > ox && rx <= 0))],
+        mover -> mover [!(rx < ox || rx > ox)],
+        mover -> goal [(rx < ox || rx > ox) && !(rx > 0 || rx < 0)],
+        mover -> moveo [(rx < ox || rx > ox) && (rx > 0 || rx < 0) && (cinc <-> cdec)],
+        mover -> moveo [(rx < ox || rx > ox) && (rx > 0 || rx < 0) && !cinc && cdec $ rx := rx - 1],
+        mover -> moveo [(rx < ox || rx > ox) && (rx > 0 || rx < 0) && cinc && !cdec $ rx := rx + 1],
+        moveo -> mover [stay],
+        moveo -> mover [!inc && !stay $ ox := ox - 1],
+        moveo -> mover [inc && !stay $ ox := ox + 1]
+    }
+
+    SPECIFICATION {
+        (F i) -> F goal
+    }
+}

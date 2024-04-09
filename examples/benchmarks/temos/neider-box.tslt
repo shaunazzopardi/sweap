@@ -1,0 +1,20 @@
+//-- State: x, y
+//-- Inputs: env_x_move, env_y_move
+
+assume {
+  le x i3();
+  ge x i0();
+}
+
+always assume {
+  eq env_x_move i1() || eq env_x_move im1() || eq env_x_move i0();
+  eq env_y_move i1() || eq env_y_move im1() || eq env_y_move i0();
+}
+
+always guarantee {
+  le x i3(); /* INV */
+  ge x i0(); /* INV */
+
+  ([x <- (add x env_x_move)] || [x <- add (add x env_x_move) i1()] || [x <- sub (add x env_x_move) i1()]);
+  ([y <- (add y env_y_move)] || [y <- add (add y env_y_move) i1()] || [y <- sub (add y env_y_move) i1()]);
+}

@@ -1,0 +1,40 @@
+program bloem-elevator-simple-5 {
+    STATES {
+        goal : init, move
+    }
+
+    ENVIRONMENT EVENTS {
+    }
+
+    CONTROLLER EVENTS {
+        cinc
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        at_floor : 0..5 := 1;
+        v1 : bool := false;
+        v2 : bool := false;
+        v3 : bool := false;
+        v4 : bool := false;
+        v5 : bool := false;
+    }
+
+    TRANSITIONS {
+        goal -> move [$ v1 := false; v2 := false; v3 := false; v4 := false; v5 := false],
+        move -> goal [v1 & v2 & v3 && v4 && v5],
+        move -> move [!(v1 & v2 & v3 && v4 && v5) $ at_floor := at_floor + 1 if cinc;
+                                                   at_floor := at_floor - 1 if !cinc;
+                                                   v1 := true if at_floor == 1;
+                                                      v2 := true if at_floor == 2;
+                                                        v3 := true if at_floor == 3;
+                                                            v4 := true if at_floor == 4;
+                                                                v5 := true if at_floor == 5]
+    }
+
+    SPECIFICATION {
+        G F (goal)
+    }
+}

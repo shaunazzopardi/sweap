@@ -1,0 +1,39 @@
+program running-example-buechi {
+    STATES {
+        l0 : init, l1, l2, l3, l4
+    }
+
+    ENVIRONMENT EVENTS {
+        ipos, ineg
+    }
+
+    CONTROLLER EVENTS {
+        dec
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 1;
+        y : natural := 0;
+    }
+
+    TRANSITIONS {
+        l0 -> l3 [dec $ y := y - 1],
+        l0 -> l0 [!dec && ipos && !ineg $ x := x + 1],
+        l0 -> l0 [!dec && !ipos && ineg $ x := x - 1],
+        l0 -> l1 [!dec && !ipos && !ineg $ x := x],
+        l1 -> l2 [x <= 42 | (!ipos && !ineg) $],
+        l1 -> l1 [x > 42 && !(!ipos && !ineg) && dec && y <= 32 $ x := x + 1],
+        l1 -> l1 [x > 42 && !(!ipos && !ineg) && !dec && y <= 32 $ x := x - 1],
+        l1 -> l1 [x > 42 && ipos && !ineg && y > 32 $ x := x + 1],
+        l2 -> l0 [$ y := 64],
+        l3 -> l0 [y >= 16],
+        l3 -> l4 [y < 16]
+    }
+
+    SPECIFICATION {
+        G(!(ineg && ipos)) -> G F (l2 || l3)
+    }
+}

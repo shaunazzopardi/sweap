@@ -1,0 +1,60 @@
+program robot-cat-real-1d {
+    STATES {
+        setrx : init, setry, setox, setoy, i, mover, moveo, goal, fail
+    }
+
+    ENVIRONMENT EVENTS {
+        stay, inc, xory
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cxory, cstay
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        rx : integer := 0;
+        ry : integer := 0;
+        ox : integer := 0;
+        oy : integer := 0;
+    }
+
+    TRANSITIONS {
+        setrx -> setrx [inc & stay $ rx := rx + 1;],
+        setrx -> setrx [!inc & stay $ rx := rx - 1;],
+        setrx -> setry [!stay],
+
+        setry -> setry [inc & stay $ ry := ry + 1;],
+        setry -> setry [!inc & stay $ ry := ry - 1;],
+        setry -> setox [!stay],
+
+        setox -> setox [inc & stay $ ox := ox + 1;],
+        setox -> setox [!inc & stay $ ox := ox - 1;],
+        setox -> setoy [!stay],
+
+        setoy -> setoy [inc & stay $ oy := oy + 1;],
+        setoy -> setoy [!inc & stay $ oy := oy - 1;],
+        setoy -> i [!stay],
+
+        i -> mover [(rx < ox && rx >= 0 && ry < oy && ry >= 0) || (rx > ox && rx <= 0 && ry > oy && ry <= 0)],
+        i -> goal [!((rx < ox && rx >= 0 && ry < oy && ry >= 0) || (rx > ox && rx <= 0 && ry > oy && ry <= 0))],
+        mover -> mover [rx == ox && ry == oy],
+        mover -> goal [!(rx == ox && ry == oy) && rx == 0 && ry == 0],
+        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && !cstay],
+        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && cinc && cxory $ rx := rx + 1],
+        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && cinc && !cxory $ ry := ry + 1],
+        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && !cinc && cxory $ rx := rx - 1],
+        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && !cinc && !cxory $ ry := ry - 1],
+        moveo -> mover [!cstay],
+        moveo -> mover [!inc && xory && cstay $ ox := ox - 1],
+        moveo -> mover [!inc && !xory && cstay $ oy := oy - 1],
+        moveo -> mover [inc && xory && cstay $ ox := ox + 1],
+        moveo -> mover [inc && !xory && cstay $ oy := oy + 1]
+    }
+
+    SPECIFICATION {
+        (F i) -> F goal
+    }
+}

@@ -1,0 +1,14 @@
+//-- State: x, y
+
+assume {
+  le x i3();
+  ge x i0();
+}
+
+always guarantee {
+  le x i3(); /* INV */
+  ge x i0(); /* INV */
+
+  ([x <- x] || [x <- add x i1()] || [x <- sub x i1()]);
+  ([y <- y] || [y <- add y i1()] || [y <- sub y i1()]);
+}

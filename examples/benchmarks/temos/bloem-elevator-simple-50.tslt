@@ -1,0 +1,62 @@
+//-- State: c_floor
+
+assume {
+  ge c_floor i1();
+  ge i50() c_floor;
+}
+
+always guarantee {
+  ge c_floor i1();
+  ge i50() c_floor;
+  [c_floor <- sub c_floor i1()] || [c_floor <- add c_floor i1()] || [c_floor <- c_floor];
+  F (eq c_floor i1());
+  F (eq c_floor i2());
+  F (eq c_floor i3());
+  F (eq c_floor i4());
+  F (eq c_floor i5());
+  F (eq c_floor i6());
+  F (eq c_floor i7());
+  F (eq c_floor i8());
+  F (eq c_floor i9());
+  F (eq c_floor i10());
+  F (eq c_floor i11());
+F (eq c_floor i12());
+F (eq c_floor i13());
+F (eq c_floor i14());
+F (eq c_floor i15());
+F (eq c_floor i16());
+F (eq c_floor i17());
+F (eq c_floor i18());
+F (eq c_floor i19());
+F (eq c_floor i20());
+F (eq c_floor i21());
+F (eq c_floor i22());
+F (eq c_floor i23());
+F (eq c_floor i24());
+F (eq c_floor i25());
+F (eq c_floor i26());
+F (eq c_floor i27());
+F (eq c_floor i28());
+F (eq c_floor i29());
+F (eq c_floor i30());
+F (eq c_floor i31());
+F (eq c_floor i32());
+F (eq c_floor i33());
+F (eq c_floor i34());
+F (eq c_floor i35());
+F (eq c_floor i36());
+F (eq c_floor i37());
+F (eq c_floor i38());
+F (eq c_floor i39());
+F (eq c_floor i40());
+F (eq c_floor i41());
+F (eq c_floor i42());
+F (eq c_floor i43());
+F (eq c_floor i44());
+F (eq c_floor i45());
+F (eq c_floor i46());
+F (eq c_floor i47());
+F (eq c_floor i48());
+F (eq c_floor i49());
+F (eq c_floor i50());
+}

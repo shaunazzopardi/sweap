@@ -1,0 +1,24 @@
+type Reach
+
+output x Int
+output y Int
+
+loc move 0
+loc goal 1
+
+init move
+
+trans move
+    if (and (= x 0) (= y 0)) 
+    then goal 
+    else sys (
+        () move ; do nothing
+        ((x (+ x 1))) move 
+        ((x (- x 1))) move 
+        ((y (+ y 1))) move 
+        ((y (- y 1))) move 
+    )
+
+trans goal 
+    goal
+

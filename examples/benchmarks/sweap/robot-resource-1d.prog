@@ -1,0 +1,44 @@
+program fig2heim {
+    STATES {
+        movetarg : init, incntx, decntx, setntx, goal, unsafe
+    }
+
+    ENVIRONMENT EVENTS {
+        stay, inc
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 0;
+        resource : integer := 4;
+    }
+
+    TRANSITIONS {
+        movetarg -> goal [x <= 0],
+        movetarg -> movetarg [!(x <= 0) && (cinc <-> cdec)],
+        movetarg -> movetarg [!(x <= 0) && cinc && !cdec $ x := x + 1],
+        movetarg -> movetarg [!(x <= 0) && !cinc && cdec $ x := x - 1],
+
+        goal -> unsafe [resource < 0],
+        goal -> setntx [resource >= 0],
+
+        setntx -> incntx [inc $ resource := resource - 1],
+        setntx -> decntx [!inc $ resource := resource - 1],
+
+        incntx -> incntx [stay $ x := x + 1],
+        incntx -> movetarg [!stay],
+
+        decntx -> decntx [stay $ x := x - 1],
+        decntx -> movetarg [!stay]
+    }
+
+    SPECIFICATION {
+        (G F goal) || F G (incntx || decntx)
+    }
+}

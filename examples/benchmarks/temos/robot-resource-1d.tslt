@@ -1,0 +1,12 @@
+//-- State: i_x, i_resource, loc
+//-- Inputs: i_ntx
+guarantee {
+[loc  <- i0()];
+G ([loc  <- i0()] -> ([i_resource <- i4()] && X [loc  <- i2()]) || false);
+G ([loc  <- i1()] -> (((lt i_resource i0()) || ((gt i_resource i4()))) -> (X [loc  <- i3()]) || false) && ((! ((lt i_resource i0()) || ((gt i_resource i4()))) ) -> ([i_resource <- (sub i_resource i1())] && [i_x <- i_ntx] && X [loc  <- i2()]) || false));
+G ([loc  <- i2()] -> ((le i_x i0()) -> (X [loc  <- i1()]) || false) && ((! (le i_x i0()) ) -> (X [loc  <- i2()]) || ([i_x <- (add i_x i1())] && X [loc  <- i2()]) || ([i_x <- (sub i_x i1())] && X [loc  <- i2()]) || false));
+G ([loc  <- i3()] -> (X [loc  <- i3()]) || false);
+}
+
+guarantee { G F([loc  <- i1()] || false);}
+

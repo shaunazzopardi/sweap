@@ -1,0 +1,40 @@
+program square5x5 {
+    STATES {
+        move0 : init, move1
+    }
+
+    ENVIRONMENT EVENTS {
+        incxe; decxe; incye; decye;
+    }
+
+    CONTROLLER EVENTS {
+        incxc; decxc; incyc; decyc;
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 1;
+        y : integer := 1;
+    }
+
+    TRANSITIONS {
+        move0 -> move1 [$
+                     x := x + 1 if incx && !decx;
+                     x := x - 1 if !incx && decx;
+                     y := y + 1 if incy && !decy;
+                     y := y - 1 if !incy && decy;
+                     ],
+        move1 -> move0 [$
+                     x := x + 1 if incxe && !decxe;
+                     x := x - 1 if !incxe && decxe;
+                     y := y + 1 if incye && !decye;
+                     y := y - 1 if !incye && decye;
+                     ],
+        }
+
+    SPECIFICATION {
+        G !(x < 0 || x > 4 || y < 0 || y > 4)
+    }
+}

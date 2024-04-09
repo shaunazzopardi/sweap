@@ -1,0 +1,46 @@
+program fig2heim {
+    STATES {
+        movetarg : init, incntx, decntx, setntx, goal, unsafe
+    }
+
+    ENVIRONMENT EVENTS {
+        inc, xory
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec, cxory
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 0;
+        y : integer := 0;
+        resource : integer := 4;
+    }
+
+    TRANSITIONS {
+        movetarg -> goal [x <= 0 && y <= 0],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && (cinc <-> cdec)],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && !cinc && cdec && cxory $ x := x + 1],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && cinc && !cdec && !cxory $ y := y + 1],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && cinc && !cdec && cxory $ x := x + 1],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && !cinc && cdec && !cxory $ x := x - 1],
+
+        goal -> unsafe [resource < 0],
+        goal -> incntx [resource >= 0],
+
+        incntx -> incntx [inc && xory $ x := x + 1],
+        incntx -> incntx [inc && !xory $ y := y + 1],
+        incntx -> decntx [!inc $ resource := resource - 1],
+
+        decntx -> decntx [!inc && xory $ x := x - 1],
+        decntx -> decntx [!inc && !xory $ y := y - 1],
+        decntx -> movetarg [inc $ resource := resource - 1]
+    }
+
+    SPECIFICATION {
+        (G F goal) || F G (incntx || decntx)
+    }
+}

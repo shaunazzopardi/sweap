@@ -1,0 +1,18 @@
+#LIA
+//-- State: c_floor
+
+assume {
+  gte c_floor int1();
+  gte int5() c_floor;
+}
+
+always guarantee {
+  gte c_floor int1();
+  gte int5() c_floor;
+  [c_floor <- sub c_floor int1()] || [c_floor <- add c_floor int1()] || [c_floor <- c_floor];
+  F (eq c_floor int1());
+  F (eq c_floor int2());
+  F (eq c_floor int3());
+  F (eq c_floor int4());
+  F (eq c_floor int5());
+}

@@ -1,0 +1,13 @@
+#LIA
+//-- State: i_x, i_resource, loc
+//-- Inputs: i_ntx
+guarantee {
+[loc  <- int0()];
+G ([loc  <- int0()] -> ([i_resource <- int4()] && X [loc  <- int2()]) || false);
+G ([loc  <- int1()] -> (((lt i_resource int0()) || ((gt i_resource int4()))) -> (X [loc  <- int3()]) || false) && ((! ((lt i_resource int0()) || ((gt i_resource int4()))) ) -> ([i_resource <- (sub i_resource int1())] && [i_x <- i_ntx] && X [loc  <- int2()]) || false));
+G ([loc  <- int2()] -> ((lte i_x int0()) -> (X [loc  <- int1()]) || false) && ((! (lte i_x int0()) ) -> (X [loc  <- int2()]) || ([i_x <- (add i_x int1())] && X [loc  <- int2()]) || ([i_x <- (sub i_x int1())] && X [loc  <- int2()]) || false));
+G ([loc  <- int3()] -> (X [loc  <- int3()]) || false);
+}
+
+guarantee { G F([loc  <- int1()] || false);}
+

@@ -1,0 +1,36 @@
+#LIA
+//-- State: floor, target
+//-- Inputs: signal
+
+assume {
+  eq target int0();
+  gte floor int1();
+  gte int10() floor;
+}
+
+always assume {
+  gte signal int0();
+  gte int10() signal;
+  !(eq target int0()) -> eq signal int0();
+}
+
+always guarantee {
+  gte floor int1(); /* INV */
+  gte int10() floor; /* INV */
+  !(eq signal int0()) && !(eq floor target) -> [target <- signal];
+  eq signal int0() && !(eq floor target) -> [target <- target];
+  eq floor target -> [target <- int0()];
+
+  [floor <- floor] || [floor <- add floor int1()] || [floor <- sub floor int1()];
+
+  eq target int1() -> F (eq floor int1());
+  eq target int2() -> F (eq floor int2());
+  eq target int3() -> F (eq floor int3());
+  eq target int4() -> F (eq floor int4());
+  eq target int5() -> F (eq floor int5());
+  eq target int6() -> F (eq floor int6());
+  eq target int7() -> F (eq floor int7());
+  eq target int8() -> F (eq floor int8());
+  eq target int9() -> F (eq floor int9());
+  eq target int10() -> F (eq floor int10());
+}

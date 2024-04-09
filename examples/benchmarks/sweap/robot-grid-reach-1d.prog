@@ -1,0 +1,40 @@
+program robot-cat-real-1d {
+    STATES {
+        setx: init, incx, decx, move, goal
+    }
+
+    ENVIRONMENT EVENTS {
+        einc
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 0;
+    }
+
+    TRANSITIONS {
+        setx -> incx [einc],
+        setx -> decx [!einc],
+
+        incx -> incx [einc $ x := x + 1;],
+        incx -> move [!einc],
+
+        decx -> decx [!einc $ x := x - 1;],
+        decx -> move [einc],
+
+        move -> goal [x == 0],
+        move -> move [x != 0 && (cinc <-> cdec)],
+        move -> move [x != 0 && !cinc && cdec $ x := x - 1],
+        move -> move [x != 0 && cinc && !cdec $ x := x + 1]
+    }
+
+    SPECIFICATION {
+        (F move) -> F goal
+    }
+}

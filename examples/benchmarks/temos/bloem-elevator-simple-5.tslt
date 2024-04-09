@@ -1,0 +1,17 @@
+//-- State: c_floor
+
+assume {
+  ge c_floor i1();
+  ge i5() c_floor;
+}
+
+always guarantee {
+  ge c_floor i1();
+  ge i5() c_floor;
+  [c_floor <- sub c_floor i1()] || [c_floor <- add c_floor i1()] || [c_floor <- c_floor];
+  F (eq c_floor i1());
+  F (eq c_floor i2());
+  F (eq c_floor i3());
+  F (eq c_floor i4());
+  F (eq c_floor i5());
+}

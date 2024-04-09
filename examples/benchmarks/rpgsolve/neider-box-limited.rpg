@@ -1,0 +1,37 @@
+type Safety
+
+input stax Bool
+input incx Bool
+
+output x Int
+output y Int
+
+loc i 1
+loc move0 1
+loc move1 1
+loc unsafe 0
+
+init i
+
+trans i
+    sys (((x 1) (y 1)) move0)
+
+trans move0
+    if (or (< x 0) (> x 2)) then unsafe else
+    sys (
+        ((x x) (y y)) move1
+        ((x x) (y (+ y 1))) move1
+        ((x x) (y (- y 1))) move1
+    )
+
+trans move1
+    if (or (< x 0) (> x 2)) then unsafe else
+    ; Following is the long version for
+    ; sys (((x (ite stax x (ite incx (+ x 1) (- x 1)))) (y y)) move0)
+    if stax 
+        then sys (((x x) (y y)) move0)
+    else if incx 
+        then sys (((x (+ x 1)) (y y)) move0)
+        else sys (((x (- x 1)) (y y)) move0)
+
+trans unsafe unsafe

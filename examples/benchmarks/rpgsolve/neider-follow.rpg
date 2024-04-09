@@ -1,0 +1,77 @@
+type Safety
+
+input stax Bool
+input stay Bool
+input incx Bool
+input incy Bool
+
+output x0 Int
+output y0 Int
+output x1 Int
+output y1 Int
+
+loc i 1
+loc move0 1
+loc move1 1
+loc unsafe 0
+
+init i
+
+trans i
+    sys (((x0 0) (y0 0) (x1 0) (y1 0)) move0)
+
+trans move0
+    ; This is just the manhatten distance, however some other tools don't support abs, i.e.:
+    ; if (> (+ (abs (- x0 x1)) (abs (- y0 y1))) 2) then unsafe else
+    if  (or 
+            (and (<= 0 (- x0 x1)) (<= 0 (- y0 y1)) (< 2 (+ (- x0 x1) (- y0 y1))))
+            (and (<= 0 (- x1 x0)) (<= 0 (- y0 y1)) (< 2 (+ (- x1 x0) (- y0 y1))))
+            (and (<= 0 (- x0 x1)) (<= 0 (- y1 y0)) (< 2 (+ (- x0 x1) (- y1 y0))))
+            (and (<= 0 (- x1 x0)) (<= 0 (- y1 y0)) (< 2 (+ (- x1 x0) (- y1 y0))))
+        )
+    then unsafe else
+    sys (
+        ((x0 x0) (y0 y0)) move1
+        ((x0 (+ x0 1)) (y0 y0)) move1
+        ((x0 (- x0 1)) (y0 y0)) move1
+        ((x0 x0) (y0 (+ y0 1))) move1
+        ((x0 (+ x0 1)) (y0 (+ y0 1))) move1
+        ((x0 (- x0 1)) (y0 (+ y0 1))) move1
+        ((x0 x0) (y0 (- y0 1))) move1
+        ((x0 (+ x0 1)) (y0 (- y0 1))) move1
+        ((x0 (- x0 1)) (y0 (- y0 1))) move1
+    )
+
+trans move1
+    ; if (> (+ (abs (- x0 x1)) (abs (- y0 y1))) 2) then unsafe else
+    if  (or 
+            (and (<= 0 (- x0 x1)) (<= 0 (- y0 y1)) (< 2 (+ (- x0 x1) (- y0 y1))))
+            (and (<= 0 (- x1 x0)) (<= 0 (- y0 y1)) (< 2 (+ (- x1 x0) (- y0 y1))))
+            (and (<= 0 (- x0 x1)) (<= 0 (- y1 y0)) (< 2 (+ (- x0 x1) (- y1 y0))))
+            (and (<= 0 (- x1 x0)) (<= 0 (- y1 y0)) (< 2 (+ (- x1 x0) (- y1 y0))))
+        )
+    then unsafe else
+    ; Following is the long version for 
+    ;sys ((
+    ;    (x1 (ite stax x1 (ite incx (+ x1 1) (- x1 1))))
+    ;    (y1 (ite stay y1 (ite incy (+ y1 1) (- y1 1))))
+    ;) move0)
+    if stax 
+    then if stay
+            then sys (((x1 x1) (y1 y1)) move0)
+         else if incy
+            then sys (((x1 x1) (y1 (+ y1 1))) move0)
+            else sys (((x1 x1) (y1 (- y1 1))) move0)
+    else if incx
+    then if stay
+            then sys (((x1 (+ x1 1)) (y1 y1)) move0)
+         else if incy
+            then sys (((x1 (+ x1 1)) (y1 (+ y1 1))) move0)
+            else sys (((x1 (+ x1 1)) (y1 (- y1 1))) move0)
+    else if stay
+            then sys (((x1 (- x1 1)) (y1 y1)) move0)
+         else if incy
+            then sys (((x1 (- x1 1)) (y1 (+ y1 1))) move0)
+            else sys (((x1 (- x1 1)) (y1 (- y1 1))) move0)
+
+trans unsafe unsafe

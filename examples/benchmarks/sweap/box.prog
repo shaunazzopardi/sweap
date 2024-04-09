@@ -1,0 +1,42 @@
+program box {
+    STATES {
+        move0: init, move1
+    }
+    ENVIRONMENT EVENTS {
+        stax, stay, incx, incy
+    }
+    CONTROLLER EVENTS {
+        incxc, decxc, incyc, decyc
+    }
+    PROGRAM EVENTS {
+
+    }
+    VALUATION {
+        x : integer := 1;
+        y : integer := 1;
+    }
+    TRANSITIONS {
+        move0 -> move1 [!decxc & !(((decyc | (!incyc & !decyc)) & incxc) | !incxc) $ x := (x + 1); y := (y + 1)],
+        move0 -> move1 [(decyc & !(!incyc | (incyc & (!decxc | (decxc & incxc))))) | (!(incyc | (!incyc & (!decxc | (decxc & incxc)))) & !decyc) $ x := (x - 1); y := y],
+        move0 -> move1 [!decxc & !(((!decyc | (incyc & decyc)) & incxc) | !incxc) $ x := (x + 1); y := (y - 1)],
+        move0 -> move1 [!decxc & !((!((!incyc & !decyc) | (incyc & decyc)) & incxc) | !incxc) $ x := (x + 1); y := y],
+        move0 -> move1 [(!decxc & !(((!decyc | (incyc & decyc)) & !incxc) | incxc)) | (decxc & !(((!decyc | (incyc & decyc)) & incxc) | !incxc)) $ y := (y - 1); x := x],
+        move0 -> move1 [(decxc & ((!incyc & !decyc) | (incyc & decyc)) & incxc) | (!decxc & !((!incyc & decyc) | (incyc & !decyc)) & !incxc) $ x := x; y := y],
+        move0 -> move1 [decxc & !(((!decyc | (incyc & decyc)) & !incxc) | incxc) $ y := (y - 1); x := (x - 1)],
+        move0 -> move1 [!decyc & !(!incyc | (incyc & (!decxc | (decxc & incxc)))) $ y := (y + 1); x := (x - 1)],
+        move0 -> move1 [(!(((decyc | (!incyc & !decyc)) & !incxc) | incxc) & !decxc) | (decxc & !(((decyc | (!incyc & !decyc)) & incxc) | !incxc)) $ y := (y + 1); x := x],
+        move1 -> move0 [!stax & !((!incx & (stay | (incy & !stay))) | incx) $ y := (y - 1); x := (x - 1)],
+        move1 -> move0 [!stax & !(!incx | ((stay | (incy & !stay)) & incx)) $ y := (y - 1); x := (x + 1)],
+        move1 -> move0 [stax & stay $ x := x; y := y],
+        move1 -> move0 [!(stax | (!stax & incx)) & stay $ x := (x - 1); y := y],
+        move1 -> move0 [stax & !(stay | (incy & !stay)) $ y := (y - 1); x := x],
+        move1 -> move0 [!stax & !(!incx | (!stay & incx)) $ x := (x + 1); y := y],
+        move1 -> move0 [!stax & !(!incx | ((stay | (!incy & !stay)) & incx)) $ y := (y + 1); x := (x + 1)],
+        move1 -> move0 [stax & !(stay | (!incy & !stay)) $ y := (y + 1); x := x],
+        move1 -> move0 [!stay & !(!incy | (incy & (stax | (!stax & incx)))) $ y := (y + 1); x := (x - 1)]
+    }
+
+    SPECIFICATION {
+        G !(x < 0 && x > 2)
+    }
+}

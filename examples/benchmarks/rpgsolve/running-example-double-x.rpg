@@ -1,0 +1,30 @@
+type Reach
+
+output x Int
+output y Int
+
+loc l0 0
+loc l1 0
+loc lB 0
+loc lG 1
+
+init l0
+
+trans l0
+    sys (((x 1)) l1
+         ((y (+ y 1))) l0
+        )  
+
+trans l1
+    if (= x 64) 
+        then lG
+        else 
+    if (<= y 0) 
+        then lB
+        else
+        sys (
+            ((x (* x 2)) (y (- y 1))) l1
+        )
+
+trans lB lB
+trans lG lG

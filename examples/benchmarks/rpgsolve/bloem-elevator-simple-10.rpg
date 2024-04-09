@@ -1,0 +1,75 @@
+type Buechi
+
+output floor BInt
+
+output v1 Bool
+output v2 Bool
+output v3 Bool
+output v4 Bool
+output v5 Bool
+output v6 Bool
+output v7 Bool
+output v8 Bool
+output v9 Bool
+output v10 Bool
+
+loc i 0
+loc reached 1
+loc move 0
+loc unsafe 0
+
+init i
+
+trans i sys (((floor 1)) reached)
+
+trans reached 
+    sys (((v1 false) (v2 false) (v3 false) (v4 false) (v5 false) 
+          (v6 false) (v7 false) (v8 false) (v9 false) (v10 false)) 
+         move)
+
+trans move
+      if (and v1 v2 v3 v4 v5 v6 v7 v8 v9 v10) 
+        then reached
+ else if (= floor 1) then 
+    sys (((v1 true) (floor floor)) move
+         ((v1 true) (floor (+ floor 1))) move)
+ else if (= floor 10) then 
+    sys (((v10 true) (floor floor)) move
+         ((v10 true) (floor (- floor 1))) move)
+ else if (= floor 2) then 
+    sys (((v2 true) (floor floor)) move
+         ((v2 true) (floor (+ floor 1))) move
+         ((v2 true) (floor (- floor 1))) move)
+ else if (= floor 3) then 
+    sys (((v3 true) (floor floor)) move
+         ((v3 true) (floor (+ floor 1))) move
+         ((v3 true) (floor (- floor 1))) move)
+ else if (= floor 4) then 
+    sys (((v4 true) (floor floor)) move
+         ((v4 true) (floor (+ floor 1))) move
+         ((v4 true) (floor (- floor 1))) move)
+ else if (= floor 5) then 
+    sys (((v5 true) (floor floor)) move
+         ((v5 true) (floor (+ floor 1))) move
+         ((v5 true) (floor (- floor 1))) move)
+ else if (= floor 6) then 
+    sys (((v6 true) (floor floor)) move
+         ((v6 true) (floor (+ floor 1))) move
+         ((v6 true) (floor (- floor 1))) move)
+ else if (= floor 7) then 
+    sys (((v7 true) (floor floor)) move
+         ((v7 true) (floor (+ floor 1))) move
+         ((v7 true) (floor (- floor 1))) move)
+ else if (= floor 8) then 
+    sys (((v8 true) (floor floor)) move
+         ((v8 true) (floor (+ floor 1))) move
+         ((v8 true) (floor (- floor 1))) move)
+ else if (= floor 9) then 
+    sys (((v9 true) (floor floor)) move
+         ((v9 true) (floor (+ floor 1))) move
+         ((v9 true) (floor (- floor 1))) move)
+ else 
+    unsafe
+
+trans unsafe unsafe
+

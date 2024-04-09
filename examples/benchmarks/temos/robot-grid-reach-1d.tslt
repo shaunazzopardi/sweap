@@ -1,0 +1,10 @@
+//-- State: i_x, loc
+
+guarantee {
+[loc  <- i0()];
+G ([loc  <- i0()] -> ((eq i_x i0()) -> (X [loc  <- i1()]) || false) && ((! (eq i_x i0()) ) -> (X [loc  <- i0()]) || ([i_x <- (add i_x i1())] && X [loc  <- i0()]) || ([i_x <- (sub i_x i1())] && X [loc  <- i0()]) || false));
+G ([loc  <- i1()] -> (X [loc  <- i1()]) || false);
+}
+
+guarantee { F([loc  <- i1()] || false);}
+

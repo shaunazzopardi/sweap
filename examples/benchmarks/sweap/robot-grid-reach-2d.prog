@@ -1,0 +1,52 @@
+program robot-cat-real-1d {
+    STATES {
+        setx: init, incx, decx, sety, incy, decy, move, goal
+    }
+
+    ENVIRONMENT EVENTS {
+        einc
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec, xory
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : integer := 0;
+        y : integer := 0;
+    }
+
+    TRANSITIONS {
+        setx -> incx [einc],
+        setx -> decx [!einc],
+
+        incx -> incx [einc $ y := y + 1;],
+        incx -> sety [!einc],
+
+        decx -> decx [!einc $ y := y - 1;],
+        decx -> sety [einc],
+
+        sety -> incy [einc],
+        sety -> decy [!einc],
+
+        incx -> incy [einc $ y := y + 1;],
+        incx -> move [!einc],
+
+        decy -> decy [!einc $ y := y - 1;],
+        decy -> move [einc],
+
+        move -> goal [x == 0],
+        move -> move [x != 0 && (cinc <-> cdec)],
+        move -> move [x != 0 && !cinc && cdec && xory $ x := x - 1],
+        move -> move [x != 0 && cinc && !cdec && xory  $ x := x + 1],
+        move -> move [x != 0 && !cinc && cdec && !xory $ y := y - 1],
+        move -> move [x != 0 && cinc && !cdec && !xory  $ y := y + 1]
+    }
+
+    SPECIFICATION {
+        (F move) -> F goal
+    }
+}

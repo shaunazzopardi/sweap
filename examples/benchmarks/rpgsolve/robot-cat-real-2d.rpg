@@ -1,0 +1,47 @@
+type Reach
+
+input stay Bool
+input selx Bool
+input inc  Bool
+
+output rx Int
+output ry Int
+output ox Int
+output oy Int
+
+loc i 0
+loc mover 0
+loc moveo 0
+loc goal 1
+loc fail 0
+
+init i
+
+trans i 
+    ; assert initial location condition
+    if (or (and (< rx ox) (>= rx 0) (< ry oy) (>= ry 0)) 
+           (and (> rx ox) (<= rx 0) (> ry oy) (<= ry 0))
+       ) then mover else goal
+
+trans mover
+    if (and (= rx ox) (= ry oy)) then fail else 
+    if (and (= rx 0) (= ry 0)) then goal else
+    sys(
+        ((rx rx)) moveo
+        ((rx (+ rx 1))) moveo
+        ((rx (- rx 1))) moveo
+        ((ry (+ ry 1))) moveo
+        ((ry (- ry 1))) moveo
+    )
+
+trans moveo
+    if stay then sys (((ox ox)) mover) else
+    if selx then
+    if inc  then sys (((ox (+ ox 1))) mover)
+            else sys (((ox (- ox 1))) mover)
+    else 
+    if inc  then sys (((oy (+ oy 1))) mover)
+            else sys (((oy (- oy 1))) mover)
+ 
+trans goal goal
+trans fail fail

@@ -1,0 +1,40 @@
+type Buechi 
+
+output x Int
+output y Int
+
+input i Int
+
+loc l0 0
+loc l1 0
+loc l2 1
+loc l3 1
+loc l4 0
+
+init l0
+
+trans l0
+    sys (
+        ((x i)) l1
+        ((y (- y 1))) l3
+    )
+
+trans l1 
+     if (or (<= x 42) (= i 0)) then l2
+else if (> y 32) 
+then sys (((x (+ x i))) l1)
+else sys (
+            ((x (+ x i))) l1
+            ((x (- x i))) l1
+        )
+
+trans l2 
+    sys (((y 64)) l0)
+
+trans l3
+    if (>= y 16)
+        then l0
+        else l4
+
+
+trans l4 l4

@@ -1,0 +1,56 @@
+program fig2heim {
+    STATES {
+        setrx : init, setry, setox, setoy, i, mover, moveo, goal, fail
+    }
+
+    ENVIRONMENT EVENTS {
+        stay, selx, inc
+    }
+
+    CONTROLLER EVENTS {
+        cx, cinc, cdec
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        rx : integer := 0;
+        ry : integer := 0;
+        ox : integer := 0;
+        oy : integer := 0;
+    }
+
+    TRANSITIONS {
+        setrx -> setrx [inc && !stay $ rx := rx + 1],
+        setrx -> setrx [inc && stay $ rx := rx - 1],
+        setrx -> setox [!inc && !stay],
+        setox -> setox [inc && !stay $ ox := ox + 1],
+        setox -> setox [inc && stay $ ox := ox - 1],
+        setox -> setry [!inc && !stay],
+
+        setry -> setry [inc && !stay $ ry := ry + 1],
+        setry -> setry [inc && stay $ ry := ry - 1],
+        setry -> setoy [!inc && !stay],
+        setoy -> setoy [inc && !stay $ oy := oy + 1],
+        setoy -> setoy [inc && stay $ oy := oy - 1],
+        setoy -> i [!inc && !stay],
+        i -> mover [],
+        mover -> fail [rx == ox && ry == oy],
+        mover -> goal [!(rx == ox) && !(ry == oy) && ry == 0 && rx == 0],
+        mover -> moveo [!(rx == ox) && !(ry == oy) && !(ry == 0) && !(rx == 0) && (cinc <-> cdec)],
+        mover -> moveo [!(rx == ox) && !(ry == oy) && !(ry == 0) && !(rx == 0) && cx && !cinc && cdec $ rx := rx - 1],
+        mover -> moveo [!(rx == ox) && !(ry == oy) && !(ry == 0) && !(rx == 0) && !cx && !cinc && cdec $ ry := ry - 1],
+        mover -> moveo [!(rx == ox) && !(ry == oy) && !(ry == 0) && !(rx == 0) && cx && cinc && !cdec $ rx := rx + 1],
+        mover -> moveo [!(rx == ox) && !(ry == oy) && !(ry == 0) && !(rx == 0) && !cx && cinc && !cdec $ ry := ry + 1],
+        moveo -> mover [stay],
+        moveo -> mover [selx && inc && !stay $ ox := ox + 1],
+        moveo -> moveo [selx && !inc && !stay $ ox := ox - 1],
+        moveo -> mover [!selx && inc && !stay $ oy := oy + 1],
+        moveo -> moveo [!selx && !inc && !stay $ oy := oy - 1]
+    }
+
+    SPECIFICATION {
+        F i -> F goal
+    }
+}

@@ -1,0 +1,11 @@
+//-- State: i_y, i_x, i_ty, i_tx, loc
+//-- Inputs: i_nty, i_ntx
+guarantee {
+[loc  <- i0()];
+G ([loc  <- i0()] -> (((eq i_x i0()) && ((eq i_y i0()))) -> (X [loc  <- i2()]) || false) && ((! ((eq i_x i0()) && ((eq i_y i0()))) ) -> (X [loc  <- i0()]) || ([i_x <- (add i_x i1())] && X [loc  <- i0()]) || ([i_x <- (sub i_x i1())] && X [loc  <- i0()]) || ([i_y <- (add i_y i1())] && X [loc  <- i0()]) || ([i_y <- (sub i_y i1())] && X [loc  <- i0()]) || false));
+G ([loc  <- i1()] -> (((eq i_x i_tx) && ((eq i_y i_ty))) -> (X [loc  <- i2()]) || false) && ((! ((eq i_x i_tx) && ((eq i_y i_ty))) ) -> (X [loc  <- i1()]) || ([i_x <- (add i_x i1())] && X [loc  <- i1()]) || ([i_x <- (sub i_x i1())] && X [loc  <- i1()]) || ([i_y <- (add i_y i1())] && X [loc  <- i1()]) || ([i_y <- (sub i_y i1())] && X [loc  <- i1()]) || false));
+G ([loc  <- i2()] -> (((eq i_x i0()) && ((eq i_y i0()))) -> ([i_tx <- i_ntx] && [i_ty <- i_nty] && X [loc  <- i1()]) || false) && ((! ((eq i_x i0()) && ((eq i_y i0()))) ) -> (X [loc  <- i0()]) || false));
+}
+
+guarantee { G F([loc  <- i2()] || false);}
+
