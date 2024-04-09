@@ -189,6 +189,10 @@ def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None) 
 def is_tautology(formula: Formula, symbol_table: dict = None) -> bool:
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
+    else:
+        for v in formula.variablesin():
+            if str(v) not in symbol_table.keys():
+                symbol_table[str(v)] = TypedValuation(str(v), "bool", None)
     return not check(And(*neg(formula).to_smt(symbol_table)))
 
 
