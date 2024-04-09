@@ -1,3 +1,4 @@
+#LIA
 //-- State: i_y, i_x, i_resource, loc
 //-- Inputs: i_nty, i_ntx
 guarantee {

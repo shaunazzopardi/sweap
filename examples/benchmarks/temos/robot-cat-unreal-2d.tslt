@@ -1,3 +1,4 @@
+#LIA
 //-- State: i_oy, i_ox, i_ry, i_rx, loc
 //-- Inputs: i_inc, i_selx, i_stay
 guarantee {
