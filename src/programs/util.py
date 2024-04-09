@@ -33,6 +33,7 @@ def symbol_table_from_program(program):
     for t_val in program.valuation:
         symbol_table[t_val.name] = t_val
         symbol_table[t_val.name + "_prev"] = TypedValuation(t_val.name + "_prev", t_val.type, None)
+        symbol_table[t_val.name + "_prev" + "_prev"] = TypedValuation(t_val.name + "_prev" + "_prev", t_val.type, None)
     return symbol_table
 
 
