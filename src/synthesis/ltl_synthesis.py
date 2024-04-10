@@ -75,7 +75,7 @@ def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem,
                            env_props,
                            con_props,
                            {})
-        mon.add_transitions(trans)
+        mon.add_transitions(trans, abstraction.get_symbol_table())
         return mon
 
     if not env_con_separate:
