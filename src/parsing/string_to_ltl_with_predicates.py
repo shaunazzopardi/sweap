@@ -116,6 +116,8 @@ def tuple_to_formula(node) -> Formula:
             print("None")
         if node[1] in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "!="]:
             return MathExpr(BiOp((node[0]), node[1], (node[2])))
+        elif node[0] == "(" and node[2] == ")":
+            return node[1]
         else:
             return BiOp((node[0]), node[1], (node[2]))
     else:
