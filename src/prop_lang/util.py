@@ -669,6 +669,26 @@ def negate(formula):
         return UniOp("!", formula).simplify()
 
 
+def resolve_implications(formula):
+    if isinstance(formula, UniOp):
+        if formula.op == "!":
+            return UniOp("!", resolve_implications(formula.right))
+        else:
+            return UniOp(formula.op, resolve_implications(formula.right))
+    elif isinstance(formula, BiOp):
+        if formula.op == "->" or formula.op == "=>":
+            return BiOp(neg(resolve_implications(formula.left)), "|", resolve_implications(formula.right))
+        elif formula.op == "<->" or formula.op == "<=>":
+            return BiOp(BiOp(neg(resolve_implications(formula.left)), "|", resolve_implications(formula.right)), "&",
+                        BiOp((resolve_implications(formula.left)), "|", neg(resolve_implications(formula.right))))
+        else:
+            return BiOp(resolve_implications(formula.left), formula.op, resolve_implications(formula.right))
+    elif isinstance(formula, MathExpr):
+        return MathExpr((formula.formula))
+    else:
+        return formula
+
+
 def keep_only_vars(formula, vars_to_keep, make_program_choices_explicit=False):
     to_project_out = [v for v in formula.variablesin() if v not in vars_to_keep]
     return project_out_vars_int(propagate_negations(formula), to_project_out, True, make_program_choices_explicit)

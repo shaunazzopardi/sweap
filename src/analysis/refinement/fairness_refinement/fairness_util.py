@@ -15,7 +15,7 @@ from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars
 from prop_lang.biop import BiOp
-from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true
+from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true, resolve_implications
 from synthesis.mealy_machine import MealyMachine
 
 
@@ -153,6 +153,7 @@ def liveness_step(program,
     irrelevant_vars = [v for v in program.local_vars if v not in vars_relevant_to_exit]
     irrelevant_vars += program.env_events
     irrelevant_vars += program.con_events
+    irrelevant_vars += [v for v in program.local_vars if any(tv for tv in program.valuation if str(v) == tv.name and tv.type.lower().startswith("bool"))]
 
     init_valuation = concrete_body[0][1] | concrete_body[0][2]
     # remove booleans from loop
@@ -168,7 +169,7 @@ def liveness_step(program,
                               exit_cond,
                               init_valuation, irrelevant_vars, symbol_table)
      .simplify())
-
+    exit_cond = resolve_implications(exit_cond).simplify().to_nuxmv()
 
     # heuristical search for sufficient weaker precondition for termination
     sufficient_weaker_precondition = None
