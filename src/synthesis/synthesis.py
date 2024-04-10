@@ -261,16 +261,17 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             for state_pred in to_add_rankings_for:
                 if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
                     result = ranking_from_predicate(state_pred)
-                    if result == None: continue
+                    if result is None: continue
                     f, invar = result
                     rankings.append(ranking_refinement_both_sides(f, [invar]))
             add_tran_preds_immediately = False
 
-            for (tran_pr, invars), constraints in rankings:
-                new_tran_preds.update(tran_pr)
-                new_state_preds.update(invars)
-                new_ltl_constraints.update(constraints)
-            to_add_rankings_for.clear()
+        for (tran_pr, invars), constraints in rankings:
+            new_tran_preds.update(tran_pr)
+            new_state_preds.update(invars)
+            new_ltl_constraints.update(constraints)
+        rankings.clear()
+        to_add_rankings_for.clear()
 
         new_state_preds = {strip_outer_mathexpr(p) for p in new_state_preds}
         new_state_preds = {p for p in new_state_preds if p not in predicate_abstraction.state_predicates}
