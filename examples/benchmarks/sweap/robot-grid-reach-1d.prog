@@ -1,14 +1,14 @@
 program robot-cat-real-1d {
     STATES {
-        setx: init, incx, decx, move, goal
+        setvars: init, move, goal
     }
 
     ENVIRONMENT EVENTS {
-        einc
+        einc, estay
     }
 
     CONTROLLER EVENTS {
-        cinc, cdec
+        cinc, cstay
     }
 
     PROGRAM EVENTS {
@@ -19,19 +19,18 @@ program robot-cat-real-1d {
     }
 
     TRANSITIONS {
-        setx -> incx [einc],
-        setx -> decx [!einc],
-
-        incx -> incx [einc $ x := x + 1;],
-        incx -> move [!einc],
-
-        decx -> decx [!einc $ x := x - 1;],
-        decx -> move [einc],
+        setvars -> setvars [estay $
+                                x := x + 1 if einc;
+                                x := x - 1 if !einc;
+                              ],
+        setvars -> move [!estay],
 
         move -> goal [x == 0],
-        move -> move [x != 0 && (cinc <-> cdec)],
-        move -> move [x != 0 && !cinc && cdec $ x := x - 1],
-        move -> move [x != 0 && cinc && !cdec $ x := x + 1]
+        move -> move [x != 0 && !cstay],
+        move -> move [x != 0 && cstay $
+                                x := x + 1 if cinc;
+                                x := x - 1 if !cinc;
+                                ]
     }
 
     SPECIFICATION {

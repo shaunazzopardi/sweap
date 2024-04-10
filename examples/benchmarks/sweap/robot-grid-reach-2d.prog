@@ -1,14 +1,14 @@
-program robot-cat-real-1d {
+program robot-cat-real-2d {
     STATES {
-        setx: init, incx, decx, sety, incy, decy, move, goal
+        setvars: init, move, goal
     }
 
     ENVIRONMENT EVENTS {
-        einc
+        einc, exory, estay
     }
 
     CONTROLLER EVENTS {
-        cinc, cdec, xory
+        cinc, xory, cstay
     }
 
     PROGRAM EVENTS {
@@ -20,30 +20,22 @@ program robot-cat-real-1d {
     }
 
     TRANSITIONS {
-        setx -> incx [einc],
-        setx -> decx [!einc],
+        setvars -> setvars [estay $
+                                x := x + 1 if einc & exory;
+                                x := x - 1 if !einc & exory;
+                                y := y + 1 if einc & !exory;
+                                y := y - 1 if !einc & !exory;
+                              ],
+        setvars -> move [!estay],
 
-        incx -> incx [einc $ y := y + 1;],
-        incx -> sety [!einc],
-
-        decx -> decx [!einc $ y := y - 1;],
-        decx -> sety [einc],
-
-        sety -> incy [einc],
-        sety -> decy [!einc],
-
-        incx -> incy [einc $ y := y + 1;],
-        incx -> move [!einc],
-
-        decy -> decy [!einc $ y := y - 1;],
-        decy -> move [einc],
-
-        move -> goal [x == 0],
-        move -> move [x != 0 && (cinc <-> cdec)],
-        move -> move [x != 0 && !cinc && cdec && xory $ x := x - 1],
-        move -> move [x != 0 && cinc && !cdec && xory  $ x := x + 1],
-        move -> move [x != 0 && !cinc && cdec && !xory $ y := y - 1],
-        move -> move [x != 0 && cinc && !cdec && !xory  $ y := y + 1]
+        move -> goal [x == 0 && y == 0],
+        move -> move [(x != 0 || y != 0) && !cstay],
+        move -> move [(x != 0 || y != 0) && cstay $
+                                x := x + 1 if cinc & xory;
+                                x := x - 1 if !cinc & xory;
+                                y := y + 1 if cinc & !xory;
+                                y := y - 1 if !cinc & !xory;
+                                ]
     }
 
     SPECIFICATION {
