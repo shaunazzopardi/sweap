@@ -4,7 +4,8 @@ import subprocess
 import time
 from tempfile import NamedTemporaryFile
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
-
+from shutil import which
+from pathlib import Path
 
 class Ranker:
 
@@ -15,14 +16,14 @@ class Ranker:
 
             try:
                 start = time.time()
-
-                cmd = "docker run -v " + tmp.name + ":/workdir/prog.c" + " --entrypoint /bin/bash cpachecker -c " + \
-                      ('"(rm -r -f ./output); (/cpachecker/scripts/cpa.sh  -preprocess -terminationAnalysis ' +
-                       ('-benchmark -heap 1024M ' if only_check_for_termination else '') +
-                       '/workdir/prog.c -spec /cpachecker/config/properties/termination.prp ') +\
-                      '&& cat output/terminationAnalysisResult.txt)"'
+                cpa_path = Path(which("cpa.sh")).resolve().parent
+                bench = ('-benchmark -heap 1024M ' if only_check_for_termination else '')
+                cmd = (
+                    f"cpa.sh  -preprocess -terminationAnalysis {bench} "
+                    f'{tmp.name} -spec {cpa_path}/../config/properties/termination.prp'
+                )
+                
                 out = subprocess.getstatusoutput(cmd)
-
                 logging.info("cpachecker took " + str(time.time() - start))
                 out = str(out)
                 if "Verification result: UNKNOWN" in out:
