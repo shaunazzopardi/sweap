@@ -3,11 +3,10 @@
 //-- Inputs: signal
 
 assume {
-  eq iint0() q;
+  eq int0() q;
 }
 
 always assume {
-    not (eq q iint0()) -> ((eq cnt env_cnt) && (eq env_room room));
     (eq room int0()) || (eq room int1())
 }
 
