@@ -19,7 +19,7 @@ program xyloop {
     }
 
     TRANSITIONS {
-        envy -> envy [ y := y + 1],
+        envy -> envy [$ y := y + 1],
         envy -> envx [!inc],
         envx -> envx [inc $ x := x + 1],
         envx -> con [!inc],

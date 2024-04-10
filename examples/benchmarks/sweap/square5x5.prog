@@ -21,17 +21,17 @@ program square5x5 {
 
     TRANSITIONS {
         move0 -> move1 [$
-                     x := x + 1 if incx && !decx;
-                     x := x - 1 if !incx && decx;
-                     y := y + 1 if incy && !decy;
-                     y := y - 1 if !incy && decy;
+                     x := x + 1 if incxc && !decxc;
+                     x := x - 1 if !incxc && decxc;
+                     y := y + 1 if incyc && !decyc;
+                     y := y - 1 if !incyc && decyc;
                      ],
         move1 -> move0 [$
                      x := x + 1 if incxe && !decxe;
                      x := x - 1 if !incxe && decxe;
                      y := y + 1 if incye && !decye;
                      y := y - 1 if !incye && decye;
-                     ],
+                     ]
         }
 
     SPECIFICATION {
