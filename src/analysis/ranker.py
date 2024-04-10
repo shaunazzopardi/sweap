@@ -5,10 +5,6 @@ import time
 from tempfile import NamedTemporaryFile
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 
-import docker
-
-client = docker.from_env()
-
 
 class Ranker:
 
@@ -19,14 +15,14 @@ class Ranker:
 
             try:
                 start = time.time()
-                cmd = [
-                    f'(/cpachecker/scripts/cpa.sh -preprocess -terminationAnalysis /workdir/prog.c -spec '
-                    '/cpachecker/config/properties/termination.prp && cat output/terminationAnalysisResult.txt)']
 
-                img = "registry.gitlab.com/sosy-lab/software/cpachecker:latest"
-                out = client.containers.run(img, command=cmd, entrypoint=["/bin/bash", "-c"],
-                                            volumes={tmp.name: {'bind': '/workdir/prog.c', 'mode': 'rw'}},
-                                            remove=True, stdout=True, stderr=True).decode('utf-8')
+                cmd = "docker run -v " + tmp.name + ":/workdir/prog.c" + " --entrypoint /bin/bash cpachecker -c " + \
+                      ('"(rm -r -f ./output); (/cpachecker/scripts/cpa.sh  -preprocess -terminationAnalysis ' +
+                       ('-benchmark -heap 1024M ' if only_check_for_termination else '') +
+                       '/workdir/prog.c -spec /cpachecker/config/properties/termination.prp ') +\
+                      '&& cat output/terminationAnalysisResult.txt)"'
+                out = subprocess.getstatusoutput(cmd)
+
                 logging.info("cpachecker took " + str(time.time() - start))
                 out = str(out)
                 if "Verification result: UNKNOWN" in out:
