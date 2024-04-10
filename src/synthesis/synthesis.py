@@ -7,7 +7,7 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import Effects
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
 from analysis.compatibility_checking.compatibility_checking import compatibility_checking
-from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement
+from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement, ranking_refinement_both_sides
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
@@ -209,30 +209,29 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_tran_preds = set()
     new_ltl_constraints = set()
 
-    # for tv in program.valuation:
-    #     if tv.type.lower().startswith("bool"):
-    #         continue
-    #     if tv.type.lower().startswith("int"):
-    #         ranking_bot = Variable(tv.name)
-    #         invars_bot = [BiOp(ranking_bot, ">=", 0)]
-    #         rankings += [ranking_refinement(ranking_bot, invars_bot)]
-    #
-    #         ranking_top = BiOp(Value("1"), "-", Variable(tv.name))
-    #         invars_top = [BiOp(ranking_top, ">=", 0)]
-    #         rankings += [ranking_refinement(ranking_top, invars_top)]
-    #     elif tv.type.lower().startswith("nat"):
-    #         ranking = Variable(tv.name)
-    #         invars = []
-    #         rankings += [ranking_refinement(ranking, invars)]
-    #     elif ".." in tv.type:
-    #         ranking_bot = Variable(tv.name)
-    #         invars_bot = []
-    #         rankings += [ranking_refinement(ranking_bot, invars_bot)]
-    #
-    #         ranking_top = BiOp(Value("1"), "-", Variable(tv.name))
-    #         invars_top = []
-    #         rankings += [ranking_refinement(ranking_top, invars_top)]
+    rankings = []
+    for tv in program.valuation:
+        if tv.type.lower().startswith("bool"):
+            continue
+        if tv.type.lower().startswith("int"):
+            ranking = Variable(tv.name)
+            pos_rk = BiOp(ranking, ">=", Value("0"))
+            neg_rk = BiOp(ranking, "<=", Value("0"))
+            invars_top = [neg_rk]
+            invars_bot = [pos_rk]
+            rankings += [ranking_refinement_both_sides(ranking, invars_bot, invars_top)]
+        elif tv.type.lower().startswith("nat"):
+            ranking = Variable(tv.name)
+            invars = []
+            rankings += [ranking_refinement(ranking, invars)]
+        elif ".." in tv.type:
+            ranking_bot = Variable(tv.name)
+            invars_bot = []
+            rankings += [ranking_refinement(ranking_bot, invars_bot)]
 
+            ranking_top = BiOp(Value("0"), "-", Variable(tv.name))
+            invars_top = []
+            rankings += [ranking_refinement(ranking_top, invars_top)]
 
     loop_counter = 0
 
@@ -253,7 +252,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                ltl_guarantees)
 
     print("Starting abstract synthesis loop.")
-    rankings = []
 
     to_add_rankings_for = [s for s in new_state_preds]
     while True:
@@ -264,7 +262,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     result = ranking_from_predicate(state_pred)
                     if result == None: continue
                     f, invar = result
-                    rankings.append(ranking_refinement(f, [invar]))
+                    rankings.append(ranking_refinement_both_sides(f, [invar]))
 
             for (tran_pr, invars), constraints in rankings:
                 new_tran_preds.update(tran_pr)
