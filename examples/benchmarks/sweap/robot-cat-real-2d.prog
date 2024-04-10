@@ -1,14 +1,14 @@
-program robot-cat-real-1d {
+program robot-cat-real-2d {
     STATES {
-        setrx : init, setry, setox, setoy, i, mover, moveo, goal, fail
+        setxvars : init, setyvars, i, mover, goal, fail
     }
 
     ENVIRONMENT EVENTS {
-        stay, inc, xory
+        stay, inc, toggle
     }
 
     CONTROLLER EVENTS {
-        cinc, cxory, cstay
+        cinc, cdec, ctoggle
     }
 
     PROGRAM EVENTS {
@@ -22,36 +22,36 @@ program robot-cat-real-1d {
     }
 
     TRANSITIONS {
-        setrx -> setrx [inc & stay $ rx := rx + 1;],
-        setrx -> setrx [!inc & stay $ rx := rx - 1;],
-        setrx -> setry [!stay],
-
-        setry -> setry [inc & stay $ ry := ry + 1;],
-        setry -> setry [!inc & stay $ ry := ry - 1;],
-        setry -> setox [!stay],
-
-        setox -> setox [inc & stay $ ox := ox + 1;],
-        setox -> setox [!inc & stay $ ox := ox - 1;],
-        setox -> setoy [!stay],
-
-        setoy -> setoy [inc & stay $ oy := oy + 1;],
-        setoy -> setoy [!inc & stay $ oy := oy - 1;],
-        setoy -> i [!stay],
+        setxvars -> setxvars [stay $
+                                rx := rx + 1 if toggle & inc;
+                                rx := rx - 1 if toggle & !inc;
+                                ox := ox + 1 if !toggle & inc;
+                                ox := ox - 1 if !toggle & !inc;
+                            ],
+        setxvars -> setyvars [!stay],
+        setyvars -> setyvars [stay $
+                                ry := ry + 1 if toggle & inc;
+                                ry := ry - 1 if toggle & !inc;
+                                oy := oy + 1 if !toggle & inc;
+                                oy := oy - 1 if !toggle & !inc;
+                            ],
+        setyvars -> i [!stay],
 
         i -> mover [(rx < ox && rx >= 0 && ry < oy && ry >= 0) || (rx > ox && rx <= 0 && ry > oy && ry <= 0)],
         i -> goal [!((rx < ox && rx >= 0 && ry < oy && ry >= 0) || (rx > ox && rx <= 0 && ry > oy && ry <= 0))],
-        mover -> mover [rx == ox && ry == oy],
+        mover -> fail [rx == ox && ry == oy],
         mover -> goal [!(rx == ox && ry == oy) && rx == 0 && ry == 0],
-        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && !cstay],
-        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && cinc && cxory $ rx := rx + 1],
-        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && cinc && !cxory $ ry := ry + 1],
-        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && !cinc && cxory $ rx := rx - 1],
-        mover -> moveo [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0) && cstay && !cinc && !cxory $ ry := ry - 1],
-        moveo -> mover [!cstay],
-        moveo -> mover [!inc && xory && cstay $ ox := ox - 1],
-        moveo -> mover [!inc && !xory && cstay $ oy := oy - 1],
-        moveo -> mover [inc && xory && cstay $ ox := ox + 1],
-        moveo -> mover [inc && !xory && cstay $ oy := oy + 1]
+        mover -> mover [!(rx == ox && ry == oy) && !(rx == 0 && ry == 0)
+                        $
+                            rx := rx + 1 if cinc && !cdec && ctoggle;
+                            rx := rx - 1 if !cinc && cdec && ctoggle;
+                            ry := ry + 1 if cinc && !cdec && !ctoggle;
+                            ry := ry - 1 if !cinc && cdec && !ctoggle;
+                            ox := ox + 1 if inc && toggle;
+                            ox := ox - 1 if !inc && toggle;
+                            oy := oy + 1 if inc && !toggle;
+                            oy := oy - 1 if !inc && !toggle;
+                        ]
     }
 
     SPECIFICATION {

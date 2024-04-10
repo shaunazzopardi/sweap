@@ -22,17 +22,21 @@ program elevator {
     }
 
     TRANSITIONS {
-        q0 -> q0 [inc && !start && xory $ target_x := target_x + 1;],
-        q0 -> q0 [inc && !start && !xory $ target_y := target_y + 1;],
-        q0 -> q0 [!inc && !start && xory $ target_x := target_x - 1;],
-        q0 -> q0 [!inc && !start && !xory $ target_y := target_y - 1;],
+        q0 -> q0 [!start $
+                        target_x := target_x + 1 if xory && inc;
+                        target_x := target_x - 1 if xory && !inc;
+                        target_y := target_y + 1 if !xory && inc;
+                        target_y := target_y - 1 if !xory && !inc;
+                        ],
         q0 -> q1 [start],
         q1 -> q0 [(car_x == target_x) && (car_y == target_y) $],
         q1 -> q1 [((cinc <-> cdec) || obstacle) && !((car_x == target_x) && (car_y == target_y)) $],
-        q1 -> q1 [cinc & !cdec && cxory && !obstacle && !((car_x == target_x) && (car_y == target_y)) $ car_x := car_x + 1],
-        q1 -> q1 [!cinc & cdec && cxory && !obstacle && !((car_x == target_x) && (car_y == target_y)) $ car_x := car_x - 1],
-        q1 -> q1 [cinc & !cdec && !cxory && !obstacle && !((car_x == target_x) && (car_y == target_y)) $ car_y := car_y + 1],
-        q1 -> q1 [!cinc & cdec && !cxory && !obstacle && !((car_x == target_x) && (car_y == target_y)) $ car_y := car_y - 1]
+        q1 -> q1 [!obstacle && !((car_x == target_x) && (car_y == target_y)) $
+                         car_x := car_x + 1 if cinc & !cdec && cxory;
+                         car_x := car_x - 1 if !cinc & !cdec && cxory;
+                         car_y := car_y + 1 if cinc & !cdec && !cxory;
+                         car_y := car_y - 1 if !cinc & !cdec && !cxory;
+        ]
     }
 
     SPECIFICATION{

@@ -1,10 +1,10 @@
 program robot-cat-real-1d {
     STATES {
-        setrx : init, incrx, decrx, setox, i, mover, moveo, goal, fail
+        setvars : init, i, mover, goal, fail
     }
 
     ENVIRONMENT EVENTS {
-        stay, inc
+        stay, inc, rxorox
     }
 
     CONTROLLER EVENTS {
@@ -20,29 +20,25 @@ program robot-cat-real-1d {
     }
 
     TRANSITIONS {
-        setrx -> incrx [inc],
-        setrx -> decrx [!inc],
-
-        incrx -> incrx [inc $ rx := rx + 1; ox := ox + 1],
-        incrx -> setox [!inc],
-
-        decrx -> decrx [!inc $ rx := rx - 1; ox := ox - 1],
-        decrx -> setox [inc],
-
-        setox -> setox [inc & stay $ ox := ox + 1],
-        setox -> setox [!inc & stay $ ox := ox - 1],
-        setox -> i [!stay],
+        setvars -> setvars [stay $
+                                rx := rx + 1 if rxorox & inc;
+                                rx := rx - 1 if rxorox & !inc;
+                                ox := ox + 1 if !rxorox & inc;
+                                ox := ox - 1 if !rxorox & !inc;
+                            ],
+        setvars -> i [!stay],
 
         i -> mover [(rx < ox && rx >= 0) || (rx > ox && rx <= 0)],
         i -> goal [!((rx < ox && rx >= 0) || (rx > ox && rx <= 0))],
-        mover -> mover [!(rx < ox || rx > ox)],
-        mover -> goal [(rx < ox || rx > ox) && !(rx > 0 || rx < 0)],
-        mover -> moveo [(rx < ox || rx > ox) && (rx > 0 || rx < 0) && (cinc <-> cdec)],
-        mover -> moveo [(rx < ox || rx > ox) && (rx > 0 || rx < 0) && !cinc && cdec $ rx := rx - 1],
-        mover -> moveo [(rx < ox || rx > ox) && (rx > 0 || rx < 0) && cinc && !cdec $ rx := rx + 1],
-        moveo -> mover [stay],
-        moveo -> mover [!inc && !stay $ ox := ox - 1],
-        moveo -> mover [inc && !stay $ ox := ox + 1]
+        mover -> fail [rx == ox],
+        mover -> goal [rx != ox && rx == 0],
+        mover -> mover [rx != ox && rx != 0
+                        $
+                            rx := rx + 1 if cinc && !cdec;
+                            rx := rx - 1 if !cinc && cdec;
+                            ox := ox + 1 if inc;
+                            ox := ox - 1 if !inc;
+                        ]
     }
 
     SPECIFICATION {
