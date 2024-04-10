@@ -263,7 +263,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     result = ranking_from_predicate(state_pred)
                     if result is None: continue
                     f, invar = result
-                    rankings.append(ranking_refinement_both_sides(f, [invar]))
+                    rankings.append(ranking_refinement(f, [invar]))
             add_tran_preds_immediately = False
 
         for (tran_pr, invars), constraints in rankings:
