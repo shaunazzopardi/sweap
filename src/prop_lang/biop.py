@@ -117,7 +117,7 @@ class BiOp(Formula):
         elif self.op in ["=="]:
             if right == left:
                 return Value("True")
-        return self
+        return BiOp(left, self.op, right)
 
     def ops_used(self):
         return [self.op] + self.left.ops_used() + self.right.ops_used()

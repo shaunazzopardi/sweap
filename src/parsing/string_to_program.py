@@ -37,6 +37,9 @@ def program_parser():
     mon = yield string("PROGRAM EVENTS") >> event_parser
     yield spaces()
     initial_vals = yield initial_val_parser
+    initial_vs = [Variable(tv.name) for tv in initial_vals]
+    if len(set(env + con + mon + states + initial_vs)) < len(env + con + mon + states + initial_vs):
+        raise Exception("Duplicate var names: " + ", ".join([str(v) for v in env + con + mon + states + initial_vs if (env + con + mon + states + initial_vs).count(v) > 1]))
     yield spaces()
     _, transitions = yield transitions_parser
     yield spaces()
