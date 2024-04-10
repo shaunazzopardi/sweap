@@ -19,7 +19,8 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, conjunct, neg, append_to_variable_name, dnf, disjunct_formula_set, \
-    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_safe, var_to_predicate
+    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_safe, var_to_predicate, fnode_to_formula, \
+    run_with_timeout, simplify_formula_with_math
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
