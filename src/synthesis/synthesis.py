@@ -168,7 +168,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     conservative_with_state_predicates = False
     prefer_lasso_counterexamples = False
     add_tran_preds_immediately = False
-    add_tran_preds_after_state_abstraction = not config.Config.getConfig().only_safety
+    add_tran_preds_after_state_abstraction = config.Config.getConfig().eager_fairness and not config.Config.getConfig().only_safety
     only_safety = False
 
     # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
@@ -210,28 +210,29 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_ltl_constraints = set()
 
     rankings = []
-    for tv in program.valuation:
-        if tv.type.lower().startswith("bool"):
-            continue
-        if tv.type.lower().startswith("int"):
-            ranking = Variable(tv.name)
-            pos_rk = BiOp(ranking, ">=", Value("0"))
-            neg_rk = BiOp(ranking, "<=", Value("0"))
-            invars_top = [neg_rk]
-            invars_bot = [pos_rk]
-            rankings += [ranking_refinement_both_sides(ranking, invars_bot, invars_top)]
-        elif tv.type.lower().startswith("nat"):
-            ranking = Variable(tv.name)
-            invars = []
-            rankings += [ranking_refinement(ranking, invars)]
-        elif ".." in tv.type:
-            ranking_bot = Variable(tv.name)
-            invars_bot = []
-            rankings += [ranking_refinement(ranking_bot, invars_bot)]
+    if config.Config.getConfig().eager_fairness and not config.Config.getConfig().only_safety:
+        for tv in program.valuation:
+            if tv.type.lower().startswith("bool"):
+                continue
+            if tv.type.lower().startswith("int"):
+                ranking = Variable(tv.name)
+                pos_rk = BiOp(ranking, ">=", Value("0"))
+                neg_rk = BiOp(ranking, "<=", Value("0"))
+                invars_top = [neg_rk]
+                invars_bot = [pos_rk]
+                rankings += [ranking_refinement_both_sides(ranking, invars_bot, invars_top)]
+            elif tv.type.lower().startswith("nat"):
+                ranking = Variable(tv.name)
+                invars = []
+                rankings += [ranking_refinement(ranking, invars)]
+            elif ".." in tv.type:
+                ranking_bot = Variable(tv.name)
+                invars_bot = []
+                rankings += [ranking_refinement(ranking_bot, invars_bot)]
 
-            ranking_top = BiOp(Value("0"), "-", Variable(tv.name))
-            invars_top = []
-            rankings += [ranking_refinement(ranking_top, invars_top)]
+                ranking_top = BiOp(Value("0"), "-", Variable(tv.name))
+                invars_top = []
+                rankings += [ranking_refinement(ranking_top, invars_top)]
 
     loop_counter = 0
 
@@ -263,6 +264,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     if result == None: continue
                     f, invar = result
                     rankings.append(ranking_refinement_both_sides(f, [invar]))
+            add_tran_preds_immediately = False
 
             for (tran_pr, invars), constraints in rankings:
                 new_tran_preds.update(tran_pr)
