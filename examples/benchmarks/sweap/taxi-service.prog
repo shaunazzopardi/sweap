@@ -15,10 +15,10 @@ program elevator {
     }
 
     VALUATION {
-        target_x : natural := 0;
-        target_y : natural := 0;
-        car_x : natural := 0;
-        car_y : natural := 0;
+        target_x : integer := 0;
+        target_y : integer := 0;
+        car_x : integer := 0;
+        car_y : integer := 0;
     }
 
     TRANSITIONS {
