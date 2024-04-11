@@ -1,6 +1,6 @@
 program bloem-elevator-simple-5 {
     STATES {
-        goal : init, move
+        move : init
     }
 
     ENVIRONMENT EVENTS {
@@ -14,23 +14,15 @@ program bloem-elevator-simple-5 {
     }
 
     VALUATION {
-        at_floor : 0..5 := 1;
-        v1 : bool := false;
-        v2 : bool := false;
-        v3 : bool := false;
+        at_floor : 0..2 := 1;
     }
 
     TRANSITIONS {
-        goal -> move [$ v1 := false; v2 := false; v3 := false;],
-        move -> goal [v1 & v2 & v3],
-        move -> move [!(v1 & v2 & v3) $ at_floor := at_floor + 1 if cinc;
-                                                   at_floor := at_floor - 1 if !cinc;
-                                                   v1 := true if at_floor == 1;
-                                                      v2 := true if at_floor == 2;
-                                                        v3 := true if at_floor == 3;]
+        move -> move [ $ at_floor := at_floor + 1 if cinc;
+                         at_floor := at_floor - 1 if !cinc;]
     }
 
     SPECIFICATION {
-        G F (goal)
+        (G F (at_floor == 0)) && (G F (at_floor == 1)) && (G F (at_floor == 2))
     }
 }
