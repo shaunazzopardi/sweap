@@ -166,3 +166,8 @@ parsetab.py
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode
 
+examples/benchmarks/raboniel/*.kiss
+examples/benchmarks/raboniel/*.tsl
+examples/benchmarks/raboniel/*.tlsf
+examples/benchmarks/raboniel/*.py
+
