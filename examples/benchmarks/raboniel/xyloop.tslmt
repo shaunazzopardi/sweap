@@ -1,13 +1,12 @@
-#LIA
 //-- State: x, y
 //-- Inputs: i_x, i_y
 assume {
 [x <- i_x];
 [y <- i_y];
-G(gte x int0());
-G(gte y int0());
-G((gt x int0() && gt y int0()) -> ([x <- sub x int1()] && [y <- y]));
-G((eq x int0() && gt y int0()) -> ([x <- i_x] && [y <- sub y int1()]));
+G(ge x i0());
+G(ge y i0());
+G((gt x i0() && gt y i0()) -> ([x <- sub x i1()] && [y <- y]));
+G((eq x i0() && gt y i0()) -> ([x <- i_x] && [y <- sub y i1()]));
 }
 
-guarantee { F (eq y int0()));}
+guarantee { F (eq y i0()));}

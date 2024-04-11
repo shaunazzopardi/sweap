@@ -1,13 +1,12 @@
-#LIA
 //-- State: i_y, i_x, loc
 
 guarantee {
-[loc  <- int0()];
-G ([loc  <- int0()] -> ([i_x <- int1()] && X [loc  <- int1()]) || ([i_y <- (add i_y int1())] && X [loc  <- int0()]) || false);
-G ([loc  <- int1()] -> ((eq i_x int64()) -> (X [loc  <- int3()]) || false) && ((! (eq i_x int64()) ) -> ((lte i_y int0()) -> (X [loc  <- int2()]) || false) && ((! (lte i_y int0()) ) -> ([i_x <- (mul i_x int2())] && [i_y <- (sub i_y int1())] && X [loc  <- int1()]) || false)));
-G ([loc  <- int2()] -> (X [loc  <- int2()]) || false);
-G ([loc  <- int3()] -> (X [loc  <- int3()]) || false);
+[loc  <- i0()];
+G ([loc  <- i0()] -> ([i_x <- i1()] && X [loc  <- i1()]) || ([i_y <- (add i_y i1())] && X [loc  <- i0()]) || false);
+G ([loc  <- i1()] -> ((eq i_x i64()) -> (X [loc  <- i3()]) || false) && ((! (eq i_x i64()) ) -> ((le i_y i0()) -> (X [loc  <- i2()]) || false) && ((! (le i_y i0()) ) -> ([i_x <- (mul i_x i2())] && [i_y <- (sub i_y i1())] && X [loc  <- i1()]) || false)));
+G ([loc  <- i2()] -> (X [loc  <- i2()]) || false);
+G ([loc  <- i3()] -> (X [loc  <- i3()]) || false);
 }
 
-guarantee { F([loc  <- int3()] || false);}
+guarantee { F([loc  <- i3()] || false);}
 

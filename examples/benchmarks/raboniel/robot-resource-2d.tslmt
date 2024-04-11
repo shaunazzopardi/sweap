@@ -1,13 +1,12 @@
-#LIA
 //-- State: i_y, i_x, i_resource, loc
 //-- Inputs: i_nty, i_ntx
 guarantee {
-[loc  <- int0()];
-G ([loc  <- int0()] -> ([i_resource <- int4()] && X [loc  <- int2()]) || false);
-G ([loc  <- int1()] -> (((lt i_resource int0()) || ((gt i_resource int4()))) -> (X [loc  <- int3()]) || false) && ((! ((lt i_resource int0()) || ((gt i_resource int4()))) ) -> ([i_resource <- (sub i_resource int1())] && [i_x <- i_ntx] && [i_y <- i_nty] && X [loc  <- int2()]) || false));
-G ([loc  <- int2()] -> (((lte i_x int0()) && ((lte i_y int0()))) -> (X [loc  <- int1()]) || false) && ((! ((lte i_x int0()) && ((lte i_y int0()))) ) -> (X [loc  <- int2()]) || ([i_x <- (add i_x int1())] && X [loc  <- int2()]) || ([i_x <- (sub i_x int1())] && X [loc  <- int2()]) || ([i_y <- (add i_y int1())] && X [loc  <- int2()]) || ([i_y <- (sub i_y int1())] && X [loc  <- int2()]) || false));
-G ([loc  <- int3()] -> (X [loc  <- int3()]) || false);
+[loc  <- i0()];
+G ([loc  <- i0()] -> ([i_resource <- i4()] && X [loc  <- i2()]) || false);
+G ([loc  <- i1()] -> (((lt i_resource i0()) || ((gt i_resource i4()))) -> (X [loc  <- i3()]) || false) && ((! ((lt i_resource i0()) || ((gt i_resource i4()))) ) -> ([i_resource <- (sub i_resource i1())] && [i_x <- i_ntx] && [i_y <- i_nty] && X [loc  <- i2()]) || false));
+G ([loc  <- i2()] -> (((le i_x i0()) && ((le i_y i0()))) -> (X [loc  <- i1()]) || false) && ((! ((le i_x i0()) && ((le i_y i0()))) ) -> (X [loc  <- i2()]) || ([i_x <- (add i_x i1())] && X [loc  <- i2()]) || ([i_x <- (sub i_x i1())] && X [loc  <- i2()]) || ([i_y <- (add i_y i1())] && X [loc  <- i2()]) || ([i_y <- (sub i_y i1())] && X [loc  <- i2()]) || false));
+G ([loc  <- i3()] -> (X [loc  <- i3()]) || false);
 }
 
-guarantee { G F([loc  <- int1()] || false);}
+guarantee { G F([loc  <- i1()] || false);}
 

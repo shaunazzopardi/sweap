@@ -1,15 +1,14 @@
-#LIA
 //-- State: x, y
 
 assume {
-  lte x int3();
-  gte x int0();
+  le x i3();
+  ge x i0();
 }
 
 always guarantee {
-  lte x int3(); /* INV */
-  gte x int0(); /* INV */
+  le x i3(); /* INV */
+  ge x i0(); /* INV */
 
-  ([x <- x] || [x <- add x int1()] || [x <- sub x int1()]);
-  ([y <- y] || [y <- add y int1()] || [y <- sub y int1()]);
+  ([x <- x] || [x <- add x i1()] || [x <- sub x i1()]);
+  ([y <- y] || [y <- add y i1()] || [y <- sub y i1()]);
 }

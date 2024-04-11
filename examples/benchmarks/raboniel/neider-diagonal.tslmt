@@ -1,20 +1,19 @@
-#LIA
 //-- State: x, y
 //-- Inputs: env_x_move
 
 assume {
-  gte y (sub x int1());
-  lte y (add x int1());
+  ge y (sub x i1());
+  le y (add x i1());
 }
 
 always assume {
-  eq env_x_move int1() || eq env_x_move im1() || eq env_x_move int0();
+  eq env_x_move i1() || eq env_x_move im1() || eq env_x_move i0();
 }
 
 always guarantee {
-  gte y (sub x int2()); /* INV */
-  lte y (add x int2()); /* INV */
+  ge y (sub x i2()); /* INV */
+  le y (add x i2()); /* INV */
 
   [x <- (add x env_x_move)];
-  ([y <- y] || [y <- add y int1()] || [y <- sub y int1()]);
+  ([y <- y] || [y <- add y i1()] || [y <- sub y i1()]);
 }

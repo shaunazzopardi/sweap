@@ -1,77 +1,76 @@
-#LIA
 //-- State: floor, target
 //-- Inputs: signal
 
 assume {
-  eq target int0();
-  gte floor int1();
-  gte int50() floor;
+  eq target i0();
+  ge floor i1();
+  ge i50() floor;
 }
 
 always assume {
-  gte signal int0();
-  gte int50() signal;
-  !(eq target int0()) -> eq signal int0();
+  ge signal i0();
+  ge i50() signal;
+  !(eq target i0()) -> eq signal i0();
 }
 
 always guarantee {
-  gte floor int1(); /* INV */
-  gte int10() floor; /* INV */
-  !(eq signal int0()) && !(eq floor target) -> [target <- signal];
-  eq signal int0() && !(eq floor target) -> [target <- target];
-  eq floor target -> [target <- int0()];
+  ge floor i1(); /* INV */
+  ge i10() floor; /* INV */
+  !(eq signal i0()) && !(eq floor target) -> [target <- signal];
+  eq signal i0() && !(eq floor target) -> [target <- target];
+  eq floor target -> [target <- i0()];
 
-  [floor <- floor] || [floor <- add floor int1()] || [floor <- sub floor int1()];
+  [floor <- floor] || [floor <- add floor i1()] || [floor <- sub floor i1()];
 
-  eq target int1() -> F (eq floor int1());
-  eq target int2() -> F (eq floor int2());
-  eq target int3() -> F (eq floor int3());
-  eq target int4() -> F (eq floor int4());
-  eq target int5() -> F (eq floor int5());
-  eq target int6() -> F (eq floor int6());
-  eq target int7() -> F (eq floor int7());
-  eq target int8() -> F (eq floor int8());
-  eq target int9() -> F (eq floor int9());
-  eq target int10() -> F (eq floor int10());
-  eq target int11() -> F (eq floor int11());
-    eq target int12() -> F (eq floor int12());
-    eq target int13() -> F (eq floor int13());
-    eq target int14() -> F (eq floor int14());
-    eq target int15() -> F (eq floor int15());
-    eq target int16() -> F (eq floor int16());
-    eq target int17() -> F (eq floor int17());
-    eq target int18() -> F (eq floor int18());
-    eq target int19() -> F (eq floor int19());
-    eq target int20() -> F (eq floor int20());
-    eq target int21() -> F (eq floor int21());
-    eq target int22() -> F (eq floor int22());
-    eq target int23() -> F (eq floor int23());
-    eq target int24() -> F (eq floor int24());
-    eq target int25() -> F (eq floor int25());
-    eq target int26() -> F (eq floor int26());
-    eq target int27() -> F (eq floor int27());
-    eq target int28() -> F (eq floor int28());
-    eq target int29() -> F (eq floor int29());
-    eq target int30() -> F (eq floor int30());
-    eq target int31() -> F (eq floor int31());
-    eq target int32() -> F (eq floor int32());
-    eq target int33() -> F (eq floor int33());
-    eq target int34() -> F (eq floor int34());
-    eq target int35() -> F (eq floor int35());
-    eq target int36() -> F (eq floor int36());
-    eq target int37() -> F (eq floor int37());
-    eq target int38() -> F (eq floor int38());
-    eq target int39() -> F (eq floor int39());
-    eq target int40() -> F (eq floor int40());
-    eq target int41() -> F (eq floor int41());
-    eq target int42() -> F (eq floor int42());
-    eq target int43() -> F (eq floor int43());
-    eq target int44() -> F (eq floor int44());
-    eq target int45() -> F (eq floor int45());
-    eq target int46() -> F (eq floor int46());
-    eq target int47() -> F (eq floor int47());
-    eq target int48() -> F (eq floor int48());
-    eq target int49() -> F (eq floor int49());
-    eq target int50() -> F (eq floor int50());
+  eq target i1() -> F (eq floor i1());
+  eq target i2() -> F (eq floor i2());
+  eq target i3() -> F (eq floor i3());
+  eq target i4() -> F (eq floor i4());
+  eq target i5() -> F (eq floor i5());
+  eq target i6() -> F (eq floor i6());
+  eq target i7() -> F (eq floor i7());
+  eq target i8() -> F (eq floor i8());
+  eq target i9() -> F (eq floor i9());
+  eq target i10() -> F (eq floor i10());
+  eq target i11() -> F (eq floor i11());
+    eq target i12() -> F (eq floor i12());
+    eq target i13() -> F (eq floor i13());
+    eq target i14() -> F (eq floor i14());
+    eq target i15() -> F (eq floor i15());
+    eq target i16() -> F (eq floor i16());
+    eq target i17() -> F (eq floor i17());
+    eq target i18() -> F (eq floor i18());
+    eq target i19() -> F (eq floor i19());
+    eq target i20() -> F (eq floor i20());
+    eq target i21() -> F (eq floor i21());
+    eq target i22() -> F (eq floor i22());
+    eq target i23() -> F (eq floor i23());
+    eq target i24() -> F (eq floor i24());
+    eq target i25() -> F (eq floor i25());
+    eq target i26() -> F (eq floor i26());
+    eq target i27() -> F (eq floor i27());
+    eq target i28() -> F (eq floor i28());
+    eq target i29() -> F (eq floor i29());
+    eq target i30() -> F (eq floor i30());
+    eq target i31() -> F (eq floor i31());
+    eq target i32() -> F (eq floor i32());
+    eq target i33() -> F (eq floor i33());
+    eq target i34() -> F (eq floor i34());
+    eq target i35() -> F (eq floor i35());
+    eq target i36() -> F (eq floor i36());
+    eq target i37() -> F (eq floor i37());
+    eq target i38() -> F (eq floor i38());
+    eq target i39() -> F (eq floor i39());
+    eq target i40() -> F (eq floor i40());
+    eq target i41() -> F (eq floor i41());
+    eq target i42() -> F (eq floor i42());
+    eq target i43() -> F (eq floor i43());
+    eq target i44() -> F (eq floor i44());
+    eq target i45() -> F (eq floor i45());
+    eq target i46() -> F (eq floor i46());
+    eq target i47() -> F (eq floor i47());
+    eq target i48() -> F (eq floor i48());
+    eq target i49() -> F (eq floor i49());
+    eq target i50() -> F (eq floor i50());
 
 }
