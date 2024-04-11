@@ -10,6 +10,48 @@ output v5 Bool
 output v6 Bool
 output v7 Bool
 output v8 Bool
+output v9 Bool
+output v10 Bool
+output v11 Bool
+output v12 Bool
+output v13 Bool
+output v14 Bool
+output v15 Bool
+output v16 Bool
+output v17 Bool
+output v18 Bool
+output v19 Bool
+output v20 Bool
+output v21 Bool
+output v22 Bool
+output v23 Bool
+output v24 Bool
+output v25 Bool
+output v26 Bool
+output v27 Bool
+output v28 Bool
+output v29 Bool
+output v30 Bool
+output v31 Bool
+output v32 Bool
+output v33 Bool
+output v34 Bool
+output v35 Bool
+output v36 Bool
+output v37 Bool
+output v38 Bool
+output v39 Bool
+output v40 Bool
+output v41 Bool
+output v42 Bool
+output v43 Bool
+output v44 Bool
+output v45 Bool
+output v46 Bool
+output v47 Bool
+output v48 Bool
+output v49 Bool
+output v50 Bool
 
 loc i 0
 loc reached 1
@@ -64,172 +106,172 @@ trans move
          ((v8 true) (floor (- floor 1))) move)
  else if (= floor 9) then
          sys (((v9 true) (floor floor)) move
-             ((9 true) (floor (+ floor 1))) move
-             ((v9 true) (floor (- floor 1))) move))
+             ((v9 true) (floor (+ floor 1))) move
+             ((v9 true) (floor (- floor 1))) move)
 else if (= floor 10) then
          sys (((v10 true) (floor floor)) move
-             ((10 true) (floor (+ floor 1))) move
-             ((v10 true) (floor (- floor 1))) move))
+             ((v10 true) (floor (+ floor 1))) move
+             ((v10 true) (floor (- floor 1))) move)
 else if (= floor 11) then
          sys (((v11 true) (floor floor)) move
-             ((11 true) (floor (+ floor 1))) move
-             ((v11 true) (floor (- floor 1))) move))
+             ((v11 true) (floor (+ floor 1))) move
+             ((v11 true) (floor (- floor 1))) move)
 else if (= floor 12) then
          sys (((v12 true) (floor floor)) move
-             ((12 true) (floor (+ floor 1))) move
-             ((v12 true) (floor (- floor 1))) move))
+             ((v12 true) (floor (+ floor 1))) move
+             ((v12 true) (floor (- floor 1))) move)
 else if (= floor 13) then
          sys (((v13 true) (floor floor)) move
-             ((13 true) (floor (+ floor 1))) move
-             ((v13 true) (floor (- floor 1))) move))
+             ((v13 true) (floor (+ floor 1))) move
+             ((v13 true) (floor (- floor 1))) move)
 else if (= floor 14) then
          sys (((v14 true) (floor floor)) move
-             ((14 true) (floor (+ floor 1))) move
-             ((v14 true) (floor (- floor 1))) move))
+             ((v14 true) (floor (+ floor 1))) move
+             ((v14 true) (floor (- floor 1))) move)
 else if (= floor 15) then
          sys (((v15 true) (floor floor)) move
-             ((15 true) (floor (+ floor 1))) move
-             ((v15 true) (floor (- floor 1))) move))
+             ((v15 true) (floor (+ floor 1))) move
+             ((v15 true) (floor (- floor 1))) move)
 else if (= floor 16) then
          sys (((v16 true) (floor floor)) move
-             ((16 true) (floor (+ floor 1))) move
-             ((v16 true) (floor (- floor 1))) move))
+             ((v16 true) (floor (+ floor 1))) move
+             ((v16 true) (floor (- floor 1))) move)
 else if (= floor 17) then
          sys (((v17 true) (floor floor)) move
-             ((17 true) (floor (+ floor 1))) move
-             ((v17 true) (floor (- floor 1))) move))
+             ((v17 true) (floor (+ floor 1))) move
+             ((v17 true) (floor (- floor 1))) move)
 else if (= floor 18) then
          sys (((v18 true) (floor floor)) move
-             ((18 true) (floor (+ floor 1))) move
-             ((v18 true) (floor (- floor 1))) move))
+             ((v18 true) (floor (+ floor 1))) move
+             ((v18 true) (floor (- floor 1))) move)
 else if (= floor 19) then
          sys (((v19 true) (floor floor)) move
-             ((19 true) (floor (+ floor 1))) move
-             ((v19 true) (floor (- floor 1))) move))
+             ((v19 true) (floor (+ floor 1))) move
+             ((v19 true) (floor (- floor 1))) move)
 else if (= floor 20) then
          sys (((v20 true) (floor floor)) move
-             ((20 true) (floor (+ floor 1))) move
-             ((v20 true) (floor (- floor 1))) move))
+             ((v20 true) (floor (+ floor 1))) move
+             ((v20 true) (floor (- floor 1))) move)
 else if (= floor 21) then
          sys (((v21 true) (floor floor)) move
-             ((21 true) (floor (+ floor 1))) move
-             ((v21 true) (floor (- floor 1))) move))
+             ((v21 true) (floor (+ floor 1))) move
+             ((v21 true) (floor (- floor 1))) move)
 else if (= floor 22) then
          sys (((v22 true) (floor floor)) move
-             ((22 true) (floor (+ floor 1))) move
-             ((v22 true) (floor (- floor 1))) move))
+             ((v22 true) (floor (+ floor 1))) move
+             ((v22 true) (floor (- floor 1))) move)
 else if (= floor 23) then
          sys (((v23 true) (floor floor)) move
-             ((23 true) (floor (+ floor 1))) move
-             ((v23 true) (floor (- floor 1))) move))
+             ((v23 true) (floor (+ floor 1))) move
+             ((v23 true) (floor (- floor 1))) move)
 else if (= floor 24) then
          sys (((v24 true) (floor floor)) move
-             ((24 true) (floor (+ floor 1))) move
-             ((v24 true) (floor (- floor 1))) move))
+             ((v24 true) (floor (+ floor 1))) move
+             ((v24 true) (floor (- floor 1))) move)
 else if (= floor 25) then
          sys (((v25 true) (floor floor)) move
-             ((25 true) (floor (+ floor 1))) move
-             ((v25 true) (floor (- floor 1))) move))
+             ((v25 true) (floor (+ floor 1))) move
+             ((v25 true) (floor (- floor 1))) move)
 else if (= floor 26) then
          sys (((v26 true) (floor floor)) move
-             ((26 true) (floor (+ floor 1))) move
-             ((v26 true) (floor (- floor 1))) move))
+             ((v26 true) (floor (+ floor 1))) move
+             ((v26 true) (floor (- floor 1))) move)
 else if (= floor 27) then
          sys (((v27 true) (floor floor)) move
-             ((27 true) (floor (+ floor 1))) move
-             ((v27 true) (floor (- floor 1))) move))
+             ((v27 true) (floor (+ floor 1))) move
+             ((v27 true) (floor (- floor 1))) move)
 else if (= floor 28) then
          sys (((v28 true) (floor floor)) move
-             ((28 true) (floor (+ floor 1))) move
-             ((v28 true) (floor (- floor 1))) move))
+             ((v28 true) (floor (+ floor 1))) move
+             ((v28 true) (floor (- floor 1))) move)
 else if (= floor 29) then
          sys (((v29 true) (floor floor)) move
-             ((29 true) (floor (+ floor 1))) move
-             ((v29 true) (floor (- floor 1))) move))
+             ((v29 true) (floor (+ floor 1))) move
+             ((v29 true) (floor (- floor 1))) move)
 else if (= floor 30) then
          sys (((v30 true) (floor floor)) move
-             ((30 true) (floor (+ floor 1))) move
-             ((v30 true) (floor (- floor 1))) move))
+             ((v30 true) (floor (+ floor 1))) move
+             ((v30 true) (floor (- floor 1))) move)
 else if (= floor 31) then
          sys (((v31 true) (floor floor)) move
-             ((31 true) (floor (+ floor 1))) move
-             ((v31 true) (floor (- floor 1))) move))
+             ((v31 true) (floor (+ floor 1))) move
+             ((v31 true) (floor (- floor 1))) move)
 else if (= floor 32) then
          sys (((v32 true) (floor floor)) move
-             ((32 true) (floor (+ floor 1))) move
-             ((v32 true) (floor (- floor 1))) move))
+             ((v32 true) (floor (+ floor 1))) move
+             ((v32 true) (floor (- floor 1))) move)
 else if (= floor 33) then
          sys (((v33 true) (floor floor)) move
-             ((33 true) (floor (+ floor 1))) move
-             ((v33 true) (floor (- floor 1))) move))
+             ((v33 true) (floor (+ floor 1))) move
+             ((v33 true) (floor (- floor 1))) move)
 else if (= floor 34) then
          sys (((v34 true) (floor floor)) move
-             ((34 true) (floor (+ floor 1))) move
-             ((v34 true) (floor (- floor 1))) move))
+             ((v34 true) (floor (+ floor 1))) move
+             ((v34 true) (floor (- floor 1))) move)
 else if (= floor 35) then
          sys (((v35 true) (floor floor)) move
-             ((35 true) (floor (+ floor 1))) move
-             ((v35 true) (floor (- floor 1))) move))
+             ((v35 true) (floor (+ floor 1))) move
+             ((v35 true) (floor (- floor 1))) move)
 else if (= floor 36) then
          sys (((v36 true) (floor floor)) move
-             ((36 true) (floor (+ floor 1))) move
-             ((v36 true) (floor (- floor 1))) move))
+             ((v36 true) (floor (+ floor 1))) move
+             ((v36 true) (floor (- floor 1))) move)
 else if (= floor 37) then
          sys (((v37 true) (floor floor)) move
-             ((37 true) (floor (+ floor 1))) move
-             ((v37 true) (floor (- floor 1))) move))
+             ((v37 true) (floor (+ floor 1))) move
+             ((v37 true) (floor (- floor 1))) move)
 else if (= floor 38) then
          sys (((v38 true) (floor floor)) move
-             ((38 true) (floor (+ floor 1))) move
-             ((v38 true) (floor (- floor 1))) move))
+             ((v38 true) (floor (+ floor 1))) move
+             ((v38 true) (floor (- floor 1))) move)
 else if (= floor 39) then
          sys (((v39 true) (floor floor)) move
-             ((39 true) (floor (+ floor 1))) move
-             ((v39 true) (floor (- floor 1))) move))
+             ((v39 true) (floor (+ floor 1))) move
+             ((v39 true) (floor (- floor 1))) move)
 else if (= floor 40) then
          sys (((v40 true) (floor floor)) move
-             ((40 true) (floor (+ floor 1))) move
-             ((v40 true) (floor (- floor 1))) move))
+             ((v40 true) (floor (+ floor 1))) move
+             ((v40 true) (floor (- floor 1))) move)
 else if (= floor 41) then
          sys (((v41 true) (floor floor)) move
-             ((41 true) (floor (+ floor 1))) move
-             ((v41 true) (floor (- floor 1))) move))
+             ((v41 true) (floor (+ floor 1))) move
+             ((v41 true) (floor (- floor 1))) move)
 else if (= floor 42) then
          sys (((v42 true) (floor floor)) move
-             ((42 true) (floor (+ floor 1))) move
-             ((v42 true) (floor (- floor 1))) move))
+             ((v42 true) (floor (+ floor 1))) move
+             ((v42 true) (floor (- floor 1))) move)
 else if (= floor 43) then
          sys (((v43 true) (floor floor)) move
-             ((43 true) (floor (+ floor 1))) move
-             ((v43 true) (floor (- floor 1))) move))
+             ((v43 true) (floor (+ floor 1))) move
+             ((v43 true) (floor (- floor 1))) move)
 else if (= floor 44) then
          sys (((v44 true) (floor floor)) move
-             ((44 true) (floor (+ floor 1))) move
-             ((v44 true) (floor (- floor 1))) move))
+             ((v44 true) (floor (+ floor 1))) move
+             ((v44 true) (floor (- floor 1))) move)
 else if (= floor 45) then
          sys (((v45 true) (floor floor)) move
-             ((45 true) (floor (+ floor 1))) move
-             ((v45 true) (floor (- floor 1))) move))
+             ((v45 true) (floor (+ floor 1))) move
+             ((v45 true) (floor (- floor 1))) move)
 else if (= floor 46) then
          sys (((v46 true) (floor floor)) move
-             ((46 true) (floor (+ floor 1))) move
-             ((v46 true) (floor (- floor 1))) move))
+             ((v46 true) (floor (+ floor 1))) move
+             ((v46 true) (floor (- floor 1))) move)
 else if (= floor 47) then
          sys (((v47 true) (floor floor)) move
-             ((47 true) (floor (+ floor 1))) move
-             ((v47 true) (floor (- floor 1))) move))
+             ((v47 true) (floor (+ floor 1))) move
+             ((v47 true) (floor (- floor 1))) move)
 else if (= floor 48) then
          sys (((v48 true) (floor floor)) move
-             ((48 true) (floor (+ floor 1))) move
-             ((v48 true) (floor (- floor 1))) move))
+             ((v48 true) (floor (+ floor 1))) move
+             ((v48 true) (floor (- floor 1))) move)
 else if (= floor 49) then
          sys (((v49 true) (floor floor)) move
-             ((49 true) (floor (+ floor 1))) move
-             ((v49 true) (floor (- floor 1))) move))
+             ((v49 true) (floor (+ floor 1))) move
+             ((v49 true) (floor (- floor 1))) move)
 else if (= floor 50) then
          sys (((v50 true) (floor floor)) move
-             ((50 true) (floor (+ floor 1))) move
-             ((v50 true) (floor (- floor 1))) move))
+             ((v50 true) (floor (+ floor 1))) move
+             ((v50 true) (floor (- floor 1))) move)
          
 else 
    unsafe

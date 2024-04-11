@@ -2,7 +2,7 @@
 //-- Inputs: env_cnt, room
 
 assume {
-  eq iint0() q;
+  eq i0() q;
 }
 
 always assume {
@@ -17,5 +17,5 @@ always guarantee {
   ((eq q i2()) ) -> (([con_room <- i0()] || [con_room <-i1()]) && [q <- i1()]);
   ((eq q i1()) && (!(eq cnt i0())) && ((eq con_room env_room))) -> ([q <- i1()] && ([cnt <- sub cnt i1()] || [cnt <- cnt]));
 
-  G F (eq q int0());
+  G F (eq q i0());
 }
