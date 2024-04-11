@@ -1,0 +1,19 @@
+#LIA
+//-- State: i_x, loc
+
+guarantee {
+[loc  <- int0()];
+(geq env_in int0());
+}
+
+always guarantee{
+
+([loc  <- int0()] && ((eq i_x int0()) && (eq i_y int0()))) -> ((X [loc  <- int1()]));
+([loc  <- int0()] && (! ((eq i_x int0()) && (eq i_y int0())))) -> (X [loc  <- int0()] && (((leq obstacle int0()) &&
+([i_x <- (add i_x int1())] || [i_x <- (sub i_x int1())] || [i_y <- (add i_y int1())] || [i_y <- (sub i_y int1())])) || ((ge obstacle int0()) && [i_x <- i_x] && [i_y <- i_y])));
+
+([loc  <- int1()]) -> (X ([loc <- int0()] && [i_x <- env_in_x] && [i_y <- env_in_y]));
+}
+
+guarantee { (G F (le obstacle int0())) G F([loc  <- int1()]);}
+
