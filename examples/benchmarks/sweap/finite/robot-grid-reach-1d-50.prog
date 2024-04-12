@@ -1,0 +1,39 @@
+program robot-cat-real-1d {
+    STATES {
+        setvars: init, move, goal
+    }
+
+    ENVIRONMENT EVENTS {
+        einc, estay
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cstay
+    }
+
+    PROGRAM EVENTS {
+    }
+
+    VALUATION {
+        x : 0..50 := 0;
+    }
+
+    TRANSITIONS {
+        setvars -> setvars [estay $
+                                x := x + 1 if einc;
+                                x := x - 1 if !einc;
+                              ],
+        setvars -> move [!estay],
+
+        move -> goal [x == 0],
+        move -> move [x != 0 && !cstay],
+        move -> move [x != 0 && cstay $
+                                x := x + 1 if cinc;
+                                x := x - 1 if !cinc;
+                                ]
+    }
+
+    SPECIFICATION {
+        (F move) -> F goal
+    }
+}

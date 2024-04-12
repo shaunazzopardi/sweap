@@ -1,0 +1,15 @@
+#LIA
+//-- State: i_x, loc
+
+assume{
+(geq i_x int0()) && (leq i_x int10())
+}
+guarantee {
+[loc  <- int0()];
+G ([loc  <- int0()] -> ((eq i_x int0()) -> (X [loc  <- int1()]) || false) && ((! (eq i_x int0()) ) -> (X [loc  <- int0()]) || ([i_x <- (add i_x int1())] && X [loc  <- int0()]) || ([i_x <- (sub i_x int1())] && X [loc  <- int0()]) || false));
+G ([loc  <- int1()] -> (X [loc  <- int1()]) || false);
+G ((geq i_x int0()) && (leq i_x int10()));
+}
+
+guarantee { F([loc  <- int1()] || false);}
+

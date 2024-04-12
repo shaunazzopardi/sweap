@@ -1,0 +1,31 @@
+type Reach
+
+input env_in Int
+output x BInt
+
+loc move 0
+loc goal 1
+loc unsafe 0
+loc i 0
+
+init i
+
+trans i
+    if (or (< env_in 0) (> env_in 5))
+    then goal
+    else sys (((x env_in)) move)
+
+trans move
+    if (or (< x 0) (> x 5))
+    then unsafe
+    else
+    if (and (= x 0))
+    then goal
+    else sys (
+        () move ; do nothing
+        ((x (+ x 1))) move
+        ((x (- x 1))) move
+    )
+
+trans goal goal
+trans unsafe unsafe

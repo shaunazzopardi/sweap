@@ -1,0 +1,24 @@
+type Buechi
+
+input env_in Int
+output resource Int
+output x Int
+
+loc goal 1 
+loc moveTarg 0
+
+init goal
+
+trans moveTarg
+    if (<= x 0)
+    then goal 
+    else sys (
+        () moveTarg
+        ((x (+ x 1))) moveTarg
+        ((x (- x 1))) moveTarg
+    )
+
+trans goal
+    if (<= resource 0)
+        then sys (((resource env_in)) goal)
+        else sys( ((x env_in) (resource (- resource 1))) moveTarg )
