@@ -1,0 +1,27 @@
+//-- State: floor, target, q
+//-- Inputs: inc, dooropen
+
+//#LIA#
+
+assume {
+  eq floor int0();
+  eq q int0();
+}
+
+always assume {
+  eq dooropen int0() || eq dooropen int1();
+  G F (eq dooropen int0());
+  G F (eq dooropen int1());
+}
+
+always guarantee {
+  (eq q int0() && (eq dooropen int1())) -> ([target <- target] && [q <- int0()]);
+  (eq q int0() && eq dooropen int0()) -> ([target <- env_target] && [q <- int1()]);
+
+  (eq q int1()) -> [floor <- add floor int1()] || [floor <- sub floor int1()] || [floor <- floor];
+  (eq q int1() && eq floor target) -> [q <- int0()];
+
+  (eq dooropen int1()) -> [floor <- floor];
+
+  G F (eq floor target);
+}

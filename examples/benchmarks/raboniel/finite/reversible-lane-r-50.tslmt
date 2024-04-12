@@ -1,0 +1,53 @@
+//-- State: cl, cr, stopl, stopr
+//-- Inputs: entryl, exitl, entryr, exitr, l2r
+//#LIA#
+
+assume {
+  eq cl int0(); 
+  eq cr int0(); 
+  eq entryl int0();
+  eq entryr int0();
+  eq exitl int0();
+  eq exitr int0();
+  eq l2r int1();
+}
+
+always assume {
+  eq entryl int0() || eq entryl int1();
+  eq entryr int0() || eq entryr int1();
+  eq exitl int0() || eq exitl int1();
+  eq exitr int0() || eq exitr int1();
+  eq l2r int0() || eq l2r int1();
+
+  eq stopl int1() -> X eq entryl int0();
+  eq stopr int1() -> X eq entryr int0();
+  gt cl int0() -> F eq exitl int1();
+  gt cr int0() -> F eq exitr int1();
+
+}
+
+always guarantee {
+  ge cl int0(); /* INV */
+  ge cr int0(); /* INV */
+  [stopl <- int0()] || [stopl <- int1()];
+  [stopr <- int0()] || [stopr <- int1()];
+  
+  [cl <- add cl int1()] || [cl <- sub cl int1()] || [cl <- cl];
+  [cr <- add cr int1()] || [cr <- sub cr int1()] || [cr <- cr];
+
+  !(gt cl int0() && gt cr int0());
+
+  (eq entryl int1() && eq exitr int0() && lt cl int50()) <-> [cl <- add cl int1()];
+  (eq entryl int0() && eq exitr int1() && gt cl int0()) <-> [cl <- sub cl int1()]; 
+  (eq entryr int1() && eq exitl int0() && lt cr int50()) <-> [cr <- add cr int1()];
+  (eq entryr int0() && eq exitl int1() && gt cr int0()) <-> [cr <- sub cr int1()];
+
+  (gte cl int0() && lte cl int50());
+  (gte cr int0() && lte cr int50());
+
+  (eq stopl int0() && eq l2r int1()) -> X [stopl <- int0()];
+  (eq stopr int0() && eq l2r int0()) -> X [stopr <- int0()];
+
+  (eq stopl int1() && eq l2r int1()) -> F (eq l2r int0() || eq stopl int0());
+  (eq stopr int1() && eq l2r int0()) -> F (eq l2r int1() || eq stopr int0());
+}
