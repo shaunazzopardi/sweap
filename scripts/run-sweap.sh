@@ -23,8 +23,12 @@ run_sweap() {
 	echo "" >> $OUTFILE
 }
 
-
 for f in `ls $BENCHMARKS_DIR/*.prog`
+do
+  run_sweap $f
+done
+
+for f in `ls $BENCHMARKS_DIR/finite/*.prog`
 do
   run_sweap $f
 done

@@ -32,4 +32,8 @@ for f in `ls $BENCHMARKS_DIR/*.tslmt`
 do
   run_raboniel $f
 done
+for f in `ls $BENCHMARKS_DIR/finite/*.tslmt`
+do
+  run_raboniel $f
+done
 cd $oldpath

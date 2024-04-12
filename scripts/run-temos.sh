@@ -39,15 +39,7 @@ do
   run_temos $f
 done
 
-#for f in `ls $RPGSOLVE_DIR/*.rpg`
-#do
-  #runRpgsolve $f
-#done
-
-#oldpath=$PWD
-#cd $BASEPATH
-#for f in `ls $SCRIPT_DIR/$RABONIEL_DIR/*.tslmt`
-#do
-  #runRaboniel $f
-#done
-#cd $oldpath
+for f in `ls $BENCHMARKS_DIR/finite/*.tslt`
+do
+  run_temos $f
+done
