@@ -7,7 +7,6 @@ assume {
 }
 
 always assume {
-    not (eq q i0()) -> ((eq cnt env_cnt) && (eq env_room room));
     (eq room i0()) || (eq room i1());
 }
 

@@ -1,6 +1,6 @@
 program bloem-elevator-simple-10 {
     STATES {
-        goal : init, move
+        move : init
     }
 
     ENVIRONMENT EVENTS {
@@ -14,38 +14,15 @@ program bloem-elevator-simple-10 {
     }
 
     VALUATION {
-        at_floor : 1..10 := 1;
-        v1 : bool := false;
-        v2 : bool := false;
-        v3 : bool := false;
-        v4 : bool := false;
-        v5 : bool := false;
-        v6 : bool := false;
-        v7 : bool := false;
-        v8 : bool := false;
-        v9 : bool := false;
-        v10 : bool := false;
+        at_floor : 0..9 := 1;
     }
 
- TRANSITIONS {
-        goal -> move [$ v1 := false; v2 := false; v3 := false; v4 := false; v5 := false; v6 := false; v7 := false; v8 := false; v9 := false; v10 := false],
-        move -> goal [v1 && v2 && v3 && v4 && v5 && v6 && v7 && v8 && v9 && v10],
-        move -> move [!(v1 && v2 && v3 && v4 && v5 && v6 && v7 && v8 && v9 && v10) $
-                        at_floor := at_floor + 1 if cinc;
-                        at_floor := at_floor - 1 if !cinc;
-                        v1 := true if at_floor == 1;
-                        v2 := true if at_floor == 2;
-                        v3 := true if at_floor == 3;
-                        v4 := true if at_floor == 4;
-                        v5 := true if at_floor == 5;
-                        v6 := true if at_floor == 6;
-                        v7 := true if at_floor == 7;
-                        v8 := true if at_floor == 8;
-                        v9 := true if at_floor == 9;
-                        v10 := true if at_floor == 10]
+    TRANSITIONS {
+        move -> move [ $ at_floor := at_floor + 1 if cinc;
+                         at_floor := at_floor - 1 if !cinc;]
     }
 
     SPECIFICATION {
-        G F (goal)
+        (G F (at_floor == 0)) && (G F (at_floor == 1)) && (G F (at_floor == 2)) && (G F (at_floor == 3)) && (G F (at_floor == 4))
     }
 }

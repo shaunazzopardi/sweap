@@ -37,6 +37,6 @@ program box {
     }
 
     SPECIFICATION {
-        G !(x < 0 && x > 2)
+        G !(x < 0 || x > 2)
     }
 }
