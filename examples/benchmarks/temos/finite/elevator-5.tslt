@@ -1,7 +1,6 @@
+#LIA
 //-- State: floor, target, q
 //-- Inputs: inc, dooropen
-
-//#LIA#
 
 assume {
   eq floor i0();
@@ -10,7 +9,7 @@ assume {
 
 always assume {
   eq dooropen i0() || eq dooropen i1();
-  (geq env_target i0()) && (leq env_target i5());
+  (ge env_target i0()) && (le env_target i5());
   G F (eq dooropen i0());
   G F (eq dooropen i1());
 }
@@ -25,6 +24,6 @@ always guarantee {
   (eq dooropen i1()) -> [floor <- floor];
 
   G F (eq floor target);
-  (geq floor 0) && (leq floor 5);
+  (ge floor 0) && (le floor 5);
 
 }

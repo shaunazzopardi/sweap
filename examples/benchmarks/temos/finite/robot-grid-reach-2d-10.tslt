@@ -2,15 +2,15 @@
 //-- State: i_y, i_x, loc
 
 assume{
-(geq i_x i0()) && (leq i_x i10());
-(geq i_y i0()) && (leq i_y i10())
+(ge i_x i0()) && (le i_x i10());
+(ge i_y i0()) && (le i_y i10())
 }
 guarantee {
 [loc  <- i0()];
 G ([loc  <- i0()] -> (((eq i_x i0()) && ((eq i_y i0()))) -> (X [loc  <- i1()]) || false) && ((! ((eq i_x i0()) && ((eq i_y i0()))) ) -> (X [loc  <- i0()]) || ([i_x <- (add i_x i1())] && X [loc  <- i0()]) || ([i_x <- (sub i_x i1())] && X [loc  <- i0()]) || ([i_y <- (add i_y i1())] && X [loc  <- i0()]) || ([i_y <- (sub i_y i1())] && X [loc  <- i0()]) || false));
 G ([loc  <- i1()] -> (X [loc  <- i1()]) || false);
-G ((geq i_x i0()) && (leq i_x i10()));
-G ((geq i_y i0()) && (leq i_y i10()));
+G ((ge i_x i0()) && (le i_x i10()));
+G ((ge i_y i0()) && (le i_y i10()));
 
 }
 
