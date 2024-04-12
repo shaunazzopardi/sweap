@@ -4,27 +4,27 @@
 //#LIA#
 
 assume {
-  eq floor int0();
-  eq q int0();
+  eq floor i0();
+  eq q i0();
 }
 
 always assume {
-  eq dooropen int0() || eq dooropen int1();
-  (geq env_target int0()) && (leq env_target int10());
-  G F (eq dooropen int0());
-  G F (eq dooropen int1());
+  eq dooropen i0() || eq dooropen i1();
+  (ge env_target i0()) && (le env_target i10());
+  G F (eq dooropen i0());
+  G F (eq dooropen i1());
 }
 
 always guarantee {
-  (eq q int0() && (eq dooropen int1())) -> ([target <- target] && [q <- int0()]);
-  (eq q int0() && eq dooropen int0()) -> ([target <- env_target] && [q <- int1()]);
+  (eq q i0() && (eq dooropen i1())) -> ([target <- target] && [q <- i0()]);
+  (eq q i0() && eq dooropen i0()) -> ([target <- env_target] && [q <- i1()]);
 
-  (eq q int1()) -> [floor <- add floor int1()] || [floor <- sub floor int1()] || [floor <- floor];
-  (eq q int1() && eq floor target) -> [q <- int0()];
+  (eq q i1()) -> [floor <- add floor i1()] || [floor <- sub floor i1()] || [floor <- floor];
+  (eq q i1() && eq floor target) -> [q <- i0()];
 
-  (eq dooropen int1()) -> [floor <- floor];
+  (eq dooropen i1()) -> [floor <- floor];
 
   G F (eq floor target);
-  (geq floor 0) && (leq floor 10);
-  (geq target 0) && (leq target 10);
+  (ge floor 0) && (le floor 10);
+  (ge target 0) && (le target 10);
 }

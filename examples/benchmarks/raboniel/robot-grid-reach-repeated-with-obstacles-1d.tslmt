@@ -2,17 +2,17 @@
 //-- State: i_x, loc
 
 guarantee {
-[loc  <- int0()];
-(geq env_in int0());
+[loc  <- i0()];
+(ge env_in i0());
 }
 
 always guarantee{
 
-([loc  <- int0()] && (eq i_x int0())) -> ((X [loc  <- int1()]));
-([loc  <- int0()] && (! (eq i_x int0()))) -> (X [loc  <- int0()] && (((leq obstacle int0()) && ([i_x <- (add i_x int1())] || [i_x <- (sub i_x int1())])) || ((ge obstacle int0()) && [i_x <- i_x])));
+([loc  <- i0()] && (eq i_x i0())) -> ((X [loc  <- i1()]));
+([loc  <- i0()] && (! (eq i_x i0()))) -> (X [loc  <- i0()] && (((le obstacle i0()) && ([i_x <- (add i_x i1())] || [i_x <- (sub i_x i1())])) || ((ge obstacle i0()) && [i_x <- i_x])));
 
-([loc  <- int1()]) -> (X ([loc <- int0()] && [i_x <- env_in]));
+([loc  <- i1()]) -> (X ([loc <- i0()] && [i_x <- env_in]));
 }
 
-guarantee { (G F (le obstacle int0())) G F([loc  <- int1()]);}
+guarantee { (G F (le obstacle i0())) G F([loc  <- i1()]);}
 
