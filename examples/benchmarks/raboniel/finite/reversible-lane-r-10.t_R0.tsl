@@ -37,13 +37,13 @@ always guarantee {
 
   !(gt cl i0() && gt cr i0());
 
-  (eq entryl i1() && eq exitr i0() && lt cl i5()) <-> [cl <- add cl i1()];
+  (eq entryl i1() && eq exitr i0() && lt cl i10()) <-> [cl <- add cl i1()];
   (eq entryl i0() && eq exitr i1() && gt cl i0()) <-> [cl <- sub cl i1()]; 
-  (eq entryr i1() && eq exitl i0() && lt cr i5()) <-> [cr <- add cr i1()];
+  (eq entryr i1() && eq exitl i0() && lt cr i10()) <-> [cr <- add cr i1()];
   (eq entryr i0() && eq exitl i1() && gt cr i0()) <-> [cr <- sub cr i1()];
 
-  (gte cl i0() && lte cl i5());
-  (gte cr i0() && lte cr i5());
+  (gte cl i0() && lte cl i10());
+  (gte cr i0() && lte cr i10());
 
   (eq stopl i0() && eq l2r i1()) -> X [stopl <- i0()];
   (eq stopr i0() && eq l2r i0()) -> X [stopr <- i0()];

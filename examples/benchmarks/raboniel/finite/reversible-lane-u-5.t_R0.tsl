@@ -21,9 +21,6 @@ always assume {
 
   eq stopl i1() -> X eq entryl i0();
   eq stopr i1() -> X eq entryr i0();
-  gt cl i0() -> F eq exitl i1();
-  gt cr i0() -> F eq exitr i1();
-
 }
 
 always guarantee {

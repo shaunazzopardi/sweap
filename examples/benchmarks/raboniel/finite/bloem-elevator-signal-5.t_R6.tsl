@@ -1,0 +1,327 @@
+//-- State: floor, target
+//-- Inputs: signal
+
+assume {
+  eq target i0();
+  ge floor i1();
+  ge i5() floor;
+}
+
+always assume {
+  ge signal i0();
+  ge i5() signal;
+  !(eq target i0()) -> eq signal i0();
+}
+
+always guarantee {
+  ge floor i1(); /* INV */
+  ge i5() floor; /* INV */
+  !(eq signal i0()) && !(eq floor target) -> [target <- signal];
+  eq signal i0() && !(eq floor target) -> [target <- target];
+  eq floor target -> [target <- i0()];
+
+  [floor <- floor] || [floor <- add floor i1()] || [floor <- sub floor i1()];
+
+  eq target i1() -> F (eq floor i1());
+  eq target i2() -> F (eq floor i2());
+  eq target i3() -> F (eq floor i3());
+  eq target i4() -> F (eq floor i4());
+  eq target i5() -> F (eq floor i5());
+}
+
+always assume {
+  !(eq target i4() && eq target i3());
+}
+
+always assume {
+  !(eq target i2() && eq target i5());
+}
+
+always assume {
+  !(eq target i1() && eq target i0());
+}
+
+always assume {
+  !(!(eq floor i1()) && eq floor target && eq target i1());
+  !(!(eq floor i2()) && eq floor target && eq target i2());
+  !(!(eq floor i3()) && eq floor target && eq target i3());
+  !(!(eq floor i4()) && eq floor target && eq target i4());
+  !(!(eq floor i5()) && eq floor target && eq target i5());
+  !(!(ge i5() floor) && !(ge floor i1()));
+  !(eq target i2() && eq target i0());
+  !(eq target i2() && eq target i1());
+  !(eq target i3() && eq target i0());
+  !(eq target i3() && eq target i1());
+  !(eq target i3() && eq target i2());
+  !(eq target i3() && eq target i5());
+  !(eq target i4() && eq target i0());
+  !(eq target i4() && eq target i1());
+  !(eq target i4() && eq target i2());
+  !(eq target i4() && eq target i5());
+  !(eq target i5() && eq target i0());
+  !(eq target i5() && eq target i1());
+  !(ge floor i1() && eq floor target && eq target i0());
+  !(ge i5() floor && ge floor i1() && !(eq floor i4()) && !(eq floor i3()) && !(eq floor i2()) && !(eq floor i5()) && !(eq floor i1()));
+}
+
+always assume {
+  !(!(ge floor i1()) && eq floor i1());
+  !(!(ge floor i1()) && eq floor i2());
+  !(!(ge floor i1()) && eq floor i3());
+  !(!(ge floor i1()) && eq floor i4());
+  !(!(ge floor i1()) && eq floor i5());
+  !(!(ge i5() floor) && eq floor i1());
+  !(!(ge i5() floor) && eq floor i2());
+  !(!(ge i5() floor) && eq floor i3());
+  !(!(ge i5() floor) && eq floor i4());
+  !(!(ge i5() floor) && eq floor i5());
+  !(eq floor i1() && !(eq floor target) && eq target i1());
+  !(eq floor i1() && eq floor target && !(eq target i1()));
+  !(eq floor i2() && !(eq floor target) && eq target i2());
+  !(eq floor i2() && eq floor i1());
+  !(eq floor i2() && eq floor i5());
+  !(eq floor i2() && eq floor target && !(eq target i2()));
+  !(eq floor i3() && !(eq floor target) && eq target i3());
+  !(eq floor i3() && eq floor i1());
+  !(eq floor i3() && eq floor i2());
+  !(eq floor i3() && eq floor i5());
+  !(eq floor i3() && eq floor target && !(eq target i3()));
+  !(eq floor i4() && !(eq floor target) && eq target i4());
+  !(eq floor i4() && eq floor i1());
+  !(eq floor i4() && eq floor i2());
+  !(eq floor i4() && eq floor i3());
+  !(eq floor i4() && eq floor i5());
+  !(eq floor i4() && eq floor target && !(eq target i4()));
+  !(eq floor i5() && !(eq floor target) && eq target i5());
+  !(eq floor i5() && eq floor i1());
+  !(eq floor i5() && eq floor target && !(eq target i5()));
+}
+
+always assume {
+  !(eq signal i0()) && [ target <- signal ] -> X !(eq target i0());
+  !(eq target i0()) && [ target <- target ] -> X !(eq target i0());
+  !(eq target i1()) && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  !(eq target i1()) && [ target <- target ] -> X !(eq target i1());
+  !(eq target i2()) && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  !(eq target i2()) && [ target <- target ] -> X !(eq target i2());
+  !(eq target i3()) && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  !(eq target i3()) && [ target <- target ] -> X !(eq target i3());
+  !(eq target i4()) && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  !(eq target i4()) && [ target <- target ] -> X !(eq target i4());
+  !(eq target i5()) && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  !(eq target i5()) && [ target <- target ] -> X !(eq target i5());
+  [ target <- i0() ] -> X !(!(eq target i0()));
+  eq floor i1() && [ floor <- (add floor i1()) ] -> X !(!(ge i5() floor));
+  eq floor i1() && [ floor <- (add floor i1()) ] -> X !(eq floor i3());
+  eq floor i1() && [ floor <- (add floor i1()) ] -> X !(eq floor i4());
+  eq floor i1() && [ floor <- (add floor i1()) ] -> X !(eq floor i5());
+  eq floor i1() && [ floor <- (sub floor i1()) ] -> X !(!(ge i5() floor));
+  eq floor i1() && [ floor <- (sub floor i1()) ] -> X !(ge floor i1());
+  eq floor i1() && [ floor <- floor ] && [ target <- i0() ] -> X !(eq floor target && eq target i0());
+  eq floor i1() && [ floor <- floor ] -> X !(!(eq floor i1()));
+  eq floor i1() && [ floor <- floor ] -> X !(eq floor i2());
+  eq floor i1() && [ floor <- floor ] -> X !(eq floor i3());
+  eq floor i1() && [ floor <- floor ] -> X !(eq floor i4());
+  eq floor i1() && [ floor <- floor ] -> X !(eq floor i5());
+  eq floor i1() && [ floor <- floor ] -> X !(eq floor target && !(eq target i1()));
+  eq floor i1() && [ floor <- floor ] -> X !(eq floor target && eq target i0());
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(!(eq target i1()));
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq target i0());
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq target i2());
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq target i3());
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq target i4());
+  eq floor i1() && eq floor target && [ target <- target ] -> X !(eq target i5());
+  eq floor i2() && [ floor <- (add floor i1()) ] -> X !(!(ge floor i1()));
+  eq floor i2() && [ floor <- (add floor i1()) ] -> X !(!(ge i5() floor));
+  eq floor i2() && [ floor <- (add floor i1()) ] -> X !(eq floor i1());
+  eq floor i2() && [ floor <- (add floor i1()) ] -> X !(eq floor i2());
+  eq floor i2() && [ floor <- (add floor i1()) ] -> X !(eq floor i4());
+  eq floor i2() && [ floor <- (add floor i1()) ] -> X !(eq floor i5());
+  eq floor i2() && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()));
+  eq floor i2() && [ floor <- (sub floor i1()) ] -> X !(eq floor i2());
+  eq floor i2() && [ floor <- (sub floor i1()) ] -> X !(ge floor i1() && !(eq floor i1()));
+  eq floor i2() && [ floor <- floor ] && [ target <- i0() ] -> X !(eq floor target && eq target i0());
+  eq floor i2() && [ floor <- floor ] -> X !(!(eq floor i2()));
+  eq floor i2() && [ floor <- floor ] -> X !(eq floor i1());
+  eq floor i2() && [ floor <- floor ] -> X !(eq floor i3());
+  eq floor i2() && [ floor <- floor ] -> X !(eq floor i4());
+  eq floor i2() && [ floor <- floor ] -> X !(eq floor i5());
+  eq floor i2() && [ floor <- floor ] -> X !(eq floor target && !(eq target i2()));
+  eq floor i2() && [ floor <- floor ] -> X !(eq floor target && eq target i0());
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(!(eq target i2()));
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq target i0());
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq target i1());
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq target i3());
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq target i4());
+  eq floor i2() && eq floor target && [ target <- target ] -> X !(eq target i5());
+  eq floor i3() && [ floor <- (add floor i1()) ] -> X !(!(ge i5() floor));
+  eq floor i3() && [ floor <- (add floor i1()) ] -> X !(eq floor i3());
+  eq floor i3() && [ floor <- (add floor i1()) ] -> X !(eq floor i5());
+  eq floor i3() && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()));
+  eq floor i3() && [ floor <- (sub floor i1()) ] -> X !(eq floor i1());
+  eq floor i3() && [ floor <- (sub floor i1()) ] -> X !(eq floor i3());
+  eq floor i3() && [ floor <- (sub floor i1()) ] -> X !(eq floor i4());
+  eq floor i3() && [ floor <- floor ] && [ target <- i0() ] -> X !(eq floor target && eq target i0());
+  eq floor i3() && [ floor <- floor ] -> X !(!(eq floor i3()));
+  eq floor i3() && [ floor <- floor ] -> X !(eq floor i1());
+  eq floor i3() && [ floor <- floor ] -> X !(eq floor i2());
+  eq floor i3() && [ floor <- floor ] -> X !(eq floor i4());
+  eq floor i3() && [ floor <- floor ] -> X !(eq floor i5());
+  eq floor i3() && [ floor <- floor ] -> X !(eq floor target && !(eq target i3()));
+  eq floor i3() && [ floor <- floor ] -> X !(eq floor target && eq target i0());
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(!(eq target i3()));
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq target i0());
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq target i1());
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq target i2());
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq target i4());
+  eq floor i3() && eq floor target && [ target <- target ] -> X !(eq target i5());
+  eq floor i4() && [ floor <- (add floor i1()) ] -> X !(ge i5() floor && !(eq floor i5()));
+  eq floor i4() && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()));
+  eq floor i4() && [ floor <- (sub floor i1()) ] -> X !(eq floor i1());
+  eq floor i4() && [ floor <- (sub floor i1()) ] -> X !(eq floor i2());
+  eq floor i4() && [ floor <- floor ] && [ target <- i0() ] -> X !(eq floor target && eq target i0());
+  eq floor i4() && [ floor <- floor ] -> X !(!(eq floor i4()));
+  eq floor i4() && [ floor <- floor ] -> X !(eq floor i1());
+  eq floor i4() && [ floor <- floor ] -> X !(eq floor i2());
+  eq floor i4() && [ floor <- floor ] -> X !(eq floor i3());
+  eq floor i4() && [ floor <- floor ] -> X !(eq floor i5());
+  eq floor i4() && [ floor <- floor ] -> X !(eq floor target && !(eq target i4()));
+  eq floor i4() && [ floor <- floor ] -> X !(eq floor target && eq target i0());
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(!(eq target i4()));
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq target i0());
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq target i1());
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq target i2());
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq target i3());
+  eq floor i4() && eq floor target && [ target <- target ] -> X !(eq target i5());
+  eq floor i5() && [ floor <- (add floor i1()) ] -> X !(ge i5() floor);
+  eq floor i5() && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()));
+  eq floor i5() && [ floor <- (sub floor i1()) ] -> X !(eq floor i1());
+  eq floor i5() && [ floor <- (sub floor i1()) ] -> X !(eq floor i2());
+  eq floor i5() && [ floor <- (sub floor i1()) ] -> X !(eq floor i3());
+  eq floor i5() && [ floor <- floor ] && [ target <- i0() ] -> X !(eq floor target && eq target i0());
+  eq floor i5() && [ floor <- floor ] -> X !(!(eq floor i5()));
+  eq floor i5() && [ floor <- floor ] -> X !(eq floor i1());
+  eq floor i5() && [ floor <- floor ] -> X !(eq floor i2());
+  eq floor i5() && [ floor <- floor ] -> X !(eq floor i3());
+  eq floor i5() && [ floor <- floor ] -> X !(eq floor i4());
+  eq floor i5() && [ floor <- floor ] -> X !(eq floor target && !(eq target i5()));
+  eq floor i5() && [ floor <- floor ] -> X !(eq floor target && eq target i0());
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(!(eq target i5()));
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq target i0());
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq target i1());
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq target i2());
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq target i3());
+  eq floor i5() && eq floor target && [ target <- target ] -> X !(eq target i4());
+  eq signal i0() && [ target <- signal ] -> X !(!(eq target i0()));
+  eq signal i0() && [ target <- signal ] -> X !(eq floor i1() && eq floor target);
+  eq signal i0() && [ target <- signal ] -> X !(eq floor i2() && eq floor target);
+  eq signal i0() && [ target <- signal ] -> X !(eq floor i3() && eq floor target);
+  eq signal i0() && [ target <- signal ] -> X !(eq floor i4() && eq floor target);
+  eq signal i0() && [ target <- signal ] -> X !(eq floor i5() && eq floor target);
+  eq signal i0() && [ target <- signal ] -> X !(eq target i1());
+  eq signal i0() && [ target <- signal ] -> X !(eq target i2());
+  eq signal i0() && [ target <- signal ] -> X !(eq target i3());
+  eq signal i0() && [ target <- signal ] -> X !(eq target i4());
+  eq signal i0() && [ target <- signal ] -> X !(eq target i5());
+  eq target i0() && [ target <- target ] -> X !(!(eq target i0()));
+  eq target i0() && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq target i0() && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq target i0() && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq target i0() && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq target i0() && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq target i0() && [ target <- target ] -> X !(eq target i1());
+  eq target i0() && [ target <- target ] -> X !(eq target i2());
+  eq target i0() && [ target <- target ] -> X !(eq target i3());
+  eq target i0() && [ target <- target ] -> X !(eq target i4());
+  eq target i0() && [ target <- target ] -> X !(eq target i5());
+  eq target i1() && [ target <- target ] -> X !(!(eq target i1()));
+  eq target i1() && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq target i1() && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq target i1() && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq target i1() && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq target i1() && [ target <- target ] -> X !(eq target i0());
+  eq target i1() && [ target <- target ] -> X !(eq target i2());
+  eq target i1() && [ target <- target ] -> X !(eq target i3());
+  eq target i1() && [ target <- target ] -> X !(eq target i4());
+  eq target i1() && [ target <- target ] -> X !(eq target i5());
+  eq target i2() && [ target <- target ] -> X !(!(eq target i2()));
+  eq target i2() && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq target i2() && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq target i2() && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq target i2() && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq target i2() && [ target <- target ] -> X !(eq target i0());
+  eq target i2() && [ target <- target ] -> X !(eq target i1());
+  eq target i2() && [ target <- target ] -> X !(eq target i3());
+  eq target i2() && [ target <- target ] -> X !(eq target i4());
+  eq target i2() && [ target <- target ] -> X !(eq target i5());
+  eq target i3() && [ target <- target ] -> X !(!(eq target i3()));
+  eq target i3() && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq target i3() && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq target i3() && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq target i3() && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq target i3() && [ target <- target ] -> X !(eq target i0());
+  eq target i3() && [ target <- target ] -> X !(eq target i1());
+  eq target i3() && [ target <- target ] -> X !(eq target i2());
+  eq target i3() && [ target <- target ] -> X !(eq target i4());
+  eq target i3() && [ target <- target ] -> X !(eq target i5());
+  eq target i4() && [ target <- target ] -> X !(!(eq target i4()));
+  eq target i4() && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq target i4() && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq target i4() && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq target i4() && [ target <- target ] -> X !(eq floor i5() && eq floor target);
+  eq target i4() && [ target <- target ] -> X !(eq target i0());
+  eq target i4() && [ target <- target ] -> X !(eq target i1());
+  eq target i4() && [ target <- target ] -> X !(eq target i2());
+  eq target i4() && [ target <- target ] -> X !(eq target i3());
+  eq target i4() && [ target <- target ] -> X !(eq target i5());
+  eq target i5() && [ target <- target ] -> X !(!(eq target i5()));
+  eq target i5() && [ target <- target ] -> X !(eq floor i1() && eq floor target);
+  eq target i5() && [ target <- target ] -> X !(eq floor i2() && eq floor target);
+  eq target i5() && [ target <- target ] -> X !(eq floor i3() && eq floor target);
+  eq target i5() && [ target <- target ] -> X !(eq floor i4() && eq floor target);
+  eq target i5() && [ target <- target ] -> X !(eq target i0());
+  eq target i5() && [ target <- target ] -> X !(eq target i1());
+  eq target i5() && [ target <- target ] -> X !(eq target i2());
+  eq target i5() && [ target <- target ] -> X !(eq target i3());
+  eq target i5() && [ target <- target ] -> X !(eq target i4());
+  ge floor i1() && !(eq floor i1()) && [ floor <- (add floor i1()) ] -> X !(!(ge floor i1()));
+  ge floor i1() && !(eq floor i1()) && [ floor <- (add floor i1()) ] -> X !(eq floor i1());
+  ge floor i1() && !(eq floor i1()) && [ floor <- (add floor i1()) ] -> X !(eq floor i2());
+  ge floor i1() && !(eq floor i1()) && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()));
+  ge floor i1() && !(eq floor i2()) && !(eq floor i1()) && [ floor <- (sub floor i1()) ] -> X !(eq floor i1());
+  ge floor i1() && [ floor <- (add floor i1()) ] -> X !(!(ge floor i1()));
+  ge floor i1() && [ floor <- (add floor i1()) ] -> X !(eq floor i1());
+  ge floor i1() && [ floor <- (sub floor i1()) ] && [ target <- i0() ] -> X !(!(ge floor i1()) && !(eq floor target) && eq target i0());
+  ge floor i1() && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()) && !(eq floor target) && eq target i0());
+  ge floor i1() && [ floor <- (sub floor i1()) ] -> X !(!(ge floor i1()) && eq floor target && !(eq target i0()));
+  ge i5() floor && !(eq floor i5()) && [ floor <- (add floor i1()) ] -> X !(!(ge i5() floor));
+  ge i5() floor && !(eq floor i5()) && [ floor <- (sub floor i1()) ] -> X !(eq floor i4());
+  ge i5() floor && [ floor <- (sub floor i1()) ] -> X !(!(ge i5() floor));
+  ge i5() floor && [ floor <- (sub floor i1()) ] -> X !(eq floor i5());
+  ge i5() signal && [ target <- signal ] -> X !(!(ge i5() floor) && eq floor target);
+  ge i5() signal && ge signal i0() && !(eq signal i0()) && [ target <- signal ] -> X !(!(eq target i4()) && !(eq target i3()) && !(eq target i2()) && !(eq target i5()) && !(eq target i1()));
+  ge i5() signal && ge signal i0() && !(eq signal i0()) && [ target <- signal ] -> X !(eq floor i2() && !(eq target i4()) && !(eq target i3()) && !(eq target i2()) && !(eq target i5()) && !(eq target i1()));
+  ge i5() signal && ge signal i0() && !(eq signal i0()) && [ target <- signal ] -> X !(eq floor i3() && !(eq target i4()) && !(eq target i3()) && !(eq target i2()) && !(eq target i5()) && !(eq target i1()));
+  ge i5() signal && ge signal i0() && !(eq signal i0()) && [ target <- signal ] -> X !(ge i5() floor && eq floor i4() && !(eq floor i5()) && !(eq target i4()) && !(eq target i3()) && !(eq target i2()) && !(eq target i5()) && !(eq target i1()));
+  ge signal i0() && !(eq signal i0()) && [ target <- signal ] -> X !(!(ge floor i1()) && eq floor target);
+}

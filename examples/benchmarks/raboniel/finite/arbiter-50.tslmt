@@ -1,4 +1,3 @@
-#LIA
 //-- State: floor, target
 //-- Inputs: signal
 
@@ -16,7 +15,7 @@ always guarantee {
   (eq q i0()) -> ([cnt <- env_cnt] && [env_room <- room] && [q <- i1()]);
   ((eq q i1()) && (ge cnt i0())) -> (([cnt <- sub cnt i1()] || [q <- i0()]));
   ((eq q i1()) && (not (eq cnt i0())) && (not (eq con_room env_room))) -> [q <- i2()];
-  ((eq q i2()) ) -> (([con_room <- true()] || [con_room <- false()]) && [q <- i1()]);
+  ((eq q i2()) ) -> (([con_room <- i0()] || [con_room <- i1()]) && [q <- i1()]);
   ((eq q i1()) && (not (eq cnt i0())) && ((eq con_room env_room))) -> ([q <- i1()] && ([cnt <- sub cnt i1()] || [cnt <- cnt]));
 
   G F (eq q i0());
