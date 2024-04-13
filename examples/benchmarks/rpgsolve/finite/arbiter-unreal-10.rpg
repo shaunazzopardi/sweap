@@ -24,7 +24,7 @@ trans move
     if (or (< cnt 0) (> cnt 10))
     then unsafe
     else
-    if (= cnt 0) then
+    if (<= cnt 0) then
         sys (((cnt (- cnt 1))) move
              () move
              ((finished true)) i)
@@ -36,7 +36,6 @@ trans move
              () move)
 
 trans kind_of_grant
-	sys (((con_room true)) move
-	     ((con_room false)) move)
+	sys (((con_room true)) move)
 
 trans unsafe unsafe
