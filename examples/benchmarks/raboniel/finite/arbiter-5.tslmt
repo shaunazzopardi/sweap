@@ -6,8 +6,8 @@ assume {
 }
 
 always assume {
-    (eq room i0()) || (eq room i1())
-    (ge env_cnt i0()) && (le env_cnt i5())
+    (eq room i0()) || (eq room i1());
+    (ge env_cnt i0()) && (le env_cnt i5());
 }
 
 always guarantee {
