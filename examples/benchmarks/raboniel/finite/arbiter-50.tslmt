@@ -1,5 +1,5 @@
-//-- State: floor, target
-//-- Inputs: signal
+//-- State: cnt, con_room, env_room, q
+//-- Inputs: env_cnt, room
 
 assume {
   eq i0() q;
