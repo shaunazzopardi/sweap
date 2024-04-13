@@ -170,4 +170,8 @@ examples/benchmarks/raboniel/*.kiss
 examples/benchmarks/raboniel/*.tsl
 examples/benchmarks/raboniel/*.tlsf
 examples/benchmarks/raboniel/*.py
+examples/benchmarks/raboniel/finite/*.kiss
+examples/benchmarks/raboniel/finite/*.tsl
+examples/benchmarks/raboniel/finite/*.tlsf
+examples/benchmarks/raboniel/finite/*.py
 
