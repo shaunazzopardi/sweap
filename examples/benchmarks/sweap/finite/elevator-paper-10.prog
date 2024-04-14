@@ -15,8 +15,8 @@ program elevator {
     }
 
     VALUATION {
-        target : natural := 0..10;
-        at_floor : natural := 0..10;
+        target : 0..10 := 0;
+        at_floor : 0..10 := 0;
     }
 
     TRANSITIONS {
