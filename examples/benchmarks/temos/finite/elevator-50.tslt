@@ -24,6 +24,6 @@ always guarantee {
   (eq dooropen i1()) -> [floor <- floor];
 
   G F (eq floor target);
-  (ge floor i0()) && (le floor 5i0());
-  (ge target i0()) && (le target 5i0());
+  (ge floor i0()) && (le floor i50());
+  (ge target i0()) && (le target i50());
 }
