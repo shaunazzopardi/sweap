@@ -9,7 +9,7 @@ assume {
 
 always assume {
   eq dooropen i0() || eq dooropen i1();
-  (ge env_target i0() && (le env_target i50());
+  (ge env_target i0()) && (le env_target i50());
   G F (eq dooropen i0());
   G F (eq dooropen i1());
 }
