@@ -11,15 +11,16 @@ TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-raboniel-$TIMESTAMP
 LOGFILE=$SCRIPT_DIR/log-raboniel-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../examples/benchmarks/raboniel
+echo "run-raboniel.sh" >> $OUTFILE
+echo "" >> $OUTFILE
 
 run_raboniel() {
-	echo "Run raboniel on $1 at $(date +%H:%M:%S)" 
-	echo "Run raboniel on $1 at $(date +%H:%M:%S)" >> $OUTFILE
+	echo "Run raboniel on $1 at $(date +%H:%M:%S)"
 	echo "Benchmark: $1" >> $OUTFILE
 	echo "Benchmark: $1" >> $LOGFILE
 	s=`date +%s%N`
 	timeout $TIMEOUT ./raboniel --spec $1 2>> $LOGFILE | grep 'Result' >> $OUTFILE
-	e=`date +%s%N` 
+	e=`date +%s%N`
 	echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
 	echo "" >> $OUTFILE
 	echo "" >> $LOGFILE
@@ -32,8 +33,10 @@ for f in `ls $BENCHMARKS_DIR/*.tslmt`
 do
   run_raboniel $f
 done
+
 for f in `ls $BENCHMARKS_DIR/finite/*.tslmt`
 do
   run_raboniel $f
 done
+
 cd $oldpath

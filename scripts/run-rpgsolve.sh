@@ -10,10 +10,11 @@ BASEPATH=$SCRIPT_DIR/../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-rpgsolve-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../examples/benchmarks/rpgsolve
+echo "run-rpgsolve.sh" >> $OUTFILE
+echo "" >> $OUTFILE
 
 run_rpgsolve() {
     echo "Run rpgsolve on $1 at $(date +%H:%M:%S)"
-    echo "Run rpgsolve on $1 at $(date +%H:%M:%S)" >> $OUTFILE
     echo "Benchmark: $1" >> $OUTFILE
     logfile=`mktemp --suffix .log`
 

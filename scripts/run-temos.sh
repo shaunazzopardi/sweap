@@ -8,26 +8,27 @@ TIMEOUT=600
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
-OUTFILE=$SCRIPT_DIR/out-temos-$TIMESTAMP
+OUTFILE=$SCRIPT_DIR/qout-temos-$TIMESTAMP
 LOGFILE=$SCRIPT_DIR/log-temos-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../examples/benchmarks/temos
+echo "run-temos.sh" >> $OUTFILE
+echo "" >> $OUTFILE
 
 run_temos() {
-	echo "Run temos on $1 at $(date +%H:%M:%S)" 
-	echo "Run temos on $1 at $(date +%H:%M:%S)" >> $OUTFILE
+	echo "Run temos on $1 at $(date +%H:%M:%S)"
 	echo "Benchmark: $1" >> $OUTFILE
 	echo "Benchmark: $1" >> $LOGFILE
 	tmptsl=`mktemp --suffix .tsl`
 	tmptlsf=`mktemp --suffix .tlsf`
 	s=`date +%s%N`
-	timeout $TIMEOUT $BASEPATH/temos-tslmt2tsl $1 $BASEPATH/cvc5 > $tmptsl 2>> $LOGFILE 
+	timeout $TIMEOUT $BASEPATH/temos-tslmt2tsl $1 $BASEPATH/cvc5 > $tmptsl 2>> $LOGFILE
 	killall cvc5 2>> $LOGFILE
 	timeout $TIMEOUT $BASEPATH/temos-tsl2tlsf $tmptsl > $tmptlsf 2>> $LOGFILE
 	INS=$($BASEPATH/syfco -f ltl --print-input-signals $tmptlsf 2>> $LOGFILE)
 	OUTS=$($BASEPATH/syfco -f ltl --print-output-signals $tmptlsf 2>> $LOGFILE)
 	LTL=$($BASEPATH/syfco -f ltl -q double -m fully $tmptlsf 2>> $LOGFILE)
 	timeout $TIMEOUT $BASEPATH/strix --ins "$INS" --outs "$OUTS" -f "$LTL" -r | grep 'REAL' >> $OUTFILE 2>> $LOGFILE
-	e=`date +%s%N` 
+	e=`date +%s%N`
 	echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
 	echo "" >> $OUTFILE
 	echo "" >> $LOGFILE

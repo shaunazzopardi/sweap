@@ -11,14 +11,15 @@ TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-sweap-$TIMESTAMP
 LOGFILE=$SCRIPT_DIR/log-sweap-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../examples/benchmarks/sweap
+echo "run-sweap.sh	" >> $OUTFILE
+echo "" >> $OUTFILE
 
 run_sweap() {
-	echo "Run Sweap on  $1 at $(date +%H:%M:%S)" 
-	echo "Run Sweap on  $1 at $(date +%H:%M:%S)" >> $OUTFILE
-	echo "$1" >> $OUTFILE
+	echo "Run Sweap on $1 at $(date +%H:%M:%S)"
+	echo "Benchmark: $1" >> $OUTFILE
 	s=`date +%s%N`
-        PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --synthesise  --p $1  2> $LOGFILE | grep "^\(Unr\|R\)ealizable\." >> $OUTFILE 
-	e=`date +%s%N` 
+	PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --synthesise  --p $1  2> $LOGFILE | grep "^\(Unr\|R\)ealizable\." >> $OUTFILE
+	e=`date +%s%N`
 	echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
 	echo "" >> $OUTFILE
 }
