@@ -40,6 +40,14 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
     for trans in predicate_abstraction.non_init_program_trans:
         pred_effects = []
 
+        u = predicate_abstraction.trans_to_u[trans]
+        constant_tran_preds = []
+        for p in predicate_abstraction.u_constants[u]:
+            if isinstance(p, UniOp) and p.op == "!":
+                constant_tran_preds += [(neg(rename_pred(p.right)))]
+            else:
+                constant_tran_preds += [(rename_pred(p))]
+
         for gu, Es in predicate_abstraction.transition_guard_update_to_E[trans].items():
             effect = predicate_abstraction.abstract_effect[gu]
             invar_preds_effects = []
@@ -74,7 +82,13 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
         pred_effect_formula = disjunct_formula_set(pred_effects)
         if len(trans.output) > 0:
             output_formula = conjunct_formula_set([X(o) for o in trans.output])
-            effect_formula = conjunct_formula_set(pred_effect_formula, output_formula)
+            effect_formula = conjunct(pred_effect_formula, output_formula)
+        else:
+            effect_formula = pred_effect_formula
+
+        if len(constant_tran_preds) > 0:
+            constant_tran_preds = conjunct_formula_set([X((p)) for p in constant_tran_preds])
+            effect_formula = conjunct(effect_formula, constant_tran_preds)
         else:
             effect_formula = pred_effect_formula
 
