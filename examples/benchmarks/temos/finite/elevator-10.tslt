@@ -1,6 +1,6 @@
 #LIA
 //-- State: floor, target, q
-//-- Inputs: inc, dooropen
+//-- Inputs: inc, dooropen, env_target
 
 assume {
   eq floor i0();
