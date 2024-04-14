@@ -517,22 +517,23 @@ def compute_abstract_effect_for_guard_update(arg):
 
     return g, u, gu_formula, invars, constants, old_effects, next_to_ltl_now
 
-def add_transition_predicates_to_t_guard_updates(arg):
-    g, u, gu_formula, old_effects, predicates, symbol_table = arg
 
-    invars = []
-    constants = []
-    for p in predicates:
-        if str(p) in str(gu_formula):
-            constants.append(p)
-            continue
-        g, u, gu_formula, invars_p, constants_p, effects = (
-            add_transition_predicate_to_t_guard_updates((g, u, gu_formula, old_effects, p, symbol_table)))
-        old_effects = effects
-        invars.extend(invars_p)
-        constants.extend(constants_p)
-
-    return g, u, gu_formula, invars, constants, old_effects
+# def add_transition_predicates_to_t_guard_updates(arg):
+#     gu_formula, old_effects, predicates, symbol_table = arg
+#
+#     invars = []
+#     constants = []
+#     for p in predicates:
+#         if str(p) in str(gu_formula):
+#             constants.append(p)
+#             continue
+#         gu_formula, invars_p, constants_p, effects = (
+#             add_transition_predicate_to_t_guard_updates((g, u, gu_formula, old_effects, p, symbol_table)))
+#         old_effects = effects
+#         invars.extend(invars_p)
+#         constants.extend(constants_p)
+#
+#     return gu_formula, invars, constants, old_effects
 
 
 def compute_abstract_effect_with_p_guard_update(arg):
