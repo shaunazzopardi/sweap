@@ -8,7 +8,7 @@ TIMEOUT=600
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
-OUTFILE=$SCRIPT_DIR/qout-temos-$TIMESTAMP
+OUTFILE=$SCRIPT_DIR/out-temos-$TIMESTAMP
 LOGFILE=$SCRIPT_DIR/log-temos-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../examples/benchmarks/temos
 echo "run-temos.sh" >> $OUTFILE
