@@ -20,7 +20,7 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
     true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
-    is_conjunction_of_atoms, sat_parallel
+    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_invars = {}
         self.abstract_effect_constant = {}
         self.abstract_effect = {}
+        self.abstract_effect_ltl = {}
         self.abstract_effect_tran_preds_constant = {}
 
         self.init_conf = None
@@ -249,8 +250,8 @@ class EffectsAbstraction(PredicateAbstraction):
             self.var_relabellings[p] = stringify_pred(p)
 
         self.interpolants.update(new_state_predicates)
-        self.add_state_predicates(new_state_predicates, parallelise)
         self.add_transition_predicates(new_transition_predicates, parallelise)
+        self.add_state_predicates(new_state_predicates, parallelise)
 
         # self.pretty_print_abstract_effect()
 
@@ -308,10 +309,11 @@ class EffectsAbstraction(PredicateAbstraction):
         with Pool(no_of_workers) as pool:
             results = pool.map(compute_abstract_effect_for_guard_update, zip(arg1, arg2, arg3, arg4, arg5, arg6))
 
-        for g, u, gu, invars, constants, new_effects in results:
+        for g, u, gu, invars, constants, new_effects, effects_ltl in results:
             self.abstract_effect_invars[gu].extend(invars)
             self.abstract_effect_constant[gu].extend(constants)
             self.abstract_effect[gu] = new_effects
+            self.abstract_effect_ltl[gu] = effects_ltl
 
         # if config.debug:
         #     # sanity check
@@ -505,9 +507,15 @@ def compute_abstract_effect_for_guard_update(arg):
         old_effects = effects
         invars.extend(invars_p)
         constants.extend(constants_p)
+    rename_pred = lambda x: label_pred(x, [])
+    next_to_ltl_now = {}
+    for next, nows in old_effects.items():
+        E_now = disjunct_formula_set(
+            [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in nows])
+        E_now_simplified = bdd_simplify_ltl_formula(E_now)
+        next_to_ltl_now[next] = E_now_simplified
 
-    return g, u, gu_formula, invars, constants, old_effects
-
+    return g, u, gu_formula, invars, constants, old_effects, next_to_ltl_now
 
 def add_transition_predicates_to_t_guard_updates(arg):
     g, u, gu_formula, old_effects, predicates, symbol_table = arg
