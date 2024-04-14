@@ -294,9 +294,12 @@ def bdd_simplify_guards(program, guard):
     fnode = And(*guard.to_smt(program.symbol_table))
     order = [v for v in fnode.get_free_variables() if Variable(str(v)) in program.env_events + program.con_events]
     condition_simplified = bdd_simplify(fnode, static_ordering=order)
-    condition_simplified = fnode_to_formula(condition_simplified)
-    print("simplified " + str(guard) + " (len " + str(len(guard)) + ") to " + str(condition_simplified) + " (len " + str(len(condition_simplified)) + ")")
-    return condition_simplified
+    if condition_simplified is not None:
+        condition_simplified = fnode_to_formula(condition_simplified)
+        print("simplified " + str(guard) + " (len " + str(len(guard)) + ") to " + str(condition_simplified) + " (len " + str(len(condition_simplified)) + ")")
+        return condition_simplified
+    else:
+        return guard
 
 
 def stutter_transition(program, state, cnf=False):
