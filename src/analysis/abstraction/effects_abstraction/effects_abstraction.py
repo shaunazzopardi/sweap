@@ -20,7 +20,7 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
     true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
-    is_conjunction_of_atoms, sat_parallel
+    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_invars = {}
         self.abstract_effect_constant = {}
         self.abstract_effect = {}
+        self.abstract_effect_ltl = {}
         self.abstract_effect_tran_preds_constant = {}
 
         self.init_conf = None
@@ -40,6 +41,10 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.init_program_trans = None
         self.non_init_program_trans = None
+
+        self.u_to_gu = {}
+        self.trans_to_u = {}
+        self.u_constants = {}
 
         self.transition_guard_update_to_E = {}
         self.transition_E_to_guard_update = {}
@@ -109,8 +114,20 @@ class EffectsAbstraction(PredicateAbstraction):
             self.transition_guard_update_to_E[t] = {}
             self.transition_E_to_guard_update[t] = {}
             u = t.action
+            u_f = conjunct_formula_set([BiOp(up.left, "=", add_prev_suffix(up.right)) for up in t.action], sort=True)
+
+            self.trans_to_u[t] = u_f
+
             for g, E in disjuncts:
                 gu = guard_update_formula(g, u, self.program.symbol_table)
+                self.abstract_effect_ltl[gu] = {frozenset(): true()}
+                if u_f in self.u_to_gu.keys():
+                    self.u_to_gu[u_f].add(gu)
+                else:
+                    self.u_to_gu[u_f] = {gu}
+                if u_f not in self.u_constants.keys():
+                    self.u_constants[u_f] = []
+
                 self.guard_updates.add(gu)
                 if gu in self.transition_guard_update_to_E[t].keys():
                     self.transition_guard_update_to_E[t][gu].append(E)
@@ -233,8 +250,8 @@ class EffectsAbstraction(PredicateAbstraction):
             self.var_relabellings[p] = stringify_pred(p)
 
         self.interpolants.update(new_state_predicates)
-        self.add_state_predicates(new_state_predicates, parallelise)
         self.add_transition_predicates(new_transition_predicates, parallelise)
+        self.add_state_predicates(new_state_predicates, parallelise)
 
         # self.pretty_print_abstract_effect()
 
@@ -292,10 +309,11 @@ class EffectsAbstraction(PredicateAbstraction):
         with Pool(no_of_workers) as pool:
             results = pool.map(compute_abstract_effect_for_guard_update, zip(arg1, arg2, arg3, arg4, arg5, arg6))
 
-        for g, u, gu, invars, constants, new_effects in results:
+        for g, u, gu, invars, constants, new_effects, effects_ltl in results:
             self.abstract_effect_invars[gu].extend(invars)
             self.abstract_effect_constant[gu].extend(constants)
             self.abstract_effect[gu] = new_effects
+            self.abstract_effect_ltl[gu] = effects_ltl
 
         # if config.debug:
         #     # sanity check
@@ -347,22 +365,43 @@ class EffectsAbstraction(PredicateAbstraction):
         arg1 = []
         arg2 = []
         arg3 = []
+        for u_f in self.u_to_gu.keys():
+            for p in new_transition_predicates:
+                arg1.append(u_f)
+                arg2.append(p)
+                arg3.append(self.program.symbol_table)
+        with Pool(no_of_workers) as pool:
+            results = pool.map(add_transition_predicate_to_update, zip(arg1, arg2, arg3))
+
+        residuals = {}
+
+        for i, result in enumerate(results):
+            success, res = result
+            u_f = arg1[i]
+            if success:
+                _, constants = res
+                self.u_constants[u_f].extend(constants)
+            else:
+                if u_f in residuals.keys():
+                    residuals[u_f].append(arg2[i])
+                else:
+                    residuals[u_f] = [arg2[i]]
+
+        arg3 = []
         arg4 = []
         arg5 = []
         arg6 = []
-        for gu in self.guard_updates:
-            g, u = guard_update_formula_to_guard_update(gu)
-            arg1.append(g)
-            arg2.append(u)
-            arg3.append(gu)
-            arg4.append(self.abstract_effect[gu])
-            arg5.append(new_transition_predicates)
-            arg6.append(self.program.symbol_table)
+        for u, preds in residuals.items():
+            for gu in self.u_to_gu[u]:
+                arg3.append(gu)
+                arg4.append(self.abstract_effect[gu])
+                arg5.append(preds)
+                arg6.append(self.program.symbol_table)
 
         with Pool(no_of_workers) as pool:
-            results = pool.map(add_transition_predicates_to_t_guard_updates, zip(arg1, arg2, arg3, arg4, arg5, arg6))
+            results = pool.map(add_transition_predicates_to_t_guard_updates, zip(arg3, arg4, arg5, arg6))
 
-        for g, u, gu, invars, constants, new_effects in results:
+        for gu, invars, constants, new_effects in results:
             self.abstract_effect_invars[gu] += invars
             self.abstract_effect_tran_preds_constant[gu] += constants
             self.abstract_effect[gu] = new_effects
@@ -468,26 +507,33 @@ def compute_abstract_effect_for_guard_update(arg):
         old_effects = effects
         invars.extend(invars_p)
         constants.extend(constants_p)
+    rename_pred = lambda x: label_pred(x, [])
+    next_to_ltl_now = {}
+    for next, nows in old_effects.items():
+        E_now = disjunct_formula_set(
+            [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in nows])
+        E_now_simplified = bdd_simplify_ltl_formula(E_now)
+        next_to_ltl_now[next] = E_now_simplified
 
-    return g, u, gu_formula, invars, constants, old_effects
+    return g, u, gu_formula, invars, constants, old_effects, next_to_ltl_now
 
 
-def add_transition_predicates_to_t_guard_updates(arg):
-    g, u, gu_formula, old_effects, predicates, symbol_table = arg
-
-    invars = []
-    constants = []
-    for p in predicates:
-        if str(p) in str(gu_formula):
-            constants.append(p)
-            continue
-        g, u, gu_formula, invars_p, constants_p, effects = (
-            add_transition_predicate_to_t_guard_updates((g, u, gu_formula, old_effects, p, symbol_table)))
-        old_effects = effects
-        invars.extend(invars_p)
-        constants.extend(constants_p)
-
-    return g, u, gu_formula, invars, constants, old_effects
+# def add_transition_predicates_to_t_guard_updates(arg):
+#     gu_formula, old_effects, predicates, symbol_table = arg
+#
+#     invars = []
+#     constants = []
+#     for p in predicates:
+#         if str(p) in str(gu_formula):
+#             constants.append(p)
+#             continue
+#         gu_formula, invars_p, constants_p, effects = (
+#             add_transition_predicate_to_t_guard_updates((g, u, gu_formula, old_effects, p, symbol_table)))
+#         old_effects = effects
+#         invars.extend(invars_p)
+#         constants.extend(constants_p)
+#
+#     return gu_formula, invars, constants, old_effects
 
 
 def compute_abstract_effect_with_p_guard_update(arg):
@@ -620,15 +666,31 @@ def compute_abstract_effect_with_p_guard_update(arg):
     return g, u, gu_formula, invars, constants, new_effects
 
 
+def add_transition_predicates_to_t_guard_updates(arg):
+    gu_formula, old_effects, predicates, symbol_table = arg
+
+    invars = []
+    constants = []
+    for p in predicates:
+        if str(p) in str(gu_formula):
+            constants.append(p)
+            continue
+        gu_formula, invars_p, constants_p, effects = (
+            add_transition_predicate_to_t_guard_updates((gu_formula, old_effects, p, symbol_table)))
+        old_effects = effects
+        invars.extend(invars_p)
+        constants.extend(constants_p)
+
+    return gu_formula, invars, constants, old_effects
+
+
 def add_transition_predicate_to_t_guard_updates(arg):
-    g, u, gu, old_effects, predicate, symbol_table = arg
+    gu, old_effects, predicate, symbol_table = arg
     if len(old_effects) == 0:
-        return g, u, gu, [], [], old_effects
+        return gu, [], [], old_effects
 
     if not any(True for v in predicate.variablesin() if str(v).endswith("_prev")):
         raise Exception(str(predicate) + " is not a transition predicate.")
-
-    action = u
 
     t_formula = gu
 
@@ -643,7 +705,6 @@ def add_transition_predicate_to_t_guard_updates(arg):
     # if cannot determine exactly whether to the pred is a constant, then for replicate each post state
     # for each possibility
     else:
-        action_formula = conjunct_formula_set([BiOp(a.left, "=", add_prev_suffix(a.right)) for a in action])
         new_formula = gu
 
         newNextPss = {}
@@ -651,29 +712,44 @@ def add_transition_predicate_to_t_guard_updates(arg):
         for (nextPs, Pss) in old_effects.items():
             nextPs_with_p = frozenset(p for p in nextPs | {predicate})
             nextPs_with_neg_p = frozenset(p for p in nextPs | {neg(predicate)})
-            new_pos_Ps = set()
-            new_neg_Ps = set()
+            new_pos_Ps = []
+            new_neg_Ps = []
             for Ps in Pss:
                 if sat(conjunct(conjunct_formula_set(nextPs_with_p),
                                 conjunct(new_formula,
                                          conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
                        symbol_table):
-                    new_pos_Ps.add(Ps)
+                    new_pos_Ps.append(Ps)
 
                 if sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
                                 conjunct(new_formula,
                                          conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
                        symbol_table):
-                    new_neg_Ps.add(Ps)
+                    new_neg_Ps.append(Ps)
 
             if len(new_pos_Ps) > 0:
-                newNextPss[nextPs_with_p] = frozenset(P for P in new_pos_Ps)
+                newNextPss[nextPs_with_p] = new_pos_Ps
             if len(new_neg_Ps) > 0:
-                newNextPss[nextPs_with_neg_p] = frozenset(P for P in new_neg_Ps)
+                newNextPss[nextPs_with_neg_p] = new_neg_Ps
 
         new_effects = newNextPss
-    return g, u, gu, invars, constants, new_effects
+    return gu, invars, constants, new_effects
 
+
+def add_transition_predicate_to_update(arg):
+    u_f, predicate, symbol_table = arg
+
+    if not any(True for v in predicate.variablesin() if str(v).endswith("_prev")):
+        raise Exception(str(predicate) + " is not a transition predicate.")
+
+    action = (u_f)
+    # if the transition predicate is not mentioned in the action
+    if is_contradictory(conjunct_formula_set([action, (predicate)]), symbol_table):
+        return True, (u_f, [neg(predicate)])
+    elif is_contradictory(conjunct_formula_set([action, neg(predicate)]), symbol_table):
+        return True, (u_f, [(predicate)])
+    else:
+        return False, None
 
 def abstract_guard_explicitly_simple_parallel(arg):
     trans, events, symbol_table = arg
