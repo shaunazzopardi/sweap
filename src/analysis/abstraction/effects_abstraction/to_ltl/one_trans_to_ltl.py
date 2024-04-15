@@ -49,30 +49,8 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
                 constant_tran_preds += [(rename_pred(p))]
 
         for gu, Es in predicate_abstraction.transition_guard_update_to_E[trans].items():
-            effect = predicate_abstraction.abstract_effect_ltl[gu]
-            invar_preds_effects = []
-
-            if gu in predicate_abstraction.abstract_effect_invars.keys():
-                invar_preds_effects += [iff(rename_pred(p), X(rename_pred(p))) for p in
-                                        set(predicate_abstraction.abstract_effect_invars[gu])]
-
-            if gu in predicate_abstraction.abstract_effect_constant.keys():
-                invar_preds_effects += [X(rename_pred(p)) for p in
-                                        set(predicate_abstraction.abstract_effect_constant[gu])]
-
-            if gu in predicate_abstraction.abstract_effect_tran_preds_constant.keys():
-                invar_preds_effects += [X(rename_pred(p)) for p in
-                                        set(predicate_abstraction.abstract_effect_tran_preds_constant[gu])]
-
-            E_formula = disjunct_formula_set([conjunct_formula_set(E) for E in Es])
-            E_formula = conjunct_formula_set([E_formula] + invar_preds_effects)
-            E_effects = []
-            for next_pred_state, E_now_simplified in effect.items():
-
-                E_next = conjunct_formula_set([rename_pred(p) for p in next_pred_state])
-                E_next_simplified = simplify_formula_without_math(E_next)
-                E_effects.append(conjunct(E_now_simplified, X(E_next_simplified)))
-            pred_effects.extend([conjunct(E_formula, (disjunct_formula_set(E_effects)))])
+            gu_ltl = predicate_abstraction.abstract_effect_ltl[gu]
+            pred_effects.append(conjunct(disjunct_formula_set([conjunct_formula_set(E) for E in Es]), gu_ltl))
 
         pred_effect_formula = disjunct_formula_set(pred_effects)
         if len(trans.output) > 0:

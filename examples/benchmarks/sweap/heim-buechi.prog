@@ -38,6 +38,6 @@ program running-example-buechi {
     }
 
     SPECIFICATION {
-        G F(!l0 && !l) -> G F ((l1 && x <= 42) || (l3 && y >= 16))
+        G F(!l0 && !l) -> G F (l1 || l3)
     }
 }

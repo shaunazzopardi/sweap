@@ -177,14 +177,14 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     add_all_boolean_vars = True
 
+    new_state_preds = []
     if add_all_boolean_vars:
-        new_state_preds = [Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool")]
-    else:
-        new_state_preds = []
+        new_state_preds.extend([Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool")])
 
-    # for t in program.transitions:
-    #     preds_in_cond = atomic_predicates(t.condition)
-    #     new_state_preds.extend([p for p in preds_in_cond if p not in program.con_events + program.env_events])
+    if config.Config.getConfig().add_all_preds_in_prog:
+        for t in program.transitions:
+            preds_in_cond = atomic_predicates(t.condition)
+            new_state_preds.extend([p for p in preds_in_cond if p not in program.con_events + program.env_events])
 
     prog_state_vars = [Variable(s) for s in program.states]
     new_ltl_assumptions = []
