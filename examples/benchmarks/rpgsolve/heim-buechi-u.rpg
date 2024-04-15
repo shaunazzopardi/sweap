@@ -1,0 +1,22 @@
+type Buechi 
+
+output x Int
+
+loc l0 1
+loc l1 0
+loc l2 0
+loc l3 0
+
+init l0
+
+trans l0 l1
+
+trans l1 
+     sys (() l1
+          ((x (- x 1))) l2)
+
+trans l2 
+    if (> x 0) then l0
+    else l3
+
+trans l3 l3

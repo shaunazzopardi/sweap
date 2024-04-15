@@ -1,0 +1,13 @@
+#LIA
+//-- State: x, loc
+//-- Inputs: i_i
+guarantee {
+[loc  <- int0()];
+G ((eq loc int0()) -> ([x <- x] && [loc <- int1()]));
+G ((eq loc int1()) -> (([x <- x] && [loc <- int1()]) || [x <- (sub x int1())] && [loc <- int2()]));
+G ((eq loc int2()) -> (([x <- x] && (> x int0()) && [loc <- int0()]) || ((<= x int0()) && [loc <- int3()])));
+G ((eq loc int3()) -> ([loc <- int3()]));
+}
+
+guarantee { G F((eq loc int0()) || [loc  <- int3()]);}
+
