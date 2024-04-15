@@ -8,7 +8,7 @@ program square5x5 {
     }
 
     CONTROLLER EVENTS {
-        incxc; decxc; incyc; decyc;
+        incx; decx; incy; decy;
     }
 
     PROGRAM EVENTS {
@@ -31,7 +31,7 @@ program square5x5 {
                      x := x - 1 if !incxe && decxe;
                      y := y + 1 if incye && !decye;
                      y := y - 1 if !incye && decye;
-                     ],
+                     ]
         }
 
     SPECIFICATION {
