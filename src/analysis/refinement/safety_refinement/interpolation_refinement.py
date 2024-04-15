@@ -79,7 +79,6 @@ def safety_refinement_seq_int(program: Program,
         new_state_preds = list(set(new_state_preds))
         new_state_preds = [x for x in new_state_preds if
                            not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
-
         new_new_state_preds = []
         for p in new_state_preds:
             if isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (
