@@ -1,5 +1,5 @@
 //-- State: floor, target, q
-//-- Inputs: inc, dooropen
+//-- Inputs: inc, dooropen, env_target
 
 //#LIA#
 
@@ -25,6 +25,6 @@ always guarantee {
   (eq dooropen i1()) -> [floor <- floor];
 
   G F (eq floor target);
-  (ge floor 0) && (le floor 50);
-  (ge target 0) && (le target 50);
+  (ge floor i0()) && (le floor i50());
+  (ge target i0()) && (le target i50());
 }
