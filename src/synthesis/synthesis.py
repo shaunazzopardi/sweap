@@ -167,7 +167,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     choose_predicates = False
     conservative_with_state_predicates = False
     prefer_lasso_counterexamples = False
-    add_tran_preds_immediately = False
+    add_tran_preds_immediately = config.Config.getConfig().eager_fairness
     add_tran_preds_after_state_abstraction = config.Config.getConfig().eager_fairness and not config.Config.getConfig().only_safety
     only_safety = False
 
@@ -266,12 +266,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     rankings.append(ranking_refinement(f, [invar]))
             add_tran_preds_immediately = False
 
-        for (tran_pr, invars), constraints in rankings:
-            new_tran_preds.update(tran_pr)
-            new_state_preds.update(invars)
-            new_ltl_constraints.update(constraints)
-        rankings.clear()
-        to_add_rankings_for.clear()
+            for (tran_pr, invars), constraints in rankings:
+                new_tran_preds.update(tran_pr)
+                new_state_preds.update(invars)
+                new_ltl_constraints.update(constraints)
+            rankings.clear()
+            to_add_rankings_for.clear()
 
         new_state_preds = {strip_outer_mathexpr(p) for p in new_state_preds}
         new_state_preds = {p for p in new_state_preds if p not in predicate_abstraction.state_predicates}
