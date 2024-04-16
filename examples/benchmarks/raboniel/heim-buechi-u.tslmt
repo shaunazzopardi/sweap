@@ -1,13 +1,12 @@
-#LIA
 //-- State: x, loc
 //-- Inputs: i_i
 guarantee {
-[loc  <- int0()];
-G ((eq loc int0()) -> ([x <- x] && [loc <- int1()]));
-G ((eq loc int1()) -> (([x <- x] && [loc <- int1()]) || [x <- (sub x int1())] && [loc <- int2()]));
-G ((eq loc int2()) -> (([x <- x] && (> x int0()) && [loc <- int0()]) || ((<= x int0()) && [loc <- int3()])));
-G ((eq loc int3()) -> ([loc <- int3()]));
+[loc  <- i0()];
+G ((eq loc i0()) -> ([x <- x] && [loc <- i1()]));
+G ((eq loc i1()) -> (([x <- x] && [loc <- i1()]) || [x <- (sub x i1())] && [loc <- i2()]));
+G ((eq loc i2()) -> (([x <- x] && (gt x i0()) && [loc <- i0()]) || ((le x i0()) && [loc <- i3()])));
+G ((eq loc i3()) -> ([loc <- i3()]));
 }
 
-guarantee { G F((eq loc int0()) || [loc  <- int3()]);}
+guarantee { G F((eq loc i0()) || [loc  <- i3()]);}
 
