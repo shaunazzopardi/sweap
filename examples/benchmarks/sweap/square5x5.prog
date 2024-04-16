@@ -8,7 +8,7 @@ program square5x5 {
     }
 
     CONTROLLER EVENTS {
-        incx; decx; incy; decy;
+        incxc; decxc; incyc; decyc;
     }
 
     PROGRAM EVENTS {
