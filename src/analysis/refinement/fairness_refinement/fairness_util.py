@@ -237,7 +237,7 @@ def liveness_step(program,
                             used_rankings.add(ranking)
                             return True, ranking_refinement(ranking, invars)
 
-            if (conf.only_structural and not conf.only_ranking) or conf.eager_fairness:
+            if not conf.only_ranking:
                 if conditions[-1] == cond:
                     return False, None
                 else:
