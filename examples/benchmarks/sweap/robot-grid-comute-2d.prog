@@ -8,7 +8,7 @@ program fig2heim {
     }
 
     CONTROLLER EVENTS {
-        cinc, stay, xory
+        cinc, xory
     }
 
     PROGRAM EVENTS {
