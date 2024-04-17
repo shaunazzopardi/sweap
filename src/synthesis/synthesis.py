@@ -210,7 +210,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_ltl_constraints = set()
 
     rankings = []
-    if config.Config.getConfig().eager_fairness and not config.Config.getConfig().only_safety:
+    if config.Config.getConfig()._eager_fairness or config.Config.getConfig()._natural_fairness:
         for tv in program.valuation:
             if tv.type.lower().startswith("bool"):
                 continue
@@ -254,7 +254,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     print("Starting abstract synthesis loop.")
 
-    to_add_rankings_for = [s for s in new_state_preds]
+    to_add_rankings_for = []
+
     while True:
         if add_tran_preds_immediately and not only_safety:
             to_add_rankings_for.extend(new_state_preds)
@@ -266,12 +267,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     rankings.append(ranking_refinement(f, [invar]))
             add_tran_preds_immediately = False
 
-            for (tran_pr, invars), constraints in rankings:
-                new_tran_preds.update(tran_pr)
-                new_state_preds.update(invars)
-                new_ltl_constraints.update(constraints)
-            rankings.clear()
-            to_add_rankings_for.clear()
+        for (tran_pr, invars), constraints in rankings:
+            new_tran_preds.update(tran_pr)
+            new_state_preds.update(invars)
+            new_ltl_constraints.update(constraints)
+        rankings.clear()
+        to_add_rankings_for.clear()
 
         new_state_preds = {strip_outer_mathexpr(p) for p in new_state_preds}
         new_state_preds = {p for p in new_state_preds if p not in predicate_abstraction.state_predicates}

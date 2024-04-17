@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--only_ranking', dest='only_ranking', help="For fairness refinements, only use ranking refinement.", type=bool, nargs='?', const=True)
     parser.add_argument('--only_structural', dest='only_structural', help="For fairness refinements, only use structural refinement.", type=bool, nargs='?', const=True)
     parser.add_argument('--eager_fairness', dest='eager_fairness', help="Synthesise ranking refinements for each predicate initially.", type=bool, nargs='?', const=True)
+    parser.add_argument('--natural_fairness', dest='natural_fairness', help="Synthesise ranking refinements natural number variables initially.", type=bool, nargs='?', const=True)
     parser.add_argument('--add_all_preds_in_prog', dest='add_all_preds_in_prog', help="Initially each predicate used in the program.", type=bool, nargs='?', const=True)
     parser.add_argument('--accelerate', dest='accelerate', help="Set eager_fairness and add_all_preds_in_prog to true", type=bool, nargs='?', const=True)
     parser.add_argument('--only_safety', dest='only_safety', help="Do not use fairness refinements.", type=bool, nargs='?', const=True)
@@ -75,6 +76,11 @@ def main():
         conf.eager_fairness = True
     else:
         conf.eager_fairness = False
+
+    if args.natural_fairness:
+        conf._natural_fairness = True
+    else:
+        conf._natural_fairness = False
 
     if args.add_all_preds_in_prog or args.accelerate:
         conf.add_all_preds_in_prog = True
