@@ -33,9 +33,9 @@ program elevator {
         q1 -> q1 [((cinc <-> cdec) || obstacle) && !((car_x == target_x) && (car_y == target_y)) $],
         q1 -> q1 [!obstacle && !((car_x == target_x) && (car_y == target_y)) $
                          car_x := car_x + 1 if cinc & !cdec && cxory;
-                         car_x := car_x - 1 if !cinc & !cdec && cxory;
+                         car_x := car_x - 1 if !cinc & cdec && cxory;
                          car_y := car_y + 1 if cinc & !cdec && !cxory;
-                         car_y := car_y - 1 if !cinc & !cdec && !cxory;
+                         car_y := car_y - 1 if !cinc & cdec && !cxory;
         ]
     }
 
