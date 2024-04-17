@@ -6,6 +6,9 @@ assume {
 [y <- i_y];
 G(gte x int0());
 G(gte y int0());
+}
+
+guarantee {
 G((gt x int0() && gt y int0()) -> ([x <- sub x int1()] && [y <- y]));
 G((eq x int0() && gt y int0()) -> ([x <- i_x] && [y <- sub y int1()]));
 }
