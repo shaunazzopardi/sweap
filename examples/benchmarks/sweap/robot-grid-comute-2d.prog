@@ -8,7 +8,7 @@ program fig2heim {
     }
 
     CONTROLLER EVENTS {
-        cinc, xory
+        cinc, cdec, xory
     }
 
     PROGRAM EVENTS {
@@ -16,19 +16,24 @@ program fig2heim {
 
     VALUATION {
         x : integer := 0;
+        y : integer := 0;
         tx : integer := 0;
+        ty : integer := 0;
     }
 
     TRANSITIONS {
         movezero -> goal [x == 0 && y == 0],
         movezero -> movezero [!(x == 0 && y == 0) && (cinc <-> cdec)],
-        movezero -> movezero [!(x == 0 && y == 0) && cinc && !cdec $ x := x + 1],
-        movezero -> movezero [!(x == 0 && y == 0) && !cinc && cdec $ x := x - 1],
+        movezero -> movezero [!(x == 0 && y == 0) && cinc && !cdec && xory $ x := x + 1],
+        movezero -> movezero [!(x == 0 && y == 0) && !cinc && cdec && xory $ x := x - 1],
+        movezero -> movezero [!(x == 0 && y == 0) && cinc && !cdec && !xory $ y := y + 1],
+        movezero -> movezero [!(x == 0 && y == 0) && !cinc && cdec && !xory $ y := y - 1],
         movetarg -> goal [(x == tx && y == ty)],
-        movetarg -> movetarg [!(x == tx && y == ty) && cinc && xory $ x := x + 1],
-        movetarg -> movetarg [!(x == tx && y == ty) && !cinc && xory $ x := x - 1],
-        movetarg -> movetarg [!(x == tx && y == ty) && cinc && !xory $ y := y + 1],
-        movetarg -> movetarg [!(x == tx && y == ty) && !cinc && !xory $ y := y - 1],
+        movetarg -> movetarg [!(x == tx && y == ty) && (cinc <-> cdec)],
+        movetarg -> movetarg [!(x == tx && y == ty) && cinc && !cdec && xory $ x := x + 1],
+        movetarg -> movetarg [!(x == tx && y == ty) && !cinc && cdec && xory $ x := x - 1],
+        movetarg -> movetarg [!(x == tx && y == ty) && cinc && !cdec && !xory $ y := y + 1],
+        movetarg -> movetarg [!(x == tx && y == ty) && !cinc && cdec && !xory $ y := y - 1],
         goal -> movezero [!(x == 0 && y == 0)],
         goal -> setnt [x == 0 && y == 0],
 
