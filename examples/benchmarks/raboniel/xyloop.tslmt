@@ -2,13 +2,14 @@
 //-- State: x, y
 //-- Inputs: i_x, i_y
 assume {
-[x <- i_x];
-[y <- i_y];
-G(gte x int0());
-G(gte y int0());
+G(gte i_x int0());
+G(gte i_y int0());
 }
 
 guarantee {
+[x <- i_x];
+[y <- i_y];
+
 G((gt x int0() && gt y int0()) -> ([x <- sub x int1()] && [y <- y]));
 G((eq x int0() && gt y int0()) -> ([x <- i_x] && [y <- sub y int1()]));
 }
