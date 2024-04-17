@@ -56,8 +56,8 @@ infinite_benchs = {
     "robot-grid-reach-1d": BenchInfo(True),
     "robot-grid-reach-2d": BenchInfo(True),
     "repeated-robot-resource-1d": BenchInfo(True),
-    "running-example-double-x": BenchInfo(True),
-    "running-example-buechi": BenchInfo(True),
+    "heim-double-x": BenchInfo(True),
+    "heim-buechi": BenchInfo(True),
     "arbiter": BenchInfo(
         True, 
         {"sweap": "arbiter-paper", "sweap-noacc": "arbiter-paper"}),
@@ -76,16 +76,20 @@ infinite_benchs = {
          "temos": "neider-square5x5",}),
     "robot-resource-1d": BenchInfo(False),
     "robot-resource-2d": BenchInfo(False),
-    "running-example-normal": BenchInfo(True),
+    "heim-normal": BenchInfo(True),
     "elevator": BenchInfo(
         True,
         {"sweap": "elevator-paper", "sweap-noacc": "elevator-paper"}),
     "reversible-lane-u": BenchInfo(False),
-    "heim-buchi-unreal": BenchInfo(False),
+    "heim-buechi-u": BenchInfo(
+        False,
+        {"sweap": "heim-buchi-u", "sweap-noacc": "heim-buchi-u"}),
     "infinite-race": BenchInfo(True),
     "robot-grid-reach-repeated-with-obstacles-1d": BenchInfo(True),
     "robot-grid-reach-repeated-with-obstacles-2d": BenchInfo(True),
-    "taxi-service": BenchInfo(True)
+    "taxi-service": BenchInfo(True),
+    "robot-grid-comute-1d": BenchInfo(True),
+    "robot-grid-comute-2d": BenchInfo(True)
 }
 
 finite_benchs = {
