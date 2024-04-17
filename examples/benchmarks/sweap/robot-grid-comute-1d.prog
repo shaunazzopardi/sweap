@@ -1,6 +1,6 @@
 program fig2heim {
     STATES {
-        movezero : init, movetarg, setntx, incntx, decntx, goal
+        movezero : init, movetarg, setntx, decntx, goal
     }
 
     ENVIRONMENT EVENTS {
@@ -30,17 +30,12 @@ program fig2heim {
         goal -> movezero [(x > 0 || x < 0)],
         goal -> setntx [!(x > 0 || x < 0)],
 
-        setntx -> incntx [inc],
-        setntx -> decntx [!inc],
-
-        incntx -> incntx [stay $ tx := tx + 1],
-        incntx -> movetarg [!stay],
-
-        decntx -> decntx [stay $ tx := tx - 1],
-        decntx -> movetarg [!stay]
+        setntx -> setntx [inc && stay $ tx := tx + 1],
+        setntx -> setntx [!inc && stay $ tx := tx - 1],
+        setntx -> movetarg [!stay]
     }
 
     SPECIFICATION {
-        (G F goal) || F G (incntx || decntx)
+        (G F goal) || F G (setntx)
     }
 }
