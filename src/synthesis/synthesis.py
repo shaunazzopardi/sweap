@@ -190,17 +190,18 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     prog_state_vars = [Variable(s) for s in program.states]
     new_ltl_assumptions = []
+    ltl_state_preds = []
     for ltl in ltl_assumptions:
         ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
-        new_state_preds += preds
+        ltl_state_preds += preds
         new_ltl_assumptions.append(new_ltl)
 
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
         ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
-        new_state_preds += preds
+        ltl_state_preds += preds
         new_ltl_guarantees.append(new_ltl)
 
     ltl_assumptions = new_ltl_assumptions
@@ -253,7 +254,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     to_add_rankings_for = []
 
-    new_new_state_preds = []
+    new_new_state_preds = ltl_state_preds
     for st_pred in new_state_preds:
         if isinstance(st_pred, MathExpr) or should_be_math_expr(st_pred):
             normalised = normalise_mathexpr(st_pred)
