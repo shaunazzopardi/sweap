@@ -7,12 +7,14 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import Effects
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
 from analysis.compatibility_checking.compatibility_checking import compatibility_checking
-from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement, ranking_refinement_both_sides
+from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement, \
+    ranking_refinement_both_sides, already_an_equivalent_ranking
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
 from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
 from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement_seq_int
+from programs.util import reduce_up_to_iff
 from prop_lang.mathexpr import MathExpr
 from prop_lang.value import Value
 from synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
@@ -226,13 +228,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                 invars = []
                 rankings += [ranking_refinement(ranking, invars)]
             elif ".." in tv.type:
-                ranking_bot = Variable(tv.name)
-                invars_bot = []
-                rankings += [ranking_refinement(ranking_bot, invars_bot)]
-
-                ranking_top = BiOp(Value("0"), "-", Variable(tv.name))
-                invars_top = []
-                rankings += [ranking_refinement(ranking_top, invars_top)]
+                ranking = Variable(tv.name)
+                rankings += [ranking_refinement_both_sides(ranking, [], [])]
 
     loop_counter = 0
 
@@ -256,6 +253,15 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     to_add_rankings_for = []
 
+    new_new_state_preds = []
+    for st_pred in new_state_preds:
+        if isinstance(st_pred, MathExpr) or should_be_math_expr(st_pred):
+            normalised = normalise_mathexpr(st_pred)
+            new_st_preds = atomic_predicates(normalised)
+            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, new_st_preds, predicate_abstraction.symbol_table)
+        else:
+            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, [st_pred], predicate_abstraction.symbol_table)
+    new_state_preds = new_new_state_preds
     while True:
         if add_tran_preds_immediately and not only_safety:
             to_add_rankings_for.extend(new_state_preds)
@@ -267,10 +273,14 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     rankings.append(ranking_refinement(f, [invar]))
             add_tran_preds_immediately = False
 
-        for (tran_pr, invars), constraints in rankings:
-            new_tran_preds.update(tran_pr)
-            new_state_preds.update(invars)
-            new_ltl_constraints.update(constraints)
+        done_rankings = set()
+        for tran_preds, constraints in rankings:
+            for finite_re, st_prds, ltl_constraints in constraints:
+                if not already_an_equivalent_ranking(done_rankings, finite_re):
+                    new_tran_preds.update(tran_preds)
+                    new_state_preds.update(st_prds)
+                    new_ltl_constraints.add(ltl_constraints)
+                    done_rankings.add(finite_re)
         rankings.clear()
         to_add_rankings_for.clear()
 
