@@ -66,7 +66,7 @@ infinite_benchs = {
         {"sweap": "arbiter-paper-unreal",
          "sweap-noacc": "arbiter-paper-unreal"}),
     "reversible-lane-r": BenchInfo(True),
-    "xyloop": BenchInfo(False),
+    "xyloop": BenchInfo(True),
     "arbiter-with-failure": BenchInfo(True),
     "neider-square-5x5": BenchInfo(
         True,
