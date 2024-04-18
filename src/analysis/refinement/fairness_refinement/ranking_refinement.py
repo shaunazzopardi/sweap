@@ -23,29 +23,38 @@ from synthesis.moore_machine import MooreMachine
 seen_loops_cache = {}
 
 
+def already_an_equivalent_ranking(prev_decs, new_dec):
+    for prev_dec in prev_decs:
+        if new_dec == prev_dec:
+            return True
+        else:
+            equiv = iff(prev_dec, new_dec)
+            symbol_table = {str(v): TypedValuation(str(v), "int", None) for v in equiv.variablesin()}
+            if is_tautology(equiv, symbol_table):
+                return True
+    return False
+
+
 def ranking_refinement_both_sides(ranking, invar_pos, invar_neg):
     dec = BiOp(add_prev_suffix(ranking), ">", ranking)
     inc = BiOp(add_prev_suffix(ranking), "<", ranking)
     tran_preds = {dec, inc}
 
     constraints = []
-    state_preds = set()
 
     if len(invar_pos) > 0:
         inv = conjunct_formula_set(invar_pos)
-        state_preds |= atomic_predicates(inv)
-        constraints += [implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))]
+        constraints += [(dec, atomic_predicates(inv), implies(G(F(dec)), G(F(disjunct(inc, neg(inv))))))]
     else:
-        constraints += [implies(G(F(dec)), G(F(inc)))]
+        constraints += [(dec, set(), implies(G(F(dec)), G(F(inc))))]
 
     if len(invar_neg) > 0:
         inv = conjunct_formula_set(invar_neg)
-        state_preds |= atomic_predicates(inv)
-        constraints += [implies(G(F(inc)), G(F(disjunct(dec, neg(inv)))))]
+        constraints += [(inc, atomic_predicates(inv), implies(G(F(inc)), G(F(disjunct(dec, neg(inv))))))]
     else:
-        constraints += [implies(G(F(inc)), G(F(dec)))]
+        constraints += [(inc, set(), implies(G(F(inc)), G(F(dec))))]
 
-    return (tran_preds, state_preds), constraints
+    return tran_preds, constraints
 
 
 def ranking_refinement(ranking, invars):
@@ -61,7 +70,7 @@ def ranking_refinement(ranking, invars):
         constraint = implies(G(F(dec)), G(F(inc)))
         state_preds = set()
 
-    return (tran_preds, state_preds), [constraint]
+    return tran_preds, [(dec, state_preds, constraint)]
 
 
 def find_ranking_function(symbol_table,
