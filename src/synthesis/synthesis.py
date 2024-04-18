@@ -254,7 +254,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     to_add_rankings_for = []
 
-    new_new_state_preds = ltl_state_preds
+    new_new_state_preds = set(ltl_state_preds)
     for st_pred in new_state_preds:
         if isinstance(st_pred, MathExpr) or should_be_math_expr(st_pred):
             normalised = normalise_mathexpr(st_pred)
