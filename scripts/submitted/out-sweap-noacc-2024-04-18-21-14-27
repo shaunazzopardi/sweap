@@ -1,0 +1,291 @@
+run-sweap-noacc.sh
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/arbiter-paper.prog
+Realizable.
+Runtime: 6388ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/arbiter-paper-unreal.prog
+Unrealizable.
+Runtime: 3789ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/arbiter-with-failure.prog
+Realizable.
+Runtime: 2951ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/box-limited.prog
+Realizable.
+Runtime: 2922ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/box.prog
+Realizable.
+Runtime: 5043ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/diagonal.prog
+Realizable.
+Runtime: 4030ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/elevator-paper.prog
+Realizable.
+Runtime: 47144ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/evasion.prog
+Realizable.
+Runtime: 15697ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/follow.prog
+Realizable.
+Runtime: 237632ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/heim-buchi-u.prog
+Unrealizable.
+Runtime: 2644ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/heim-buechi.prog
+Realizable.
+Runtime: 3154ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/heim-double-x.prog
+Runtime: 600017ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/infinite-race.prog
+Realizable.
+Runtime: 5044ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/reversible-lane-r.prog
+Realizable.
+Runtime: 24349ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/reversible-lane-u.prog
+Unrealizable.
+Runtime: 5581ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-cat-real-1d.prog
+Runtime: 600013ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-cat-real-2d.prog
+Runtime: 600013ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-cat-unreal-1d.prog
+Unrealizable.
+Runtime: 4504ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-cat-unreal-2d.prog
+Unrealizable.
+Runtime: 22142ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-grid-comute-1d.prog
+Runtime: 600016ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-grid-comute-2d.prog
+Runtime: 600014ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-grid-reach-1d.prog
+Realizable.
+Runtime: 8358ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-grid-reach-2d.prog
+Realizable.
+Runtime: 140475ms
+Structural refinements: 4
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-grid-reach-repeated-with-obstacles-1d.prog
+Realizable.
+Runtime: 9162ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-grid-reach-repeated-with-obstacles-2d.prog
+Realizable.
+Runtime: 115528ms
+Structural refinements: 4
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-resource-1d.prog
+Unrealizable.
+Runtime: 100402ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/robot-resource-2d.prog
+Runtime: 600011ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/solitary.prog
+Realizable.
+Runtime: 3900ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/square5x5.prog
+Realizable.
+Runtime: 46781ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/taxi-service.prog
+Realizable.
+Runtime: 154640ms
+Structural refinements: 4
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/xyloop.prog
+Runtime: 600016ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/arbiter-paper-10.prog
+Realizable.
+Runtime: 6229ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/arbiter-paper-50.prog
+Realizable.
+Runtime: 6304ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/arbiter-paper-5.prog
+Realizable.
+Runtime: 6353ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/arbiter-paper-unreal-10.prog
+Unrealizable.
+Runtime: 6474ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/arbiter-paper-unreal-50.prog
+Unrealizable.
+Runtime: 6573ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/arbiter-paper-unreal-5.prog
+Unrealizable.
+Runtime: 6773ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-signal-10.prog
+Runtime: 600016ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-signal-3.prog
+Realizable.
+Runtime: 322477ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-signal-50.prog
+Runtime: 600015ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-signal-5.prog
+Runtime: 600015ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-simple-10.prog
+Realizable.
+Runtime: 4386ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-simple-3.prog
+Realizable.
+Runtime: 2885ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-simple-50.prog
+Runtime: 600013ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/bloem-elevator-simple-5.prog
+Realizable.
+Runtime: 3772ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/elevator-paper-10.prog
+Realizable.
+Runtime: 138912ms
+Structural refinements: 3
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/elevator-paper-50.prog
+Realizable.
+Runtime: 104967ms
+Structural refinements: 3
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/elevator-paper-5.prog
+Realizable.
+Runtime: 37345ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/reversible-lane-r-10.prog
+Realizable.
+Runtime: 56118ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/reversible-lane-r-50.prog
+Realizable.
+Runtime: 60886ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/reversible-lane-r-5.prog
+Realizable.
+Runtime: 56864ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/reversible-lane-u-10.prog
+Unrealizable.
+Runtime: 6628ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/reversible-lane-u-50.prog
+Unrealizable.
+Runtime: 6566ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/reversible-lane-u-5.prog
+Unrealizable.
+Runtime: 6699ms
+Structural refinements: 0
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/robot-grid-reach-1d-10.prog
+Realizable.
+Runtime: 5616ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/robot-grid-reach-1d-50.prog
+Realizable.
+Runtime: 5788ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/robot-grid-reach-1d-5.prog
+Realizable.
+Runtime: 5668ms
+Structural refinements: 1
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/robot-grid-reach-2d-10.prog
+Realizable.
+Runtime: 14976ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/robot-grid-reach-2d-50.prog
+Realizable.
+Runtime: 15403ms
+Structural refinements: 2
+
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/finite/robot-grid-reach-2d-5.prog
+Realizable.
+Runtime: 15166ms
+Structural refinements: 2
+
