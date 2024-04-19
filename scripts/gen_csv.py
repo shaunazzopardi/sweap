@@ -93,18 +93,14 @@ infinite_benchs = {
 }
 
 finite_benchs = {
-    "elevator-simple-3": BenchInfo(True),
-    "elevator-simple-5": BenchInfo(True),
-    "elevator-simple-10": BenchInfo(True),
-    "elevator-simple-50": BenchInfo(True),
-    "elevator-signal-3": BenchInfo(True),
-    "elevator-signal-5": BenchInfo(True),
-    "elevator-signal-10": BenchInfo(
-        True,
-        {"sweap": "arbiter-paper-10", "sweap-noacc": "arbiter-paper-10"}),
-    "elevator-signal-50": BenchInfo(
-        True,
-        {"sweap": "arbiter-paper-50", "sweap-noacc": "arbiter-paper-50"}),
+    "bloem-elevator-simple-3": BenchInfo(True),
+    "bloem-elevator-simple-5": BenchInfo(True),
+    "bloem-elevator-simple-10": BenchInfo(True),
+    "bloem-elevator-simple-50": BenchInfo(True),
+    "bloem-elevator-signal-3": BenchInfo(True),
+    "bloem-elevator-signal-5": BenchInfo(True),
+    "bloem-elevator-signal-10": BenchInfo(True),
+    "bloem-elevator-signal-50": BenchInfo(True),
     "arbiter-5": BenchInfo(
         True,
         {"sweap": "arbiter-paper-5", "sweap-noacc": "arbiter-paper-5"}),
