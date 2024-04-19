@@ -258,6 +258,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     for st_pred in new_state_preds:
         if isinstance(st_pred, MathExpr) or should_be_math_expr(st_pred):
             normalised = normalise_mathexpr(st_pred)
+            if normalised is None:
+                normalised = st_pred
             new_st_preds = atomic_predicates(normalised)
             new_new_state_preds = reduce_up_to_iff(new_new_state_preds, new_st_preds, predicate_abstraction.symbol_table)
         else:
