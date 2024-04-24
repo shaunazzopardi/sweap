@@ -1,0 +1,81 @@
+Processing program.
+spec contains 9 APs (['exit_l', '(cl > 0)', 'entry_l', 'exit_r', 'entry_r', 'l2r', '(cr > 0)', 'stop_r', 'stop_l'])
+Starting abstract synthesis loop.
+adding (cr <= 0), (0 <= cr), (0 <= cl), (cr_prev < cr), (cl <= 0), ((0 - cl_prev) > (0 - cl)), (cl_prev < cl), ((0 - cr_prev) < (0 - cr)), (cl_prev > cl), ((0 - cl_prev) < (0 - cl)), ((0 - cr_prev) > (0 - cr)), (cr_prev > cr) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0031363964080810547
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (cr <= 1) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.003148317337036133
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (cl <= 1) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.004017353057861328
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+Unrealizable.
+digraph MooreMachine {
+	graph [nodesep=0.5 overlap=scalexy ranksep=0.8 splines=true]
+	node [shape=circle]
+	edge [fontname=mono]
+	init [label="" shape=point]
+	st_4 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & entry_r & entry_l & l2r & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_1 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !l2r & !exit_r & !entry_r & entry_l & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_8 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__crprev_GT_cr_ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !l2r & !exit_r & !entry_r & !entry_l & pred___0_MINUS_clprev__GT__0_MINUS_cl__ & pred__cr_LTEQ_0_ & pred__clprev_LT_cl_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_13 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !exit_l & !entry_r & !entry_l & l2r & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_0 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !entry_l & exit_l & l2r & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_9 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & !entry_r & entry_l & l2r & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_17 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & !entry_r & !entry_l & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_2 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !exit_l & !entry_l & entry_r & l2r & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_6 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__clprev_GT_cl_ & !exit_l & !entry_r & !entry_l & l2r & pred__crprev_LT_cr_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred___0_MINUS_crprev__GT__0_MINUS_cr__ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_14 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & !entry_r & !entry_l & pred__crprev_LT_cr_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred___0_MINUS_crprev__GT__0_MINUS_cr__ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_11 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !entry_r & !entry_l & exit_l & exit_r & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_3 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !l2r & !exit_r & !exit_l & !entry_r & !entry_l & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_10 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !l2r & !exit_r & !exit_l & !entry_l & entry_r & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_12 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & !entry_r & !entry_l & pred___0_MINUS_clprev__GT__0_MINUS_cl__ & pred__clprev_LT_cl_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_15 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !l2r & !exit_r & !entry_r & !entry_l & pred__cr_LTEQ_0_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_7 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred___0_MINUS_crprev__GT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__crprev_GT_cr_ & !pred__crprev_LT_cr_ & !pred__clprev_GT_cl_ & !l2r & !exit_r & !exit_l & !entry_l & entry_r & pred___0_MINUS_clprev__GT__0_MINUS_cl__ & pred__cr_LTEQ_0_ & pred__clprev_LT_cl_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_5 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred__clprev_LT_cl_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred___0_MINUS_clprev__GT__0_MINUS_cl__ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & !entry_r & entry_l & l2r & pred__crprev_LT_cr_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_0_ & pred__cl_LTEQ_1_ & pred___0_MINUS_crprev__GT__0_MINUS_cr__ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	st_16 [label="(!pred___0_MINUS_clprev__LT__0_MINUS_cl__ & !pred___0_MINUS_crprev__LT__0_MINUS_cr__ & !pred__cl_LTEQ_0_ & !pred__crprev_GT_cr_ & !pred__cr_LTEQ_0_ & !pred__clprev_GT_cl_ & !exit_r & !exit_l & !entry_r & !entry_l & pred__crprev_LT_cr_ & pred___0_MINUS_clprev__GT__0_MINUS_cl__ & pred__clprev_LT_cl_ & q0 & pred__0_LTEQ_cr_ & pred__cl_LTEQ_1_ & pred___0_MINUS_crprev__GT__0_MINUS_cr__ & pred__0_LTEQ_cl_ & pred__cr_LTEQ_1_)"]
+	init -> st_3 [style=solid]
+	st_0 -> st_4 [label="(!stop_r & !stop_l)"]
+	st_0 -> st_2 [label="(!stop_r & stop_l)"]
+	st_0 -> st_11 [label="((stop_r & stop_l) | (!stop_l & stop_r))"]
+	st_1 -> st_7 [label="((!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_1 -> st_8 [label="((stop_r & stop_l) | (!stop_l & stop_r))"]
+	st_2 -> st_5 [label="((!stop_l & stop_r) | (!stop_r & !stop_l))"]
+	st_2 -> st_6 [label="((stop_r & stop_l) | (!stop_r & stop_l))"]
+	st_3 -> st_4 [label="(!stop_r & !stop_l)"]
+	st_3 -> st_0 [label="(!stop_r & stop_l)"]
+	st_3 -> st_1 [label="(!stop_l & stop_r)"]
+	st_3 -> st_3 [label="(stop_r & stop_l)"]
+	st_4 -> st_16 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_5 -> st_12 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_6 -> st_9 [label="((!stop_l & stop_r) | (!stop_r & !stop_l))"]
+	st_6 -> st_13 [label="((stop_r & stop_l) | (!stop_r & stop_l))"]
+	st_7 -> st_14 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_8 -> st_10 [label="((!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_8 -> st_15 [label="((stop_r & stop_l) | (!stop_l & stop_r))"]
+	st_9 -> st_12 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_10 -> st_14 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_11 -> st_11 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_12 -> st_17 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_13 -> st_9 [label="((!stop_l & stop_r) | (!stop_r & !stop_l))"]
+	st_13 -> st_13 [label="((stop_r & stop_l) | (!stop_r & stop_l))"]
+	st_14 -> st_17 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_15 -> st_10 [label="((!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_15 -> st_15 [label="((stop_r & stop_l) | (!stop_l & stop_r))"]
+	st_16 -> st_17 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+	st_17 -> st_17 [label="((stop_r & stop_l) | (!stop_l & stop_r) | (!stop_r & stop_l) | (!stop_r & !stop_l))"]
+}
+Synthesis took:  28575.259685516357 ms

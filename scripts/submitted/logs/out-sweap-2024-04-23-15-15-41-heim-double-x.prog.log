@@ -1,0 +1,56 @@
+Processing program.
+spec contains 1 APs (['lG'])
+simplified !FALSE (len 6) to True (len 4)
+True
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding (y_prev < y), (y_prev > y), ((0 - y_prev) > (0 - y)), (x_prev > x), (y <= 0), (x <= 0), (x >= 0), ((0 - y_prev) < (0 - y)), (x_prev < x), (64 <= x), (x <= 64) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0017070770263671875
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (x >= 2), (x <= 2) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.001985788345336914
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (2 >= y), (2 <= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0020635128021240234
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (4 <= y), (4 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0011241436004638672
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (5 >= y), (6 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0015659332275390625
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (8 >= y), (7 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0015692710876464844
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (10 >= y), (10 <= y) to predicate abstraction

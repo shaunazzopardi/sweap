@@ -1,0 +1,32 @@
+Processing program.
+spec contains 2 APs (['i', 'goal'])
+simplified !FALSE (len 6) to True (len 4)
+True
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0036602020263671875
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (0 >= oy), (0 <= oy) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.003475666046142578
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (0 >= ox), (0 <= ox), (oy >= -1) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.003253936767578125
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (ry <= 0), (rx >= 0), (rx <= 0), (ry >= 0) to predicate abstraction

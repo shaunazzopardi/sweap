@@ -1,0 +1,25 @@
+Processing program.
+spec contains 3 APs (['incntx', 'decntx', 'goal'])
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding (0 <= resource), (resource_prev < resource), (y >= 0), (y <= 0), (y_prev > y), (x <= 0), (x_prev > x), (y_prev < y), (x_prev < x), (resource >= 0), (resource_prev > resource), (x >= 0), (resource <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0020313262939453125
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (4 <= resource), (4 >= resource), (3 <= resource) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.001965045928955078
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:!(x <= 0)
+loop:(x := (x + 1)), (x := (x + 1)), (x := (x - 1))
+adding (x = (x_prev - 1)), (x = (x_prev + 1)), (x = x_prev) to predicate abstraction

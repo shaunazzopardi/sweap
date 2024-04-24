@@ -1,0 +1,47 @@
+Processing program.
+spec contains 2 APs (['q1', 'q0'])
+simplified !((!request & !changeRoom) | (!request & changeRoom) | (redrequest & request & !changeRoom & ((cnt - 1) >= 0) & ((cnt - 1) <= 10)) | (request & !redrequest & !changeRoom & ((cnt + 1) >= 0) & ((cnt + 1) <= 10))) (len 210) to (request & ((redrequest & ((!(!(cnt <= 10) | (((cnt - 1) <= 10) & (1 <= cnt) & (cnt <= 10))) & (0 <= cnt) & !changeRoom) | ((cnt <= 10) & changeRoom & (0 <= cnt)))) | (((!(!(cnt <= 10) | (((cnt + 1) <= 10) & (0 <= (cnt + 1)) & (cnt <= 10))) & (0 <= cnt) & !changeRoom) | ((cnt <= 10) & changeRoom & (0 <= cnt))) & !redrequest))) (len 328)
+(request & ((redrequest & ((!(!(cnt <= 10) | (((cnt - 1) <= 10) & (1 <= cnt) & (cnt <= 10))) & (0 <= cnt) & !changeRoom) | ((cnt <= 10) & changeRoom & (0 <= cnt)))) | (((!(!(cnt <= 10) | (((cnt + 1) <= 10) & (0 <= (cnt + 1)) & (cnt <= 10))) & (0 <= cnt) & !changeRoom) | ((cnt <= 10) & changeRoom & (0 <= cnt))) & !redrequest)))
+Starting abstract synthesis loop.
+adding roomA to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0009524822235107422
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (cnt <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0010116100311279297
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:(cnt <= 0)
+loop:(cnt := (cnt - 1))
+adding (cnt = (cnt_prev - 1)), (cnt = cnt_prev) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0009818077087402344
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+Unrealizable.
+digraph MooreMachine {
+	graph [nodesep=0.5 overlap=scalexy ranksep=0.8 splines=true]
+	node [shape=circle]
+	edge [fontname=mono]
+	init [label="" shape=point]
+	st_1 [label="(!in_loop0_0 & !pred__cnt_EQ__cntprev_MINUS_1__ & !q1 & !pred__cnt_EQ_cntprev_ & !pred__cnt_LTEQ_0_ & !request & changeRoom & pred_roomA & q0)"]
+	st_0 [label="(!in_loop0_0 & !pred__cnt_EQ__cntprev_MINUS_1__ & !q1 & !pred__cnt_EQ_cntprev_ & !changeRoom & !redrequest & request & pred__cnt_LTEQ_0_ & pred_roomA & q0)"]
+	st_2 [label="(!in_loop0_0 & !pred_roomA & !pred__cnt_EQ__cntprev_MINUS_1__ & !q1 & !pred__cnt_LTEQ_0_ & !changeRoom & !request & pred__cnt_EQ_cntprev_ & q0)"]
+	st_3 [label="(!in_loop0_0 & !q0 & !pred_roomA & !pred__cnt_EQ__cntprev_MINUS_1__ & !pred__cnt_LTEQ_0_ & pred__cnt_EQ_cntprev_ & q1)"]
+	init -> st_0 [style=solid]
+	st_0 -> st_1 [label=TRUE]
+	st_1 -> st_2 [label=TRUE]
+	st_2 -> st_3 [label=TRUE]
+	st_3 -> st_3 [label=TRUE]
+}
+Synthesis took:  4600.731372833252 ms

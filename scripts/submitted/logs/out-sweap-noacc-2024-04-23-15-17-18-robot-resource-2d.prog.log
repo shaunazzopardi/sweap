@@ -1,0 +1,44 @@
+Processing program.
+spec contains 3 APs (['incntx', 'goal', 'decntx'])
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0011448860168457031
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (4 <= resource), (4 >= resource) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0011196136474609375
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y >= 0), (x >= 0), (y <= 0), (x <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0010826587677001953
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:(x <= 0)
+loop:(x := (x - 1))
+adding (x = x_prev), (x = (x_prev - 1)) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0010991096496582031
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:!(x >= 0)
+loop:(x := (x - 1)), (x := (x - 1)), (x := (x + 1))
+adding (x = (x_prev + 1)) to predicate abstraction

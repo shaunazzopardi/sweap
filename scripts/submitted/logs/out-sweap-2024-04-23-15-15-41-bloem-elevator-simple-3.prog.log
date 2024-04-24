@@ -1,0 +1,29 @@
+Processing program.
+spec contains 3 APs (['(at_floor == 2)', '(at_floor == 0)', '(at_floor == 1)'])
+simplified !((!cinc & (at_floor >= 0) & (at_floor <= 2) & (!cinc | (at_floor < 0) | (at_floor > 2)) & ((at_floor - 1) >= 0) & ((at_floor - 1) <= 2)) | (cinc & (at_floor >= 0) & (at_floor <= 2) & (cinc | (at_floor < 0) | (at_floor > 2)) & ((at_floor + 1) >= 0) & ((at_floor + 1) <= 2))) (len 274) to ((!(!(0 <= at_floor) | ((0 <= at_floor) & (((at_floor <= 2) & ((at_floor - 1) <= 2) & (1 <= at_floor)) | !(at_floor <= 2)))) & !cinc) | (!(!(0 <= at_floor) | ((0 <= at_floor) & (((at_floor <= 2) & ((at_floor + 1) <= 2) & (0 <= (at_floor + 1))) | !(at_floor <= 2)))) & cinc)) (len 274)
+((!(!(0 <= at_floor) | ((0 <= at_floor) & (((at_floor <= 2) & ((at_floor - 1) <= 2) & (1 <= at_floor)) | !(at_floor <= 2)))) & !cinc) | (!(!(0 <= at_floor) | ((0 <= at_floor) & (((at_floor <= 2) & ((at_floor + 1) <= 2) & (0 <= (at_floor + 1))) | !(at_floor <= 2)))) & cinc))
+Starting abstract synthesis loop.
+adding (1 <= at_floor), (0 <= at_floor), (2 <= at_floor), (at_floor_prev < at_floor), (at_floor <= 0), (at_floor <= 2), (at_floor_prev > at_floor), (at_floor <= 1) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0006177425384521484
+running LTL synthesis
+Realizable.
+REALIZABLE
+HOA: v1
+tool: "strix" "21.0.0"
+States: 1
+Start: 0
+AP: 10 "pred__2_LTEQ_atfloor_" "pred__atfloor_LTEQ_1_" "pred__0_LTEQ_atfloor_" "pred__atfloor_LTEQ_0_" "pred__atfloorprev_LT_atfloor_" "move" "pred__1_LTEQ_atfloor_" "pred__atfloorprev_GT_atfloor_" "pred__atfloor_LTEQ_2_" "cinc"
+controllable-AP: 9
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0 "[0]"
+[(!(0 | (((3 | (4 | (((7 | !8) | !6) | !5))) | !2) | !1))) & (9)] 0
+[(!((1 | ((3 | ((((7 | !8) | !6) | !5) | !4)) | !2)) | !0)) & (!9)] 0
+[(!(0 | (((3 | (4 | !(5 & (6 & (7 & 8))))) | !2) | !1))) & (!9)] 0
+[(!(0 | ((((4 | ((6 | !(7 & 8)) | !5)) | !3) | !2) | !1))) & (9)] 0
+[(!(0 | (((3 | ((((7 | !8) | !6) | !5) | !4)) | !2) | !1))) & (9)] 0
+[(0 & (1 | ((3 | ((((7 | !8) | !6) | !5) | !4)) | !2)) | !0 & (((3 & (4 | ((6 | !(7 & 8)) | !5)) | !3 & (4 & (((7 | !8) | !6) | !5) | !4 & !(5 & (6 & 8)))) | !2) | !1)) & (t)] 0
+--END--
+Synthesis took:  1017.1160697937012 ms

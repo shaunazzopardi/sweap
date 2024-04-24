@@ -1,0 +1,67 @@
+Processing program.
+spec contains 2 APs (['move', 'goal'])
+simplified !(!estay | (estay & !einc & (x >= 0) & (x <= 10) & (!einc | (x < 0) | (x > 10)) & ((x - 1) >= 0) & ((x - 1) <= 10)) | (estay & einc & (x >= 0) & (x <= 10) & (einc | (x < 0) | (x > 10)) & ((x + 1) >= 0) & ((x + 1) <= 10))) (len 221) to (!(((!(0 <= x) | (((((x - 1) <= 10) & (1 <= x) & (x <= 10)) | !(x <= 10)) & (0 <= x))) & !einc) | ((((0 <= x) & ((((x + 1) <= 10) & (0 <= (x + 1)) & (x <= 10)) | !(x <= 10))) | !(0 <= x)) & einc)) & estay) (len 205)
+(!(((!(0 <= x) | (((((x - 1) <= 10) & (1 <= x) & (x <= 10)) | !(x <= 10)) & (0 <= x))) & !einc) | ((((0 <= x) & ((((x + 1) <= 10) & (0 <= (x + 1)) & (x <= 10)) | !(x <= 10))) | !(0 <= x)) & einc)) & estay)
+simplified !(((x != 0) & cstay & !cinc & (x >= 0) & (x <= 10) & (!cinc | (x < 0) | (x > 10))) | ((x != 0) & cstay & cinc & (x >= 0) & (x <= 10) & (cinc | (x < 0) | (x > 10)) & ((x + 1) >= 0) & ((x + 1) <= 10)) | ((x != 0) && !cstay) | (x = 0)) (len 232) to (cstay & !((cinc & (!(0 <= x) | (((((!(0 <= (x + 1)) & (x = 0)) | (((!((x + 1) <= 10) & (x = 0)) | ((x + 1) <= 10)) & (0 <= (x + 1)))) & (x <= 10)) | !(x <= 10)) & (0 <= x)))) | !cinc)) (len 185)
+(cstay & !((cinc & (!(0 <= x) | (((((!(0 <= (x + 1)) & (x = 0)) | (((!((x + 1) <= 10) & (x = 0)) | ((x + 1) <= 10)) & (0 <= (x + 1)))) & (x <= 10)) | !(x <= 10)) & (0 <= x)))) | !cinc))
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007581710815429688
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (x <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007913112640380859
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:(x <= 0)
+loop:(x := (x - 1))
+adding (x = x_prev), (x = (x_prev - 1)) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.000949859619140625
+running LTL synthesis
+Realizable.
+REALIZABLE
+HOA: v1
+tool: "strix" "21.0.0"
+States: 1
+Start: 0
+AP: 11 "pred__x_LTEQ_0_" "pred__x_EQ_xprev_" "in_loop0_0" "goal" "move" "pred__x_EQ__xprev_MINUS_1__" "setvars" "estay" "einc" "cstay" "cinc"
+controllable-AP: 9 10
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0 "[0]"
+[(!((1 | (2 | (3 | (4 | (5 | (7 | !6)))))) | !0)) & (t)] 0
+[(!((1 | (2 | (3 | (4 | (5 | ((8 | !7) | !6)))))) | !0)) & (t)] 0
+[(!((1 | (2 | (3 | (4 | (5 | !(6 & (7 & 8))))))) | !0)) & (t)] 0
+[(!(((2 | (3 | (4 | (5 | (7 | !6))))) | !1) | !0)) & (t)] 0
+[(!(((2 | (3 | (4 | (5 | ((8 | !7) | !6))))) | !1) | !0)) & (t)] 0
+[(!(((2 | (3 | (4 | (5 | !(6 & (7 & 8)))))) | !1) | !0)) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (5 | (7 | !6)))))))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (5 | ((8 | !7) | !6)))))))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (5 | !(6 & (7 & 8))))))))) & (t)] 0
+[(!(0 | ((2 | (3 | ((5 | 6) | !4))) | !1))) & (!(10 | !9))] 0
+[(!(0 | (1 | ((3 | (4 | ((7 | !6) | !5))) | !2)))) & (t)] 0
+[(!(0 | (1 | ((3 | (4 | (((8 | !7) | !6) | !5))) | !2)))) & (t)] 0
+[(!(1 | ((3 | (4 | !(5 & (6 & (7 & 8))))) | !2))) & (t)] 0
+[(!((1 | ((3 | (4 | ((7 | !6) | !5))) | !2)) | !0)) & (t)] 0
+[(!((1 | ((3 | (4 | (((8 | !7) | !6) | !5))) | !2)) | !0)) & (t)] 0
+[(!(0 | (1 | ((3 | ((6 | !5) | !4)) | !2)))) & (!(10 | !9))] 0
+[(!(0 | (((3 | ((5 | 6) | !4)) | !2) | !1))) & (!(10 | !9))] 0
+[(!(0 | ((2 | (3 | (4 | (5 | (7 | !6))))) | !1))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | (5 | ((8 | !7) | !6))))) | !1))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | (5 | !(6 & (7 & 8)))))) | !1))) & (t)] 0
+[(0 & (1 & (2 | (3 | (4 | (5 | !6)))) | !1 & (2 & (3 | (4 | !(5 & 6))) | !2 & (3 | (4 | (5 | !6))))) | !0 & (1 & (2 & (3 | ((5 | 6) | !4)) | !2 & (3 | (4 & (5 | 6) | !4 & (5 | !6)))) | !1 & (2 & (3 | (4 & (6 | !5) | !4 & !(5 & 6))) | !2 & (3 | (4 | (5 | !6)))))) & (t)] 0
+--END--
+Synthesis took:  3779.9603939056396 ms

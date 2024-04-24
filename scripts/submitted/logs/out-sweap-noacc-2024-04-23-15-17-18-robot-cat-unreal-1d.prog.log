@@ -1,0 +1,38 @@
+Processing program.
+spec contains 2 APs (['goal', 'i'])
+simplified !FALSE (len 6) to True (len 4)
+True
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0011334419250488281
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (rx <= ox), (rx >= ox) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0012259483337402344
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+Unrealizable.
+digraph MooreMachine {
+	graph [nodesep=0.5 overlap=scalexy ranksep=0.8 splines=true]
+	node [shape=circle]
+	edge [fontname=mono]
+	init [label="" shape=point]
+	st_0 [label="(!goal & !moveo & !mover & !i & !fail & !stay & setvars & pred__rx_GTEQ_ox_ & pred__rx_LTEQ_ox_)"]
+	st_3 [label="(!setvars & !goal & !moveo & !mover & !i & fail & pred__rx_GTEQ_ox_ & pred__rx_LTEQ_ox_)"]
+	st_1 [label="(!setvars & !goal & !moveo & !mover & !fail & i & pred__rx_GTEQ_ox_ & pred__rx_LTEQ_ox_)"]
+	st_2 [label="(!setvars & !goal & !moveo & !i & !fail & mover & pred__rx_GTEQ_ox_ & pred__rx_LTEQ_ox_)"]
+	init -> st_0 [style=solid]
+	st_0 -> st_1 [label=TRUE]
+	st_1 -> st_2 [label=TRUE]
+	st_2 -> st_3 [label=TRUE]
+	st_3 -> st_3 [label=TRUE]
+}
+Synthesis took:  2611.73152923584 ms

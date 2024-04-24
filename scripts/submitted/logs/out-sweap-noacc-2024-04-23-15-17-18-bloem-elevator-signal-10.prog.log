@@ -1,0 +1,46 @@
+Processing program.
+spec contains 2 APs (['setsignal', 'goal'])
+simplified !((inc && dec) | (!inc & dec & ((signal - 1) >= 0) & ((signal - 1) <= 10)) | (inc & !dec & ((signal + 1) >= 0) & ((signal + 1) <= 10))) (len 135) to ((!(dec | (((((signal + 1) <= 10) & (((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !(0 <= (signal + 1))) | (0 <= (signal + 1)))) | (!((signal + 1) <= 10) & (!(0 <= signal) | ((0 <= signal) & !(signal <= 10))))) & !dec)) & inc) | (!(((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !dec) | (((((signal - 1) <= 10) & ((1 <= signal) | ((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !(1 <= signal)))) | ((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !((signal - 1) <= 10))) & dec)) & !inc)) (len 521)
+((!(dec | (((((signal + 1) <= 10) & (((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !(0 <= (signal + 1))) | (0 <= (signal + 1)))) | (!((signal + 1) <= 10) & (!(0 <= signal) | ((0 <= signal) & !(signal <= 10))))) & !dec)) & inc) | (!(((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !dec) | (((((signal - 1) <= 10) & ((1 <= signal) | ((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !(1 <= signal)))) | ((!(0 <= signal) | ((0 <= signal) & !(signal <= 10))) & !((signal - 1) <= 10))) & dec)) & !inc))
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0012743473052978516
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (signal <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0012531280517578125
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (target >= at_floor), (at_floor >= target), (at_floor <= 1), (signal <= at_floor), (at_floor >= 1), (signal >= at_floor) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0013391971588134766
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (signal <= 1), (signal <= 2) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0013837814331054688
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (target <= 2), (1 >= (target + (-1 * at_floor))), (target >= 2) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0014696121215820312
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (target <= 3), (signal <= 3) to predicate abstraction

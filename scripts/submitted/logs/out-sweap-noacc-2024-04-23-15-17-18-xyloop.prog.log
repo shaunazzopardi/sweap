@@ -1,0 +1,97 @@
+Processing program.
+spec contains 2 APs (['inc', '(y == 0)'])
+simplified !(((x = 0) & (y > 0)) | ((x > 0) & (y > 0))) (len 44) to ((!((!(0 < y) & ((!(0 <= x) & (0 <= y)) | !(0 <= y))) | ((0 < y) & ((x = 0) | (!(x = 0) & ((!(0 <= x) & (0 <= y)) | !(0 <= y)))))) & !(0 < x)) | ((0 < x) & !((!(0 < y) & ((!(0 <= x) & (0 <= y)) | !(0 <= y))) | (0 < y)))) (len 220)
+((!((!(0 < y) & ((!(0 <= x) & (0 <= y)) | !(0 <= y))) | ((0 < y) & ((x = 0) | (!(x = 0) & ((!(0 <= x) & (0 <= y)) | !(0 <= y)))))) & !(0 < x)) | ((0 < x) & !((!(0 < y) & ((!(0 <= x) & (0 <= y)) | !(0 <= y))) | (0 < y))))
+Starting abstract synthesis loop.
+adding (y <= 0), (0 <= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007319450378417969
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:!((0 <= y) & (0 <= x) & !((0 < y) & (x = 0)))
+loop:(x := (x - 1))
+adding (x = x_prev), (y = y_prev), (x = (x_prev - 1)), (x = 0), (0 <= x), (0 < y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007321834564208984
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 1) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0010867118835449219
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 2) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0009341239929199219
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 3) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0011403560638427734
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 4) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0009076595306396484
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 5) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007109642028808594
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 6) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007226467132568359
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 7) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0008440017700195312
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 8) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007503032684326172
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 9) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0008022785186767578
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 10) to predicate abstraction

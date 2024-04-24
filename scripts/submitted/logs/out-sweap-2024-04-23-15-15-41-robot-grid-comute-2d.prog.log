@@ -1,0 +1,4 @@
+Processing program.
+spec contains 2 APs (['setnt', 'goal'])
+Starting abstract synthesis loop.
+adding (tx <= x), (y >= 0), (ty_prev < ty), ((ty_prev - y_prev) < (ty - y)), (y <= ty), (ty_prev > ty), ((ty_prev - y_prev) > (ty - y)), (y_prev > y), (tx <= 0), ((tx_prev - x_prev) > (tx - x)), (x <= tx), (tx >= 0), (0 <= x), (x_prev < x), (ty <= 0), ((y_prev - ty_prev) < (y - ty)), (ty >= 0), ((y_prev - ty_prev) > (y - ty)), (ty <= y), (tx_prev > tx), (tx_prev < tx), ((x_prev - tx_prev) > (x - tx)), (0 <= y), (x_prev > x), (y_prev < y), ((x_prev - tx_prev) < (x - tx)), (x <= 0), (y <= 0), ((tx_prev - x_prev) < (tx - x)), (x >= 0) to predicate abstraction

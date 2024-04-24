@@ -1,0 +1,67 @@
+Processing program.
+spec contains 2 APs (['move', 'goal'])
+simplified !(!estay | (estay & einc & (x >= 0) & (x <= 50) & (einc | (x < 0) | (x > 50)) & ((x + 1) >= 0) & ((x + 1) <= 50)) | (estay & !einc & (x >= 0) & (x <= 50) & (!einc | (x < 0) | (x > 50)) & ((x - 1) >= 0) & ((x - 1) <= 50))) (len 221) to (!(((!(0 <= x) | (((((x - 1) <= 50) & (1 <= x) & (x <= 50)) | !(x <= 50)) & (0 <= x))) & !einc) | ((((0 <= x) & ((((x + 1) <= 50) & (0 <= (x + 1)) & (x <= 50)) | !(x <= 50))) | !(0 <= x)) & einc)) & estay) (len 205)
+(!(((!(0 <= x) | (((((x - 1) <= 50) & (1 <= x) & (x <= 50)) | !(x <= 50)) & (0 <= x))) & !einc) | ((((0 <= x) & ((((x + 1) <= 50) & (0 <= (x + 1)) & (x <= 50)) | !(x <= 50))) | !(0 <= x)) & einc)) & estay)
+simplified !(((x != 0) & cstay & cinc & (x >= 0) & (x <= 50) & (cinc | (x < 0) | (x > 50)) & ((x + 1) >= 0) & ((x + 1) <= 50)) | ((x != 0) & cstay & !cinc & (x >= 0) & (x <= 50) & (!cinc | (x < 0) | (x > 50))) | ((x != 0) && !cstay) | (x = 0)) (len 232) to (cstay & !(!cinc | (cinc & (!(0 <= x) | ((((((x = 0) & !(0 <= (x + 1))) | ((((x = 0) & !((x + 1) <= 50)) | ((x + 1) <= 50)) & (0 <= (x + 1)))) & (x <= 50)) | !(x <= 50)) & (0 <= x)))))) (len 185)
+(cstay & !(!cinc | (cinc & (!(0 <= x) | ((((((x = 0) & !(0 <= (x + 1))) | ((((x = 0) & !((x + 1) <= 50)) | ((x + 1) <= 50)) & (0 <= (x + 1)))) & (x <= 50)) | !(x <= 50)) & (0 <= x))))))
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007305145263671875
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (x <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0008113384246826172
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:(x <= 0)
+loop:(x := (x - 1))
+adding (x = (x_prev - 1)), (x = x_prev) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0009508132934570312
+running LTL synthesis
+Realizable.
+REALIZABLE
+HOA: v1
+tool: "strix" "21.0.0"
+States: 1
+Start: 0
+AP: 11 "in_loop0_0" "pred__x_EQ_xprev_" "move" "goal" "pred__x_EQ__xprev_MINUS_1__" "pred__x_LTEQ_0_" "setvars" "estay" "einc" "cstay" "cinc"
+controllable-AP: 9 10
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0 "[0]"
+[(!(0 | (1 | (2 | (3 | (4 | ((7 | !6) | !5))))))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (((8 | !7) | !6) | !5))))))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | !(5 & (6 & (7 & 8))))))))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | ((7 | !6) | !5)))) | !1))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | (((8 | !7) | !6) | !5)))) | !1))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | !(5 & (6 & (7 & 8)))))) | !1))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (5 | (7 | !6)))))))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (5 | ((8 | !7) | !6)))))))) & (t)] 0
+[(!(0 | (1 | (2 | (3 | (4 | (5 | !(6 & (7 & 8))))))))) & (t)] 0
+[(!(0 | (((3 | (4 | (5 | 6))) | !2) | !1))) & (!(10 | !9))] 0
+[(!((1 | (2 | (3 | ((5 | (7 | !6)) | !4)))) | !0)) & (t)] 0
+[(!((1 | (2 | (3 | ((5 | ((8 | !7) | !6)) | !4)))) | !0)) & (t)] 0
+[(!((1 | (2 | (3 | !(4 & (6 & (7 & 8)))))) | !0)) & (t)] 0
+[(!((1 | (2 | (3 | (((7 | !6) | !5) | !4)))) | !0)) & (t)] 0
+[(!((1 | (2 | (3 | ((((8 | !7) | !6) | !5) | !4)))) | !0)) & (t)] 0
+[(!((1 | ((3 | ((5 | 6) | !4)) | !2)) | !0)) & (!(10 | !9))] 0
+[(!((((3 | (4 | (5 | 6))) | !2) | !1) | !0)) & (!(10 | !9))] 0
+[(!(0 | ((2 | (3 | (4 | (5 | (7 | !6))))) | !1))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | (5 | ((8 | !7) | !6))))) | !1))) & (t)] 0
+[(!(0 | ((2 | (3 | (4 | (5 | !(6 & (7 & 8)))))) | !1))) & (t)] 0
+[(0 & (1 & ((3 | (4 | (5 | 6))) | !2) | !1 & (2 & (3 | ((5 | 6) | !4)) | !2 & (3 | !(4 & 6)))) | !0 & (1 & (2 & (3 | (4 | (5 | 6))) | !2 & (3 | (4 | !6))) | !1 & (2 | (3 | (4 | !6))))) & (t)] 0
+--END--
+Synthesis took:  3744.8956966400146 ms

@@ -1,0 +1,47 @@
+Processing program.
+spec contains 2 APs (['q1', 'q0'])
+simplified !((!request & !changeRoom) | (!request & changeRoom) | (redrequest & request & !changeRoom & ((cnt - 1) >= 0) & ((cnt - 1) <= 5)) | (request & !redrequest & !changeRoom & ((cnt + 1) >= 0) & ((cnt + 1) <= 5))) (len 208) to (request & (((((((1 <= cnt) & !(((!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5))) & !((cnt - 1) <= 5)) | ((cnt - 1) <= 5))) | (!(1 <= cnt) & !(!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5))))) & !changeRoom) | ((cnt <= 5) & (0 <= cnt) & changeRoom)) & redrequest) | (((((!(0 <= (cnt + 1)) & !(!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5)))) | ((0 <= (cnt + 1)) & !(((!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5))) & !((cnt + 1) <= 5)) | ((cnt + 1) <= 5)))) & !changeRoom) | ((cnt <= 5) & (0 <= cnt) & changeRoom)) & !redrequest))) (len 508)
+(request & (((((((1 <= cnt) & !(((!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5))) & !((cnt - 1) <= 5)) | ((cnt - 1) <= 5))) | (!(1 <= cnt) & !(!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5))))) & !changeRoom) | ((cnt <= 5) & (0 <= cnt) & changeRoom)) & redrequest) | (((((!(0 <= (cnt + 1)) & !(!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5)))) | ((0 <= (cnt + 1)) & !(((!(0 <= cnt) | ((0 <= cnt) & !(cnt <= 5))) & !((cnt + 1) <= 5)) | ((cnt + 1) <= 5)))) & !changeRoom) | ((cnt <= 5) & (0 <= cnt) & changeRoom)) & !redrequest)))
+Starting abstract synthesis loop.
+adding roomA to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0011153221130371094
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (cnt <= 0) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0009245872497558594
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+Structural Refinement: 
+entry_cond:TRUE
+exit_cond:(cnt <= 0)
+loop:(cnt := (cnt - 1))
+adding (cnt = cnt_prev), (cnt = (cnt_prev - 1)) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0012006759643554688
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+Unrealizable.
+digraph MooreMachine {
+	graph [nodesep=0.5 overlap=scalexy ranksep=0.8 splines=true]
+	node [shape=circle]
+	edge [fontname=mono]
+	init [label="" shape=point]
+	st_3 [label="(!pred__cnt_LTEQ_0_ & !in_loop0_0 & !q0 & !pred_roomA & !pred__cnt_EQ__cntprev_MINUS_1__ & pred__cnt_EQ_cntprev_ & q1)"]
+	st_2 [label="(!q1 & !pred__cnt_LTEQ_0_ & !in_loop0_0 & !pred_roomA & !pred__cnt_EQ__cntprev_MINUS_1__ & !changeRoom & !request & q0 & pred__cnt_EQ_cntprev_)"]
+	st_0 [label="(!q1 & !pred__cnt_EQ_cntprev_ & !in_loop0_0 & !pred__cnt_EQ__cntprev_MINUS_1__ & !changeRoom & !redrequest & request & pred_roomA & q0 & pred__cnt_LTEQ_0_)"]
+	st_1 [label="(!q1 & !pred__cnt_LTEQ_0_ & !pred__cnt_EQ_cntprev_ & !in_loop0_0 & !pred__cnt_EQ__cntprev_MINUS_1__ & !request & changeRoom & pred_roomA & q0)"]
+	init -> st_0 [style=solid]
+	st_0 -> st_1 [label=TRUE]
+	st_1 -> st_2 [label=TRUE]
+	st_2 -> st_3 [label=TRUE]
+	st_3 -> st_3 [label=TRUE]
+}
+Synthesis took:  4707.570552825928 ms

@@ -1,0 +1,82 @@
+Processing program.
+spec contains 3 APs (['decntx', 'incntx', 'goal'])
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding (0 <= resource), (resource >= 0), (resource_prev < resource), (resource <= 0), (x >= 0), (x_prev > x), (x_prev < x), (x <= 0), (resource_prev > resource) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0024890899658203125
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (4 >= resource), (3 <= resource), (3 >= resource) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0016875267028808594
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (2 <= resource) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.002476930618286133
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+Unrealizable.
+digraph MooreMachine {
+	graph [nodesep=0.5 overlap=scalexy ranksep=0.8 splines=true]
+	node [shape=circle]
+	edge [fontname=mono]
+	init [label="" shape=point]
+	st_10 [label="(!goal & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & !inc & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__2_LTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & setntx)"]
+	st_18 [label="(!goal & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resourceprev_LT_resource_ & !inc & pred__resource_LTEQ_0_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & setntx)"]
+	st_22 [label="(!goal & !setntx & !pred__0_LTEQ_resource_ & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_GTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_LTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & unsafe & pred__x_GTEQ_0_)"]
+	st_17 [label="(!setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resourceprev_LT_resource_ & pred__resource_LTEQ_0_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & goal)"]
+	st_5 [label="(!setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & goal)"]
+	st_6 [label="(!goal & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & !inc & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & setntx)"]
+	st_2 [label="(!goal & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__3_GTEQ_resource_ & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & !inc & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & setntx)"]
+	st_0 [label="(!goal & !setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__3_GTEQ_resource_ & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & movetarg & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_8 [label="(!goal & !setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__2_LTEQ_resource_ & movetarg & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_1 [label="(!setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__3_GTEQ_resource_ & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & goal)"]
+	st_20 [label="(!goal & !setntx & !unsafe & !pred__0_LTEQ_resource_ & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_GTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_LTEQ_0_ & pred__4_GTEQ_resource_ & movetarg & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__x_GTEQ_0_)"]
+	st_12 [label="(!goal & !setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & movetarg & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_3 [label="(!goal & !setntx & !unsafe & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & !stay & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & decntx & pred__resourceprev_GT_resource_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_4 [label="(!goal & !setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_LTEQ_resource_ & pred__2_LTEQ_resource_ & movetarg & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_15 [label="(!goal & !setntx & !unsafe & !decntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resourceprev_LT_resource_ & !stay & pred__resource_LTEQ_0_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & incntx & pred__resourceprev_GT_resource_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_9 [label="(!setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__2_LTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & goal)"]
+	st_16 [label="(!goal & !setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resourceprev_LT_resource_ & pred__resource_LTEQ_0_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & movetarg & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_7 [label="(!goal & !setntx & !unsafe & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & !stay & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__2_LTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & decntx & pred__resourceprev_GT_resource_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_14 [label="(!goal & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & inc & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & setntx)"]
+	st_21 [label="(!setntx & !unsafe & !pred__0_LTEQ_resource_ & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_GTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_LTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__x_GTEQ_0_ & goal)"]
+	st_11 [label="(!goal & !setntx & !unsafe & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & !stay & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & decntx & pred__resourceprev_GT_resource_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_)"]
+	st_19 [label="(!goal & !setntx & !unsafe & !pred__0_LTEQ_resource_ & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_GTEQ_0_ & !pred__resourceprev_LT_resource_ & !stay & pred__resource_LTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & decntx & pred__resourceprev_GT_resource_ & pred__x_GTEQ_0_)"]
+	st_13 [label="(!setntx & !unsafe & !pred__resourceprev_GT_resource_ & !decntx & !incntx & !pred__xprev_LT_x_ & !pred__xprev_GT_x_ & !movetarg & !pred__2_LTEQ_resource_ & !pred__3_LTEQ_resource_ & !pred__resource_LTEQ_0_ & !pred__resourceprev_LT_resource_ & pred__resource_GTEQ_0_ & pred__4_GTEQ_resource_ & pred__3_GTEQ_resource_ & pred__x_LTEQ_0_ & pred__0_LTEQ_resource_ & pred__x_GTEQ_0_ & goal)"]
+	init -> st_0 [style=solid]
+	st_0 -> st_1 [label=TRUE]
+	st_1 -> st_2 [label=TRUE]
+	st_2 -> st_3 [label=TRUE]
+	st_3 -> st_4 [label=TRUE]
+	st_4 -> st_5 [label=TRUE]
+	st_5 -> st_6 [label=TRUE]
+	st_6 -> st_7 [label=TRUE]
+	st_7 -> st_8 [label=TRUE]
+	st_8 -> st_9 [label=TRUE]
+	st_9 -> st_10 [label=TRUE]
+	st_10 -> st_11 [label=TRUE]
+	st_11 -> st_12 [label=TRUE]
+	st_12 -> st_13 [label=TRUE]
+	st_13 -> st_14 [label=TRUE]
+	st_14 -> st_15 [label=TRUE]
+	st_15 -> st_16 [label=TRUE]
+	st_16 -> st_17 [label=TRUE]
+	st_17 -> st_18 [label=TRUE]
+	st_18 -> st_19 [label=TRUE]
+	st_19 -> st_20 [label=TRUE]
+	st_20 -> st_21 [label=TRUE]
+	st_21 -> st_22 [label=TRUE]
+	st_22 -> st_22 [label=TRUE]
+}
+Synthesis took:  46853.02662849426 ms

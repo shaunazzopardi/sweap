@@ -1,0 +1,64 @@
+Processing program.
+spec contains 1 APs (['lG'])
+simplified !FALSE (len 6) to True (len 4)
+True
+simplified !FALSE (len 6) to True (len 4)
+True
+Starting abstract synthesis loop.
+adding  to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0004563331604003906
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (y <= 0), (x >= 64), (x <= 64) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007443428039550781
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (2 >= y), (2 <= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0008132457733154297
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (4 >= y), (3 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0008776187896728516
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (6 <= y), (6 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0010249614715576172
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (7 >= y), (8 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0006673336029052734
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (9 >= y), (10 >= y) to predicate abstraction
+constructing LTL abstraction
+ltl abstraction took: 0.0007128715515136719
+running LTL synthesis
+massaging abstract counterstrategy
+checking for compatibility of counterstrategy with program
+trying fairness refinement
+trying safety refinement
+adding (32 >= x), (1 <= x), (32 <= x), (8 <= x), (4 <= x), (16 >= x), (8 >= x), (16 <= x), (2 >= x), (4 >= x), (2 <= x) to predicate abstraction
