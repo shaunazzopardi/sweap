@@ -12,9 +12,10 @@ OUTFILE=$SCRIPT_DIR/out-sweap-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../examples/benchmarks/sweap
 echo "run-sweap.sh" >> $OUTFILE
 echo "" >> $OUTFILE
+mkdir logs 2>/dev/null
 
 run_sweap() {
-  tmpout=`mktemp --suffix .log`
+  tmpout=logs/`basename $OUTFILE`-`basename $1`.log
   echo "Run Sweap on $1 at $(date +%H:%M:%S)"
   echo "Benchmark: $1" >> $OUTFILE
   s=`date +%s%N`
@@ -25,7 +26,6 @@ run_sweap() {
   echo -n "Structural refinements: " >> $OUTFILE
   grep "Structural Refinement:" $tmpout | wc -l >> $OUTFILE
   echo "" >> $OUTFILE
-  rm $tmpout
 }
 
 for f in `ls $BENCHMARKS_DIR/*.prog`
