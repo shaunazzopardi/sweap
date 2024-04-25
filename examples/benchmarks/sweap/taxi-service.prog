@@ -4,11 +4,11 @@ program elevator {
     }
 
     ENVIRONMENT EVENTS {
-        inc, dooropen, xory, start, obstacle
+        inc, xory, start, obstacle
     }
 
     CONTROLLER EVENTS {
-        cinc, cdec, cxory, notify
+        cinc, cdec, cxory
     }
 
     PROGRAM EVENTS {
