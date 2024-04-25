@@ -1,7 +1,6 @@
-//-- State: floor, target, q
-//-- Inputs: inc, dooropen
-
-//#LIA#
+#LIA
+//-- State: q, target_x, target_y, car_x, car_y
+//-- Inputs: obstacle, env_target_x, env_target_y
 
 assume {
   eq car_x i0();
@@ -19,7 +18,7 @@ always guarantee {
   (eq q i0()) -> ([target_x <- env_target_x] && [target_y <- env_target_y] && [q <- i1()]);
 
   (eq q i1() && (eq obstacle i0())) -> ([car_x <- car_x] && [car_y <- car_y]);
-  (eq q i1() && (not ((eq car_x target_x) && (eq car_y target_y)))) -> ([car_x <- add car_x i1()] || [car_x <- sub car_x i1()] || [car_x <- car_x] || [car_y <- add car_y i1()] || [car_y <- sub car_y i1()] || [car_y <- car_y]);
+  (eq q i1() && (! ((eq car_x target_x) && (eq car_y target_y)))) -> ([car_x <- add car_x i1()] || [car_x <- sub car_x i1()] || [car_x <- car_x] || [car_y <- add car_y i1()] || [car_y <- sub car_y i1()] || [car_y <- car_y]);
   (eq q i1() && ((eq car_x target_x) && (eq car_y target_y))) -> [q <- i0()];
 
   G F ((eq car_x target_x) && (eq car_y target_y));
