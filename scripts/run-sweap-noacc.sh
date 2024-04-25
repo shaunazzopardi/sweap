@@ -15,7 +15,7 @@ echo "" >> $OUTFILE
 mkdir logs 2>/dev/null
 
 run_sweap() {
-  tmpout=logs/`basename $OUTFILE`-`basename $1`.log
+  tmpout=logs/out-sweap-noacc--`basename $1`.log
   echo "Run Sweap (no acceleration) on $1 at $(date +%H:%M:%S)"
   echo "Benchmark: $1" >> $OUTFILE
   s=`date +%s%N`
