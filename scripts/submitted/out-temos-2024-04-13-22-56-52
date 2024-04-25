@@ -36,6 +36,9 @@ Runtime: 4489ms
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/temos/neider-square5x5.tslt
 Runtime: 600055ms
 
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/temos/taxi-service.tslt
+Runtime: 600049ms
+
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/temos/reversible-lane-r.tslt
 Runtime: 600110ms
 

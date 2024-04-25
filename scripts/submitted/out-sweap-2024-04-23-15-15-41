@@ -139,7 +139,7 @@ Runtime: 83273ms
 Structural refinements: 0
 
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/taxi-service.prog
-Runtime: 600013ms
+Runtime: 600012ms
 Structural refinements: 0
 
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/sweap/xyloop.prog

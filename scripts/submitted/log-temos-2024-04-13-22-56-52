@@ -130,6 +130,21 @@ expecting "INFO"
 unexpected "\ESC"
 expecting "INFO"
 
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/temos/taxi-service.tslt
+cvc5: no process found
+"Syntax Error" (line 1, column 1):
+unexpected end of input
+expecting "import", "initially", "always", "assume", "guarantee", letter, "_" or "@"
+"Syntax Error" (line 1, column 1):
+unexpected "\ESC"
+expecting "INFO"
+"Syntax Error" (line 1, column 1):
+unexpected "\ESC"
+expecting "INFO"
+"Syntax Error" (line 1, column 1):
+unexpected "\ESC"
+expecting "INFO"
+
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/temos/reversible-lane-r.tslt
 cvc5: no process found
 "Syntax Error" (line 1, column 1):

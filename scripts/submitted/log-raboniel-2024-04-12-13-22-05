@@ -23,6 +23,8 @@ Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/neider-s
 
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/neider-square5x5.tslmt
 
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/taxi-service.tslmt
+
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/reversible-lane-r.tslmt
 
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/reversible-lane-u.tslmt

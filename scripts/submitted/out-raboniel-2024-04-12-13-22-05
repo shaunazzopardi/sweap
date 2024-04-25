@@ -40,6 +40,9 @@ Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/neider-s
 Result: realizable
 Runtime: 136866ms
 
+Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/taxi-service.tslmt
+Runtime: 600110ms
+
 Benchmark: /home/luca/git/sweap/scripts/../examples/benchmarks/raboniel/reversible-lane-r.tslmt
 Runtime: 600030ms
 
