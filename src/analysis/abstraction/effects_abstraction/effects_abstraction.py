@@ -118,6 +118,9 @@ class EffectsAbstraction(PredicateAbstraction):
 
             self.trans_to_u[t] = u_f
 
+            if u_f not in self.u_constants.keys():
+                self.u_constants[u_f] = []
+
             for g, E in disjuncts:
                 gu = guard_update_formula(g, u, self.program.symbol_table)
                 self.abstract_effect_ltl[gu] = true()
@@ -125,8 +128,6 @@ class EffectsAbstraction(PredicateAbstraction):
                     self.u_to_gu[u_f].add(gu)
                 else:
                     self.u_to_gu[u_f] = {gu}
-                if u_f not in self.u_constants.keys():
-                    self.u_constants[u_f] = []
 
                 self.guard_updates.add(gu)
                 if gu in self.transition_guard_update_to_E[t].keys():
