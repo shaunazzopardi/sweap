@@ -61,6 +61,8 @@ class Program:
                     else:
                         new_transitions.append(t)
 
+            self.transitions = new_transitions
+
             if len(unsat_trans) > 0:
                 logging.info("Removed transitions with unsat transitions: " + ",\n".join(map(str, unsat_trans)))
 
