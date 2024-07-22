@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import shutil
 from tempfile import NamedTemporaryFile
 
 
@@ -28,6 +29,16 @@ class ModelChecker:
             commands.write(call)
             commands.write('quit')
             commands.close()
+
+            # cmd_exists = lambda x: shutil.which(x) is not None
+            # if cmd_exists("nuxmv"):
+            #     nuxmv_command = "nuxmv"
+            # else:
+            #     if cmd_exists("nuXmv"):
+            #         nuxmv_command = "nuXmv"
+            #     else:
+            #         raise Exception("nuxmv is not in PATH")
+
             try:
                 out = subprocess.check_output([
                     "nuxmv", "-source", commands.name, model.name], encoding="utf-8")

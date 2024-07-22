@@ -23,7 +23,7 @@ class Test(TestCase):
         symbol_table = {"x": TypedValuation("x", "nat", "0")}
         symbol_table |= {"x_prev": TypedValuation("x_prev", "nat", "0")}
         x = Variable("x")
-        body = [BiOp(x, ":=", BiOp(x, "+", Value("1")))]
+        body = [[BiOp(x, ":=", BiOp(x, "+", Value("1")))]]
 
         result = function_decreases_in_loop_body(x, [], body, symbol_table)
 
@@ -33,7 +33,7 @@ class Test(TestCase):
         symbol_table = {"x": TypedValuation("x", "nat", "0")}
         symbol_table |= {"x_prev": TypedValuation("x_prev", "nat", "0")}
         x = Variable("x")
-        body = [BiOp(x, ":=", BiOp(x, "-", Value("1")))]
+        body = [[BiOp(x, ":=", BiOp(x, "-", Value("1")))]]
 
         result = function_decreases_in_loop_body(x, [], body, symbol_table)
 
@@ -43,16 +43,9 @@ class Test(TestCase):
         symbol_table = {"x": TypedValuation("x", "nat", "0")}
         symbol_table |= {"x_prev": TypedValuation("x_prev", "nat", "0")}
         x = Variable("x")
-        body = [BiOp(x, ":=", BiOp(x, "-", x))]
+        body = [[BiOp(x, ":=", BiOp(x, "-", x))]]
 
         result = function_decreases_in_loop_body(x, [], body, symbol_table)
 
         self.assertTrue(result)
 
-    def test_liveness_step(self):
-        local_vars = [Variable("cnt")]
-
-        symbol_table = {"cnt": TypedValuation("cnt", "nat", Value("0"))}
-        prefix = None
-
-        self.fail()

@@ -1,0 +1,37 @@
+program robot-grid-reach-with-obstacles-1d {
+    STATES {
+        setvars: init, move, goal
+    }
+
+    ENVIRONMENT EVENTS {
+        einc, estay, obstacle
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cstay
+    }
+
+    VALUATION {
+        x : integer := 0;
+    }
+
+    TRANSITIONS {
+        setvars -> setvars [estay $
+                                x := x + 1 if einc;
+                                x := x - 1 if !einc;
+                              ],
+        setvars -> move [!estay],
+
+        goal -> setvars [],
+        move -> goal [x == 0],
+        move -> move [x != 0 && !cstay],
+        move -> move [x != 0 && cstay $
+                                x := x + 1 if cinc && !obstacle;
+                                x := x - 1 if !cinc && !obstacle;
+                                ]
+    }
+
+    SPECIFICATION {
+        ((G F !obstacle) && (G F move)) -> G F goal
+    }
+}

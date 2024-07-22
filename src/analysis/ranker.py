@@ -16,10 +16,11 @@ class Ranker:
 
             try:
                 start = time.time()
-                cpa_path = Path(which("cpa.sh")).resolve().parent
+                cpa_path = Path("./binaries/CPAchecker-2.3-unix/scripts/").resolve()
+                # cpa_path = Path(which("cpa.sh")).resolve().parent
                 bench = ('-benchmark -heap 1024M ' if only_check_for_termination else '')
                 cmd = (
-                    f"cpa.sh  -preprocess -terminationAnalysis {bench} "
+                    f"./binaries/CPAchecker-2.3-unix/scripts/cpa.sh  -preprocess -terminationAnalysis {bench} "
                     f'{tmp.name} -spec {cpa_path}/../config/properties/termination.prp'
                 )
                 
@@ -55,16 +56,17 @@ class Ranker:
                             return True, None
 
                         logging.info(main_function + "\n" + out)
-                        return True, (string_to_math_expression(ranking_function).simplify(), [string_to_prop(invar) for                                                                                      invar in
-                                                                                        invars])
-                    except Exception as err:
+                        return True, (string_to_math_expression(ranking_function).simplify(),
+                                      [string_to_prop(invar) for invar in invars])
+
+                    except:
                         logging.info(
                             "WARNING: Function terminates, but there is no ranking function, are you sure the loop has at least one iteration?")
                         return True, None
                 else:
                     logging.info(out)
-                    raise Exception("Make sure cpachecker is available. "
-                                    "Unexpected result during termination checking of:\n" + main_function)
+                    raise Exception(out +
+                                    "\n\nUnexpected result during termination checking of:\n" + main_function)
             except subprocess.CalledProcessError as err:
                 raise Exception(err.output + "\n\n" + out)
             except Exception as err:

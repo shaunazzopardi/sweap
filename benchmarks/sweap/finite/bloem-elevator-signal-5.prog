@@ -1,0 +1,35 @@
+program bloem-elevator-signal-3 {
+    STATES {
+        setsignal : init, goal, move
+    }
+
+    ENVIRONMENT EVENTS {
+        inc, dec
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec
+    }
+
+    VALUATION {
+        target : 0..5 := 0;
+        at_floor : 0..5 := 1;
+        signal : 0..5 := 0;
+    }
+
+    TRANSITIONS {
+        setsignal -> setsignal [inc && !dec $ signal := signal + 1],
+        setsignal -> setsignal [!inc && dec $ signal := signal - 1],
+        setsignal -> goal [inc && dec],
+        goal -> goal [signal < 1],
+        goal -> move [signal >= 1 $ target := signal],
+        move -> setsignal [target = at_floor],
+        move -> move [target != at_floor & cinc & !cdec $ at_floor := at_floor + 1],
+        move -> move [target != at_floor & !cinc & cdec $ at_floor := at_floor - 1],
+        move -> move [target != at_floor & (cinc <-> cdec)]
+    }
+
+    SPECIFICATION {
+        G F (goal || setsignal)
+    }
+}

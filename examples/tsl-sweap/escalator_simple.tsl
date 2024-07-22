@@ -1,5 +1,0 @@
-G (
-    (bottom_GT_top -> [up := 1])
-    &&
-    !(bottom_GT_top) -> [up := 0]
-)

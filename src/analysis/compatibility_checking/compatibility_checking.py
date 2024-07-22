@@ -213,8 +213,10 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     text = text.replace("==", "=")
     return text
 
-
 def create_nuxmv_model(nuxmvModel):
+    from warnings import warn
+    warn('This method is deprecated.', DeprecationWarning, stacklevel=2)
+
     text = "MODULE main\n"
     text += "VAR\n" + "\t" + ";\n\t".join(nuxmvModel.vars) + ";\n"
     text += "DEFINE\n" + "\t" + ";\n\t".join(nuxmvModel.define) + ";\n"

@@ -466,7 +466,7 @@ def resolve_next_references(transition, valuation):
 
 
 def guarded_action_transitions_to_normal_transitions(arg):
-    guarded_transition, valuation, env_events, con_events, outputs, symbol_table = arg
+    guarded_transition, valuation, env_events, con_events, symbol_table = arg
     if str(guarded_transition.condition) == "otherwise":
         # check that no guarded actions
         for (act, guard) in guarded_transition.action:
@@ -498,7 +498,7 @@ def guarded_action_transitions_to_normal_transitions(arg):
         symbol_table[t_val.name] = t_val
         symbol_table[t_val.name + "_next"] = TypedValuation(t_val.name + "_next", t_val.type, t_val.value)
 
-    for ev in outputs + env_events + con_events:
+    for ev in env_events + con_events:
         symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
 
     act_guard_sets = set()

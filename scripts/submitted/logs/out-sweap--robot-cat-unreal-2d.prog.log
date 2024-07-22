@@ -1,8 +1,0 @@
-Processing program.
-spec contains 2 APs (['goal', 'i'])
-simplified !FALSE (len 6) to True (len 4)
-True
-simplified !FALSE (len 6) to True (len 4)
-True
-Starting abstract synthesis loop.
-adding (oy <= 0), (ox >= 0), (rx <= 0), (ry_prev < ry), (rx >= 0), (ry_prev > ry), (ry >= 0), ((oy_prev - ry_prev) < (oy - ry)), ((oy_prev - ry_prev) > (oy - ry)), ((ox_prev - rx_prev) < (ox - rx)), (ox <= 0), (ox_prev > ox), (rx <= ox), (ox_prev < ox), ((rx > 0) || (rx < 0)), ((ry_prev - oy_prev) < (ry - oy)), ((ry_prev - oy_prev) > (ry - oy)), (ry <= 0), (oy <= ry), ((ry > 0) || (ry < 0)), ((rx > ox) || (rx < ox)), (ry <= oy), ((ry > oy) || (ry < oy)), (oy_prev < oy), ((rx_prev - ox_prev) < (rx - ox)), (oy >= 0), ((rx_prev - ox_prev) > (rx - ox)), (0 <= ry), (0 <= rx), (rx_prev < rx), (rx_prev > rx), (oy_prev > oy), ((ox_prev - rx_prev) > (ox - rx)), (ox <= rx) to predicate abstraction

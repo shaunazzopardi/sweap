@@ -106,7 +106,20 @@ def safety_refinement_seq_int(program: Program,
         #     logging.info("Found state predicates: " + ", ".join([str(p) for p in new_state_preds]))
 
     state_predicates = predicate_abstraction.get_state_predicates()
-    new_all_preds = [x.simplify() for x in new_state_preds] + state_predicates
+    new_state_preds_massaged = []
+    for s in new_state_preds:
+        if isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.left).lower() == "true":
+            new_state_preds_massaged.append(s.right)
+        elif isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.right).lower() == "true":
+            new_state_preds_massaged.append(s.left)
+        if isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.left).lower() == "false":
+            new_state_preds_massaged.append(neg(s.right))
+        elif isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.right).lower() == "false":
+            new_state_preds_massaged.append(neg(s.left))
+        else:
+            new_state_preds_massaged.append(s)
+    new_state_preds = new_state_preds_massaged
+    new_all_preds = new_state_preds_massaged + state_predicates
 
     new_all_preds = reduce_up_to_iff(predicate_abstraction.get_state_predicates(),
                                      list(new_all_preds),
@@ -126,7 +139,12 @@ def safety_refinement_seq_int(program: Program,
         new_state_preds = []
         for _, prog_state, _ in agreed_on_transitions:
             for v in program.local_vars:
-                new_state_preds.append(BiOp(v, "=", Value(prog_state[str(v)])))
+                if str(Value(prog_state[str(v)])).lower() == "true":
+                    new_state_preds.append(v)
+                elif str(Value(prog_state[str(v)])).lower() == "false":
+                    new_state_preds.append(neg(v))
+                else:
+                    new_state_preds.append(BiOp(v, "=", Value(prog_state[str(v)])))
         new_all_preds = new_state_preds + state_predicates
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         # raise Exception("Could not find new state predicates..")

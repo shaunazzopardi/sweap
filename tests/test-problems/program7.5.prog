@@ -1,0 +1,35 @@
+program eventually__allow_grant {
+    STATES {
+        q0 : init, q1, q2
+    }
+
+    ENVIRONMENT EVENTS {
+        request, dealWithTasks, otherRoom
+    }
+
+    CONTROLLER EVENTS {
+        done1, done2
+    }
+
+    VALUATION {
+        cnt : natural := 0;
+        room1 : bool := true;
+        granting : bool := false;
+    }
+
+    TRANSITIONS {
+        q0 -> q0 [request $ cnt := cnt + 1],
+        q0 -> q0 [otherRoom && !request $ room1 := !room1],
+        q0 -> q1 [!otherRoom && !request & (cnt > 0)],
+        q0 -> q2 [!otherRoom && !request & (cnt == 0)],
+        q1 -> q1 [(!granting & cnt > 0) $ cnt := cnt - 1; granting := true;],
+        q2 -> q0 [ $],
+        q1 -> q2 [cnt == 0 $ granting := false],
+        q1 -> q1 [cnt > 0 $ granting := true]
+    }
+
+    SPECIFICATION {
+        (G F (!otherRoom && !request)) ->
+          (G(q1 -> F cnt == 0))
+  }
+}

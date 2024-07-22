@@ -1,7 +1,10 @@
 import logging
 import subprocess
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Tuple
+import os
+from dotenv import load_dotenv
 
 from parsing.hoa_parser import hoa_to_transitions
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
@@ -19,11 +22,7 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
             tmp.write(tlsf_script)
             tmp.close()
 
-            # cmd = strix_tlsf_command + " -v '" + tmp.name + "':./spec.tlsf -m both "
-            # cmd = "docker run" + " -v " + tmp.name + ":/spec.tlsf" + \
-            # " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + " -m both --onthefly none"
-            # " --entrypoint ./strix/scripts/strix_tlsf_file.sh strix_tlsf_file /spec.tlsf" + ""
-            cmd = f"strix_tlsf.sh {tmp.name} -m both --onthefly none"
+            cmd = f"strix_tlsf_file.sh {tmp.name} -m both --onthefly none"
 
             so = subprocess.getstatusoutput(cmd)
             output: str = so[1]
@@ -31,13 +30,11 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
 
             if "UNREALIZABLE" in output:
                 logging.info("\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n")
-                # mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
-                return False, output#mon
+                return False, output
             elif "REALIZABLE" in output:
-                logging.info("\nINFO: Strix thinks the current abstract problem is realisable! I will check..\n")
+                logging.info("\nINFO: Strix determines the current abstract problem realisable!\n")
                 try:
-                    # mon = parse_hoa(env_events=synthesis_problem.env_props, con_events=synthesis_problem.con_props, output=output)
-                    return True, output#mon
+                    return True, output
                 except Exception as err:
                     raise err
             else:
@@ -99,7 +96,7 @@ def parse_hoa(synthesis_problem: AbstractLTLSynthesisProblem,
     return mon
 
 
-# this does what ./scripts/strix_tlsf.sh does
+# this does what ./scripts/strix_tlsf_file.sh does
 def syfco_ltl(tlsf_file: str) -> str:
     try:
         LTL_cmd = 'syfco -f ltl -q double -m fully ' + tlsf_file

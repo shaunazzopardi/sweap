@@ -1,16 +1,17 @@
 import argparse
 import os
-from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 
 from config import Config
-from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model
+from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model, \
+    create_nuxmv_model_for_compatibility_checking
 from analysis.model_checker import ModelChecker
 from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
-from prop_lang.util import finite_state_preds
 from synthesis.synthesis import finite_state_synth, synthesize
 import logging
 from pathlib import Path
+
+os.environ['PATH'] = "./binaries:" + os.environ['PATH']
 
 import time
 
@@ -111,7 +112,6 @@ def main():
     if not os.path.exists(logdir):
         os.makedirs(logdir)
 
-
     logging.basicConfig(filename=(str(logdir / (str(time.time()) + ".log"))),
                         encoding='utf-8',
                         level=logging.INFO,
@@ -125,7 +125,7 @@ def main():
         if args.translate.lower() == "dot":
             print(program.to_dot())
         elif args.translate.lower() == "nuxmv":
-            print(create_nuxmv_model(program.to_nuXmv_with_turns()))
+            print(create_nuxmv_model_for_compatibility_checking(program.to_nuXmv_with_turns()))
         elif args.translate.lower() == "prog":
             print(program.to_prog(ltl_spec))
         elif args.translate.lower() == "vmt":

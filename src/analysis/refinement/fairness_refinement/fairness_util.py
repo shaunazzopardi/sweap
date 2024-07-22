@@ -213,39 +213,38 @@ def liveness_step(program,
         # for exit_pred in disjuncts_in_exit_pred_grounded:
         if len(exit_cond.variablesin()) == 0:
             continue
-        try:
-            success, output = find_ranking_function(symbol_table,
-                                                    program,
-                                                    cond,
-                                                    reduced_body_flattened,
-                                                    exit_cond,
-                                                    add_natural_conditions)
-            if not success:
-                continue
-            elif output == "already seen":
-                return False, None
-            elif sufficient_entry_condition is None:
-                sufficient_entry_condition = cond
 
-            if (conf.prefer_ranking or conf.only_ranking) and output != None:
-                ranking, invars = output
-                # if function_is_ranking_function(ranking, invars, body, symbol_table):
-                if ranking not in used_rankings:
-                    if function_has_well_ordered_range(ranking, invars, symbol_table):
-                        # this is not enough, doesn t take into accound precondition
-                        if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
-                            used_rankings.add(ranking)
-                            tran_preds, cons = ranking_refinement(ranking, invars)
-                            dec, state_preds, constraint = cons[0]
-                            return True, ((state_preds, tran_preds), constraint)
-
-            if not conf.only_ranking:
-                if conditions[-1] == cond:
-                    return False, None
-                else:
-                    return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter, symbol_table)
-        except Exception:
+        success, output = find_ranking_function(symbol_table,
+                                                program,
+                                                cond,
+                                                reduced_body_flattened,
+                                                exit_cond,
+                                                add_natural_conditions)
+        if not success:
             continue
+        elif output == "already seen":
+            return False, None
+        elif sufficient_entry_condition is None:
+            sufficient_entry_condition = cond
+
+        if (conf.prefer_ranking or conf.only_ranking) and output != None:
+            ranking, invars = output
+            # if function_is_ranking_function(ranking, invars, body, symbol_table):
+            if ranking not in used_rankings:
+                if function_has_well_ordered_range(ranking, invars, symbol_table):
+                    # this is not enough, doesn t take into accound precondition
+                    if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
+                        used_rankings.add(ranking)
+                        tran_preds, cons = ranking_refinement(ranking, invars)
+                        dec, state_preds, constraint = cons[0]
+                        return True, ((state_preds, tran_preds), constraint)
+
+        if not conf.only_ranking:
+            if conditions[-1] == cond:
+                return False, None
+            else:
+                return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter, symbol_table)
+
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 

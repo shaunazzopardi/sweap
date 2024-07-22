@@ -1,0 +1,46 @@
+program road {
+    STATES {
+        q0 : init
+    }
+
+    ENVIRONMENT EVENTS {
+        entry_l;
+        entry_r;
+        exit_l;
+        exit_r;
+        l2r;
+    }
+
+    CONTROLLER EVENTS {
+        stop_l;
+        stop_r;
+    }
+
+    VALUATION {
+        cl : natural := 0;
+        cr : natural := 0;
+    }
+
+    TRANSITIONS {
+        q0 -> q0 [$
+                     cl := cl + 1 if entry_l && !exit_r;
+                     cl := cl - 1 if !entry_l && exit_r && cl > 0;
+                     cr := cr + 1 if entry_r && !exit_l;
+                     cr := cr - 1 if !entry_r && exit_l && cr > 0;]
+    }
+
+    SPECIFICATION {
+        (!entry_l && !exit_r &&
+            !entry_r && !exit_l &&
+            G(stop_l -> X !entry_l) &&
+            G(stop_r -> X !entry_r) &&
+            G (!(cr == 0) -> F exit_l) &&
+            G (!(cl == 0) -> F exit_r)) ->
+
+            (G(!((cl > 0) & (cr > 0))) &&
+            G((!stop_l && l2r) -> X !stop_l) &&
+            G((!stop_r && !l2r) -> X !stop_r) &&
+            G((stop_l && l2r) -> F (!l2r || !stop_l)) &&
+            G((stop_r && !l2r) -> F (l2r || !stop_r)))
+    }
+}

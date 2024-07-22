@@ -9,13 +9,12 @@ from parsing.string_to_prop_logic import string_to_math_expression, string_to_pr
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import guarded_action_transitions_to_normal_transitions, resolve_next_references, \
-    symbol_table_from_typed_valuation
+from programs.util import guarded_action_transitions_to_normal_transitions, symbol_table_from_typed_valuation
 from prop_lang.formula import Formula
 from prop_lang.nondet import NonDeterministic
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
-from prop_lang.util import true, conjunct, negate, disjunct_formula_set, normalize_ltl
+from prop_lang.util import true, normalize_ltl
 from prop_lang.variable import Variable
 
 name_regex = r'[_a-zA-Z][_a-zA-Z0-9$@\_\-]*'
@@ -34,12 +33,10 @@ def program_parser():
     yield spaces()
     con = yield string("CONTROLLER EVENTS") >> event_parser
     yield spaces()
-    mon = yield string("PROGRAM EVENTS") >> event_parser
-    yield spaces()
     initial_vals = yield initial_val_parser
     initial_vs = [Variable(tv.name) for tv in initial_vals]
-    if len(set(env + con + mon + states + initial_vs)) < len(env + con + mon + states + initial_vs):
-        raise Exception("Duplicate var names: " + ", ".join([str(v) for v in env + con + mon + states + initial_vs if (env + con + mon + states + initial_vs).count(v) > 1]))
+    if len(set(env + con + states + initial_vs)) < len(env + con + states + initial_vs):
+        raise Exception("Duplicate var names: " + ", ".join([str(v) for v in env + con + states + initial_vs if (env + con + states + initial_vs).count(v) > 1]))
     yield spaces()
     _, transitions = yield transitions_parser
     yield spaces()
@@ -49,13 +46,12 @@ def program_parser():
     symbol_table = symbol_table_from_typed_valuation(initial_vals)
     arg = []
     for t in transitions:
-        arg.append((t, initial_vals, env, con, mon, symbol_table))
+        arg.append((t, initial_vals, env, con, symbol_table))
     with Pool(config.Config.getConfig().workers) as pool:
         results = pool.map(guarded_action_transitions_to_normal_transitions, arg)
         new_transitions = [t for tt in results for t in tt]
 
-    program = Program(program_name, states, initial_state, initial_vals, new_transitions, env, con,
-                      mon)
+    program = Program(program_name, states, initial_state, initial_vals, new_transitions, env, con)
     return program, ltl_spec
 
 

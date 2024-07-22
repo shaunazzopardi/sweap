@@ -1,0 +1,42 @@
+program fig2heim {
+    STATES {
+        setvars : init, i, mover, moveo, goal, fail
+    }
+
+    ENVIRONMENT EVENTS {
+        stay, inc, rxorox
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec
+    }
+
+    VALUATION {
+        rx : integer := 0;
+        ox : integer := 0;
+    }
+
+    TRANSITIONS {
+        setvars -> setvars [stay $
+                                rx := rx + 1 if rxorox & inc;
+                                rx := rx - 1 if rxorox & !inc;
+                                ox := ox + 1 if !rxorox & inc;
+                                ox := ox - 1 if !rxorox & !inc;
+                            ],
+        setvars -> i [!stay],
+        i -> mover [],
+        mover -> fail [rx == ox],
+        mover -> goal [rx != ox && rx == 0],
+        mover -> mover [rx != ox && rx != 0
+                        $
+                            rx := rx + 1 if cinc && !cdec;
+                            rx := rx - 1 if !cinc && cdec;
+                            ox := ox + 1 if inc;
+                            ox := ox - 1 if !inc;
+                        ]
+    }
+
+    SPECIFICATION {
+        (F i) -> F goal
+    }
+}

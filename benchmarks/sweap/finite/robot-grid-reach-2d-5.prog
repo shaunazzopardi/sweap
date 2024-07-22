@@ -1,0 +1,41 @@
+program robot-cat-real-2d {
+    STATES {
+        setvars: init, move, goal
+    }
+
+    ENVIRONMENT EVENTS {
+        einc, exory, estay
+    }
+
+    CONTROLLER EVENTS {
+        cinc, xory, cstay
+    }
+
+    VALUATION {
+        x : 0..5 := 0;
+        y : 0..5 := 0;
+    }
+
+    TRANSITIONS {
+        setvars -> setvars [estay $
+                                x := x + 1 if einc & exory;
+                                x := x - 1 if !einc & exory;
+                                y := y + 1 if einc & !exory;
+                                y := y - 1 if !einc & !exory;
+                              ],
+        setvars -> move [!estay],
+
+        move -> goal [x == 0 && y == 0],
+        move -> move [(x != 0 || y != 0) && !cstay],
+        move -> move [(x != 0 || y != 0) && cstay $
+                                x := x + 1 if cinc & xory;
+                                x := x - 1 if !cinc & xory;
+                                y := y + 1 if cinc & !xory;
+                                y := y - 1 if !cinc & !xory;
+                                ]
+    }
+
+    SPECIFICATION {
+        (F move) -> F goal
+    }
+}

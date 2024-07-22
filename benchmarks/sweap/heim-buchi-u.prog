@@ -1,0 +1,33 @@
+program fig2heim {
+    STATES {
+        l : init, l01, l02, l11, l12, l21, l22, l31, l32
+    }
+
+    ENVIRONMENT EVENTS {
+         dec, start
+    }
+
+    CONTROLLER EVENTS {
+        left, cdec
+    }
+
+    VALUATION {
+        x : integer := 0;
+    }
+
+    TRANSITIONS {
+        l -> l [dec && !start $ x := x + 1],
+        l -> l [!dec && !start $ x := x - 1],
+        l -> l01 [start],
+        l01 -> l11 [],
+        l11 -> l21 [cdec $ x := x - 1],
+        l11 -> l11 [!cdec],
+        l21 -> l01 [x > 0],
+        l21 -> l31 [x <= 0],
+        l31 -> l31 []
+    }
+
+    SPECIFICATION {
+        (F start) -> G F l01
+    }
+}
