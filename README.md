@@ -18,13 +18,13 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 - The tool was developed and tested with Python 3.10 (ensure you also have `pip` installed), we recommend using this version.
 - The tool is distributed with several required binaries:
   - `strix` - Strix 21.0.0, https://github.com/meyerphi/strix/releases/tag/21.0.0
-  - `nuxmv` - nuXmv 2.0.0,  https://nuxmv.fbk.eu/
   - `cpa.sh` - CPAchecker 2.3, https://gitlab.com/sosy-lab/software/cpachecker/
   - `syfco` - syfco 1.1, https://github.com/reactive-systems/syfco
 - For CPAChecker:
   - Ensure you have Java 17 installed,
   - set the environment variable `JAVA' to your Java 17 executable:
     - for example, `JAVA=/usr/lib/jvm/java-17-openjdk-amd64/bin/java`
+  - `sweap` also requires nuXmv 2.0.0, download from https://nuxmv.fbk.eu/, and add to the path or put the binary in `./binaries` (ensure the nuXmv binary is named `nuxmv`).
 
 ### Setup
 
