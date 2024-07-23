@@ -149,17 +149,17 @@ program arbiter {
 
 ### Running the Tool
 
-To run the tool on a symbolic synthesis problem, run the following command:
+To run the tool on a symbolic synthesis problem, run the following command in the root directory:
 
 ```
-PATH=./binaries:$PATH python main.py --p <path-to-problem-file> --synthesise
+PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise
 ```
 
 If you want to run the tool with acceleration (initially identifying relevant ranking refinements from predicates in the problem), add the `--accelerate` flag: 
 
 
 ```
-PATH=./binaries:$PATH python main.py --p <path-to-problem-file> --synthesise --accelerate
+PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise --accelerate
 ```
 
 For advanced flags run `main.py` with the `--h` flag.
