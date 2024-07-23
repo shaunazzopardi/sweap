@@ -6,9 +6,9 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 
 `paper.pdf` contains a detailed description of the theory underlying the tool, and presents an evaluation against other similar tools. To run the evaluation run the scripts in `./benchmarks/scripts/`.
 
-**Developers**: Shaun Azzopardi and Luca di Stefano
+**Developers**: Shaun Azzopardi and Luca Di Stefano
 
-**Contributors to theory**: Shaun Azzopardi, Nir Piterman, Luca di Stefano, and Gerardo Schneider
+**Contributors to theory**: Shaun Azzopardi, Nir Piterman, Luca Di Stefano, and Gerardo Schneider
 
 ## Installation
 
