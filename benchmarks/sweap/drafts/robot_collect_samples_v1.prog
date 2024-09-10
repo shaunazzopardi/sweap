@@ -1,0 +1,40 @@
+program robot_collect_samples_v1 {
+    STATES {
+        moveToBase : init, base, moveToSampleSide, collectSamples
+    }
+
+    ENVIRONMENT EVENTS {
+        inc
+    }
+
+    CONTROLLER EVENTS {
+        a, b
+    }
+
+    VALUATION {
+        samples : natural := 0;
+        reqSamples : natural := 0;
+        trackPos : natural := 0;
+    }
+
+    TRANSITIONS {
+        moveToBase -> base [trackPos >= 23 && trackPos <= 23 $ samples := 0; reqSamples := 0],
+        moveToBase -> moveToBase [a && trackPos != 23],
+        moveToBase -> moveToBase [!a & b & trackPos != 23 $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [!a & !b & trackPos != 23 $ trackPos := trackPos - 1],
+
+        base -> moveToSampleSide [trackPos >= 23 && trackPos <= 23 & !inc & reqSamples > 0],
+        base -> base [trackPos >= 23 && trackPos <= 23 & reqSamples > 0 & inc $ reqSamples := reqSamples + 1],
+
+        moveToSampleSide -> collectSamples [reqSamples > 0 & trackPos >= 12 && trackPos <= 12],
+        moveToSampleSide -> moveToSampleSide [reqSamples > 0 & !a & b & trackPos != 12 $ trackPos := trackPos + 1],
+        moveToSampleSide -> moveToSampleSide [reqSamples > 0 & !a & !b & trackPos != 12 $ trackPos := trackPos - 1],
+
+        collectSamples -> collectSamples [reqSamples > 0 & trackPos >= 12 && trackPos <= 12 & samples < reqSamples $ samples := samples + 1],
+        collectSamples -> moveToBase [reqSamples > 0 & trackPos >= 12 && trackPos <= 12 & samples >= reqSamples]
+    }
+
+    SPECIFICATION {
+        G F base
+    }
+}
