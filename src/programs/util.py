@@ -645,3 +645,14 @@ def binary_rep(vars):
         rep[v] = bin_formula
 
     return bin_vars, rep
+
+
+def var_incremented_or_decremented(program, pred):
+    updates = [u for trans in program.transitions for u in trans.action]
+    vars_in_pred = pred.variablesin()
+
+    for u in set(updates):
+        if u.left in vars_in_pred and u.left in u.right.variablesin() and u.left != u.right:
+            return True
+
+    return False

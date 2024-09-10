@@ -15,7 +15,7 @@ from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars
 from prop_lang.biop import BiOp
-from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true, resolve_implications
+from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true, resolve_implications, math_exprs_in_formula
 from synthesis.mealy_machine import MealyMachine
 
 
@@ -51,7 +51,16 @@ def try_liveness_refinement(Cs: MealyMachine,
     # TODO this isn't the real exit trans, it's a good approximation for now, but it may be a just
     #  an explicit or implicit stutter transition
     exit_condition = neg(conjunct_formula_set([p for p in disagreed_on_state[0]]))
+    known_math_exprs = math_exprs_in_formula(entry_predicate)
+    new_entry_constraints = []
+    for p in math_exprs_in_formula(exit_condition):
+        if p not in known_math_exprs:
+            if sat(conjunct(p, entry_valuation), symbol_table):
+                new_entry_constraints.append(p)
+            else:
+                new_entry_constraints.append(neg(p))
 
+    entry_predicate = conjunct_formula_set([entry_predicate] + new_entry_constraints)
     success, result = \
         liveness_step(program,
                       entry_valuation,

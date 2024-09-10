@@ -14,7 +14,7 @@ from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
 from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
 from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement_seq_int
-from programs.util import reduce_up_to_iff
+from programs.util import reduce_up_to_iff, var_incremented_or_decremented
 from prop_lang.mathexpr import MathExpr
 from prop_lang.value import Value
 from synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
@@ -217,6 +217,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         for tv in program.valuation:
             if tv.type.lower().startswith("bool"):
                 continue
+
+            if not var_incremented_or_decremented(program, Variable(tv.name)):
+                continue
             if tv.type.lower().startswith("int"):
                 ranking = Variable(tv.name)
                 pos_rk = BiOp(ranking, ">=", Value("0"))
@@ -267,10 +270,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             to_add_rankings_for.extend(new_state_preds)
             for state_pred in to_add_rankings_for:
                 if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
-                    result = ranking_from_predicate(state_pred)
-                    if result is None: continue
-                    f, invar = result
-                    rankings.append(ranking_refinement(f, [invar]))
+                    # checking if any variable in pred incremented or decremented in program
+                    if var_incremented_or_decremented(program, state_pred):
+                        result = ranking_from_predicate(state_pred)
+                        if result is None: continue
+                        f, invar = result
+                        rankings.append(ranking_refinement(f, [invar]))
             add_tran_preds_immediately = False
 
         done_rankings = set()

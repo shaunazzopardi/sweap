@@ -1286,3 +1286,14 @@ def strip_outer_mathexpr(f):
         return strip_outer_mathexpr(f.formula)
     else:
         return f
+
+
+def math_exprs_in_formula(f):
+    if isinstance(f, MathExpr) or should_be_math_expr(f):
+        return {f}
+    elif isinstance(f, BiOp):
+        return math_exprs_in_formula(f.left) | math_exprs_in_formula(f.right)
+    elif isinstance(f, UniOp):
+        return math_exprs_in_formula(f.right)
+    else:
+        return set()
