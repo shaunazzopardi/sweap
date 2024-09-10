@@ -242,9 +242,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     predicate_abstraction = EffectsAbstraction(program)
 
-    mon_events = program.out_events \
-                 + [Variable(s) for s in program.states]
-
     original_LTL_problem = LTLSynthesisProblem(in_acts,
                                                out_acts,
                                                ltl_assumptions,
@@ -356,7 +353,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                        real,
                                                        base_abstraction,
                                                        ltlAbstractionType,
-                                                       mon_events,
                                                        project_on_abstraction,
                                                        prefer_lasso_counterexamples)
 

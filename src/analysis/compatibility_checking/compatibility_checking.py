@@ -13,18 +13,18 @@ from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, label_pred
 from prop_lang.variable import Variable
+from synthesis.moore_machine import MooreMachine
 
 
 def compatibility_checking(program: Program,
                            predicate_abstraction: PredicateAbstraction,
-                           mealy_machine: MealyMachine,
+                           moore_machine: MooreMachine,
                            is_controller: bool,
                            base_abstraction,
                            ltlAbstractionType: LTLAbstractionType,
-                           prog_events,
                            project_on_abstraction: bool,
                            prefer_lasso_counterexamples: bool):
-    mealy_nuxmv = mealy_machine.to_nuXmv_with_turns(predicate_abstraction.get_program().states,
+    moore_nuxmv = moore_machine.to_nuXmv_with_turns(predicate_abstraction.get_program().bin_state_vars,
                                                     predicate_abstraction.get_program().out_events,
                                                     predicate_abstraction.get_state_predicates(),
                                                     predicate_abstraction.get_transition_predicates())
@@ -33,7 +33,7 @@ def compatibility_checking(program: Program,
         # try looking for a lasso mismatch first
         strategy_states = sorted(
             ["(" + str(s).split(" : ")[0] + " & " + str(s).split(" : ")[0] + "_seen_more_than_once)" for s in
-             mealy_nuxmv.vars
+             moore_nuxmv.vars
              if str(s).startswith("st_")])
         lasso_mismatch = "(" + " | ".join(strategy_states) + ")"
 
@@ -45,8 +45,7 @@ def compatibility_checking(program: Program,
     symbol_table = predicate_abstraction.get_symbol_table()
 
     system = create_nuxmv_model_for_compatibility_checking(program,
-                                                           mealy_nuxmv,
-                                                           prog_events,
+                                                           moore_nuxmv,
                                                            all_preds,
                                                            not program.deterministic,
                                                            not program.deterministic,
@@ -70,7 +69,7 @@ def compatibility_checking(program: Program,
         if project_on_abstraction:
             logging.info("Computing projection of " + (
                 "strategy" if is_controller else "counterstrategy") + " onto predicate abstraction..")
-            controller_projected_on_program = mealy_machine.project_controller_on_program((
+            controller_projected_on_program = moore_machine.project_controller_on_program((
                 "strategy" if is_controller else "counterstrategy"),
                 program,
                 predicate_abstraction,
@@ -94,7 +93,7 @@ def compatibility_checking(program: Program,
                         + ", ".join([str(p) for p in list(t.tgt)]))
             result = controller_projected_on_program.to_dot()
         else:
-            result = mealy_machine.to_dot(all_preds)
+            result = moore_machine.to_dot(all_preds)
 
         if is_controller:
             return True, result
@@ -104,7 +103,7 @@ def compatibility_checking(program: Program,
 
     logging.info(out)
     ## Compute mismatch trace
-    cs_alphabet = [v.split(":")[0].strip() for v in mealy_nuxmv.vars]
+    cs_alphabet = [v.split(":")[0].strip() for v in moore_nuxmv.vars]
     agreed_on_transitions_indexed, incompatible_state = parse_nuxmv_ce_output_finite(
         program, out, cs_alphabet)
     agreed_on_execution, disagreed_on_state = concretize_transitions(program,
@@ -114,7 +113,7 @@ def compatibility_checking(program: Program,
     return None, (agreed_on_execution, disagreed_on_state)
 
 
-def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel, prog_events,
+def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel,
                                                   pred_list, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
     pred_definitions = {label_pred(p, pred_list): p for p in pred_list}
@@ -127,6 +126,7 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     seen_strategy_states_decs += [str(s).replace(" : ", "_seen_more_than_once : ") for s in strategy_states]
 
     vars = sorted(program_model.vars) \
+           + sorted([s + ': boolean' for s in program.states]) \
            + sorted([v for v in strategy_model.vars
                      if v not in program_model.vars]) \
            + seen_strategy_states_decs \
@@ -147,7 +147,7 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
                            for o in program.out_events]
 
     prog_state_equality = [BiOp(Variable(s), '=', Variable("prog_" + s))
-                          for s in program.states]
+                          for s in program.bin_state_vars]
 
     compatible_output = "\tcompatible_outputs := " + "((turn == cs) -> (" + str(
         conjunct_formula_set(prog_output_equality)) + "))" + ";\n"
@@ -176,7 +176,7 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     turn_logic += ["(turn = cs -> (!next(init_state) && next(turn) = prog))"]
 
     maintain_prog_vars = str(conjunct_formula_set(
-        [BiOp(UniOp("next", Variable("prog_" + m.name)), ' = ', Variable("prog_" + m.name)) for m in (prog_events)]
+        [BiOp(UniOp("next", Variable("prog_" + str(m))), ' = ', Variable("prog_" + str(m))) for m in (program.out_events + program.bin_state_vars)]
         + [BiOp(UniOp("next", Variable(m.name)), ' = ', Variable(m.name)) for m in
            [label_pred(p, pred_list) for p in pred_list]]))
     new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic

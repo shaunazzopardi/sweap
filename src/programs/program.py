@@ -10,7 +10,7 @@ import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import stutter_transition, symbol_table_from_program, is_deterministic
+from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.util import disjunct_formula_set, neg, true, \
@@ -105,6 +105,11 @@ class Program:
                 def skip(_):
                     pass
                 self.deterministic = property(lazy_det, skip, skip, "")
+
+        self.bin_state_vars, self.states_binary_map = binary_rep(self.states)
+        self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
+        self.states_binary_map |= {Variable(st): bin_st for st, bin_st in self.states_binary_map.items()}
+
 
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()
@@ -224,17 +229,17 @@ class Program:
         guards = []
         acts = []
         for transition in self.transitions:
-            guard = "turn = cs & " + transition.src + " & " \
+            guard = "turn = cs & " + str(self.states_binary_map[transition.src]) + " & " \
                     + str(transition.condition.to_nuxmv())
 
-            act = "next(" + transition.tgt + ")" \
+            act = "next(" + str(self.states_binary_map[transition.tgt]) + ")" \
                   + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
                              self.complete_action_set(transition.action)]) \
                   + "".join([" & next(" + str(assignment) + ")" for assignment in
                              transition.output]) \
                   + "".join([" & !next(" + str(event) + ")" for event in self.out_events
                              if event not in transition.output]) \
-                  + "".join([" & !next(" + str(st) + ")" for st in self.states
+                  + "".join([" & !next(" + st + ")" for st in self.states
                              if st != transition.tgt])
             guards.append(guard)
             acts.append(act)
@@ -257,7 +262,7 @@ class Program:
         identity = []
         for typed_val in self.valuation:
             identity.append("next(" + str(typed_val.name) + ") = " + str(typed_val.name))
-        for st in self.states:
+        for st in self.bin_state_vars:
             identity.append("next(" + str(st) + ") = " + str(st))
 
         identity += ["!next(" + str(event) + ")" for event in self.out_events]
@@ -287,7 +292,7 @@ class Program:
                                                         for pred, defn in pred_definitions.items()])
                 next_outputs_and_state = " & ".join(["prog_" + str(o) for o in outputs if isinstance(o, Variable)] +\
                                                                             ["!prog_" + str(o) for o in self.out_events if o not in outputs] + \
-                                                                            (["prog_" + str(tgt)] if tgt is not None else []))
+                                                                            ([(str(self.states_binary_map[tgt].replace(lambda x : 'prog_' + str(x))))] if tgt is not None else []))
                 compatible_next = str(compatible_next)
                 if len(next_outputs_and_state) > 0:
                     compatible_next += " & " + next_outputs_and_state
@@ -298,7 +303,7 @@ class Program:
                 "(!(" + " | ".join(guard_and_not_compatible) + ") & (" + " | ".join(guard_and_act) + "))"]
 
         vars = ["turn : {prog, cs}"]
-        vars += [str(st) + " : boolean" for st in self.states]
+        vars += [str(st) + " : boolean" for st in self.bin_state_vars]
 
         for typed_val in self.valuation:
             if typed_val.type.startswith("bool"):
@@ -312,7 +317,8 @@ class Program:
         vars += [str(var) + " : boolean" for var in self.con_events]
         vars += [str(var) + " : boolean" for var in self.out_events]
 
-        init = [self.initial_state]
+        init = [str(self.states_binary_map[self.initial_state])]
+        init += [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
         init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
         init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]

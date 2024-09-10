@@ -14,7 +14,7 @@ from programs.typed_valuation import TypedValuation
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, transition_formula, powerset_complete, guard_update_formula, \
-    guard_update_formula_to_guard_update
+    guard_update_formula_to_guard_update, binary_rep
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr

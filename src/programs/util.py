@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import pickle
 import re
@@ -616,3 +617,31 @@ def powerset(S: set):
 
         powersets[frozenset(S)] = subsets
         return subsets
+
+
+def binary_rep(vars):
+    bin = math.log(len(vars), 2)
+    bin = math.ceil(bin)
+    if bin == 0:
+        bin = 1
+
+    bin_vars = ["bin_st_" + str(i) for i in range(0, bin)]
+
+    base = '{0:0' + str(bin) + 'b}'
+    rep = {}
+    for i, v in enumerate(vars):
+        bin_rep = base.format(i)
+        bin_formula = None
+        for j, pos in enumerate(bin_rep):
+            if pos == '0':
+                new_constraint = neg(Variable(bin_vars[j]))
+            else:
+                new_constraint = Variable(bin_vars[j])
+
+            if bin_formula is None:
+                bin_formula = new_constraint
+            else:
+                bin_formula = conjunct(bin_formula, new_constraint)
+        rep[v] = bin_formula
+
+    return bin_vars, rep
