@@ -4,6 +4,7 @@ import glob
 import re
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import Optional
 
@@ -147,7 +148,9 @@ finite_benchs = {
 runtime_re = re.compile(r"Runtime: ([0-9]+)ms")
 timeout = 600000
 
-out_files = {t: glob.glob(f"out-{t}-[0-9]*") for t in tools}
+base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
+
+out_files = {t: list(Path(base_dir).glob(f"out-{t}-[0-9]*")) for t in tools}
 
 def get_result(tool, tool_info, bench, bench_info):
     result = None
