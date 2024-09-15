@@ -31,3 +31,5 @@ pysmt
 joblib ~= 1.3.2
 
 docker
+
+python-dotenv ~= 1.0.1
