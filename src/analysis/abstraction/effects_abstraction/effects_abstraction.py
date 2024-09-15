@@ -529,7 +529,7 @@ def compute_abstract_effect_for_guard_update(arg):
 
     gu_ltl = conjunct_formula_set([gu_ltl] + invar_preds_effects)
 
-    return g, u, gu_formula, invars, constants, old_effects, gu_ltl
+    return g, u, gu_formula, invars, constants, old_effects, str(gu_ltl)
 
 
 # def add_transition_predicates_to_t_guard_updates(arg):
