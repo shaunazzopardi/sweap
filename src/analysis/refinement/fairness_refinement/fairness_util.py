@@ -245,8 +245,8 @@ def liveness_step(program,
                     if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
                         used_rankings.add(ranking)
                         tran_preds, cons = ranking_refinement(ranking, invars)
-                        dec, state_preds, constraint = cons[0]
-                        return True, ((state_preds, tran_preds), constraint)
+                        _, state_preds, constraint = cons[0]
+                        return True, ((state_preds, tran_preds), {constraint})
 
         if not conf.only_ranking:
             if conditions[-1] == cond:
