@@ -146,8 +146,8 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     prog_output_equality = [BiOp(o, '=', Variable("prog_" + o.name))
                            for o in program.out_events]
 
-    prog_state_equality = [BiOp(Variable(s), '=', Variable("prog_" + s))
-                          for s in program.bin_state_vars]
+    prog_state_equality = [BiOp(Variable(s), '=', program.states_binary_map[s])
+                          for s in program.states]
 
     compatible_output = "\tcompatible_outputs := " + "((turn == cs) -> (" + str(
         conjunct_formula_set(prog_output_equality)) + "))" + ";\n"
@@ -176,9 +176,10 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     turn_logic += ["(turn = cs -> (!next(init_state) && next(turn) = prog))"]
 
     maintain_prog_vars = str(conjunct_formula_set(
-        [BiOp(UniOp("next", Variable("prog_" + str(m))), ' = ', Variable("prog_" + str(m))) for m in (program.out_events + program.bin_state_vars)]
-        + [BiOp(UniOp("next", Variable(m.name)), ' = ', Variable(m.name)) for m in
-           [label_pred(p, pred_list) for p in pred_list]]))
+        [BiOp(UniOp("next", Variable("prog_" + str(m))), ' = ', Variable("prog_" + str(m)))
+         for m in (program.out_events)]
+        + [BiOp(UniOp("next", Variable(str(m))), ' = ', Variable(str(m))) for m in
+           program.bin_state_vars + [label_pred(p, pred_list) for p in pred_list]]))
     new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic
     normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
 

@@ -14,7 +14,7 @@ from programs.util import stutter_transition, symbol_table_from_program, is_dete
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.util import disjunct_formula_set, neg, true, \
-    sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology, sat_parallel
+    sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology, sat_parallel, mutually_exclusive_rules
 from prop_lang.variable import Variable
 
 
@@ -229,10 +229,10 @@ class Program:
         guards = []
         acts = []
         for transition in self.transitions:
-            guard = "turn = cs & " + str(self.states_binary_map[transition.src]) + " & " \
+            guard = "turn = cs & " + str(transition.src) + " & " \
                     + str(transition.condition.to_nuxmv())
 
-            act = "next(" + str(self.states_binary_map[transition.tgt]) + ")" \
+            act = "next(" + str(transition.tgt) + ")" \
                   + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
                              self.complete_action_set(transition.action)]) \
                   + "".join([" & next(" + str(assignment) + ")" for assignment in
@@ -262,7 +262,7 @@ class Program:
         identity = []
         for typed_val in self.valuation:
             identity.append("next(" + str(typed_val.name) + ") = " + str(typed_val.name))
-        for st in self.bin_state_vars:
+        for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
 
         identity += ["!next(" + str(event) + ")" for event in self.out_events]
@@ -292,7 +292,7 @@ class Program:
                                                         for pred, defn in pred_definitions.items()])
                 next_outputs_and_state = " & ".join(["prog_" + str(o) for o in outputs if isinstance(o, Variable)] +\
                                                                             ["!prog_" + str(o) for o in self.out_events if o not in outputs] + \
-                                                                            ([(str(self.states_binary_map[tgt].replace(lambda x : 'prog_' + str(x))))] if tgt is not None else []))
+                                                                            ([str(tgt)] if tgt is not None else []))
                 compatible_next = str(compatible_next)
                 if len(next_outputs_and_state) > 0:
                     compatible_next += " & " + next_outputs_and_state
@@ -317,8 +317,7 @@ class Program:
         vars += [str(var) + " : boolean" for var in self.con_events]
         vars += [str(var) + " : boolean" for var in self.out_events]
 
-        init = [str(self.states_binary_map[self.initial_state])]
-        init += [self.initial_state]
+        init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
         init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
         init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
@@ -329,9 +328,9 @@ class Program:
         prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
         trans += [prev_logic]
 
-        # invar = mutually_exclusive_rules(self.states)
-        # invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
-        invar = [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
+        invar = mutually_exclusive_rules(self.states)
+        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
+        invar += [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
         invar.extend([str(val.name) + "_prev" + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")])
 
         # if include_mismatches_due_to_nondeterminism is not None and not include_mismatches_due_to_nondeterminism:

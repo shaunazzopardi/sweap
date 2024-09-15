@@ -110,17 +110,11 @@ class MooreMachine:
         trans_pred_acts = [label_pred(p, trans_pred_list) for p in trans_pred_list]
         pred_acts = state_pred_acts + trans_pred_acts
 
-        prog_events = prog_out_events \
-                     + [Variable(s) for s in prog_states]
-
-        new_prog_events = [BiOp(m, ":=", Variable("prog_" + m.name)) for m in prog_events] \
-                         + [BiOp(m, ":=", Variable(m.name)) for m in pred_acts]
-
         guards_acts = {}
 
         init_cond = []
         for st in self.init_st:
-            st_guard = self.out[st].replace(new_prog_events)
+            st_guard = self.out[st]
             init_cond.append(conjunct_formula_set([neg(Variable(stt)) for stt in self.states if stt != st] +
                                                   [Variable(st), st_guard]))
         init_cond = disjunct_formula_set(init_cond)
@@ -131,7 +125,7 @@ class MooreMachine:
                 if guard not in guards_acts.keys():
                     guards_acts[guard] = list()
 
-                act = conjunct_formula_set([UniOp("next", self.out[tgt].replace_vars(new_prog_events)),
+                act = conjunct_formula_set([UniOp("next", self.out[tgt]),
                                             UniOp("next", Variable(tgt)),
                                             UniOp("next", conjunct_formula_set(
                                                 [neg(Variable(s)) for s in self.states if
@@ -157,16 +151,17 @@ class MooreMachine:
             identity.append("next(" + str(st) + ") = " + str(st))
 
         identity += ["next(" + str(event) + ") = " + str(event) for event in (self.env_events + self.con_events) if
-                     Variable(str(event)) not in (prog_events + pred_acts)]
+                     Variable(str(event)) not in (prog_out_events + prog_states + pred_acts)]
 
         define += ["identity_" + self.name + " := " + " & ".join(identity)]
 
         vars = ["turn : {prog, cs}"]
         vars += [str(st) + " : boolean" for st in self.states]
         vars += [str(var) + " : boolean" for var in self.env_events if
-                 str(var) not in [str(v) for v in (prog_events + pred_acts)]]
+                 str(var) not in [str(v) for v in (prog_out_events + prog_states + pred_acts)]]
         vars += [str(var) + " : boolean" for var in self.con_events]
-        vars += ["prog_" + str(var) + " : boolean" for var in prog_events]
+        vars += ["prog_" + str(var) + " : boolean" for var in prog_out_events]
+        vars += [str(var) + " : boolean" for var in prog_states]
         vars += [str(var) + " : boolean" for var in pred_acts]
 
         init = [str(init_cond)]
@@ -174,9 +169,9 @@ class MooreMachine:
 
         identity = "((turn = cs) -> (identity_" + self.name + " & " + str(conjunct_formula_set(
             [BiOp(UniOp("next", Variable("prog_" + e.name)), "=", Variable("prog_" + e.name)) for e in
-             prog_events] +
-            [BiOp(UniOp("next", Variable(p.name)), "=", Variable(p.name)) for p in
-             pred_acts]).to_nuxmv()) + "))"
+             prog_out_events] +
+            [BiOp(UniOp("next", Variable(str(p))), "=", Variable(str(p))) for p in
+             prog_states + pred_acts]).to_nuxmv()) + "))"
 
         trans = ["(" + identity + " &\n\t\t((turn = prog) -> (" + ")\n\t|\t(".join(transitions) + ")))"]
         invar = ["TRUE"]
