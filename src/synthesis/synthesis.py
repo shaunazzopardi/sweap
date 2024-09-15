@@ -6,14 +6,12 @@ from typing import Tuple
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
-from analysis.compatibility_checking.compatibility_checking import compatibility_checking
 from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement, \
     ranking_refinement_both_sides, already_an_equivalent_ranking
+from analysis.refinement.refinement import refinement_standard
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
-from analysis.refinement.fairness_refinement.fairness_util import try_liveness_refinement
-from analysis.refinement.safety_refinement.interpolation_refinement import safety_refinement_seq_int
 from programs.util import reduce_up_to_iff, var_incremented_or_decremented
 from prop_lang.mathexpr import MathExpr
 from prop_lang.value import Value
@@ -349,67 +347,26 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         logging.info("massaging mealy machine took " + str(time.time() - start))
 
         ## compatibility checking
-        start = time.time()
+        compatible, result = refinement_standard(program,
+                                                 predicate_abstraction,
+                                                 mm,
+                                                 real,
+                                                 base_abstraction,
+                                                 ltlAbstractionType,
+                                                 loop_counter,
+                                                 project_on_abstraction,
+                                                 prefer_lasso_counterexamples,
+                                                 allow_user_input,
+                                                 keep_only_bool_interpolants,
+                                                 conservative_with_state_predicates,
+                                                 eager,
+                                                 only_safety)
 
-        print("checking for compatibility of counterstrategy with program")
-        determination, result = compatibility_checking(program,
-                                                       predicate_abstraction,
-                                                       mm,
-                                                       real,
-                                                       base_abstraction,
-                                                       ltlAbstractionType,
-                                                       project_on_abstraction,
-                                                       prefer_lasso_counterexamples)
-
-        logging.info("compatibility checking took " + str(time.time() - start))
-
-        if determination == False:
-            logging.info("Problem is unrealisable.")
-            return False, mm
-        elif determination == True:
-            raise Exception("error")
+        if compatible:
+            return False, result
         else:
-            agreed_on_execution, disagreed_on_state = result
+            (new_state_preds, new_tran_preds), new_ltl_constraints, loop_counter = result
 
-        # write_counterexample_state(program, agreed_on_transitions, disagreed_on_state)
-        if not only_safety:
-            ## try fairness refinement
-            start = time.time()
-            print("trying fairness refinement")
-            success, result = try_liveness_refinement(mm,
-                                                      program,
-                                                      predicate_abstraction,
-                                                      agreed_on_execution,
-                                                      disagreed_on_state,
-                                                      loop_counter,
-                                                      allow_user_input)
-
-            logging.info("liveness refinement took " + str(time.time() - start))
-        else:
-            success = False
-            result = None
-
-        if success:
-            loop_counter = loop_counter + 1
-            (new_state_preds, new_tran_preds), new_ltl_constraints = result
-
-        if eager or (not success and result is None):
-            ## do safety refinement
-            start = time.time()
-            print("trying safety refinement")
-            success, result = safety_refinement_seq_int(program,
-                                                predicate_abstraction,
-                                                agreed_on_execution,
-                                                disagreed_on_state,
-                                                allow_user_input,
-                                                keep_only_bool_interpolants,
-                                                conservative_with_state_predicates)
-
-            logging.info("safety refinement took " + str(time.time() - start))
-            if success:
-                new_state_preds = result
-            else:
-                raise Exception("Could not find any new state predicates.")
 
 
 def write_counterexample(program,
