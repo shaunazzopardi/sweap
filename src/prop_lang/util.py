@@ -1122,6 +1122,12 @@ def var_to_predicate(p):
         raise Exception("Could not find predicate for variable: " + str(p))
 
 
+def var_to_predicate_alt(p):
+    try:
+        return var_to_predicate(p)
+    except:
+        return None
+
 def label_pred(p, preds):
     if p in predicate_to_var_cache.keys():
         return predicate_to_var_cache[p]
