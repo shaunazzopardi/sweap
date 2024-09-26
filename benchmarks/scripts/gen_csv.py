@@ -41,6 +41,7 @@ tools = {
     "rpgsolve-syn": ToolInfo(ext="rpg", real=real_re, unreal=unreal_re, err=err_re),
     "sweap": ToolInfo(ext="prog", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-noacc": ToolInfo(ext="prog", real=sweap_real_re, unreal=sweap_unreal_re)
+    "rpgstela": ToolInfo(ext="rpg", real=real_re, unreal=unreal_re, err=err_re),
 }
 
 infinite_benchs = {
