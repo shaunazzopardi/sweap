@@ -1,0 +1,55 @@
+program robot_collect_samples_v1 {
+    STATES {
+        moveToBase : init, base, repaire, stock, moveToDevice, moveToStock, countBrokenPieces
+    }
+
+    ENVIRONMENT EVENTS {
+        einc, stop, break
+    }
+
+    CONTROLLER EVENTS {
+        inc, dec
+    }
+
+    VALUATION {
+        trackPos : integer := 0;
+        neededSparePieces : integer := 0;
+        sparePieces : integer := 0;
+        workingDevice : boolean := true;
+    }
+
+    TRANSITIONS {
+        moveToBase -> base [trackPos == 23],
+        moveToBase -> moveToBase [trackPos != 23 & inc & !dec $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [trackPos != 23 & !inc & dec $ trackPos := trackPos - 1],
+        moveToBase -> moveToBase [trackPos != 23 & !((inc & !dec) | (!inc & dec))],
+
+        moveToDevice -> repair [trackPos == 25],
+        moveToDevice -> moveToDevice [trackPos != 25 & inc & !dec $ trackPos := trackPos + 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & !inc & dec $ trackPos := trackPos - 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & !((inc & !dec) | (!inc & dec))],
+
+        moveToStock -> stock [trackPos == -3],
+        moveToStock -> moveToStock [trackPos != -3 & inc & !dec $ trackPos := trackPos + 1],
+        moveToStock -> moveToStock [trackPos != -3 & !inc & dec $ trackPos := trackPos - 1],
+        moveToStock -> moveToStock [trackPos != -3 & !((inc & !dec) | (!inc & dec))],
+
+        base -> countBrokenPieces [workingDevice & break],
+        base -> base [workingDevice & !break],
+        base -> moveToStock [!workingDevice],
+
+        countBrokenPieces -> countBrokenPieces [einc $ neededSparePieces := neededSparePieces + 1],
+        countBrokenPieces -> countBrokenPieces [!einc $ neededSparePieces := neededSparePieces - 1],
+        countBrokenPieces -> base [stop],
+
+        stock -> stock [sparePieces <= neededSparePieces $ sparePieces := sparePieces + 1],
+        stock -> moveToDevice [!(sparePieces <= neededSparePieces)],
+
+        repair -> moveToBase [sparePieces <= neededSparePieces $ workingDevice := true; sparePieces := 0],
+        repair -> repair [!(sparePieces <= neededSparePieces)]
+    }
+
+    SPECIFICATION {
+        (G F stop) -> G F base
+    }
+}

@@ -1,0 +1,51 @@
+program robot_collect_samples_v1 {
+    STATES {
+        moveToOffice : init, office, store, bank, moveToOffice, moveToBank, moveToStore
+    }
+
+    ENVIRONMENT EVENTS {
+        einc, stop
+    }
+
+    CONTROLLER EVENTS {
+        inc, dec
+    }
+
+    VALUATION {
+        trackPos : integer := 0;
+        neededPieces : integer := 0;
+        sparePieces : integer := 0;
+        money : integer := 0;
+    }
+
+    TRANSITIONS {
+        moveToOffice -> office [trackPos == 0],
+        moveToOffice -> moveToOffice [trackPos != 0 & inc & !dec $ trackPos := trackPos + 1],
+        moveToOffice -> moveToOffice [trackPos != 0 & !inc & dec $ trackPos := trackPos - 1],
+        moveToOffice -> moveToOffice [trackPos != 0 & !((inc & !dec) | (!inc & dec))],
+
+        moveToBank -> bank [trackPos == 32],
+        moveToBank -> moveToBank [trackPos != 32 & inc & !dec $ trackPos := trackPos + 1],
+        moveToBank -> moveToBank [trackPos != 32 & !inc & dec $ trackPos := trackPos - 1],
+        moveToBank -> moveToBank [trackPos != 32 & !((inc & !dec) | (!inc & dec))],
+
+        moveToStore -> store [trackPos == 25],
+        moveToStore -> moveToStore [trackPos != 25 & inc & !dec $ trackPos := trackPos + 1],
+        moveToStore -> moveToStore [trackPos != 25 & !inc & dec $ trackPos := trackPos - 1],
+        moveToStore -> moveToStore [trackPos != 25 & !((inc & !dec) | (!inc & dec))],
+
+        office -> office [einc & !stop $ deliverProduct := deliverProduct + 1],
+        office -> office [!einc & !stop $ deliverProduct := deliverProduct + 1],
+        office -> moveToBank [stop & deliverProduct > 0 $ neededPieces := deliverProduct; sparePieces := 0; money := 0; deliverProduct := 0],
+
+        bank -> bank [money < neededPieces $ money := money + 1],
+        bank -> moveToOffice [!(money < neededPieces)],
+
+        store -> store [sparePieces < neededPieces $ sparePieces := sparePieces + 1],
+        store -> moveToOffice [!(sparePieces < neededPieces)]
+    }
+
+    SPECIFICATION {
+        (G F stop) -> G F office
+    }
+}

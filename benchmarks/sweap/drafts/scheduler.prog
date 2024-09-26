@@ -1,0 +1,76 @@
+program robot_collect_samples_v1 {
+    STATES {
+        int : init, newTasksG, newTasksR, newTasksR01, newBoundG, err, stageSt, stage01, stage02, stage03, stage04
+    }
+
+    ENVIRONMENT EVENTS {
+        einc, stop
+    }
+
+    CONTROLLER EVENTS {
+        a
+    }
+
+    VALUATION {
+        tasksG : integer := 0;
+        newTasksG : integer := 0;
+        boundG : integer := 0;
+        newBoundG : integer := 0;
+        tasksR : integer := 0;
+        newTasksR : integer := 0;
+    }
+
+    TRANSITIONS {
+        int -> newTasksG [],
+
+        newTasksG -> newTasksG [einc & !stop $ newTasksG := newTasksG + 1],
+        newTasksG -> newTasksG [!einc & !stop $ newTasksG := newTasksG - 1],
+        newTasksG -> newTasksR [stop],
+
+        newTasksR -> newTasksR [einc & !stop $ newTasksR := newTasksR + 1],
+        newTasksR -> newTasksR [!einc & !stop $ newTasksR := newTasksR - 1],
+        newTasksR -> newBoundG [stop],
+
+        newBoundG -> newBoundG [einc & !stop $ newBoundG := newBoundG + 1],
+        newBoundG -> newBoundG [!einc & !stop $ newBoundG := newBoundG - 1],
+
+        newBoundG -> stage01 [stop & a $ tasksG := newTasksG; boundG := newBoundG; tasksR := newTasksR; newTasksG := 0; newBoundG := 0; newTasksR := 0],
+        newBoundG -> stage01 [stop & !a $ tasksG := newTasksG; boundG := newBoundG; tasksR := 0 - newTasksR; newTasksG := 0; newBoundG := 0; newTasksR := 0],
+
+        stageSt -> err [tasksG <= boundG],
+        stageSt -> newTasksG [!(tasksG <= boundG)],
+
+        stage01 -> newTasksR01 [tasksR > 0],
+        stage01 -> stage01 [a $ tasksG := tasksG + 1],
+        stage01 -> stage01 [a $ tasksR := tasksR + 1],
+
+        newTasksR01 -> newTasksR01 [einc & !stop $ newTasksR := newTasksR + 1],
+        newTasksR01 -> newTasksR01 [!einc & !stop $ newTasksR := newTasksR - 1],
+        newTasksR01 -> stage02 [stop $ tasksR := newTasksR; newTasksR := 0],
+
+        stage02 -> newTasksR02 [tasksR > 0],
+        stage02 -> stage02 [a $ tasksG := tasksG + 1],
+        stage02 -> stage02 [a $ tasksR := tasksR + 1],
+
+        newTasksR02 -> newTasksR02 [einc & !stop $ newTasksR := newTasksR + 1],
+        newTasksR02 -> newTasksR02 [!einc & !stop $ newTasksR := newTasksR - 1],
+        newTasksR02 -> stage03 [stop $ tasksR := newTasksR; newTasksR := 0],
+
+        stage03 -> newTasksR03 [tasksR > 0],
+        stage03 -> stage03 [a $ tasksG := tasksG + 1],
+        stage03 -> stage03 [a $ tasksR := tasksR + 1],
+
+        newTasksR03 -> newTasksR03 [einc & !stop $ newTasksR := newTasksR + 1],
+        newTasksR03 -> newTasksR03 [!einc & !stop $ newTasksR := newTasksR - 1],
+        newTasksR03 -> stage04 [stop $ tasksR := newTasksR; newTasksR := 0],
+
+        stage04 -> stageSt [tasksR > 0],
+        stage04 -> stage04 [a $ tasksG := tasksG + 1],
+        stage04 -> stage04 [a $ tasksR := tasksR + 1],
+
+    }
+
+    SPECIFICATION {
+        (G F stop) -> G F stageSt
+    }
+}

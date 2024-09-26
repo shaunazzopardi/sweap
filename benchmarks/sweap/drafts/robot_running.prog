@@ -1,0 +1,51 @@
+program robot_collect_samples_v1 {
+    STATES {
+        base : init, collectSamples, move
+    }
+
+    ENVIRONMENT EVENTS {
+        eincA, eincA, stop
+    }
+
+    CONTROLLER EVENTS {
+        inc, dec
+    }
+
+    VALUATION {
+        samples : integer := 0;
+        samplesA : integer := 0;
+        samplesB : integer := 0;
+        reqSamples : integer := 0;
+        task : integer := 0;
+    }
+
+    TRANSITIONS {
+        move -> base [trackPos == 23 & !((inc & !dec) | (!inc & dec)) $],
+        move -> move [trackPos == 23 & inc & !dec $ trackPos := trackPos + 1],
+        move -> move [trackPos == 23 & !inc & dec $ trackPos := trackPos - 1],
+
+        move -> collectSamples [trackPos == 12 & !((inc & !dec) | (!inc & dec)) $],
+        move -> move [trackPos == 12 & inc & !dec $ trackPos := trackPos + 1],
+        move -> move [trackPos == 12 & !inc & dec $ trackPos := trackPos - 1],
+
+        move -> move [!(trackPos == 12 | trackPos == 23) & inc & !dec $ trackPos := trackPos + 1],
+        move -> move [!(trackPos == 12 | trackPos == 23) & !inc & dec $ trackPos := trackPos - 1],
+
+        base -> baseNotEmpty [einc $ reqSamples := reqSamples + 1],
+        base -> base [!einc $ reqSamples := reqSamples + 1],
+
+        baseNotEmpty -> baseNotEmpty [einc $ reqSamples := reqSamples + 1],
+        baseNotEmpty -> move [!einc],
+
+        collectSamples -> move [!(samples < reqSamples) $ task := 1],
+        collectSamples -> collectSamples [samples < reqSamples & !stop & !((!eincA & eincB) | (eincA & !eincB)) $ samples := samples + 1; samplesA := 0; samplesB := 0],
+        collectSamples -> collectSamples [samples < reqSamples & !stop & (eincA & !eincB) $ samplesA := samplesA + 1],
+        collectSamples -> collectSamples [samples < reqSamples & !stop & (!eincA & eincB) $ samplesB := samplesB + 1],
+        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & inc $ samples := samples + samplesA; samplesA := 0; samplesB := 0],
+        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & !inc $ samples := samples + samplesB; samplesA := 0; samplesB := 0]
+    }
+
+    SPECIFICATION {
+        (G F stop) -> G F base
+    }
+}
