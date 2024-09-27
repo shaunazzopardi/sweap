@@ -158,6 +158,8 @@ def liveness_step(program,
 
     body = [t.action for t, _, _ in concrete_body]
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
+    if len(reduced_body) == 0:
+        return False, None
 
     irrelevant_vars = [v for v in program.local_vars if v not in vars_relevant_to_exit]
     irrelevant_vars += program.env_events
