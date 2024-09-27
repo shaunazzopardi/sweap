@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        moveToBase : init, base, repaire, stock, moveToDevice, moveToStock, countBrokenPieces
+        moveToBase : init, base, repair, stock, moveToDevice, moveToStock, countBrokenPieces
     }
 
     ENVIRONMENT EVENTS {
@@ -8,7 +8,7 @@ program robot_collect_samples_v1 {
     }
 
     CONTROLLER EVENTS {
-        inc, dec
+        a, b
     }
 
     VALUATION {
@@ -20,19 +20,19 @@ program robot_collect_samples_v1 {
 
     TRANSITIONS {
         moveToBase -> base [trackPos == 23],
-        moveToBase -> moveToBase [trackPos != 23 & inc & !dec $ trackPos := trackPos + 1],
-        moveToBase -> moveToBase [trackPos != 23 & !inc & dec $ trackPos := trackPos - 1],
-        moveToBase -> moveToBase [trackPos != 23 & !((inc & !dec) | (!inc & dec))],
+        moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [trackPos != 23 & !a & !b $ trackPos := trackPos - 1],
+        moveToBase -> moveToBase [trackPos != 23 & a],
 
         moveToDevice -> repair [trackPos == 25],
-        moveToDevice -> moveToDevice [trackPos != 25 & inc & !dec $ trackPos := trackPos + 1],
-        moveToDevice -> moveToDevice [trackPos != 25 & !inc & dec $ trackPos := trackPos - 1],
-        moveToDevice -> moveToDevice [trackPos != 25 & !((inc & !dec) | (!inc & dec))],
+        moveToDevice -> moveToDevice [trackPos != 25 & !a & b $ trackPos := trackPos + 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & a],
 
         moveToStock -> stock [trackPos == -3],
-        moveToStock -> moveToStock [trackPos != -3 & inc & !dec $ trackPos := trackPos + 1],
-        moveToStock -> moveToStock [trackPos != -3 & !inc & dec $ trackPos := trackPos - 1],
-        moveToStock -> moveToStock [trackPos != -3 & !((inc & !dec) | (!inc & dec))],
+        moveToStock -> moveToStock [trackPos != -3 & !a & b $ trackPos := trackPos + 1],
+        moveToStock -> moveToStock [trackPos != -3 & !a & !b $ trackPos := trackPos - 1],
+        moveToStock -> moveToStock [trackPos != -3 & a],
 
         base -> countBrokenPieces [workingDevice & break],
         base -> base [workingDevice & !break],

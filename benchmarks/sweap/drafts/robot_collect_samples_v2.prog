@@ -8,7 +8,7 @@ program robot_collect_samples_v1 {
     }
 
     CONTROLLER EVENTS {
-        inc, dec
+        a, b
     }
 
     VALUATION {
@@ -19,16 +19,16 @@ program robot_collect_samples_v1 {
     }
 
     TRANSITIONS {
-        move -> move [trackPos == 23 & task == 1 & inc & !dec $ trackPos := trackPos + 1],
-        move -> move [trackPos == 23 & task == 1 & !inc & dec $ trackPos := trackPos - 1],
-        move -> base [trackPos == 23 & task == 1 & !((inc & !dec) | (!inc & dec))],
+        move -> move [trackPos == 23 & task == 1 & !a & b $ trackPos := trackPos + 1],
+        move -> move [trackPos == 23 & task == 1 & !a & !b $ trackPos := trackPos - 1],
+        move -> base [trackPos == 23 & task == 1 & a],
 
-        move -> move [trackPos == 12 & inc & !dec $ trackPos := trackPos + 1],
-        move -> move [trackPos == 12 & !inc & dec $ trackPos := trackPos - 1],
-        move -> collectSamples [trackPos == 12 & !(inc | dec)],
+        move -> move [trackPos == 12 & !a & b $ trackPos := trackPos + 1],
+        move -> move [trackPos == 12 & !a & !b $ trackPos := trackPos - 1],
+        move -> collectSamples [trackPos == 12 & a],
 
-        move -> move [trackPos != 12 & !(trackPos == 23 & task == 1) & inc $ trackPos := trackPos + 1],
-        move -> move [trackPos != 12 & !(trackPos == 23 & task == 1) & !inc $ trackPos := trackPos - 1],
+        move -> move [trackPos != 12 & !(trackPos == 23 & task == 1) & a $ trackPos := trackPos + 1],
+        move -> move [trackPos != 12 & !(trackPos == 23 & task == 1) & !a $ trackPos := trackPos - 1],
 
         moveToBase -> base [trackPos == 23 $ samples := 0; reqSamples := 0],
         moveToBase -> moveToBase [a && trackPos != 23],

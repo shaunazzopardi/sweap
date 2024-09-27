@@ -4,40 +4,41 @@ program robot_collect_samples_v1 {
     }
 
     ENVIRONMENT EVENTS {
-        eincA, eincA, stop
+        e, f, stop
     }
 
     CONTROLLER EVENTS {
-        inc, dec
+        a, b
     }
 
     VALUATION {
         samples : integer := 0;
         samplesA : integer := 0;
         samplesB : integer := 0;
+        trackPos : integer := 0;
         reqSamples : integer := 0;
     }
 
     TRANSITIONS {
         moveToBase -> base [trackPos == 23 $ samples := 0],
-        moveToBase -> moveToBase [trackPos != 23 & !((inc & !dec) | (!inc & dec)) $],
-        moveToBase -> moveToBase [trackPos != 23 & inc & !dec $ trackPos := trackPos + 1],
-        moveToBase -> moveToBase [trackPos != 23 & !inc & dec $ trackPos := trackPos - 1],
+        moveToBase -> moveToBase [trackPos != 23 & a $],
+        moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [trackPos != 23 & !a & !b $ trackPos := trackPos - 1],
 
-        base -> base [einc $ reqSamples := reqSamples + 1],
-        base -> moveToSampleSide [!einc & reqSamples],
+        base -> base [e $ reqSamples := reqSamples + 1],
+        base -> moveToSampleSide [!e & reqSamples > 0],
 
-        moveToSampleSide -> moveToSampleSide [trackPos != 12 & inc & !dec $ trackPos := trackPos + 1],
-        moveToSampleSide -> moveToSampleSide [trackPos != 12 & !inc & dec $ trackPos := trackPos - 1],
-        moveToSampleSide -> moveToSampleSide [trackPos != 12 & !((inc & !dec) | (!inc & dec))],
+        moveToSampleSide -> moveToSampleSide [trackPos != 12 & !a & b $ trackPos := trackPos + 1],
+        moveToSampleSide -> moveToSampleSide [trackPos != 12 & !a & !b $ trackPos := trackPos - 1],
+        moveToSampleSide -> moveToSampleSide [trackPos != 12 & a],
         moveToSampleSide -> collectSamples [trackPos == 12],
 
         collectSamples -> moveToBase [!(samples < reqSamples)],
-        collectSamples -> collectSamples [samples < reqSamples & !stop & !((!eincA & eincB) | (eincA & !eincB))],
-        collectSamples -> collectSamples [samples < reqSamples & !stop & (eincA & !eincB) $ samplesA := samplesA + 1],
-        collectSamples -> collectSamples [samples < reqSamples & !stop & (!eincA & eincB) $ samplesB := samplesB + 1],
-        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & inc $ samples := samples + samplesA; samplesA := 0; samplesB := 0],
-        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & !inc $ samples := samples + samplesB; samplesA := 0; samplesB := 0]
+        collectSamples -> collectSamples [samples < reqSamples & !stop & e],
+        collectSamples -> collectSamples [samples < reqSamples & !stop & !e & f $ samplesA := samplesA + 1],
+        collectSamples -> collectSamples [samples < reqSamples & !stop & !e & !f $ samplesB := samplesB + 1],
+        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & a $ samples := samples + samplesA; samplesA := 0; samplesB := 0],
+        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & !a $ samples := samples + samplesB; samplesA := 0; samplesB := 0]
     }
 
     SPECIFICATION {

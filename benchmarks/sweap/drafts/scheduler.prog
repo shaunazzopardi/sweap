@@ -65,8 +65,8 @@ program robot_collect_samples_v1 {
         newTasksR03 -> stage04 [stop $ tasksR := newTasksR; newTasksR := 0],
 
         stage04 -> stageSt [tasksR > 0],
-        stage04 -> stage04 [a $ tasksG := tasksG + 1],
-        stage04 -> stage04 [a $ tasksR := tasksR + 1],
+        stage04 -> stage04 [a & !(tasksR > 0) $ tasksG := tasksG + 1],
+        stage04 -> stage04 [!a & !(tasksR > 0) $ tasksR := tasksR + 1]
 
     }
 

@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        moveToOffice : init, office, store, bank, moveToOffice, moveToBank, moveToStore
+        moveToOffice : init, office, store, bank, moveToBank, moveToStore
     }
 
     ENVIRONMENT EVENTS {
@@ -8,31 +8,32 @@ program robot_collect_samples_v1 {
     }
 
     CONTROLLER EVENTS {
-        inc, dec
+        a, b
     }
 
     VALUATION {
         trackPos : integer := 0;
         neededPieces : integer := 0;
         sparePieces : integer := 0;
+        deliverProduct : integer := 0;
         money : integer := 0;
     }
 
     TRANSITIONS {
         moveToOffice -> office [trackPos == 0],
-        moveToOffice -> moveToOffice [trackPos != 0 & inc & !dec $ trackPos := trackPos + 1],
-        moveToOffice -> moveToOffice [trackPos != 0 & !inc & dec $ trackPos := trackPos - 1],
-        moveToOffice -> moveToOffice [trackPos != 0 & !((inc & !dec) | (!inc & dec))],
+        moveToOffice -> moveToOffice [trackPos != 0 & !a & b $ trackPos := trackPos + 1],
+        moveToOffice -> moveToOffice [trackPos != 0 & !a & !b $ trackPos := trackPos - 1],
+        moveToOffice -> moveToOffice [trackPos != 0 &a],
 
         moveToBank -> bank [trackPos == 32],
-        moveToBank -> moveToBank [trackPos != 32 & inc & !dec $ trackPos := trackPos + 1],
-        moveToBank -> moveToBank [trackPos != 32 & !inc & dec $ trackPos := trackPos - 1],
-        moveToBank -> moveToBank [trackPos != 32 & !((inc & !dec) | (!inc & dec))],
+        moveToBank -> moveToBank [trackPos != 32 & !a & b $ trackPos := trackPos + 1],
+        moveToBank -> moveToBank [trackPos != 32 & !a & !b $ trackPos := trackPos - 1],
+        moveToBank -> moveToBank [trackPos != 32 & a],
 
         moveToStore -> store [trackPos == 25],
-        moveToStore -> moveToStore [trackPos != 25 & inc & !dec $ trackPos := trackPos + 1],
-        moveToStore -> moveToStore [trackPos != 25 & !inc & dec $ trackPos := trackPos - 1],
-        moveToStore -> moveToStore [trackPos != 25 & !((inc & !dec) | (!inc & dec))],
+        moveToStore -> moveToStore [trackPos != 25 & !a & b $ trackPos := trackPos + 1],
+        moveToStore -> moveToStore [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
+        moveToStore -> moveToStore [trackPos != 25 & a],
 
         office -> office [einc & !stop $ deliverProduct := deliverProduct + 1],
         office -> office [!einc & !stop $ deliverProduct := deliverProduct + 1],
