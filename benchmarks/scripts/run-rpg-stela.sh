@@ -8,7 +8,7 @@ TIMEOUT=600
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
-OUTFILE=$SCRIPT_DIR/out-rpgstela-$TIMESTAMP
+OUTFILE=$SCRIPT_DIR/out-rpg-stela-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../rpgsolve
 echo "run-rpg-stela.sh" >> $OUTFILE
 echo "" >> $OUTFILE
