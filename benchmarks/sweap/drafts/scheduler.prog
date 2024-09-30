@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        int : init, newTasksG, newTasksR, newTasksR01, newBoundG, err, stageSt, stage01, stage02, stage03, stage04
+        int : init, newTasksG, newTasksR, newTasksR01, newTasksR02, newTasksR03, newBoundG, err, stageSt, stage01, stage02, stage03, stage04
     }
 
     ENVIRONMENT EVENTS {

@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        base : init, collectSamples, move
+        base : init, collectSamples, move, moveToBase
     }
 
     ENVIRONMENT EVENTS {
