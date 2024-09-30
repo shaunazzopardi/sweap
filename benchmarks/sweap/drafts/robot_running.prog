@@ -4,7 +4,7 @@ program robot_collect_samples_v1 {
     }
 
     ENVIRONMENT EVENTS {
-        e, f, stop
+        e, f, stop, einc
     }
 
     CONTROLLER EVENTS {

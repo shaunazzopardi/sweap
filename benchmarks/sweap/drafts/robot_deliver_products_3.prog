@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        moveToOffice : init, office1, office2, office3, store, bank, moveToBank, moveToStore, updateProductCode
+        moveToOffice : init, office, office1, office2, office3, store, bank, moveToBank, moveToStore, updateProductCode
     }
 
     ENVIRONMENT EVENTS {
