@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        int : init, l1a, l2a, l1b, l2b, done, sink, inpNumItems
+        int : init, l1a, l2a, l1b, l2b, done, sink, inpNumItems, inpNumItemsDone
     }
 
     ENVIRONMENT EVENTS {
