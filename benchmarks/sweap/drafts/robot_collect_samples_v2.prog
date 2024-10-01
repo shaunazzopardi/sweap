@@ -21,7 +21,7 @@ program robot_collect_samples_v1 {
     TRANSITIONS {
         move -> move [trackPos == 23 & task == 1 & !a & b $ trackPos := trackPos + 1],
         move -> move [trackPos == 23 & task == 1 & !a & !b $ trackPos := trackPos - 1],
-        move -> base [trackPos == 23 & task == 1 & a],
+        move -> base [trackPos == 23 & task == 1 & a $ reqSamples := 0],
 
         move -> move [trackPos == 12 & !a & b $ trackPos := trackPos + 1],
         move -> move [trackPos == 12 & !a & !b $ trackPos := trackPos - 1],
@@ -29,11 +29,6 @@ program robot_collect_samples_v1 {
 
         move -> move [trackPos != 12 & !(trackPos == 23 & task == 1) & a $ trackPos := trackPos + 1],
         move -> move [trackPos != 12 & !(trackPos == 23 & task == 1) & !a $ trackPos := trackPos - 1],
-
-        moveToBase -> base [trackPos == 23 $ samples := 0; reqSamples := 0],
-        moveToBase -> moveToBase [a && trackPos != 23],
-        moveToBase -> moveToBase [!a & b & trackPos != 23 $ trackPos := trackPos + 1],
-        moveToBase -> moveToBase [!a & !b & trackPos != 23 $ trackPos := trackPos - 1],
 
         base -> base [einc $ reqSamples := reqSamples + 1],
         base -> move [!einc & reqSamples > 0 $ task := 0],

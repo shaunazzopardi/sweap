@@ -4,7 +4,7 @@ program robot_collect_samples_v1 {
     }
 
     ENVIRONMENT EVENTS {
-        einc, stop
+        stop
     }
 
     CONTROLLER EVENTS {
@@ -35,15 +35,13 @@ program robot_collect_samples_v1 {
         moveToStore -> moveToStore [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
         moveToStore -> moveToStore [trackPos != 25 & a],
 
-        office -> office1 [productCode == 1],
-        office -> office2 [productCode != 1],
+        office -> office1 [productCode == 1 $ neededPieces := 0; sparePieces := 0; money := 0],
+        office -> office2 [productCode != 1 $ neededPieces := 0; sparePieces := 0; money := 0],
 
-        office1 -> office1 [einc & !stop $ neededPieces := neededPieces + 1],
-        office1 -> office1 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office1 -> office1 [!stop $ neededPieces := neededPieces + 1],
         office1 -> moveToBank [stop],
 
-        office2 -> office2 [einc & !stop $ neededPieces := neededPieces + 1],
-        office2 -> office2 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office2 -> office2 [!stop $ neededPieces := neededPieces + 1],
         office2 -> moveToBank [stop],
 
         bank -> bank [money < neededPieces $ money := money + 1],

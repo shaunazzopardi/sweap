@@ -1,0 +1,138 @@
+program chain-simple-70 {
+    STATES {
+        init_st : init, goal, sink, setinp, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16, l17, l18, l19, l20
+    }
+
+    ENVIRONMENT EVENTS {
+        inc, stop
+    }
+
+    CONTROLLER EVENTS {
+        cinc, setc
+    }
+
+    VALUATION {
+        x : int := 0;
+        y : int := 0;
+        c : int := 0;
+    }
+
+    TRANSITIONS {
+        init_st -> goal [$ c := 0],
+        sink -> sink [],
+        goal -> sink [c == 1],
+        goal -> setinp [c != 1],
+        setinp -> setinp [inc & !stop $ y := y + 1],
+        setinp -> setinp [!inc & !stop $ y := y - 1],
+        setinp -> l1 [stop $ x := y],
+
+        l1 -> l2 [x == 0 $ x := y],
+        l1 -> l1 [x != 0 & cinc & !setc $ x := x + 1],
+        l1 -> l1 [x != 0 & !cinc & !setc $ x := x - 1],
+        l1 -> goal [x != 0 & setc $ c := 1],
+
+        l2 -> l3 [x == 0 $ x := y],
+        l2 -> l2 [x != 0 & cinc & !setc $ x := x + 1],
+        l2 -> l2 [x != 0 & !cinc & !setc $ x := x - 1],
+        l2 -> goal [x != 0 & setc $ c := 1],
+
+        l3 -> l4 [x == 0 $ x := y],
+        l3 -> l3 [x != 0 & cinc & !setc $ x := x + 1],
+        l3 -> l3 [x != 0 & !cinc & !setc $ x := x - 1],
+        l3 -> goal [x != 0 & setc $ c := 1],
+
+        l4 -> l5 [x == 0 $ x := y],
+        l4 -> l4 [x != 0 & cinc & !setc $ x := x + 1],
+        l4 -> l4 [x != 0 & !cinc & !setc $ x := x - 1],
+        l4 -> goal [x != 0 & setc $ c := 1],
+
+        l5 -> l6 [x == 0 $ x := y],
+        l5 -> l5 [x != 0 & cinc & !setc $ x := x + 1],
+        l5 -> l5 [x != 0 & !cinc & !setc $ x := x - 1],
+        l5 -> goal [x != 0 & setc $ c := 1],
+
+        l6 -> l7 [x == 0 $ x := y],
+        l6 -> l6 [x != 0 & cinc & !setc $ x := x + 1],
+        l6 -> l6 [x != 0 & !cinc & !setc $ x := x - 1],
+        l6 -> goal [x != 0 & setc $ c := 1],
+
+        l7 -> l8 [x == 0 $ x := y],
+        l7 -> l7 [x != 0 & cinc & !setc $ x := x + 1],
+        l7 -> l7 [x != 0 & !cinc & !setc $ x := x - 1],
+        l7 -> goal [x != 0 & setc $ c := 1],
+
+        l7 -> l8 [x == 0 $ x := y],
+        l7 -> l7 [x != 0 & cinc & !setc $ x := x + 1],
+        l7 -> l7 [x != 0 & !cinc & !setc $ x := x - 1],
+        l7 -> goal [x != 0 & setc $ c := 1],
+
+        l8 -> l9 [x == 0 $ x := y],
+        l8 -> l8 [x != 0 & cinc & !setc $ x := x + 1],
+        l8 -> l8 [x != 0 & !cinc & !setc $ x := x - 1],
+        l8 -> goal [x != 0 & setc $ c := 1],
+
+        l9 -> l10 [x == 0 $ x := y],
+        l9 -> l9 [x != 0 & cinc & !setc $ x := x + 1],
+        l9 -> l9 [x != 0 & !cinc & !setc $ x := x - 1],
+        l9 -> goal [x != 0 & setc $ c := 1],
+
+        l10 -> l11 [x == 0 $ x := y],
+        l10 -> l10 [x != 0 & cinc & !setc $ x := x + 1],
+        l10 -> l10 [x != 0 & !cinc & !setc $ x := x - 1],
+        l10 -> goal [x != 0 & setc $ c := 1],
+
+        l11 -> l12 [x == 0 $ x := y],
+        l11 -> l11 [x != 0 & cinc & !setc $ x := x + 1],
+        l11 -> l11 [x != 0 & !cinc & !setc $ x := x - 1],
+        l11 -> goal [x != 0 & setc $ c := 1],
+
+        l12 -> l13 [x == 0 $ x := y],
+        l12 -> l12 [x != 0 & cinc & !setc $ x := x + 1],
+        l12 -> l12 [x != 0 & !cinc & !setc $ x := x - 1],
+        l12 -> goal [x != 0 & setc $ c := 1],
+
+        l13 -> l14 [x == 0 $ x := y],
+        l13 -> l13 [x != 0 & cinc & !setc $ x := x + 1],
+        l13 -> l13 [x != 0 & !cinc & !setc $ x := x - 1],
+        l13 -> goal [x != 0 & setc $ c := 1],
+
+        l14 -> l15 [x == 0 $ x := y],
+        l14 -> l14 [x != 0 & cinc & !setc $ x := x + 1],
+        l14 -> l14 [x != 0 & !cinc & !setc $ x := x - 1],
+        l14 -> goal [x != 0 & setc $ c := 1],
+
+        l15 -> l16 [x == 0 $ x := y],
+        l15 -> l15 [x != 0 & cinc & !setc $ x := x + 1],
+        l15 -> l15 [x != 0 & !cinc & !setc $ x := x - 1],
+        l15 -> goal [x != 0 & setc $ c := 1],
+
+        l16 -> l17 [x == 0 $ x := y],
+        l16 -> l16 [x != 0 & cinc & !setc $ x := x + 1],
+        l16 -> l16 [x != 0 & !cinc & !setc $ x := x - 1],
+        l16 -> goal [x != 0 & setc $ c := 1],
+
+        l17 -> l18 [x == 0 $ x := y],
+        l17 -> l17 [x != 0 & cinc & !setc $ x := x + 1],
+        l17 -> l17 [x != 0 & !cinc & !setc $ x := x - 1],
+        l17 -> goal [x != 0 & setc $ c := 1],
+
+        l18 -> l19 [x == 0 $ x := y],
+        l18 -> l18 [x != 0 & cinc & !setc $ x := x + 1],
+        l18 -> l18 [x != 0 & !cinc & !setc $ x := x - 1],
+        l18 -> goal [x != 0 & setc $ c := 1],
+
+        l19 -> l20 [x == 0 $ x := y],
+        l19 -> l19 [x != 0 & cinc & !setc $ x := x + 1],
+        l19 -> l19 [x != 0 & !cinc & !setc $ x := x - 1],
+        l19 -> goal [x != 0 & setc $ c := 1],
+
+        l20 -> goal [x == 0 $ x := y],
+        l20 -> l20 [x != 0 & cinc & !setc $ x := x + 1],
+        l20 -> l20 [x != 0 & !cinc & !setc $ x := x - 1],
+        l20 -> goal [x != 0 & setc $ c := 1]
+    }
+
+    SPECIFICATION {
+        (G F !setinp) -> G F goal
+    }
+}

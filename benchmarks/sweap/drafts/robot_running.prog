@@ -1,14 +1,14 @@
-program robot_collect_samples_v1 {
+program robot_running {
     STATES {
-        base : init, collectSamples, move, baseNotEmpty
+        base : init, setInReqSamples, collectSamples, move, setSamplesAB
     }
 
     ENVIRONMENT EVENTS {
-        e, f, stop, einc
+        e, stop
     }
 
     CONTROLLER EVENTS {
-        a, b, inc
+        a, b
     }
 
     VALUATION {
@@ -21,29 +21,28 @@ program robot_collect_samples_v1 {
     }
 
     TRANSITIONS {
-        move -> base [trackPos == 23 & a $],
-        move -> move [trackPos == 23 & !a & b $ trackPos := trackPos + 1],
-        move -> move [trackPos == 23 & !a & !b $ trackPos := trackPos - 1],
+        move -> base [trackPos == 23 & task == 1 & a $ reqSamples := 0],
+        move -> move [trackPos == 23 & task == 1 & !a & b $ trackPos := trackPos + 1],
+        move -> move [trackPos == 23 & task == 1 & !a & !b $ trackPos := trackPos - 1],
 
         move -> collectSamples [trackPos == 12 & a],
         move -> move [trackPos == 12 & !a & b $ trackPos := trackPos + 1],
         move -> move [trackPos == 12 & !a & !b $ trackPos := trackPos - 1],
 
-        move -> move [!(trackPos == 12 | trackPos == 23) & a $ trackPos := trackPos + 1],
-        move -> move [!(trackPos == 12 | trackPos == 23) & !a $ trackPos := trackPos - 1],
+        move -> move [!(trackPos == 12 | (trackPos == 23 & task == 1)) & a $ trackPos := trackPos + 1],
+        move -> move [!(trackPos == 12 | (trackPos == 23 & task == 1)) & !a $ trackPos := trackPos - 1],
 
-        base -> baseNotEmpty [e $ reqSamples := reqSamples + 1],
-        base -> base [!e $ reqSamples := reqSamples + 1],
-
-        baseNotEmpty -> baseNotEmpty [einc $ reqSamples := reqSamples + 1],
-        baseNotEmpty -> move [!einc],
+        base -> base [e $ reqSamples := reqSamples + 1],
+        base -> move [!e & (reqSamples > 0) $ task := 0],
 
         collectSamples -> move [!(samples < reqSamples) $ task := 1],
-        collectSamples -> collectSamples [samples < reqSamples & !stop & e $ samples := samples + 1; samplesA := 0; samplesB := 0],
-        collectSamples -> collectSamples [samples < reqSamples & !stop & !e & f $ samplesA := samplesA + 1],
-        collectSamples -> collectSamples [samples < reqSamples & !stop & !e & !f $ samplesB := samplesB + 1],
-        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & inc $ samples := samples + samplesA; samplesA := 0; samplesB := 0],
-        collectSamples -> collectSamples [samples < reqSamples & stop & (samplesA > 0 | samplesB > 0) & !inc $ samples := samples + samplesB; samplesA := 0; samplesB := 0]
+        collectSamples -> setSamplesAB [samples < reqSamples $ samplesA := 0; samplesB := 0],
+
+        setSamplesAB -> collectSamples [stop && !(samplesA > 0 | samplesB > 0) $ samples := samples + 1],
+        setSamplesAB -> collectSamples [stop && a && (samplesA > 0 | samplesB > 0) $ samples := samples + samplesA],
+        setSamplesAB -> collectSamples [stop && !a && (samplesA > 0 | samplesB > 0) $ samples := samples + samplesB],
+        setSamplesAB -> setSamplesAB [!stop && e $ samplesA := samplesA + 1],
+        setSamplesAB -> setSamplesAB [!stop && !e $ samplesB := samplesB + 1]
     }
 
     SPECIFICATION {

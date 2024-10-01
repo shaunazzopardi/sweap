@@ -4,7 +4,7 @@ program robot_collect_samples_v1 {
     }
 
     ENVIRONMENT EVENTS {
-        einc, stop
+        stop
     }
 
     CONTROLLER EVENTS {
@@ -35,30 +35,25 @@ program robot_collect_samples_v1 {
         moveToStore -> moveToStore [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
         moveToStore -> moveToStore [trackPos != 25 & a],
 
-        office -> office1 [productCode == 1],
-        office -> office2 [productCode == 2],
-        office -> office3 [productCode == 3],
-        office -> office4 [productCode == 4],
-        office -> office5 [!(productCode == 1) & !(productCode == 2) & !(productCode == 3) & !(productCode == 4)],
+        office -> office1 [productCode == 1 $ neededPieces := 0; sparePieces := 0; money := 0],
+        office -> office2 [productCode == 2 $ neededPieces := 0; sparePieces := 0; money := 0],
+        office -> office3 [productCode == 3 $ neededPieces := 0; sparePieces := 0; money := 0],
+        office -> office4 [productCode == 4 $ neededPieces := 0; sparePieces := 0; money := 0],
+        office -> office5 [!(productCode == 1) & !(productCode == 2) & !(productCode == 3) & !(productCode == 4) $ neededPieces := 0; sparePieces := 0; money := 0],
 
-        office1 -> office1 [einc & !stop $ neededPieces := neededPieces + 1],
-        office1 -> office1 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office1 -> office1 [!stop $ neededPieces := neededPieces + 1],
         office1 -> moveToBank [stop],
 
-        office2 -> office2 [einc & !stop $ neededPieces := neededPieces + 1],
-        office2 -> office2 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office2 -> office2 [!stop $ neededPieces := neededPieces + 1],
         office2 -> moveToBank [stop],
 
-        office3 -> office3 [einc & !stop $ neededPieces := neededPieces + 1],
-        office3 -> office3 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office3 -> office3 [!stop $ neededPieces := neededPieces + 1],
         office3 -> moveToBank [stop],
 
-        office4 -> office4 [einc & !stop $ neededPieces := neededPieces + 1],
-        office4 -> office4 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office4 -> office4 [!stop $ neededPieces := neededPieces + 1],
         office4 -> moveToBank [stop],
 
-        office5 -> office5 [einc & !stop $ neededPieces := neededPieces + 1],
-        office5 -> office5 [!einc & !stop $ neededPieces := neededPieces - 1],
+        office5 -> office5 [!stop $ neededPieces := neededPieces + 1],
         office5 -> moveToBank [stop],
 
         bank -> bank [money < neededPieces $ money := money + 1],

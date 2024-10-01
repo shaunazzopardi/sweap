@@ -1,6 +1,6 @@
 program robot_collect_samples_v1 {
     STATES {
-        moveToBase : init, base, moveToSampleSide, collectSamples
+        moveToBase : init, base, moveToSampleSide, collectSamples, moveToLab, lab
     }
 
     ENVIRONMENT EVENTS {
@@ -29,10 +29,18 @@ program robot_collect_samples_v1 {
         moveToSampleSide -> collectSamples [trackPos == 12],
         moveToSampleSide -> moveToSampleSide [!a & b & trackPos != 12 $ trackPos := trackPos + 1],
         moveToSampleSide -> moveToSampleSide [!a & !b & trackPos != 12 $ trackPos := trackPos - 1],
-        moveToSampleSide -> moveToSampleSide [a & trackPos != 12 $ trackPos := trackPos - 1],
+        moveToSampleSide -> moveToSampleSide [a & trackPos != 12],
 
         collectSamples -> collectSamples [samples < reqSamples $ samples := samples + 1],
-        collectSamples -> moveToBase [!(samples < reqSamples)]
+        collectSamples -> moveToLab [!(samples < reqSamples)],
+
+        moveToLab -> lab [trackPos == -1],
+        moveToLab -> moveToLab [!a & b & trackPos != -1 $ trackPos := trackPos + 1],
+        moveToLab -> moveToLab [!a & !b & trackPos != -1 $ trackPos := trackPos - 1],
+        moveToLab -> moveToLab [a & trackPos != -1],
+
+        lab -> lab [samples > 0 $ samples := samples - 1],
+        lab -> moveToBase [!(samples > 0)]
     }
 
     SPECIFICATION {

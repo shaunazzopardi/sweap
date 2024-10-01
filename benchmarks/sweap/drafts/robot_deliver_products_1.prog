@@ -4,7 +4,7 @@ program robot_collect_samples_v1 {
     }
 
     ENVIRONMENT EVENTS {
-        einc, stop
+        einc
     }
 
     CONTROLLER EVENTS {
@@ -15,15 +15,14 @@ program robot_collect_samples_v1 {
         trackPos : integer := 0;
         neededPieces : integer := 0;
         sparePieces : integer := 0;
-        deliverProduct : integer := 0;
         money : integer := 0;
     }
 
     TRANSITIONS {
-        moveToOffice -> office [trackPos == 0],
+        moveToOffice -> office [trackPos == 0 $ neededPieces := 0],
         moveToOffice -> moveToOffice [trackPos != 0 & !a & b $ trackPos := trackPos + 1],
         moveToOffice -> moveToOffice [trackPos != 0 & !a & !b $ trackPos := trackPos - 1],
-        moveToOffice -> moveToOffice [trackPos != 0 &a],
+        moveToOffice -> moveToOffice [trackPos != 0 & a],
 
         moveToBank -> bank [trackPos == 32],
         moveToBank -> moveToBank [trackPos != 32 & !a & b $ trackPos := trackPos + 1],
@@ -35,18 +34,17 @@ program robot_collect_samples_v1 {
         moveToStore -> moveToStore [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
         moveToStore -> moveToStore [trackPos != 25 & a],
 
-        office -> office [einc & !stop $ deliverProduct := deliverProduct + 1],
-        office -> office [!einc & !stop $ deliverProduct := deliverProduct + 1],
-        office -> moveToBank [stop & deliverProduct > 0 $ neededPieces := deliverProduct; sparePieces := 0; money := 0; deliverProduct := 0],
+        office -> office [einc $ neededPieces := neededPieces + 1],
+        office -> moveToBank [!einc & neededPieces > 0 $ sparePieces := 0; money := 0],
 
         bank -> bank [money < neededPieces $ money := money + 1],
-        bank -> moveToOffice [!(money < neededPieces)],
+        bank -> moveToStore [!(money < neededPieces)],
 
-        store -> store [sparePieces < neededPieces $ sparePieces := sparePieces + 1],
-        store -> moveToOffice [!(sparePieces < neededPieces)]
+        store -> store [sparePieces > neededPieces $ sparePieces := sparePieces + 1],
+        store -> moveToOffice [!(sparePieces > neededPieces)]
     }
 
     SPECIFICATION {
-        (G F stop) -> G F office
+        G F office
     }
 }

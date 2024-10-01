@@ -1,4 +1,4 @@
-program robot_collect_samples_v1 {
+program robot_repair {
     STATES {
         moveToBase : init, base, repair, stock, moveToDevice, moveToStock, countBrokenPieces
     }
@@ -20,26 +20,23 @@ program robot_collect_samples_v1 {
 
     TRANSITIONS {
         moveToBase -> base [trackPos == 23],
-        moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],
-        moveToBase -> moveToBase [trackPos != 23 & !a & !b $ trackPos := trackPos - 1],
-        moveToBase -> moveToBase [trackPos != 23 & a],
+        moveToBase -> moveToBase [trackPos != 23 & a $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [trackPos != 23 & !a $ trackPos := trackPos - 1],
 
         moveToDevice -> repair [trackPos == 25],
-        moveToDevice -> moveToDevice [trackPos != 25 & !a & b $ trackPos := trackPos + 1],
-        moveToDevice -> moveToDevice [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
-        moveToDevice -> moveToDevice [trackPos != 25 & a],
+        moveToDevice -> moveToDevice [trackPos != 25 & a $ trackPos := trackPos + 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & !a $ trackPos := trackPos - 1],
 
         moveToStock -> stock [trackPos == -3],
         moveToStock -> moveToStock [trackPos != -3 & !a & b $ trackPos := trackPos + 1],
         moveToStock -> moveToStock [trackPos != -3 & !a & !b $ trackPos := trackPos - 1],
-        moveToStock -> moveToStock [trackPos != -3 & a],
 
-        base -> countBrokenPieces [workingDevice & break],
+        base -> countBrokenPieces [workingDevice & break $ neededSparePieces := 0; workingDevice := false],
         base -> base [workingDevice & !break],
         base -> moveToStock [!workingDevice],
 
-        countBrokenPieces -> countBrokenPieces [einc $ neededSparePieces := neededSparePieces + 1],
-        countBrokenPieces -> countBrokenPieces [!einc $ neededSparePieces := neededSparePieces - 1],
+        countBrokenPieces -> countBrokenPieces [einc & !stop $ neededSparePieces := neededSparePieces + 1],
+        countBrokenPieces -> countBrokenPieces [!einc & !stop $ neededSparePieces := neededSparePieces - 1],
         countBrokenPieces -> base [stop],
 
         stock -> stock [sparePieces <= neededSparePieces $ sparePieces := sparePieces + 1],

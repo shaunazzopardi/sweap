@@ -1,6 +1,6 @@
 program arbiter-paper {
     STATES {
-        init_st : init, goal, sink, setinp, l1, l2
+        init_st : init, goal, sink, setinp, l1, l2, l3, l4
     }
 
     ENVIRONMENT EVENTS {
@@ -14,6 +14,8 @@ program arbiter-paper {
     VALUATION {
         x1 : int := 0;
         x2 : int := 0;
+        x3 : int := 0;
+        x4 : int := 0;
         y : int := 0;
         c : int := 0;
     }
@@ -32,10 +34,20 @@ program arbiter-paper {
         l1 -> l1 [x1 != 0 & !cinc & !setc $ x1 := x1 - 1],
         l1 -> goal [x1 != 0 & setc $ c := 1],
 
-        l2 -> goal [x2 == 0],
+        l2 -> l3 [x2 == 0 $ x3 := y],
         l2 -> l2 [x2 != 0 & cinc & !setc $ x2 := x2 + 1],
         l2 -> l2 [x2 != 0 & !cinc & !setc $ x2 := x2 - 1],
-        l2 -> goal [x2 != 0 & setc $ c := 1]
+        l2 -> goal [x2 != 0 & setc $ c := 1],
+
+        l3 -> l4 [x3 == 0 $ x4 := y],
+        l3 -> l3 [x3 != 0 & cinc & !setc $ x4 := x4 + 1],
+        l3 -> l3 [x3 != 0 & !cinc & !setc $ x4 := x4 - 1],
+        l3 -> goal [x3 != 0 & setc $ c := 1],
+
+        l4 -> goal [x4 == 0],
+        l4 -> l4 [x4 != 0 & cinc & !setc $ x4 := x4 + 1],
+        l4 -> l4 [x4 != 0 & !cinc & !setc $ x4 := x4 - 1],
+        l4 -> goal [x4 != 0 & setc $ c := 1]
     }
 
     SPECIFICATION {
