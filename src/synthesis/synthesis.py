@@ -211,7 +211,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_ltl_constraints = set()
 
     rankings = []
-    if config.Config.getConfig()._eager_fairness or config.Config.getConfig()._natural_fairness:
+    if config.Config.getConfig()._natural_fairness:
         for tv in program.valuation:
             if tv.type.lower().startswith("bool"):
                 continue
