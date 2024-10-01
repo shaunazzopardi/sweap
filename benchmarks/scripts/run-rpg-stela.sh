@@ -19,7 +19,7 @@ run_rpgstela() {
     logfile=`mktemp --suffix .log`
 
     starttime=`date +%s%N`
-    result=`PATH=$BASEPATH:$PATH timeout $TIMEOUT $BASEPATH/rpg-stela solve < $1 2> $logfile`
+    result=`PATH=$BASEPATH:$PATH timeout $TIMEOUT $BASEPATH/rpg-stela solve --enable-no-pruning < $1 2> $logfile`
     endtime=`date +%s%N` 
     
     accel_cnt=`cat $logfile | grep 'Accelerated: True' | wc -l`
