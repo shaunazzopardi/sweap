@@ -8,7 +8,7 @@ program robot_collect_samples_v1 {
     }
 
     CONTROLLER EVENTS {
-        a, b
+        a, b, inc
     }
 
     VALUATION {
