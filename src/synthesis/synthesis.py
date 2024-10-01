@@ -279,11 +279,11 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         done_rankings = set()
         for tran_preds, constraints in rankings:
             for finite_re, st_prds, ltl_constraints in constraints:
-                if not already_an_equivalent_ranking(done_rankings, finite_re):
-                    new_tran_preds.update(tran_preds)
-                    new_state_preds.update(st_prds)
-                    new_ltl_constraints.add(ltl_constraints)
-                    done_rankings.add(finite_re)
+                # if not already_an_equivalent_ranking(done_rankings, finite_re):
+                new_tran_preds.update(tran_preds)
+                new_state_preds.update(st_prds)
+                new_ltl_constraints.add(ltl_constraints)
+                done_rankings.add(finite_re)
         rankings.clear()
         to_add_rankings_for.clear()
 
