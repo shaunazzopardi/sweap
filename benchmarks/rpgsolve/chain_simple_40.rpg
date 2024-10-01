@@ -1,0 +1,92 @@
+type Buechi
+input i Int
+output x Int
+output y Int
+output c Int
+loc int 0
+loc goal 1
+loc sink 0
+loc l1 0
+loc l2 0
+loc l3 0
+loc l4 0
+loc l5 0
+loc l6 0
+loc l7 0
+loc l8 0
+loc l9 0
+loc l10 0
+loc l11 0
+loc l12 0
+loc l13 0
+loc l14 0
+loc l15 0
+loc l16 0
+loc l17 0
+loc l18 0
+loc l19 0
+loc l20 0
+loc l21 0
+loc l22 0
+loc l23 0
+loc l24 0
+loc l25 0
+loc l26 0
+loc l27 0
+loc l28 0
+loc l29 0
+loc l30 0
+loc l31 0
+loc l32 0
+loc l33 0
+loc l34 0
+loc l35 0
+loc l36 0
+loc l37 0
+loc l38 0
+loc l39 0
+loc l40 0
+init int
+trans int sys (((c 0)) goal)
+trans sink sink
+trans goal if (= c 1) then sink else sys (((x i) (y i)) l1)
+trans l1 if (= x 0) then sys (((x y)) l2) else sys (((x (+ x 1))) l1 ((x (- x 1))) l1 ((c 1)) goal)
+trans l2 if (= x 0) then sys (((x y)) l3) else sys (((x (+ x 1))) l2 ((x (- x 1))) l2 ((c 1)) goal)
+trans l3 if (= x 0) then sys (((x y)) l4) else sys (((x (+ x 1))) l3 ((x (- x 1))) l3 ((c 1)) goal)
+trans l4 if (= x 0) then sys (((x y)) l5) else sys (((x (+ x 1))) l4 ((x (- x 1))) l4 ((c 1)) goal)
+trans l5 if (= x 0) then sys (((x y)) l6) else sys (((x (+ x 1))) l5 ((x (- x 1))) l5 ((c 1)) goal)
+trans l6 if (= x 0) then sys (((x y)) l7) else sys (((x (+ x 1))) l6 ((x (- x 1))) l6 ((c 1)) goal)
+trans l7 if (= x 0) then sys (((x y)) l8) else sys (((x (+ x 1))) l7 ((x (- x 1))) l7 ((c 1)) goal)
+trans l8 if (= x 0) then sys (((x y)) l9) else sys (((x (+ x 1))) l8 ((x (- x 1))) l8 ((c 1)) goal)
+trans l9 if (= x 0) then sys (((x y)) l10) else sys (((x (+ x 1))) l9 ((x (- x 1))) l9 ((c 1)) goal)
+trans l10 if (= x 0) then sys (((x y)) l11) else sys (((x (+ x 1))) l10 ((x (- x 1))) l10 ((c 1)) goal)
+trans l11 if (= x 0) then sys (((x y)) l12) else sys (((x (+ x 1))) l11 ((x (- x 1))) l11 ((c 1)) goal)
+trans l12 if (= x 0) then sys (((x y)) l13) else sys (((x (+ x 1))) l12 ((x (- x 1))) l12 ((c 1)) goal)
+trans l13 if (= x 0) then sys (((x y)) l14) else sys (((x (+ x 1))) l13 ((x (- x 1))) l13 ((c 1)) goal)
+trans l14 if (= x 0) then sys (((x y)) l15) else sys (((x (+ x 1))) l14 ((x (- x 1))) l14 ((c 1)) goal)
+trans l15 if (= x 0) then sys (((x y)) l16) else sys (((x (+ x 1))) l15 ((x (- x 1))) l15 ((c 1)) goal)
+trans l16 if (= x 0) then sys (((x y)) l17) else sys (((x (+ x 1))) l16 ((x (- x 1))) l16 ((c 1)) goal)
+trans l17 if (= x 0) then sys (((x y)) l18) else sys (((x (+ x 1))) l17 ((x (- x 1))) l17 ((c 1)) goal)
+trans l18 if (= x 0) then sys (((x y)) l19) else sys (((x (+ x 1))) l18 ((x (- x 1))) l18 ((c 1)) goal)
+trans l19 if (= x 0) then sys (((x y)) l20) else sys (((x (+ x 1))) l19 ((x (- x 1))) l19 ((c 1)) goal)
+trans l20 if (= x 0) then sys (((x y)) l21) else sys (((x (+ x 1))) l20 ((x (- x 1))) l20 ((c 1)) goal)
+trans l21 if (= x 0) then sys (((x y)) l22) else sys (((x (+ x 1))) l21 ((x (- x 1))) l21 ((c 1)) goal)
+trans l22 if (= x 0) then sys (((x y)) l23) else sys (((x (+ x 1))) l22 ((x (- x 1))) l22 ((c 1)) goal)
+trans l23 if (= x 0) then sys (((x y)) l24) else sys (((x (+ x 1))) l23 ((x (- x 1))) l23 ((c 1)) goal)
+trans l24 if (= x 0) then sys (((x y)) l25) else sys (((x (+ x 1))) l24 ((x (- x 1))) l24 ((c 1)) goal)
+trans l25 if (= x 0) then sys (((x y)) l26) else sys (((x (+ x 1))) l25 ((x (- x 1))) l25 ((c 1)) goal)
+trans l26 if (= x 0) then sys (((x y)) l27) else sys (((x (+ x 1))) l26 ((x (- x 1))) l26 ((c 1)) goal)
+trans l27 if (= x 0) then sys (((x y)) l28) else sys (((x (+ x 1))) l27 ((x (- x 1))) l27 ((c 1)) goal)
+trans l28 if (= x 0) then sys (((x y)) l29) else sys (((x (+ x 1))) l28 ((x (- x 1))) l28 ((c 1)) goal)
+trans l29 if (= x 0) then sys (((x y)) l30) else sys (((x (+ x 1))) l29 ((x (- x 1))) l29 ((c 1)) goal)
+trans l30 if (= x 0) then sys (((x y)) l31) else sys (((x (+ x 1))) l30 ((x (- x 1))) l30 ((c 1)) goal)
+trans l31 if (= x 0) then sys (((x y)) l32) else sys (((x (+ x 1))) l31 ((x (- x 1))) l31 ((c 1)) goal)
+trans l32 if (= x 0) then sys (((x y)) l33) else sys (((x (+ x 1))) l32 ((x (- x 1))) l32 ((c 1)) goal)
+trans l33 if (= x 0) then sys (((x y)) l34) else sys (((x (+ x 1))) l33 ((x (- x 1))) l33 ((c 1)) goal)
+trans l34 if (= x 0) then sys (((x y)) l35) else sys (((x (+ x 1))) l34 ((x (- x 1))) l34 ((c 1)) goal)
+trans l35 if (= x 0) then sys (((x y)) l36) else sys (((x (+ x 1))) l35 ((x (- x 1))) l35 ((c 1)) goal)
+trans l36 if (= x 0) then sys (((x y)) l37) else sys (((x (+ x 1))) l36 ((x (- x 1))) l36 ((c 1)) goal)
+trans l37 if (= x 0) then sys (((x y)) l38) else sys (((x (+ x 1))) l37 ((x (- x 1))) l37 ((c 1)) goal)
+trans l38 if (= x 0) then sys (((x y)) l39) else sys (((x (+ x 1))) l38 ((x (- x 1))) l38 ((c 1)) goal)
+trans l39 if (= x 0) then sys (((x y)) l40) else sys (((x (+ x 1))) l39 ((x (- x 1))) l39 ((c 1)) goal)
+trans l40 if (= x 0) then sys (((x y)) goal) else sys (((x (+ x 1))) l40 ((x (- x 1))) l40 ((c 1)) goal)

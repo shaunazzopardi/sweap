@@ -1,0 +1,71 @@
+type Buechi
+
+output trackPos Int
+
+output workingDevice Bool
+output neededPieces Int
+output sparePieces Int
+output productCode Int
+output money Int
+
+input deliverProduct1 Int
+input deliverProduct2 Int
+
+loc office 1
+loc store 0 
+loc bank 0 
+loc moveToOffice 0
+loc moveToBank 0
+loc moveToStore 0
+loc updateProductCode 0
+
+init moveToOffice
+
+trans moveToOffice
+    if (= trackPos 0)
+    then office
+    else sys (
+        () moveToOffice
+        ((trackPos (+ trackPos 1))) moveToOffice
+        ((trackPos (- trackPos 1))) moveToOffice
+    )
+
+trans moveToBank
+    if (= trackPos 32)
+    then bank
+    else sys (
+        () moveToBank
+        ((trackPos (+ trackPos 1))) moveToBank
+        ((trackPos (- trackPos 1))) moveToBank
+    )
+
+trans moveToStore
+    if (= trackPos 25)
+    then store
+    else sys (
+        () moveToStore
+        ((trackPos (+ trackPos 1))) moveToStore
+        ((trackPos (- trackPos 1))) moveToStore
+    )
+
+trans office 
+    if (= productCode 1)
+        then sys ( ((neededPieces deliverProduct1) (sparePieces 0) (money 0)) moveToBank)
+        else sys ( ((neededPieces deliverProduct2) (sparePieces 0) (money 0)) moveToBank)
+
+
+trans bank 
+    if (< money neededPieces)
+        then sys (((money (+ money 1))) bank)
+        else moveToStore  
+
+trans store 
+    if (> neededPieces sparePieces)
+        then sys (((sparePieces (+ sparePieces 1))) store)
+        else sys (((productCode (+ productCode 1))) updateProductCode)
+
+trans updateProductCode
+    if (or (> productCode 2) (< productCode 1))
+        then sys (((productCode 1)) moveToOffice)
+    else moveToOffice
+    

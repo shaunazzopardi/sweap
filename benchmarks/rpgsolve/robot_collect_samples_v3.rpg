@@ -1,0 +1,51 @@
+type Buechi
+
+output trackPos Int
+
+output samples Int
+output requiredSamples Int
+
+input inpRequiredSamples Int
+input samplesA Int
+input samplesB Int
+
+loc base 1
+loc moveToSampleSide 0
+loc collectSamples 0
+loc moveToBase 0
+
+init moveToBase
+
+trans moveToBase
+    if (= trackPos 23)
+    then sys (((samples 0)) base)
+    else sys (
+        () moveToBase
+        ((trackPos (+ trackPos 1))) moveToBase
+        ((trackPos (- trackPos 1))) moveToBase
+    )
+
+trans base 
+    if (> inpRequiredSamples 0) 
+        then sys ( ((requiredSamples inpRequiredSamples)) moveToSampleSide)
+        else base
+
+trans moveToSampleSide
+    if (= trackPos 12) ;
+    then collectSamples
+    else sys (
+        () moveToSampleSide
+        ((trackPos (+ trackPos 1))) moveToSampleSide
+        ((trackPos (- trackPos 1))) moveToSampleSide
+    )
+
+trans collectSamples
+    if (< samples requiredSamples) 
+    then 
+        if (or (> samplesA 0) (> samplesB 0))
+        then sys (((samples (+ samples samplesA))) collectSamples
+                  ((samples (+ samples samplesB))) collectSamples
+                 )
+        else sys (((samples (+ samples 1))) collectSamples)
+        else moveToBase
+
