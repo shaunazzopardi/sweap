@@ -366,6 +366,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             return False, result
         else:
             (new_state_preds, new_tran_preds), new_ltl_constraints, loop_counter = result
+            if not(len(new_state_preds) > 0 or len(new_tran_preds) > 0 or len(new_ltl_constraints) > 0):
+                raise Exception("No new predicates or constraints found, but not compatible. Error in tool, "
+                                "or program is non-deterministic.")
 
 
 
