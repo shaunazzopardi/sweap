@@ -1,5 +1,5 @@
 DIRNAME := results
-TOOLS := rpg-stela rpgsolve sweap sweap-noacc
+TOOLS := rpg-stela rpgsolve rpgsolve-syn sweap sweap-noacc
 OTHER_TOOLS := temos raboniel
 
 .PHONY: all others everything clean $(tools)
