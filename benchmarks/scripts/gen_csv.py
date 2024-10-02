@@ -27,6 +27,8 @@ sweap_unreal_re = re.compile(r"^Unrealizable\.", re.MULTILINE)
 strix_real_re = re.compile(r"^REALIZABLE", re.MULTILINE)
 strix_unreal_re = re.compile(r"^UNREALIZABLE", re.MULTILINE)
 err_re = re.compile(r"^Result:\s*$", re.MULTILINE)
+stela_real_re = re.compile(r"^Result: Realizable: True", re.MULTILINE)
+stela_unreal_re = re.compile(r"^Result: Realizable: False", re.MULTILINE)
 
 class CheckMissing:
     def __init__(self, s) -> None:
@@ -41,8 +43,25 @@ tools = {
     "rpgsolve-syn": ToolInfo(ext="rpg", real=real_re, unreal=unreal_re, err=err_re),
     "sweap": ToolInfo(ext="prog", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-noacc": ToolInfo(ext="prog", real=sweap_real_re, unreal=sweap_unreal_re),
-    "rpgstela": ToolInfo(ext="rpg", real=real_re, unreal=unreal_re, err=err_re)
+    "rpg-stela": ToolInfo(ext="rpg", real=stela_real_re, unreal=stela_unreal_re, err=err_re)
 }
+
+chain_benchs = {
+    f"chain-{i}": BenchInfo(True, aliases={
+        "rpgsolve": f"chain_{i}",
+        "rpg-stela": f"chain_{i}"})
+    for i in (4, 5, 6, 7)}
+chain_simple_benchs = {
+    f"chain-simple-{i}": BenchInfo(True, aliases={
+        "rpgsolve": f"chain_simple_{i}",
+        "rpg-stela": f"chain_simple_{i}"})
+    for i in (5, 10, 20, 30, 40, 50, 60, 70)}
+collect_benchs = {
+    f"robot_collect_samples_v{i}": BenchInfo(True)
+    for i in (1, 2, 3)}
+deliver_benchs = {
+    f"robot_deliver_products_{i}": BenchInfo(True)
+    for i in (1, 2, 3, 4, 5)}
 
 infinite_benchs = {
     "box-limited": BenchInfo(True),
@@ -91,7 +110,18 @@ infinite_benchs = {
     "robot-grid-reach-repeated-with-obstacles-2d": BenchInfo(True),
     "taxi-service": BenchInfo(True),
     "robot-grid-comute-1d": BenchInfo(True),
-    "robot-grid-comute-2d": BenchInfo(True)
+    "robot-grid-comute-2d": BenchInfo(True),
+    **chain_benchs,
+    **chain_simple_benchs,
+    "items_processing": BenchInfo(True),
+    "robot_analyze_samples": BenchInfo(True, aliases={
+        "sweap": "robot_analyze_samples_v1",
+        "sweap-noacc": "robot_analyze_samples_v1"
+    }),
+    **collect_benchs,
+    **deliver_benchs,
+    "robot_running": BenchInfo(True),
+    "scheduler": BenchInfo(True)
 }
 
 finite_benchs = {
@@ -153,7 +183,7 @@ base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
 
 out_files = {t: list(Path(base_dir).glob(f"out-{t}-[0-9]*")) for t in tools}
 
-def get_result(tool, tool_info, bench, bench_info):
+def get_result(tool, tool_info, bench, bench_info, files):
     result = None
     try:
         bench = (
@@ -161,8 +191,8 @@ def get_result(tool, tool_info, bench, bench_info):
             if bench_info.aliases
             else bench)
         raw_result = check_output([
-            "grep", "-A", "2", 
-            f"Benchmark:.*{bench}\.{tool_info.ext}", fname],
+            "grep", "-h", "-A", "2", 
+            f"Benchmark:.*{bench}\.{tool_info.ext}", *files],
             encoding="utf-8")
         if m := runtime_re.search(raw_result):
             runtime = int(m.group(1))
@@ -200,8 +230,7 @@ for benchs in (infinite_benchs, finite_benchs):
             if not out_files.get(tool, []):
                 result = 1
             else:
-                fname = out_files[tool][0]
-                result = get_result(tool, tool_info, b, bench_info)
+                result = get_result(tool, tool_info, b, bench_info, out_files[tool])
             row.append(result)
         writer.writerow(row)
     print("-"*30)
