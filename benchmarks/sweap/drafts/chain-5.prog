@@ -41,8 +41,8 @@ program arbiter-paper {
         l2 -> goal [x2 != 0 & setc $ c := 1],
 
         l3 -> l4 [x3 == 0 $ x4 := y],
-        l3 -> l3 [x3 != 0 & cinc & !setc $ x4 := x4 + 1],
-        l3 -> l3 [x3 != 0 & !cinc & !setc $ x4 := x4 - 1],
+        l3 -> l3 [x3 != 0 & cinc & !setc $ x3 := x3 + 1],
+        l3 -> l3 [x3 != 0 & !cinc & !setc $ x3 := x3 - 1],
         l3 -> goal [x3 != 0 & setc $ c := 1],
 
         l4 -> l5 [x4 == 0 $ x5 := y],
