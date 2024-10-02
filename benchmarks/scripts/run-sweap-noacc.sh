@@ -4,13 +4,13 @@
 # software artifact available at:
 # https://zenodo.org/doi/10.5281/zenodo.8409938
 
-TIMEOUT=600
+TIMEOUT=$1
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../..
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-sweap-noacc-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../sweap
-echo "run-sweap-noacc.sh" >> $OUTFILE
+echo "run-sweap-noacc.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 mkdir logs 2>/dev/null
 
@@ -29,6 +29,11 @@ run_sweap() {
 }
 
 for f in `ls $BENCHMARKS_DIR/*.prog`
+do
+  run_sweap $f
+done
+
+for f in `ls $BENCHMARKS_DIR/drafts/*.prog`
 do
   run_sweap $f
 done

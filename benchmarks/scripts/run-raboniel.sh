@@ -4,14 +4,14 @@
 # software artifact available at:
 # https://zenodo.org/doi/10.5281/zenodo.8409938
 
-TIMEOUT=600
+TIMEOUT=$1
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-raboniel-$TIMESTAMP
 LOGFILE=$SCRIPT_DIR/log-raboniel-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../raboniel
-echo "run-raboniel.sh" >> $OUTFILE
+echo "run-raboniel.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_raboniel() {

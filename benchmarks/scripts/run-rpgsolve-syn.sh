@@ -4,13 +4,13 @@
 # software artifact available at:
 # https://zenodo.org/doi/10.5281/zenodo.8409938
 
-TIMEOUT=600
+TIMEOUT=$1
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-rpgsolve-syn-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../rpgsolve
-echo "run-rpgsolve-syn.sh" >> $OUTFILE
+echo "run-rpgsolve-syn.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_rpgsolve() {
@@ -19,7 +19,8 @@ run_rpgsolve() {
     logfile=`mktemp --suffix .log`
 
     starttime=`date +%s%N`
-    result=`timeout $TIMEOUT $BASEPATH/rpgsolve --generate-program < $1 2> $logfile`
+    # Needs z3 4.12
+    result=`PATH=$BASEPATH/z3-4-12:$BASEPATH:$PATH timeout $TIMEOUT rpgsolve --generate-program < $1 2> $logfile`
     endtime=`date +%s%N` 
     
     killall z3 2> /dev/null

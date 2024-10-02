@@ -4,13 +4,13 @@
 # software artifact available at:
 # https://zenodo.org/doi/10.5281/zenodo.8409938
 
-TIMEOUT=600
+TIMEOUT=$1
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 BASEPATH=$SCRIPT_DIR/../../binaries
 TIMESTAMP=`date +%Y-%m-%d-%H-%M-%S`
 OUTFILE=$SCRIPT_DIR/out-rpg-stela-$TIMESTAMP
 BENCHMARKS_DIR=$SCRIPT_DIR/../rpgsolve
-echo "run-rpg-stela.sh" >> $OUTFILE
+echo "run-rpg-stela.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_rpgstela() {
