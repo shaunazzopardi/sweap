@@ -121,6 +121,7 @@ infinite_benchs = {
     **collect_benchs,
     **deliver_benchs,
     "robot_running": BenchInfo(True),
+    "robot_repair": BenchInfo(True),
     "scheduler": BenchInfo(True)
 }
 
