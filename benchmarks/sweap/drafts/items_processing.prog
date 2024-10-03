@@ -70,6 +70,6 @@ program items_processing {
     }
 
     SPECIFICATION {
-        (G F stop) -> G F stageSt
+        (G F stop) -> G F done
     }
 }
