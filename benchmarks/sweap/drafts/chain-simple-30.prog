@@ -61,11 +61,6 @@ program chain-simple-70 {
         l7 -> l7 [x != 0 & !cinc & !setc $ x := x - 1],
         l7 -> goal [x != 0 & setc $ c := 1],
 
-        l7 -> l8 [x == 0 $ x := y],
-        l7 -> l7 [x != 0 & cinc & !setc $ x := x + 1],
-        l7 -> l7 [x != 0 & !cinc & !setc $ x := x - 1],
-        l7 -> goal [x != 0 & setc $ c := 1],
-
         l8 -> l9 [x == 0 $ x := y],
         l8 -> l8 [x != 0 & cinc & !setc $ x := x + 1],
         l8 -> l8 [x != 0 & !cinc & !setc $ x := x - 1],
