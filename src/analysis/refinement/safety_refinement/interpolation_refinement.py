@@ -26,7 +26,8 @@ def safety_refinement_seq_int(program: Program,
                       disagreed_on_state,
                       allow_user_input: bool,
                       keep_only_bool_interpolants: bool,
-                      conservative_with_state_predicates: bool):
+                      conservative_with_state_predicates: bool,
+                      enable_equality_to_le: bool=False):
     symbol_table = predicate_abstraction.get_symbol_table()
     new_symbol_table = {}
 
@@ -79,19 +80,8 @@ def safety_refinement_seq_int(program: Program,
         new_state_preds = list(set(new_state_preds))
         new_state_preds = [x for x in new_state_preds if
                            not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
-        new_new_state_preds = []
-        for p in new_state_preds:
-            if isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (
-                    p.formula.op in ["<=", ">=", ">", "<", "=", "=="]):
-                new_new_state_preds.append(BiOp(p.formula.left, "<=", p.formula.right))
-                new_new_state_preds.append(BiOp(p.formula.left, ">=", p.formula.right))
-            elif isinstance(p, BiOp) and (p.op in ["<=", ">=", ">", "<", "=", "=="]):
-                new_new_state_preds.append(BiOp(p.left, "<=", p.right))
-                new_new_state_preds.append(BiOp(p.left, ">=", p.right))
-            else:
-                new_new_state_preds.append(p)
-
-        new_state_preds = new_new_state_preds
+        if enable_equality_to_le:
+            new_state_preds = normalise_LIA_state_preds(new_state_preds)
         # if len(new_state_preds) == 0:
         #     logging.info("No state predicates identified.")
         #     if allow_user_input:
@@ -189,3 +179,19 @@ def interactive_state_predicates():
         except Exception as e:
             pass
     return new_preds
+
+
+def normalise_LIA_state_preds(state_preds):
+    new_state_preds = []
+    for p in state_preds:
+        if isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (
+                p.formula.op in ["<=", ">=", ">", "<", "=", "=="]):
+            new_state_preds.append(BiOp(p.formula.left, "<=", p.formula.right))
+            new_state_preds.append(BiOp(p.formula.left, ">=", p.formula.right))
+        elif isinstance(p, BiOp) and (p.op in ["<=", ">=", ">", "<", "=", "=="]):
+            new_state_preds.append(BiOp(p.left, "<=", p.right))
+            new_state_preds.append(BiOp(p.left, ">=", p.right))
+        else:
+            new_state_preds.append(p)
+
+    return new_state_preds
