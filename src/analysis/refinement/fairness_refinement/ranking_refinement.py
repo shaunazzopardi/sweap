@@ -64,10 +64,13 @@ def ranking_refinement(ranking, invars, there_is_inc=True):
         left = (ranking.left)
         right = (ranking.right)
         if ranking.op == "-":
-            if str(ranking.left) == '0':
+            if isinstance(ranking.left, Value):
                 dec = BiOp(right, ">", add_prev_suffix(right))
                 inc = BiOp(right, "<", add_prev_suffix(right))
-            elif len(left.variablesin()) > 0 and len(right.variablesin()) > 0:
+            elif isinstance(ranking.right, Value):
+                dec = BiOp(left, "<", add_prev_suffix(left))
+                inc = BiOp(left, ">", add_prev_suffix(left))
+            else:
                 sort = sorted([left, right], key=lambda x: str(x))
                 if sort[0] == left:
                     dec = BiOp(ranking, "<", add_prev_suffix(ranking))
@@ -77,10 +80,17 @@ def ranking_refinement(ranking, invars, there_is_inc=True):
                     dec = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
                     inc = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
         elif ranking.op == "+":
-            sort = sorted([left, right], key=lambda x: str(x))
-            new_ranking = BiOp(sort[0], "+", sort[1])
-            inc = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
-            dec = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
+            if isinstance(ranking.left, Value):
+                dec = BiOp(right, "<", add_prev_suffix(right))
+                inc = BiOp(right, ">", add_prev_suffix(right))
+            elif isinstance(ranking.right, Value):
+                dec = BiOp(left, "<", add_prev_suffix(left))
+                inc = BiOp(left, ">", add_prev_suffix(left))
+            else:
+                sort = sorted([left, right], key=lambda x: str(x))
+                new_ranking = BiOp(sort[0], "+", sort[1])
+                inc = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
+                dec = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
         else:
             inc = BiOp(ranking, ">", add_prev_suffix(ranking))
             dec = BiOp(ranking, "<", add_prev_suffix(ranking))
