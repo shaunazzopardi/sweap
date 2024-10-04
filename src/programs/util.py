@@ -647,12 +647,26 @@ def binary_rep(vars):
     return bin_vars, rep
 
 
-def var_incremented_or_decremented(program, pred):
+def var_incremented_or_decremented(program, f):
     updates = [u for trans in program.transitions for u in trans.action]
-    vars_in_pred = pred.variablesin()
+    vars_in_f = f.variablesin()
 
+    there_is_inc = False
+    there_is_dec = False
     for u in set(updates):
-        if u.left in vars_in_pred and u.left in u.right.variablesin() and u.left != u.right:
-            return True
+        if u.left in vars_in_f:
+            if u.left == u.right:
+                continue
+            else:
+                dec = BiOp(add_prev_suffix(f), ">", f)
+                inc = BiOp(add_prev_suffix(f), "<", f)
+                act = BiOp(u.left, "==", add_prev_suffix(u.right))
+                if sat(conjunct(dec, act), program.symbol_table):
+                    there_is_dec = True
+                if sat(conjunct(inc, act), program.symbol_table):
+                    there_is_inc = True
 
-    return False
+                if there_is_dec and there_is_inc:
+                    break
+
+    return there_is_dec, there_is_inc
