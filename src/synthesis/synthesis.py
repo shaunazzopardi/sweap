@@ -331,7 +331,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             else:
                 return True, mm_hoa
 
-        if add_tran_preds_after_state_abstraction:
+        if False and add_tran_preds_after_state_abstraction:
             add_tran_preds_immediately = True
             to_add_rankings_for.extend(predicate_abstraction.state_predicates)
 
