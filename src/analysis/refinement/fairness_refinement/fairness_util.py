@@ -154,12 +154,12 @@ def liveness_step(program,
                   symbol_table):
     conf = Config.getConfig()
     if any(v for v in exit_cond.variablesin() if "_prev" in str(v)):
-        return False, None
+        return False, (None, None)
 
     body = [t.action for t, _, _ in concrete_body]
     reduced, reduced_body, vars_relevant_to_exit = cones_of_influence_reduction(exit_cond, body)
     if len(reduced_body) == 0:
-        return False, None
+        return False, (None, None)
 
     irrelevant_vars = [v for v in program.local_vars if v not in vars_relevant_to_exit]
     irrelevant_vars += program.env_events
@@ -220,7 +220,7 @@ def liveness_step(program,
     for cond in conditions:
         # this avoids loops that are not entered
         if not sat(conjunct(cond, neg(exit_cond)), symbol_table):
-            return False, None
+            return False, (None, None)
         # for exit_pred in disjuncts_in_exit_pred_grounded:
         if len(exit_cond.variablesin()) == 0:
             continue
@@ -234,7 +234,7 @@ def liveness_step(program,
         if not success:
             continue
         elif output == "already seen":
-            return False, None
+            return False, (None, None)
         elif sufficient_entry_condition is None:
             sufficient_entry_condition = cond
 
@@ -248,18 +248,18 @@ def liveness_step(program,
                         used_rankings.add(ranking)
                         tran_preds, cons = ranking_refinement(ranking, invars)
                         _, state_preds, constraint = cons[0]
-                        return True, ((state_preds, tran_preds), {constraint})
+                        return True, (((state_preds, tran_preds), {constraint}), None)
 
         if not conf.only_ranking:
             if conditions[-1] == cond:
-                return False, None
+                return False, (None, None)
             else:
-                return True, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter, symbol_table)
+                return True, (None, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter, symbol_table))
 
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 
     if not conf.only_ranking and sufficient_entry_condition != conditions[-1]:
-        return True, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter, symbol_table)
+        return True, (None, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter, symbol_table))
     else:
-        return False, None
+        return False, (None, None)

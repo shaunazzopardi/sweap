@@ -208,7 +208,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_state_preds = (set(new_state_preds))
 
     new_tran_preds = set()
-    new_ltl_constraints = []
+    new_ranking_constraints = []
+    new_structural_loop_constraints = []
 
     rankings = []
     if config.Config.getConfig()._natural_fairness:
@@ -282,7 +283,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         for tran_preds, st_prds, constraint in rankings:
             new_tran_preds.update(tran_preds)
             new_state_preds.update(st_prds)
-            new_ltl_constraints.append(constraint)
+            new_ranking_constraints.append(constraint)
 
         rankings.clear()
         to_add_rankings_for.clear()
@@ -297,11 +298,13 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, True)
         logging.info("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
 
-        predicate_abstraction.add_constraints(new_ltl_constraints)
+        predicate_abstraction.add_ranking_constraints(new_ranking_constraints)
+        predicate_abstraction.add_structural_loop_constraints(new_structural_loop_constraints)
 
         new_state_preds.clear()
         new_tran_preds.clear()
-        new_ltl_constraints.clear()
+        new_ranking_constraints.clear()
+        new_structural_loop_constraints.clear()
 
         ## LTL abstraction
         start = time.time()
@@ -365,8 +368,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         if compatible:
             return False, result
         else:
-            (new_state_preds, new_tran_preds), new_ltl_constraints, loop_counter = result
-            if not(len(new_state_preds) > 0 or len(new_tran_preds) > 0 or len(new_ltl_constraints) > 0):
+            (new_state_preds, new_tran_preds), new_ranking_constraints, new_structural_loop_constraints, loop_counter = result
+            if not(len(new_state_preds) > 0 or len(new_tran_preds) > 0 or len(new_ranking_constraints) > 0):
                 raise Exception("No new predicates or constraints found, but not compatible. Error in tool, "
                                 "or program is non-deterministic.")
 

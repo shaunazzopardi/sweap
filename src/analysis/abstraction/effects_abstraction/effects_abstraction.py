@@ -54,7 +54,8 @@ class EffectsAbstraction(PredicateAbstraction):
         self.transition_predicates = []
 
         self.interpolants = set()
-        self.ltl_constraints = {}
+        self.ranking_constraints = {}
+        self.structural_loop_constraints = []
         self.loops = []
         self.var_relabellings = {}
 
@@ -255,16 +256,23 @@ class EffectsAbstraction(PredicateAbstraction):
 
         # self.pretty_print_abstract_effect()
 
-    def add_constraints(self, new_ltl_constraints: dict[Formula, [Formula]]):
-        for dec, constraint in new_ltl_constraints:
+    def add_ranking_constraints(self, new_ranking_constraints: dict[Formula, [Formula]]):
+        for dec, constraint in new_ranking_constraints:
             processed_ltl_constraints = []
             processed = constraint.right.replace_formulas(self.var_relabellings)
             processed_ltl_constraints.append(processed)
             processed_dec = self.var_relabellings[dec]
-            if processed_dec not in self.ltl_constraints.keys():
-                self.ltl_constraints[processed_dec] = processed_ltl_constraints
+            if processed_dec not in self.ranking_constraints.keys():
+                self.ranking_constraints[processed_dec] = processed_ltl_constraints
             else:
-                self.ltl_constraints[processed_dec].extend(processed_ltl_constraints)
+                self.ranking_constraints[processed_dec].extend(processed_ltl_constraints)
+
+    def add_structural_loop_constraints(self, new_structural_loop_constraints):
+        for constraint in new_structural_loop_constraints:
+            processed_ltl_constraints = []
+            processed = constraint.right.replace_formulas(self.var_relabellings)
+            processed_ltl_constraints.append(processed)
+            self.structural_loop_constraints.append(processed_ltl_constraints)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:

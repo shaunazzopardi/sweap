@@ -307,7 +307,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
                  + [env, init_state]
 
     loop_vars = []
-    for ltl_constraint in effects_abstraction.ltl_constraints:
+    for ltl_constraint in effects_abstraction.ranking_constraints:
         all_preds = atomic_predicates(ltl_constraint)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
@@ -322,7 +322,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     original_guarantees_expanded = [expand_ltl_to_env_con_steps(g, original_LTL_problem.env_props)
                                     for g in original_LTL_problem.guarantees]
 
-    assumptions = turn_logic + effects_abstraction.ltl_constraints + ltl_abstraction + original_assumptions_expanded
+    assumptions = turn_logic + effects_abstraction.ranking_constraints + ltl_abstraction + original_assumptions_expanded
     guarantees = original_guarantees_expanded
 
     ltl_synthesis_problem = AbstractLTLSynthesisProblem(original_LTL_problem.env_props,

@@ -95,10 +95,16 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
 
     loop_vars = []
     loop_ltl_constraints = []
-    for dec, ltl_constraints in effects_abstraction.ltl_constraints.items():
+    for dec, ltl_constraints in effects_abstraction.ranking_constraints.items():
         f = implies(G(F(dec)), conjunct_formula_set(ltl_constraints))
         loop_ltl_constraints.append(f)
         all_preds = {dec}
+        for c in ltl_constraints:
+            all_preds |= atomic_predicates(c)
+        loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
+
+    for ltl_constraints in effects_abstraction.structural_loop_constraints:
+        all_preds = set()
         for c in ltl_constraints:
             all_preds |= atomic_predicates(c)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
@@ -108,7 +114,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
 
     states_binary_map = {Variable(k): v for k, v in program.states_binary_map.items()}
 
-    assumptions = (loop_ltl_constraints + ltl_abstraction
+    assumptions = (loop_ltl_constraints + effects_abstraction.structural_loop_constraints + ltl_abstraction
                    + [a.replace_formulas(states_binary_map) for a in original_LTL_problem.assumptions])
     guarantees = [g.replace_formulas(states_binary_map) for g in original_LTL_problem.guarantees]
 

@@ -63,11 +63,19 @@ def refinement_standard(program,
 
     if success:
         loop_counter = loop_counter + 1
-        (new_state_preds, new_tran_preds), new_ltl_constraints = result
+        if result[0] is None:
+            (new_state_preds, new_tran_preds), new_structural_loop_constraints = result[1]
+            new_ltl_constraints = set()
+        elif result[1] is None:
+            (new_state_preds, new_tran_preds), new_ltl_constraints  = result[0]
+            new_structural_loop_constraints = set()
+        else:
+            raise Exception("Expected success to be true")
     else:
         new_state_preds = set()
         new_tran_preds = set()
         new_ltl_constraints = set()
+        new_structural_loop_constraints = set()
 
     if eager or (not success and result is None):
         ## do safety refinement
@@ -87,4 +95,4 @@ def refinement_standard(program,
         else:
             raise Exception("Could not find any new state predicates.")
 
-    return False, ((new_state_preds, new_tran_preds), new_ltl_constraints, loop_counter)
+    return False, ((new_state_preds, new_tran_preds), new_ltl_constraints, new_structural_loop_constraints, loop_counter)
