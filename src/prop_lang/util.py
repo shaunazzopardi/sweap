@@ -1297,6 +1297,19 @@ def strip_outer_mathexpr(f):
         return f
 
 
+def strip_mathexpr(f):
+    if isinstance(f, Value) or isinstance(f, Variable):
+        return f
+    elif isinstance(f, MathExpr):
+        return strip_mathexpr(f.formula)
+    elif isinstance(f, UniOp):
+        return UniOp(f.op, strip_mathexpr(f.right))
+    elif isinstance(f, BiOp):
+        return BiOp(strip_mathexpr(f.left), f.op, strip_mathexpr(f.right))
+    else:
+        return f
+
+
 def math_exprs_in_formula(f):
     if isinstance(f, MathExpr) or should_be_math_expr(f):
         return {f}
