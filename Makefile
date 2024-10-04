@@ -1,6 +1,6 @@
 DIRNAME := results
-TOOLS := rpg-stela rpgsolve rpgsolve-syn sweap sweap-noacc
-OTHER_TOOLS := temos raboniel
+TOOLS := rpg-stela rpgsolve-syn sweap sweap-noacc
+OTHER_TOOLS := temos raboniel rpgsolve
 TIMEOUT := 1200
 
 .PHONY: all others everything clean $(tools)
@@ -13,6 +13,7 @@ everything: all others
 
 clean:
 	-rm -rf $(DIRNAME)/
+	-rm -rf benchmarks/scripts/logs
 
 $(TOOLS) $(OTHER_TOOLS): %: $(addsuffix -0, $(addprefix $(DIRNAME)/out-, %))
 
