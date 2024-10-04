@@ -1279,10 +1279,13 @@ def normalise_mathexpr(mathexpr):
 def ranking_from_predicate(predicate):
     if isinstance(predicate, MathExpr):
         if predicate.formula.op == "<=":
-            if predicate.formula.left == Value("0"):
+            if len(predicate.formula.left.variablesin()) == 0:
                 return predicate.formula.right, predicate.formula
             else:
-                return BiOp(predicate.formula.right, "-", predicate.formula.left), predicate.formula
+                if len(predicate.formula.right.variablesin()) == 0:
+                    return BiOp(Value("0"), "-", predicate.formula.left), predicate.formula
+
+            return BiOp(predicate.formula.right, "-", predicate.formula.left), predicate.formula
     return None
     # raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
 
