@@ -49,11 +49,13 @@ tools = {
 chain_benchs = {
     f"chain-{i}": BenchInfo(True, aliases={
         "rpgsolve": f"chain_{i}",
+        "rpgsolve-syn": f"chain_{i}",
         "rpg-stela": f"chain_{i}"})
     for i in (4, 5, 6, 7)}
 chain_simple_benchs = {
     f"chain-simple-{i}": BenchInfo(True, aliases={
         "rpgsolve": f"chain_simple_{i}",
+        "rpgsolve-syn": f"chain_simple_{i}",
         "rpg-stela": f"chain_simple_{i}"})
     for i in (5, 10, 20, 30, 40, 50, 60, 70)}
 collect_benchs = {
