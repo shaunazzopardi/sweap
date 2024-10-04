@@ -208,7 +208,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_state_preds = (set(new_state_preds))
 
     new_tran_preds = set()
-    new_ltl_constraints = set()
+    new_ltl_constraints = []
 
     rankings = []
     if config.Config.getConfig()._natural_fairness:
@@ -269,21 +269,20 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             for state_pred in to_add_rankings_for:
                 if isinstance(state_pred, MathExpr) or should_be_math_expr(state_pred):
                     # checking if any variable in pred incremented or decremented in program
-                    if var_incremented_or_decremented(program, state_pred):
-                        result = ranking_from_predicate(state_pred)
-                        if result is None: continue
-                        f, invar = result
-                        rankings.append(ranking_refinement(f, [invar]))
+                    result = ranking_from_predicate(state_pred)
+                    if result is None: continue
+                    f, invar = result
+                    there_is_dec, there_is_inc = var_incremented_or_decremented(program, f)
+
+                    if there_is_dec:
+                        rankings.append(ranking_refinement(f, [invar], there_is_inc))
             add_tran_preds_immediately = False
 
-        done_rankings = set()
-        for tran_preds, constraints in rankings:
-            for finite_re, st_prds, ltl_constraints in constraints:
-                # if not already_an_equivalent_ranking(done_rankings, finite_re):
-                new_tran_preds.update(tran_preds)
-                new_state_preds.update(st_prds)
-                new_ltl_constraints.add(ltl_constraints)
-                done_rankings.add(finite_re)
+        for tran_preds, st_prds, constraint in rankings:
+            new_tran_preds.update(tran_preds)
+            new_state_preds.update(st_prds)
+            new_ltl_constraints.append(constraint)
+
         rankings.clear()
         to_add_rankings_for.clear()
 

@@ -11,7 +11,7 @@ from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
 from prop_lang.util import atomic_predicates, G, X, label_pred, neg, conjunct_formula_set, conjunct, \
     disjunct_formula_set, iff, simplify_formula_without_math, cnf_safe, implies, sat, true, bdd_simplify_ltl_formula, \
-    is_true
+    is_true, F
 from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
@@ -94,8 +94,13 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     pred_props = program.bin_state_vars + list(predicate_vars)
 
     loop_vars = []
-    for ltl_constraint in effects_abstraction.ltl_constraints:
-        all_preds = atomic_predicates(ltl_constraint)
+    loop_ltl_constraints = []
+    for dec, ltl_constraints in effects_abstraction.ltl_constraints.items():
+        f = implies(G(F(dec)), conjunct_formula_set(ltl_constraints))
+        loop_ltl_constraints.append(f)
+        all_preds = {dec}
+        for c in ltl_constraints:
+            all_preds |= atomic_predicates(c)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
     pred_props.extend(list(set(loop_vars)))
@@ -103,7 +108,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
 
     states_binary_map = {Variable(k): v for k, v in program.states_binary_map.items()}
 
-    assumptions = (effects_abstraction.ltl_constraints + ltl_abstraction
+    assumptions = (loop_ltl_constraints + ltl_abstraction
                    + [a.replace_formulas(states_binary_map) for a in original_LTL_problem.assumptions])
     guarantees = [g.replace_formulas(states_binary_map) for g in original_LTL_problem.guarantees]
 

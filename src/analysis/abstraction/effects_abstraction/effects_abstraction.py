@@ -54,7 +54,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.transition_predicates = []
 
         self.interpolants = set()
-        self.ltl_constraints = []
+        self.ltl_constraints = {}
         self.loops = []
         self.var_relabellings = {}
 
@@ -255,12 +255,16 @@ class EffectsAbstraction(PredicateAbstraction):
 
         # self.pretty_print_abstract_effect()
 
-    def add_constraints(self, new_ltl_constraints: [Formula]):
-        processed_ltl_constraints = []
-        for constraint in new_ltl_constraints:
-            processed = constraint.replace_formulas(self.var_relabellings)
+    def add_constraints(self, new_ltl_constraints: dict[Formula, [Formula]]):
+        for dec, constraint in new_ltl_constraints:
+            processed_ltl_constraints = []
+            processed = constraint.right.replace_formulas(self.var_relabellings)
             processed_ltl_constraints.append(processed)
-        self.ltl_constraints.extend(processed_ltl_constraints)
+            processed_dec = self.var_relabellings[dec]
+            if processed_dec not in self.ltl_constraints.keys():
+                self.ltl_constraints[processed_dec] = processed_ltl_constraints
+            else:
+                self.ltl_constraints[processed_dec].extend(processed_ltl_constraints)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:

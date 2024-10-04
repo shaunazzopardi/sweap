@@ -15,7 +15,8 @@ from programs.util import get_differently_value_vars, ground_predicate_on_vars, 
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (conjunct, conjunct_formula_set, neg, is_boolean, type_constraints, is_tautology, sat,
-                            atomic_predicates, disjunct, G, F, implies, iff, stringify_pred, var_to_predicate_alt)
+                            atomic_predicates, disjunct, G, F, implies, iff, stringify_pred, var_to_predicate_alt,
+                            strip_mathexpr)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from synthesis.moore_machine import MooreMachine
@@ -57,20 +58,52 @@ def ranking_refinement_both_sides(ranking, invar_pos, invar_neg):
     return tran_preds, constraints
 
 
-def ranking_refinement(ranking, invars):
-    dec = BiOp(add_prev_suffix(ranking), ">", ranking)
-    inc = BiOp(add_prev_suffix(ranking), "<", ranking)
+def ranking_refinement(ranking, invars, there_is_inc=True):
+    ranking = strip_mathexpr(ranking)
+    if isinstance(ranking, BiOp):
+        left = (ranking.left)
+        right = (ranking.right)
+        if ranking.op == "-":
+            if str(ranking.left) == '0':
+                dec = BiOp(right, ">", add_prev_suffix(right))
+                inc = BiOp(right, "<", add_prev_suffix(right))
+            elif len(left.variablesin()) > 0 and len(right.variablesin()) > 0:
+                sort = sorted([left, right], key=lambda x: str(x))
+                if sort[0] == left:
+                    dec = BiOp(ranking, "<", add_prev_suffix(ranking))
+                    inc = BiOp(ranking, ">", add_prev_suffix(ranking))
+                else:
+                    new_ranking = BiOp(sort[0], "-", sort[1])
+                    dec = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
+                    inc = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
+        elif ranking.op == "+":
+            sort = sorted([left, right], key=lambda x: str(x))
+            new_ranking = BiOp(sort[0], "+", sort[1])
+            inc = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
+            dec = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
+        else:
+            inc = BiOp(ranking, ">", add_prev_suffix(ranking))
+            dec = BiOp(ranking, "<", add_prev_suffix(ranking))
+    else:
+        inc = BiOp(ranking, ">", add_prev_suffix(ranking))
+        dec = BiOp(ranking, "<", add_prev_suffix(ranking))
     tran_preds = {dec, inc}
 
     if len(invars) > 0:
         inv = conjunct_formula_set(invars)
         state_preds = atomic_predicates(inv)
-        constraint = implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))
+        if not there_is_inc:
+            constraint = implies(G(F(dec)), G(F(neg(inv))))
+        else:
+            constraint = implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))
     else:
-        constraint = implies(G(F(dec)), G(F(inc)))
-        state_preds = set()
+        if there_is_inc:
+            constraint = implies(G(F(dec)), G(F(inc)))
+            state_preds = set()
+        else:
+            return set(), []
 
-    return tran_preds, [(dec, state_preds, constraint)]
+    return tran_preds, state_preds, (dec, constraint)
 
 
 def find_ranking_function(symbol_table,
