@@ -16,12 +16,14 @@ mkdir logs 2>/dev/null
 
 run_sweap() {
   tmpout=logs/out-sweap-noacc--`basename $1`.log
+  tmperr=`mktemp --suffix .err.log`
   echo "Run Sweap (no acceleration) on $1 at $(date +%H:%M:%S)"
   echo "Benchmark: $1" >> $OUTFILE
   s=`date +%s%N`
-  PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --synthesise  --p $1 > $tmpout
-  grep "^\(Unr\|R\)ealizable\." $tmpout >> $OUTFILE
+  PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --synthesise  --p $1 > $tmpout 2> $tmperr
   e=`date +%s%N`
+  grep "^\(Unr\|R\)ealizable\." $tmpout >> $OUTFILE
+  grep "Killed" $tmperr && echo "OOM" >> $OUTFILE
   echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
   echo -n "Structural refinements: " >> $OUTFILE
   grep "Structural Refinement:" $tmpout | wc -l >> $OUTFILE
@@ -38,7 +40,3 @@ do
   run_sweap $f
 done
 
-for f in `ls $BENCHMARKS_DIR/finite/*.prog`
-do
-  run_sweap $f
-done

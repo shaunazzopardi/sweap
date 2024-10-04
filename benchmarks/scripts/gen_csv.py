@@ -178,7 +178,7 @@ finite_benchs = {
 
 
 runtime_re = re.compile(r"Runtime: ([0-9]+)ms")
-timeout = 600000
+timeout = 1200000
 
 base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
 
@@ -221,7 +221,7 @@ def get_result(tool, tool_info, bench, bench_info, files):
     return result
 
 writer = csv.writer(sys.stdout)
-for benchs in (infinite_benchs, finite_benchs):
+for benchs in (infinite_benchs,):
     writer.writerow(["row-id", "benchmark", *tools])
     for i, b in enumerate(benchs, start=2):
         row = [i, b]
@@ -234,4 +234,4 @@ for benchs in (infinite_benchs, finite_benchs):
                 result = get_result(tool, tool_info, b, bench_info, out_files[tool])
             row.append(result)
         writer.writerow(row)
-    print("-"*30)
+    print()

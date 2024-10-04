@@ -16,24 +16,24 @@ mkdir logs 2>/dev/null
 
 run_sweap() {
   tmpout=logs/out-sweap--`basename $1`.log
+  tmperr=`mktemp --suffix .err.log`
   echo "Run Sweap on $1 at $(date +%H:%M:%S)"
   echo "Benchmark: $1" >> $OUTFILE
   s=`date +%s%N`
-  PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --accelerate --synthesise  --p $1 > $tmpout
-  grep "^\(Unr\|R\)ealizable\." $tmpout >> $OUTFILE
+  PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --accelerate --synthesise  --p $1 > $tmpout 2> $tmperr
   e=`date +%s%N`
+  grep "^\(Unr\|R\)ealizable\." $tmpout >> $OUTFILE
+  grep "Killed" $tmperr && echo "OOM" >> $OUTFILE
   echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
   echo -n "Structural refinements: " >> $OUTFILE
   grep "Structural Refinement:" $tmpout | wc -l >> $OUTFILE
   echo "" >> $OUTFILE
 }
 
-for f in `ls $BENCHMARKS_DIR/*.prog`
-do
-  run_sweap $f
-done
+run_sweap $BENCHMARKS_DIR/robot-cat-real-2d.prog
+exit
 
-for f in `ls $BENCHMARKS_DIR/finite/*.prog`
+for f in `ls $BENCHMARKS_DIR/*.prog`
 do
   run_sweap $f
 done

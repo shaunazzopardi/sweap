@@ -39,7 +39,3 @@ do
   run_rpgsolve $f
 done
 
-for f in `ls $BENCHMARKS_DIR/finite/*.rpg`
-do
-  run_rpgsolve $f
-done
