@@ -650,6 +650,8 @@ def var_incremented_or_decremented(program, f):
     updates = [u for trans in program.transitions for u in trans.action]
     vars_in_f = f.variablesin()
 
+    only_updated_by_constants = True
+
     there_is_inc = False
     there_is_dec = False
     for u in set(updates):
@@ -662,10 +664,14 @@ def var_incremented_or_decremented(program, f):
                 act = BiOp(u.left, "==", add_prev_suffix(u.right))
                 if sat(conjunct(dec, act), program.symbol_table):
                     there_is_dec = True
+                    if len(u.right.variablesin()) > 0:
+                        only_updated_by_constants = False
                 if sat(conjunct(inc, act), program.symbol_table):
                     there_is_inc = True
+                    if len(u.right.variablesin()) > 0:
+                        only_updated_by_constants = False
 
                 if there_is_dec and there_is_inc:
                     break
 
-    return there_is_dec, there_is_inc
+    return only_updated_by_constants, there_is_dec, there_is_inc

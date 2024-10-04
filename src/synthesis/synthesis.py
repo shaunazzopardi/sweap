@@ -273,9 +273,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     result = ranking_from_predicate(state_pred)
                     if result is None: continue
                     f, invar = result
-                    there_is_dec, there_is_inc = var_incremented_or_decremented(program, f)
+                    only_updated_by_constants, there_is_dec, there_is_inc = var_incremented_or_decremented(program, f)
 
-                    if there_is_dec:
+                    if not only_updated_by_constants and there_is_dec:
                         rankings.append(ranking_refinement(f, [invar], there_is_inc))
             add_tran_preds_immediately = False
 
