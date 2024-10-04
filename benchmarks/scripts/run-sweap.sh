@@ -30,9 +30,6 @@ run_sweap() {
   echo "" >> $OUTFILE
 }
 
-run_sweap $BENCHMARKS_DIR/robot-cat-real-2d.prog
-exit
-
 for f in `ls $BENCHMARKS_DIR/*.prog`
 do
   run_sweap $f
