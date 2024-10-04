@@ -241,19 +241,18 @@ def ground_formula_on_ce_state_with_index(formula: Formula, state: dict, i) -> F
     return formula.replace(to_replace_with)
 
 
-def reduce_up_to_iff(old_preds, new_preds, symbol_table):
+def reduce_up_to_iff(old_preds, new_preds, symbol_table, tautology_check=True):
     if len(new_preds) == 0:
         return old_preds
-    # if len(old_preds) == 0:
-    #     return new_preds
 
     keep_these = set()
     remove_these = set()
 
     for p in set(new_preds):
         if p and neg(p) not in remove_these and \
+            not isinstance(p, Value) and not isinstance(neg(p), Value) and \
                 not has_equiv_pred(p, set(old_preds) | keep_these, symbol_table) and \
-                not (is_tautology(p, symbol_table) or is_tautology(neg(p), symbol_table)):
+                (not tautology_check or not (is_tautology(p, symbol_table) or is_tautology(neg(p), symbol_table))):
             keep_these.add(p)
         else:
             remove_these.add(p)

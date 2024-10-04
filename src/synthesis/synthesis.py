@@ -253,7 +253,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     to_add_rankings_for = []
 
-    new_state_preds |= set(ltl_state_preds)
     new_new_state_preds = set()
     for st_pred in new_state_preds:
         if isinstance(st_pred, MathExpr) or should_be_math_expr(st_pred):
@@ -261,10 +260,10 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             if normalised is None:
                 normalised = st_pred
             new_st_preds = atomic_predicates(normalised)
-            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, new_st_preds, predicate_abstraction.symbol_table)
+            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, new_st_preds, predicate_abstraction.symbol_table, tautology_check=False)
         else:
-            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, [st_pred], predicate_abstraction.symbol_table)
-    new_state_preds = new_new_state_preds
+            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, [st_pred], predicate_abstraction.symbol_table, tautology_check=False)
+    new_state_preds = new_new_state_preds | set(ltl_state_preds)
     while True:
         if add_tran_preds_immediately and not only_safety:
             to_add_rankings_for.extend(new_state_preds)
