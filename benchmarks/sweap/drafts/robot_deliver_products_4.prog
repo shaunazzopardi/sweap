@@ -1,10 +1,10 @@
 program robot_collect_samples_v1 {
     STATES {
-        moveToOffice : init, office, office1, office2, office3, office4, store, bank, moveToBank, moveToStore, updateProductCode
+        moveToOffice : init, office, office1, office2, store, bank, moveToBank, moveToStore, updateProductCode
     }
 
     ENVIRONMENT EVENTS {
-        stop
+        e, f, g, stop
     }
 
     CONTROLLER EVENTS {
@@ -14,6 +14,10 @@ program robot_collect_samples_v1 {
     VALUATION {
         trackPos : integer := 0;
         neededPieces : integer := 0;
+        d1 : integer := 0;
+        d2 : integer := 0;
+        d3 : integer := 0;
+        d4 : integer := 0;
         sparePieces : integer := 0;
         productCode : integer := 0;
         money : integer := 0;
@@ -35,22 +39,22 @@ program robot_collect_samples_v1 {
         moveToStore -> moveToStore [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
         moveToStore -> moveToStore [trackPos != 25 & a],
 
-        office -> office1 [productCode == 1 $ neededPieces := 0; sparePieces := 0; money := 0],
-        office -> office2 [productCode == 2 $ neededPieces := 0; sparePieces := 0; money := 0],
-        office -> office3 [productCode == 3 $ neededPieces := 0; sparePieces := 0; money := 0],
-        office -> office4 [!(productCode == 1) & !(productCode == 2) & !(productCode == 3) $ neededPieces := 0; sparePieces := 0; money := 0],
+        office -> moveToBank [stop & productCode == 1 $ neededPieces := d1; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
+        office -> moveToBank [stop & productCode == 2 $ neededPieces := d2; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
+        office -> moveToBank [stop & productCode == 3 $ neededPieces := d3; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
+        office -> moveToBank [stop & productCode != 1 & productCode != 2 & productCode != 3 $ neededPieces := d4; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
 
-        office1 -> office1 [!stop $ neededPieces := neededPieces + 1],
-        office1 -> moveToBank [stop],
+        office -> office [!e & !f & g & !stop $ d1 := d1 + 1],
+        office -> office [!e & f & !g & !stop $ d1 := d1 - 1],
 
-        office2 -> office2 [!stop $ neededPieces := neededPieces + 1],
-        office2 -> moveToBank [stop],
+        office -> office [e & !f & !g & !stop $ d2 := d2 + 1],
+        office -> office [!e & f & g & !stop $ d2 := d2 - 1],
 
-        office3 -> office3 [!stop $ neededPieces := neededPieces + 1],
-        office3 -> moveToBank [stop],
+        office -> office [e & !f & g & !stop $ d3 := d3 + 1],
+        office -> office [e & f & !g & !stop $ d3 := d3 - 1],
 
-        office4 -> office4 [!stop $ neededPieces := neededPieces + 1],
-        office4 -> moveToBank [stop],
+        office -> office [e & f & g & !stop $ d4 := d4 + 1],
+        office -> office [!e & !f & !g & !stop $ d4 := d4 - 1],
 
         bank -> bank [money < neededPieces $ money := money + 1],
         bank -> moveToStore [!(money < neededPieces)],
@@ -63,6 +67,6 @@ program robot_collect_samples_v1 {
     }
 
     SPECIFICATION {
-        (G F stop) -> G F office
+        G F office
     }
 }
