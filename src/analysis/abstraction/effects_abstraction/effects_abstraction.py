@@ -76,7 +76,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.init_program_trans = []
 
         all_trans = orig_transitions + stutter
-        self.init_conf = MathExpr(conjunct_typed_valuation_set(self.program.valuation))
+        self.init_conf = (conjunct_typed_valuation_set(self.program.valuation))
         init_orig_trans_map = {t: t.add_condition(self.init_conf) for t in all_trans if
                                t.src == self.program.initial_state and sat(conjunct(self.init_conf, t.condition),
                                                                            self.program.symbol_table)}

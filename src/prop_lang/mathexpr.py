@@ -9,6 +9,11 @@ from prop_lang.variable import Variable
 class MathExpr(Formula):
 
     def __init__(self, f: Formula):
+        if isinstance(f, BiOp):
+            if f.op in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "=", "!="]:
+                self.formula = f
+            else:
+                raise Exception("Unsupported operator: " + f.op)
         self.formula = f
 
     def __str__(self):

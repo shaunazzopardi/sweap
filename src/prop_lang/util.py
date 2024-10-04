@@ -663,8 +663,6 @@ def negate(formula):
                         BiOp(formula.left, "<", formula.right))
         else:
             return UniOp("!", formula)
-    elif isinstance(formula, MathExpr):
-        return MathExpr(negate(formula.formula))
     else:
         return UniOp("!", formula).simplify()
 
