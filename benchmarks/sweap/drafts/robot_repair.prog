@@ -39,11 +39,11 @@ program robot_repair {
         countBrokenPieces -> countBrokenPieces [!einc & !stop $ neededSparePieces := neededSparePieces - 1],
         countBrokenPieces -> base [stop],
 
-        stock -> stock [sparePieces <= neededSparePieces $ sparePieces := sparePieces + 1],
-        stock -> moveToDevice [!(sparePieces <= neededSparePieces)],
+        stock -> stock [neededSparePieces <= sparePieces $ sparePieces := sparePieces + 1],
+        stock -> moveToDevice [!(neededSparePieces <= sparePieces)],
 
-        repair -> moveToBase [sparePieces <= neededSparePieces $ workingDevice := true; sparePieces := 0],
-        repair -> repair [!(sparePieces <= neededSparePieces)]
+        repair -> moveToBase [neededSparePieces <= sparePieces $ workingDevice := true; sparePieces := 0],
+        repair -> repair [!(neededSparePieces <= sparePieces)]
     }
 
     SPECIFICATION {
