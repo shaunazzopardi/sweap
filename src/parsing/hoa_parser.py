@@ -47,6 +47,8 @@ def hoa_to_transitions(hoa, parallelise=True):
         arg1 = []
         arg2 = []
         for cond in cond_to_src_tgt.keys():
+            if "END--" in cond:
+                break
             arg1.append(to_replace)
             arg2.append(cond)
         with Pool(config.Config.getConfig().workers) as pool:
