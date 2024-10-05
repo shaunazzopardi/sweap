@@ -11,7 +11,7 @@ writer = csv.writer(sys.stdout)
 prefix = re.compile(r"out-sweap(-noacc)?-+")
 
 skip = (
-    "solitary", "infinite-race", "chain-simple-param-70",
+    "infinite-race", "chain-simple-param-70",
     "robot-collect-samples-v4",
     *(f"{b}-paper-{n}" for n in (5, 10, 50) for b in ("arbiter", "elevator")),
     *(f"arbiter-paper-unreal-{n}" for n in (5, 10, 50)),
