@@ -671,7 +671,7 @@ def var_incremented_or_decremented(program, f):
                     if len(u.right.variablesin()) > 0:
                         only_updated_by_constants = False
 
-                if there_is_dec and there_is_inc:
+                if there_is_dec and there_is_inc and not only_updated_by_constants:
                     break
 
     return only_updated_by_constants, there_is_dec, there_is_inc
