@@ -587,8 +587,8 @@ def compute_abstract_effect_with_p_guard_update(arg):
                          vars_used_in_action_without_identity)
     # if the predicate is a state predicate and is not mentioned in both the guard and action
     if not is_tran_pred(predicate) and not variable_used_in_guard and not value_modified:
+        # TODO add these predicates to guard lazily, only when needed
         invars = [predicate]
-        return g, u, gu_formula, invars, constants, new_effects
     # if the predicate is an inc or dec transition predicate and is not mentioned in the action
     elif (is_tran_pred(predicate)
           and isinstance(predicate, BiOp) and predicate.op in ["<", ">"]  # This is only applicable for decs and incs
