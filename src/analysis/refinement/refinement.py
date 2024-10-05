@@ -77,7 +77,7 @@ def refinement_standard(program,
         new_ltl_constraints = set()
         new_structural_loop_constraints = set()
 
-    if eager or (not success and result is None):
+    if eager or not success:
         ## do safety refinement
         start = time.time()
         print("trying safety refinement")
