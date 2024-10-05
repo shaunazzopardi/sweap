@@ -20,7 +20,7 @@ run_sweap() {
   echo "Run Sweap (no acceleration) on $1 at $(date +%H:%M:%S)"
   echo "Benchmark: $1" >> $OUTFILE
   s=`date +%s%N`
-  PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --synthesise  --p $1 > $tmpout 2> $tmperr
+  PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --synthesise  --p $1 > $tmpout 2> $tmperr || cat $tmperr
   e=`date +%s%N`
   grep "^\(Unr\|R\)ealizable\." $tmpout >> $OUTFILE
   grep "Killed" $tmperr && echo "OOM" >> $OUTFILE
