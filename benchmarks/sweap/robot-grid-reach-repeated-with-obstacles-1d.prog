@@ -21,12 +21,10 @@ program robot-grid-reach-with-obstacles-1d {
         setvars -> move [!estay],
 
         goal -> setvars [],
-        move -> goal [x == 0 && y == 0],
-        move -> move [!(x == 0 && y == 0) && (!cstay || estay)],
-        move -> move [!(x == 0 && y == 0) && cstay && !estay && cinc $ x := x + 1],
-        move -> move [!(x == 0 && y == 0) && cstay && !estay && !cinc $ x := x - 1],
-        move -> move [!(x == 0 && y == 0) && cstay && !estay && cinc $ y := y + 1],
-        move -> move [!(x == 0 && y == 0) && cstay && !estay && !cinc $ y := y - 1]
+        move -> goal [x == 0],
+        move -> move [!(x == 0) && (!cstay || estay)],
+        move -> move [!(x == 0) && cstay && !estay && cinc $ x := x + 1],
+        move -> move [!(x == 0) && cstay && !estay && !cinc $ x := x - 1]
     }
 
     SPECIFICATION {
