@@ -270,7 +270,7 @@ class EffectsAbstraction(PredicateAbstraction):
     def add_structural_loop_constraints(self, new_structural_loop_constraints):
         for constraint in new_structural_loop_constraints:
             processed_ltl_constraints = []
-            processed = constraint.right.replace_formulas(self.var_relabellings)
+            processed = constraint.replace_formulas(self.var_relabellings)
             processed_ltl_constraints.append(processed)
             self.structural_loop_constraints.extend(processed_ltl_constraints)
 
