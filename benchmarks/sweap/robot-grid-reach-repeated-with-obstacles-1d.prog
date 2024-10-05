@@ -4,7 +4,7 @@ program robot-grid-reach-with-obstacles-1d {
     }
 
     ENVIRONMENT EVENTS {
-        einc, estay, obstacle
+        einc, estay
     }
 
     CONTROLLER EVENTS {
@@ -16,22 +16,20 @@ program robot-grid-reach-with-obstacles-1d {
     }
 
     TRANSITIONS {
-        setvars -> setvars [estay $
-                                x := x + 1 if einc;
-                                x := x - 1 if !einc;
-                              ],
+        setvars -> setvars [estay && einc $ x := x + 1],
+        setvars -> setvars [estay && !einc $ x := x - 1],
         setvars -> move [!estay],
 
         goal -> setvars [],
-        move -> goal [x == 0],
-        move -> move [x != 0 && !cstay],
-        move -> move [x != 0 && cstay $
-                                x := x + 1 if cinc && !obstacle;
-                                x := x - 1 if !cinc && !obstacle;
-                                ]
+        move -> goal [x == 0 && y == 0],
+        move -> move [!(x == 0 && y == 0) && (!cstay || estay)],
+        move -> move [!(x == 0 && y == 0) && cstay && !estay && cinc $ x := x + 1],
+        move -> move [!(x == 0 && y == 0) && cstay && !estay && !cinc $ x := x - 1],
+        move -> move [!(x == 0 && y == 0) && cstay && !estay && cinc $ y := y + 1],
+        move -> move [!(x == 0 && y == 0) && cstay && !estay && !cinc $ y := y - 1]
     }
 
     SPECIFICATION {
-        ((G F !obstacle) && (G F move)) -> G F goal
+        (G F !estay) -> G F goal
     }
 }

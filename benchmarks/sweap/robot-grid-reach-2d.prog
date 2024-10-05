@@ -17,22 +17,18 @@ program robot-cat-real-2d {
     }
 
     TRANSITIONS {
-        setvars -> setvars [estay $
-                                x := x + 1 if einc & exory;
-                                x := x - 1 if !einc & exory;
-                                y := y + 1 if einc & !exory;
-                                y := y - 1 if !einc & !exory;
-                              ],
+        setvars -> setvars [estay & einc & exory $ x := x + 1],
+        setvars -> setvars [estay & !einc & exory $ x := x - 1],
+        setvars -> setvars [estay & einc & !exory $ y := y + 1],
+        setvars -> setvars [estay & !einc & !exory $ y := y - 1],
         setvars -> move [!estay],
 
         move -> goal [x == 0 && y == 0],
         move -> move [(x != 0 || y != 0) && !cstay],
-        move -> move [(x != 0 || y != 0) && cstay $
-                                x := x + 1 if cinc & xory;
-                                x := x - 1 if !cinc & xory;
-                                y := y + 1 if cinc & !xory;
-                                y := y - 1 if !cinc & !xory;
-                                ]
+        move -> move [(x != 0 || y != 0) && cstay && cinc & xory $ x := x + 1],
+        move -> move [(x != 0 || y != 0) && cstay && !cinc & xory $ x := x - 1],
+        move -> move [(x != 0 || y != 0) && cstay && cinc & !xory $ y := y + 1],
+        move -> move [(x != 0 || y != 0) && cstay && !cinc & !xory $ y := y - 1]
     }
 
     SPECIFICATION {

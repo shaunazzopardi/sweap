@@ -16,18 +16,14 @@ program robot-cat-real-1d {
     }
 
     TRANSITIONS {
-        setvars -> setvars [estay $
-                                x := x + 1 if einc;
-                                x := x - 1 if !einc;
-                              ],
+        setvars -> setvars [estay & einc $ x := x + 1],
+        setvars -> setvars [estay & !einc $ x := x - 1],
         setvars -> move [!estay],
 
         move -> goal [x == 0],
         move -> move [x != 0 && !cstay],
-        move -> move [x != 0 && cstay $
-                                x := x + 1 if cinc;
-                                x := x - 1 if !cinc;
-                                ]
+        move -> move [x != 0 && cstay & cinc $ x := x + 1],
+        move -> move [x != 0 && cstay & !cinc $ x := x - 1]
     }
 
     SPECIFICATION {
