@@ -272,7 +272,7 @@ class EffectsAbstraction(PredicateAbstraction):
             processed_ltl_constraints = []
             processed = constraint.right.replace_formulas(self.var_relabellings)
             processed_ltl_constraints.append(processed)
-            self.structural_loop_constraints.append(processed_ltl_constraints)
+            self.structural_loop_constraints.extend(processed_ltl_constraints)
 
     def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
         if len(new_state_predicates) == 0:

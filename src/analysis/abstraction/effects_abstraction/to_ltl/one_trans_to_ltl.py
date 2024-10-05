@@ -103,10 +103,9 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
             all_preds |= atomic_predicates(c)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
-    for ltl_constraints in effects_abstraction.structural_loop_constraints:
+    for c in effects_abstraction.structural_loop_constraints:
         all_preds = set()
-        for c in ltl_constraints:
-            all_preds |= atomic_predicates(c)
+        all_preds |= atomic_predicates(c)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
     pred_props.extend(list(set(loop_vars)))
