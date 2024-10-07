@@ -15,24 +15,25 @@ echo "run-temos.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_temos() {
-	echo "Run temos on $1 at $(date +%H:%M:%S)"
-	echo "Benchmark: $1" >> $OUTFILE
-	echo "Benchmark: $1" >> $LOGFILE
-	tmptsl=`mktemp --suffix .tsl`
-	tmptlsf=`mktemp --suffix .tlsf`
-	s=`date +%s%N`
-	timeout $TIMEOUT $BASEPATH/temos-tslmt2tsl $1 $BASEPATH/cvc5 > $tmptsl 2>> $LOGFILE
-	killall cvc5 2>> $LOGFILE
-	timeout $TIMEOUT $BASEPATH/temos-tsl2tlsf $tmptsl > $tmptlsf 2>> $LOGFILE
-	INS=$($BASEPATH/syfco -f ltl --print-input-signals $tmptlsf 2>> $LOGFILE)
-	OUTS=$($BASEPATH/syfco -f ltl --print-output-signals $tmptlsf 2>> $LOGFILE)
-	LTL=$($BASEPATH/syfco -f ltl -q double -m fully $tmptlsf 2>> $LOGFILE)
-	timeout $TIMEOUT $BASEPATH/strix --ins "$INS" --outs "$OUTS" -f "$LTL" -r | grep 'REAL' >> $OUTFILE 2>> $LOGFILE
-	e=`date +%s%N`
-	echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
-	echo "" >> $OUTFILE
-	echo "" >> $LOGFILE
-        rm $tmptsl $tmptlsf
+    name=`basename $1`
+    echo "Run temos on $1 at $(date +%H:%M:%S)"
+    echo "Benchmark: $name" >> $OUTFILE
+    echo "Benchmark: $name" >> $LOGFILE
+    tmptsl=`mktemp --suffix .tsl`
+    tmptlsf=`mktemp --suffix .tlsf`
+    s=`date +%s%N`
+    timeout $TIMEOUT $BASEPATH/temos-tslmt2tsl $1 $BASEPATH/cvc5 > $tmptsl 2>> $LOGFILE
+    killall cvc5 2>> $LOGFILE
+    timeout $TIMEOUT $BASEPATH/temos-tsl2tlsf $tmptsl > $tmptlsf 2>> $LOGFILE
+    INS=$($BASEPATH/syfco -f ltl --print-input-signals $tmptlsf 2>> $LOGFILE)
+    OUTS=$($BASEPATH/syfco -f ltl --print-output-signals $tmptlsf 2>> $LOGFILE)
+    LTL=$($BASEPATH/syfco -f ltl -q double -m fully $tmptlsf 2>> $LOGFILE)
+    timeout $TIMEOUT $BASEPATH/strix --ins "$INS" --outs "$OUTS" -f "$LTL" -r | grep 'REAL' >> $OUTFILE 2>> $LOGFILE
+    e=`date +%s%N`
+    echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
+    echo "" >> $OUTFILE
+    echo "" >> $LOGFILE
+    rm $tmptsl $tmptlsf
 }
 
 for f in `ls $BENCHMARKS_DIR/*.tslt`

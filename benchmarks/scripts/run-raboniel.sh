@@ -15,15 +15,16 @@ echo "run-raboniel.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_raboniel() {
-	echo "Run raboniel on $1 at $(date +%H:%M:%S)"
-	echo "Benchmark: $1" >> $OUTFILE
-	echo "Benchmark: $1" >> $LOGFILE
-	s=`date +%s%N`
-	timeout $TIMEOUT ./raboniel --spec $1 2>> $LOGFILE | grep 'Result' >> $OUTFILE
-	e=`date +%s%N`
-	echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
-	echo "" >> $OUTFILE
-	echo "" >> $LOGFILE
+    name=`basename $1`
+    echo "Run raboniel on $1 at $(date +%H:%M:%S)"
+    echo "Benchmark: $name" >> $OUTFILE
+    echo "Benchmark: $name" >> $LOGFILE
+    s=`date +%s%N`
+    timeout $TIMEOUT ./raboniel --spec $1 2>> $LOGFILE | grep 'Result' >> $OUTFILE
+    e=`date +%s%N`
+    echo "Runtime: $(((e - s)/1000000))ms" >> $OUTFILE
+    echo "" >> $OUTFILE
+    echo "" >> $LOGFILE
 }
 
 

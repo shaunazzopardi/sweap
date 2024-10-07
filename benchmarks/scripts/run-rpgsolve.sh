@@ -14,6 +14,7 @@ echo "run-rpgsolve.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_rpgsolve() {
+    name=`basename $1`
     echo "Run rpgsolve on $1 at $(date +%H:%M:%S)"
     echo "Benchmark: $1" >> $OUTFILE
     logfile=`mktemp --suffix .log`

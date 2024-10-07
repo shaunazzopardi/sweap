@@ -14,8 +14,9 @@ echo "run-rpg-stela.sh with timeout $TIMEOUT" >> $OUTFILE
 echo "" >> $OUTFILE
 
 run_rpgstela() {
+    name=`basename $1`
     echo "Run rpg-stela on $1 at $(date +%H:%M:%S)"
-    echo "Benchmark: $1" >> $OUTFILE
+    echo "Benchmark: $name" >> $OUTFILE
     logfile=`mktemp --suffix .log`
 
     starttime=`date +%s%N`

@@ -15,10 +15,11 @@ echo "" >> $OUTFILE
 mkdir logs 2>/dev/null
 
 run_sweap() {
-  tmpout=logs/out-sweap--`basename $1`.log
+  name=`basename $1`
+  tmpout=logs/out-sweap--$name.log
   tmperr=`mktemp --suffix .err.log`
   echo "Run Sweap on $1 at $(date +%H:%M:%S)"
-  echo "Benchmark: $1" >> $OUTFILE
+  echo "Benchmark: $name" >> $OUTFILE
   s=`date +%s%N`
   PATH=$BASEPATH/binaries/CPAchecker-2.3-unix/scripts:$BASEPATH/binaries:$PATH PYTHONPATH=$BASEPATH/src/ timeout $TIMEOUT python3 $BASEPATH/main.py --accelerate --synthesise  --p $1 > $tmpout 2> $tmperr || cat $tmperr
   e=`date +%s%N`
