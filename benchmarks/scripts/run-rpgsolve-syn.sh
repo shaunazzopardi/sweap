@@ -20,7 +20,7 @@ run_rpgsolve() {
     logfile=`mktemp --suffix .log`
 
     starttime=`date +%s%N`
-    result=`PATH=$BASEPATH:$PATH timeout $TIMEOUT rpgsolve --generate-program < $1 2> $logfile`
+    result=`PATH=$BASEPATH/z3-4-8:$BASEPATH:$PATH timeout $TIMEOUT rpgsolve --generate-program < $1 2> $logfile`
     endtime=`date +%s%N` 
     
     killall z3 2> /dev/null
