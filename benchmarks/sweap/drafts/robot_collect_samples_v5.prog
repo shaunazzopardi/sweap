@@ -1,0 +1,48 @@
+program robot_collect_samples_v4 {
+    STATES {
+        moveToBase : init, base, collectSamples, moveToSampleSide, setSamplesAB
+    }
+
+    ENVIRONMENT EVENTS {
+        e, stop
+    }
+
+    CONTROLLER EVENTS {
+        a, b
+    }
+
+    VALUATION {
+        samples : integer := 0;
+        samplesA : integer := 0;
+        samplesB : integer := 0;
+        trackPos : integer := 0;
+        reqSamples : integer := 0;
+    }
+
+    TRANSITIONS {
+        moveToBase -> base [trackPos == 23 $ samples := 0; reqSamples := 0],
+        moveToBase -> moveToBase [trackPos != 23 & a $],
+        moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [trackPos != 23 & !a & !b $ trackPos := trackPos - 1],
+
+        base -> base [e $ reqSamples := reqSamples + 1],
+        base -> moveToSampleSide [!e & reqSamples > 0],
+
+        moveToSampleSide -> collectSamples [trackPos == 12],
+        moveToSampleSide -> moveToSampleSide [trackPos != 12 & !a & b $ trackPos := trackPos + 1],
+        moveToSampleSide -> moveToSampleSide [trackPos != 12 & !a & !b $ trackPos := trackPos - 1],
+        moveToSampleSide -> moveToSampleSide [trackPos != 12 & a],
+
+        collectSamples -> moveToBase [!(samples < reqSamples)],
+        collectSamples -> setSamplesAB [samples < reqSamples $ samplesA := 0; samplesB := 0],
+
+        setSamplesAB -> collectSamples [stop && a $ samples := samples + samplesA],
+        setSamplesAB -> collectSamples [stop && !a $ samples := samples + samplesB],
+        setSamplesAB -> setSamplesAB [!stop && e $ samplesA := samplesA + 1],
+        setSamplesAB -> setSamplesAB [!stop && !e $ samplesB := samplesB + 1]
+    }
+
+    SPECIFICATION {
+        ((G F !setSamplesAB) && (G (setSamplesAB -> F (samplesA > 0 || samplesB > 0)))) -> G F base
+    }
+}
