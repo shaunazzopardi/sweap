@@ -11,7 +11,7 @@ writer = csv.writer(sys.stdout)
 prefix = re.compile(r"out-sweap(-noacc)?-+")
 
 skip = (
-    "infinite-race", "chain-simple-param-70",
+    "infinite-race", "chain-simple-param-70", "arbiter-paper-unreal",
     *(f"{b}-paper-{n}" for n in (5, 10, 50) for b in ("arbiter", "elevator")),
     *(f"arbiter-paper-unreal-{n}" for n in (5, 10, 50)),
     *(f"bloem-elevator-{t}-{n}" for n in (3, 5, 10, 50) for t in ("simple", "signal")),
@@ -20,7 +20,10 @@ skip = (
 )
 rename = {
     "robot-grid-reach-repeated-with-obstacles-1d": "rep-reach-obst.-1d",
-    "robot-grid-reach-repeated-with-obstacles-2d": "rep-reach-obst.-2d"
+    "robot-grid-reach-repeated-with-obstacles-2d": "rep-reach-obst.-2d",
+    "arbiter-paper": "batch-arbiter-r",
+    "heim-buchi": "heim-buechi",
+    "heim-buchi-u": "heim-fig7"
 }
 
 def process(fname, row_id):
@@ -28,6 +31,8 @@ def process(fname, row_id):
     bench_name = re.sub(prefix, "", bench_name)
     bench_name = bench_name.replace("_", "-")
     bench_name = rename.get(bench_name, bench_name)
+    bench_name = bench_name.replace("-samples", "").replace("-products", "")
+    bench_name = bench_name.replace("comute", "commute").replace("-with", "-w")
     if bench_name in skip:
         return False
     def shell(cmd):
