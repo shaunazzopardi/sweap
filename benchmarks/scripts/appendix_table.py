@@ -12,7 +12,6 @@ prefix = re.compile(r"out-sweap(-noacc)?-+")
 
 skip = (
     "infinite-race", "chain-simple-param-70",
-    "robot-collect-samples-v4",
     *(f"{b}-paper-{n}" for n in (5, 10, 50) for b in ("arbiter", "elevator")),
     *(f"arbiter-paper-unreal-{n}" for n in (5, 10, 50)),
     *(f"bloem-elevator-{t}-{n}" for n in (3, 5, 10, 50) for t in ("simple", "signal")),
