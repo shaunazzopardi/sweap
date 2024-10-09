@@ -124,7 +124,8 @@ infinite_benchs = {
     **deliver_benchs,
     "robot_running": BenchInfo(True),
     "robot_repair": BenchInfo(True),
-    "scheduler": BenchInfo(True)
+    "scheduler": BenchInfo(True),
+    "robot_collect_samples_v4": BenchInfo(True)
 }
 
 finite_benchs = {
