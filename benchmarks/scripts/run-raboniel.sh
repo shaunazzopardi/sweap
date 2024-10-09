@@ -30,6 +30,7 @@ run_raboniel() {
 
 oldpath=$PWD
 cd $BASEPATH
+
 for f in `ls $BENCHMARKS_DIR/*.tslmt`
 do
   run_raboniel $f
