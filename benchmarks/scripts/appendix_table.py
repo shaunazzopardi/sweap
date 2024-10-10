@@ -21,9 +21,12 @@ skip = (
 rename = {
     "robot-grid-reach-repeated-with-obstacles-1d": "rep-reach-obst.-1d",
     "robot-grid-reach-repeated-with-obstacles-2d": "rep-reach-obst.-2d",
+    "robot-analyze-samples-v1": "robot-analyze",
     "arbiter-paper": "batch-arbiter-r",
     "heim-buchi": "heim-buechi",
-    "heim-buchi-u": "heim-fig7"
+    "heim-buchi-u": "heim-fig7",
+    "square5x5": "square",
+    "elevator-paper": "elevator-w-door"
 }
 
 def process(fname, row_id):
@@ -69,7 +72,7 @@ def process(fname, row_id):
             f"""grep "Structural Refinement" {fname} | wc -l""").strip()
         count_safe_ref = shell(
             f"""grep "safety refinement" {fname} | wc -l""").strip()
-    
+
 
     writer.writerow([
         row_id, bench_name,
@@ -80,16 +83,50 @@ def process(fname, row_id):
 if __name__ == "__main__":
     header = [
         "row-id",
-        "bench name (sweap_acc)", "init st", "init tr", 
+        "bench name (sweap_acc)", "init st", "init tr",
         "liveness refinements", "safety refinements",
         "added st", "added tr"]
 
     logs_dir = Path(sys.argv[1])
-    logs_sweap = [Path(x).resolve() for x in logs_dir.glob("out-sweap--*.log")]
-    logs_sweap_noacc = [Path(x).resolve() for x in logs_dir.glob("out-sweap-noacc*.log")]
+    logs = [
+        # Problems from Dimitrova Heim POPL'24
+        "box", "box-limited", "diagonal",
+        "evasion", "follow", "solitary", "square5x5",
+        "robot-cat-real-1d", "robot-cat-unreal-1d",
+        "robot-cat-real-2d", "robot-cat-unreal-2d",
+        "robot-grid-reach-1d", "robot-grid-reach-1d",
+        "heim-double-x", "xyloop",
+        "robot-grid-comute-1d", "robot-grid-comute-2d",
+        "robot-resource-1d", "robot-resource-2d",
+        "heim-buechi", "heim-buchi-u",
+        # Problems from Schmuck et al. CAV'24
+        "scheduler", "items_processing",
+        *(f"chain-{x}" for x in (4, 5, 6, 7)),
+        *(f"chain-simple-{x}" for x in (5, 10, 20, 30, 40, 50, 60, 70)),
+        "robot_running", "robot_repair",
+        "robot_analyze_samples_v1",
+        *(f"robot_collect_samples_v{x}" for x in (1, 2, 3)),
+        *(f"robot_deliver_products_{x}" for x in (1, 2, 3, 4, 5)),
+        # Novel problems
+        "reversible-lane-r", "reversible-lane-u", "arbiter-paper",
+        "arbiter-with-failure", "elevator-paper",
+        "robot-grid-reach-repeated-with-obstacles-1d",
+        "robot-grid-reach-repeated-with-obstacles-2d",
+        "taxi-service", "robot_collect_samples_v4"]
+
+    logs_sweap = [
+        Path(x).resolve()
+        for y in logs
+        for x in logs_dir.glob(f"out-sweap--{y}.prog.log")]
+
+    logs_sweap_noacc = [
+        Path(x).resolve()
+        for y in logs
+        for x in logs_dir.glob(f"out-sweap-noacc--{y}.prog.log")]
+
     writer.writerow(header)
     i = 2
-    for log in sorted(logs_sweap_noacc):
+    for log in logs_sweap:
         ok = process(log, i)
         if ok:
             i += 1
@@ -97,7 +134,7 @@ if __name__ == "__main__":
     header[1] = "bench name (sweap_no-acc)"
     writer.writerow(header)
     i = 2
-    for log in sorted(logs_sweap_noacc):
+    for log in logs_sweap_noacc:
         ok = process(log, i)
         if ok:
             i += 1
