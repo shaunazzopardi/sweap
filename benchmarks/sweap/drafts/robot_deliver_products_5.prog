@@ -1,4 +1,4 @@
-program robot_collect_samples_v1 {
+program robot_deliver_products_5 {
     STATES {
         moveToOffice : init, office, office1, office2, store, bank, moveToBank, moveToStore, updateProductCode
     }

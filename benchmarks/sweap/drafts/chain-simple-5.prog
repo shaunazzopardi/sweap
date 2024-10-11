@@ -1,4 +1,4 @@
-program arbiter-paper {
+program chain-simple-5 {
     STATES {
         init_st : init, goal, sink, setinp, l1, l2, l3, l4, l5,
     }
