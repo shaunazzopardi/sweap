@@ -48,11 +48,11 @@ program robot_deliver_products_3 {
 
         setd2 -> setd2 [e & !stop $ d2 := d2 + 1],
         setd2 -> setd2 [!e & !stop $ d2 := d2 - 1],
-        setd2 -> moveToBank [stop $ neededPieces := d2],
+        setd2 -> moveToBank [stop $ neededPieces := d2; d2 := 0],
 
-        setd1 -> setd1 [e & !stop $ d1 := d1 + 1],
-        setd1 -> setd1 [!e & !stop $ d1 := d1 - 1],
-        setd1 -> moveToBank [stop],
+        setd3 -> setd3 [e & !stop $ d3 := d3 + 1],
+        setd3 -> setd3 [!e & !stop $ d3 := d3 - 1],
+        setd3 -> moveToBank [stop $ neededPieces := d3; d3 := 0],
 
         bank -> bank [money < neededPieces $ money := money + 1],
         bank -> moveToStore [!(money < neededPieces)],
@@ -65,6 +65,6 @@ program robot_deliver_products_3 {
     }
 
     SPECIFICATION {
-        G F office
+        (G F stop) -> G F office
     }
 }
