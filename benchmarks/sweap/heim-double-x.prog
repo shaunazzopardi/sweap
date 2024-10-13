@@ -12,7 +12,7 @@ program running-example-double-x {
 
     VALUATION {
         x : integer := 0;
-        y : natural := 0;
+        y : integer := 0;
     }
 
     TRANSITIONS {

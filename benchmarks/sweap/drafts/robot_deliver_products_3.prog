@@ -52,7 +52,7 @@ program robot_deliver_products_3 {
 
         setd1 -> setd1 [e & !stop $ d1 := d1 + 1],
         setd1 -> setd1 [!e & !stop $ d1 := d1 - 1],
-        setd1 -> moveToBank [stop]
+        setd1 -> moveToBank [stop],
 
         bank -> bank [money < neededPieces $ money := money + 1],
         bank -> moveToStore [!(money < neededPieces)],
