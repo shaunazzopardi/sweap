@@ -22,7 +22,7 @@ from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate, \
-    atomic_predicates, finite_state_preds, strip_outer_mathexpr
+    atomic_predicates, finite_state_preds, strip_mathexpr
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -193,14 +193,14 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
         ltl_state_preds += preds
-        new_ltl_assumptions.append(new_ltl)
+        new_ltl_assumptions.append(strip_mathexpr(ltl))
 
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
         ltl = ltl.replace_formulas(normalise_mathexpr)
         new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
         ltl_state_preds += preds
-        new_ltl_guarantees.append(new_ltl)
+        new_ltl_guarantees.append(strip_mathexpr(ltl))
 
     ltl_assumptions = new_ltl_assumptions
     ltl_guarantees = new_ltl_guarantees
@@ -217,8 +217,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
             if tv.type.lower().startswith("bool"):
                 continue
 
-            if not var_incremented_or_decremented(program, Variable(tv.name)):
-                continue
+            # if not var_incremented_or_decremented(program, Variable(tv.name)):
+            #     continue
             if tv.type.lower().startswith("int"):
                 ranking = Variable(tv.name)
                 pos_rk = BiOp(ranking, ">=", Value("0"))
@@ -264,6 +264,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         else:
             new_new_state_preds = reduce_up_to_iff(new_new_state_preds, [st_pred], predicate_abstraction.symbol_table, tautology_check=False)
     new_state_preds = new_new_state_preds | set(ltl_state_preds)
+    print(str(len(new_state_preds)) + ": " + ", ".join(map(str, new_state_preds)))
     while True:
         if add_tran_preds_immediately and not only_safety:
             to_add_rankings_for.extend(new_state_preds)
@@ -275,6 +276,9 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     f, invar = result
                     only_updated_by_constants, there_is_dec, there_is_inc = var_incremented_or_decremented(program, f)
 
+                    if only_updated_by_constants:
+                        only_updated_by_constants, there_is_dec, there_is_inc = var_incremented_or_decremented(program,
+                                                                                                               f)
                     if not only_updated_by_constants and there_is_dec:
                         rankings.append(ranking_refinement(f, [invar], there_is_inc))
             add_tran_preds_immediately = False
@@ -287,12 +291,13 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         rankings.clear()
         to_add_rankings_for.clear()
 
-        new_state_preds = {strip_outer_mathexpr(p) for p in new_state_preds}
-        new_state_preds = {p for p in new_state_preds if p not in predicate_abstraction.state_predicates}
-        new_tran_preds = {p for p in set(new_tran_preds) if p not in predicate_abstraction.transition_predicates}
+        new_state_preds = {strip_mathexpr(p) for p in new_state_preds}
+        new_state_preds = {p for p in new_state_preds if p not in predicate_abstraction.state_predicates and p not in predicate_abstraction.chain_state_predicates}
+        new_tran_preds = {strip_mathexpr(p) for p in set(new_tran_preds) if p not in predicate_abstraction.transition_predicates}
 
         ## update predicate abstraction
         start = time.time()
+        print(str(len(new_state_preds | new_tran_preds)) + ": " + ", ".join(map(str, new_state_preds | new_tran_preds)))
         print("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction")
         predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, True)
         logging.info("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))

@@ -5,13 +5,11 @@ from multiprocessing import Pool
 
 import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
-from analysis.abstraction.effects_abstraction.to_ltl.to_env_con_separate_ltl import empty_abstraction
 
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
 from prop_lang.util import atomic_predicates, G, X, label_pred, neg, conjunct_formula_set, conjunct, \
-    disjunct_formula_set, iff, simplify_formula_without_math, cnf_safe, implies, sat, true, bdd_simplify_ltl_formula, \
-    is_true, F
+    disjunct_formula_set, implies, F
 from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
@@ -21,20 +19,53 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
     rename_pred = lambda x: label_pred(x, predicate_abstraction.get_all_preds())
     program = predicate_abstraction.program
 
+    init_explicit_state = program.states_binary_map[predicate_abstraction.program.initial_state]
+
+    d = {}
+    init_preds = []
+    preds_to_v = predicate_abstraction.pred_to_v
+    viable_pred_states = predicate_abstraction.viable_pred_states
+    for p in predicate_abstraction.init_state_abstraction:
+        if p in preds_to_v.keys():
+            v = preds_to_v[p]
+            if v not in d.keys():
+                d[v] = {p}
+            else:
+                d[v].add(p)
+        else:
+            init_preds.append(rename_pred(p))
+
+    for v, ps in d.items():
+        (pred_list, list_up_to_neg, new_bin_rep) = viable_pred_states[v]
+        bin_rep = new_bin_rep[frozenset(ps)]
+        init_preds.append(bin_rep)
+
+    init_state = conjunct(init_explicit_state, conjunct_formula_set(init_preds))
+
     pred_next = set()
     for i, (gu, tgt) in enumerate(predicate_abstraction.init_disjuncts):
         post = predicate_abstraction.second_state_abstraction[i]
         E_formula = disjunct_formula_set([conjunct_formula_set(E) for E in predicate_abstraction.init_gu_to_E[gu]])
 
-        post_renamed = [rename_pred(p) for p in post]
+        d = {}
+        next_preds = []
+        for p in post:
+            if p in preds_to_v.keys():
+                v = preds_to_v[p]
+                if v not in d.keys():
+                    d[v] = {p}
+                else:
+                    d[v].add(p)
+            else:
+                next_preds.append(rename_pred(p))
+
+        for v, ps in d.items():
+            (pred_list, list_up_to_neg, new_bin_rep) = viable_pred_states[v]
+            bin_rep = new_bin_rep[frozenset(ps)]
+            next_preds.append(bin_rep)
 
         pred_next.add(conjunct((conjunct_formula_set([E_formula])),
-                               X(conjunct_formula_set(post_renamed + [program.states_binary_map[tgt]]))))
-
-    init_explicit_state = program.states_binary_map[predicate_abstraction.program.initial_state]
-
-    init_state = conjunct_formula_set([Variable(init_explicit_state)] +
-                  [rename_pred(p) for p in predicate_abstraction.init_state_abstraction])
+                               X(conjunct_formula_set(next_preds + [program.states_binary_map[tgt]]))))
 
     init_transition_ltl = disjunct_formula_set(pred_next)
 
@@ -88,38 +119,67 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     # ltl_abstraction = to_ltl_reduced(effects_abstraction)
     ltl_abstraction = to_ltl_organised_by_pred_effects_guard_updates(effects_abstraction)
     print("ltl abstraction took: " + str(time.time() - start))
-    predicate_vars = set(effects_abstraction.var_relabellings.values())
+    predicate_vars = set()
+    for p in effects_abstraction.state_predicates:
+        if p not in effects_abstraction.var_relabellings:
+            raise Exception("Predicate not in var relabellings")
+        else:
+            predicate_vars.add(effects_abstraction.var_relabellings[p])
+
+    predicate_vars.update([Variable(x) for v in effects_abstraction.current_bin_vars.values() for x in v])
 
     program = effects_abstraction.get_program()
     pred_props = program.bin_state_vars + list(predicate_vars)
 
+    states_binary_map = {Variable(k): v for k, v in program.states_binary_map.items()}
+    dict_to_replace = states_binary_map
+    dict_to_replace |= effects_abstraction.var_relabellings
+
+
     loop_vars = []
-    loop_ltl_constraints = []
+    loop_constraints = []
     for dec, ltl_constraints in effects_abstraction.ranking_constraints.items():
         f = implies(G(F(dec)), conjunct_formula_set(ltl_constraints))
-        loop_ltl_constraints.append(f)
+        f = f.replace_formulas(dict_to_replace)
+        loop_constraints.append(f)
         all_preds = {dec}
         for c in ltl_constraints:
             all_preds |= atomic_predicates(c)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
-    for c in effects_abstraction.structural_loop_constraints:
+
+    for f in effects_abstraction.structural_loop_constraints:
+        f = f.replace_formulas(dict_to_replace)
+        loop_constraints.append(f)
         all_preds = set()
-        all_preds |= atomic_predicates(c)
+        all_preds |= atomic_predicates(f)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
     pred_props.extend(list(set(loop_vars)))
     pred_props = list(set(pred_props))
 
-    states_binary_map = {Variable(k): v for k, v in program.states_binary_map.items()}
+    bool_vars = list(list(states_binary_map.values())[0].variablesin()) + [Variable(x) for v in effects_abstraction.current_bin_vars.values() for x in v] + program.env_events + program.con_events
+    orig_assumptions = []
+    for ass in original_LTL_problem.assumptions:
+        new_ass = ass.replace_formulas(dict_to_replace)
+        orig_assumptions.append(new_ass)
+        # orig_assumptions.append(stringify_formula(new_ass, bool_vars)[0])
 
-    assumptions = (loop_ltl_constraints + effects_abstraction.structural_loop_constraints + ltl_abstraction
-                   + [a.replace_formulas(states_binary_map) for a in original_LTL_problem.assumptions])
-    guarantees = [g.replace_formulas(states_binary_map) for g in original_LTL_problem.guarantees]
+    orig_guarantees = []
+    for guar in original_LTL_problem.guarantees:
+        new_guar = guar.replace_formulas(dict_to_replace)
+        orig_guarantees.append(new_guar)
+        # orig_guarantees.append(stringify_formula(new_guar, bool_vars)[0])
+
+    assumptions = (loop_constraints + ltl_abstraction + orig_assumptions)
+    guarantees = orig_guarantees
+
+    new_pred_props = {str(v) for v in pred_props}
+    pred_props = [Variable(v) for v in new_pred_props]
 
     ltl_synthesis_problem = AbstractLTLSynthesisProblem(original_LTL_problem.env_props,
                                                         program.out_events,
-                                                        pred_props,
+                                                        list(set(pred_props)),
                                                         original_LTL_problem.con_props,
                                                         assumptions,
                                                         guarantees)

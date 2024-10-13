@@ -154,7 +154,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     ltl_abstraction = explicit_abstraction_to_state_based_ltl_abstraction(predicate_abstraction, one_step_abstraction)
 
     predicate_vars = set()
-    for interpolant in predicate_abstraction.get_interpolants():
+    for interpolant in predicate_abstraction.get_state_predicates():
         predicate_vars.add(label_pred(interpolant, []))
 
     transition_fairness = []

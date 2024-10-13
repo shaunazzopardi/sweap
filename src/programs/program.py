@@ -10,7 +10,7 @@ import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep
+from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep_states
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.util import disjunct_formula_set, neg, true, \
@@ -106,7 +106,7 @@ class Program:
                     pass
                 self.deterministic = property(lazy_det, skip, skip, "")
 
-        self.bin_state_vars, self.states_binary_map = binary_rep(self.states)
+        self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
         self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
         self.states_binary_map |= {Variable(st): bin_st for st, bin_st in self.states_binary_map.items()}
 

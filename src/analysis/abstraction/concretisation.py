@@ -2,11 +2,11 @@ from pysmt.shortcuts import And
 
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.smt_checker import check
-from programs.util import looping_to_normal, stutter_transition, preds_in_state, transition_formula, add_prev_suffix
+from programs.util import stutter_transition, preds_in_state, transition_formula, add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, propagate_negations, sat, \
-    simplify_formula_with_math, var_to_predicate, is_predicate_var, normalise_mathexpr
+    simplify_formula_with_math, var_to_predicate, is_predicate_var, normalise_mathexpr, true
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -65,6 +65,9 @@ def concretize_transitions(program,
                            program.symbol_table):
                         incompatibility_formula.append(p)
 
+                if incompatibility_formula == neg(true()) or incompatibility_formula == true():
+                    raise Exception("Incompatibility formula is not correct")
+
                 env_pred_state = (incompatibility_formula, incompatible_state)
                 return concretized, env_pred_state
             #if not, then we choose the wrong transition
@@ -75,6 +78,9 @@ def concretize_transitions(program,
                 reduced_simplified = neg(simplify_formula_with_math(reduced, program.symbol_table))
                 reduced_normalised = reduced_simplified.replace_formulas(
                     lambda x: normalise_mathexpr(x) if isinstance(x, MathExpr) else None)
+
+                if reduced_normalised == neg(true()) or reduced_normalised == true():
+                    raise Exception("Incompatibility formula is not correct")
 
                 return concretized[:-1], ([reduced_normalised], concretized[-1])
 
