@@ -1,10 +1,7 @@
 import logging
 import subprocess
-from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Tuple
-import os
-from dotenv import load_dotenv
 
 from parsing.hoa_parser import hoa_to_transitions
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
@@ -24,9 +21,16 @@ def ltl_synthesis(synthesis_problem: AbstractLTLSynthesisProblem) -> Tuple[bool,
 
             cmd = f"strix_tlsf_file.sh {tmp.name} -m both --onthefly none"
 
-            so = subprocess.getstatusoutput(cmd)
-            output: str = so[1]
-            logging.info(output)
+            try:
+                so = subprocess.getstatusoutput(cmd)
+                output: str = so[1]
+                logging.info(output)
+            except Exception as err:
+                logging.info(err)
+                if "Killed" in str(err):
+                    raise Exception("OutOfMemory: Strix was killed. Try increasing the memory limit.")
+                else:
+                    raise err
 
             if "UNREALIZABLE" in output:
                 logging.info("\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n")
