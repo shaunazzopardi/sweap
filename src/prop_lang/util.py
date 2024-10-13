@@ -1,5 +1,7 @@
+import bisect
 import logging
 import re
+from bisect import bisect_left
 from multiprocessing import Queue, Process
 
 import sympy
@@ -59,6 +61,8 @@ def conjunct_formula_set(s, sort=False) -> Formula:
         s = sorted(list({p for p in s}), key=lambda x : str(x))
 
     ret = true()
+    if not hasattr(s, '__iter__'):
+        print()
     for f in s:
         ret = conjunct(f, ret)
     return ret
@@ -380,6 +384,10 @@ def bdd_simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = propagate_nexts_and_atomize(formula)
     if symbol_table == None:
         symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in ltl_to_prop.variablesin()}
+
+    keys = list(symbol_table.keys())
+    for v in keys:
+        symbol_table[str(v) + "_next"] = TypedValuation(symbol_table[v].name + "_next", symbol_table[v].type, None)
 
     simplified = string_to_prop(serialize(bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])))
 
@@ -1317,3 +1325,220 @@ def math_exprs_in_formula(f):
         return math_exprs_in_formula(f.right)
     else:
         return set()
+
+
+def chain_of_preds_old(preds, term, current_pos=None, current_neg=None):
+    if current_pos is None:
+        current_pos = []
+    if current_neg is None:
+        current_neg = []
+
+    pos_chain_of_preds = []
+    pos_chain_of_preds.extend(current_pos)
+    neg_chain_of_preds = []
+    neg_chain_of_preds.extend(current_neg)
+    rest = []
+    pos_pred_locs = []
+    neg_pred_locs = []
+    for p in preds:
+        pred = strip_outer_mathexpr(p)
+        vars_in_pred = pred.variablesin()
+        if len(vars_in_pred) == 1 and term in pred.variablesin():
+            if isinstance(pred, BiOp) and pred.op == "<=" and pred.left == term and isinstance(pred.right, Value):
+                new_loc = bisect_left(pos_chain_of_preds, pred, key=lambda x: int(x.right.name))
+                pos_chain_of_preds.insert(new_loc, pred)
+                pos_pred_locs.append((pred, new_loc))
+                # bisect.insort_left(pos_chain_of_preds, pred, key=lambda x: int(x.right.name))
+            elif isinstance(pred, BiOp) and pred.op == "<=" and pred.right == term and isinstance(pred.left, Value):
+                new_loc = bisect_left(neg_chain_of_preds, pred, key=lambda x: int(x.right.name))
+                neg_chain_of_preds.insert(new_loc, pred)
+                neg_pred_locs.append((pred, new_loc))
+                # bisect.insort_left(neg_chain_of_preds, pred, key=lambda x: 1 - int(x.left.name))
+            else:
+                rest.append(p)
+        else:
+            rest.append(p)
+
+    return (pos_chain_of_preds, pos_pred_locs), (neg_chain_of_preds, neg_pred_locs), rest
+
+
+def is_chain_pos_pred(pred, term):
+    if (isinstance(pred, BiOp) and pred.op == "<=" and pred.left == term and
+     (isinstance(pred.right, Value) or
+      (isinstance(pred.right, UniOp) and pred.right.op == "-" and isinstance(pred.right.right, Value)))):
+        return True, int(str(pred.right))
+    else:
+        return False, None
+
+
+def is_chain_neg_pred(pred, term):
+    if (isinstance(pred, BiOp) and pred.op == "<=" and pred.right == term and
+     (isinstance(pred.left, Value) or
+      (isinstance(pred.left, UniOp) and pred.left.op == "-" and isinstance(pred.left.right, Value)))):
+        return True, 1 - int(str(pred.left))
+    else:
+        return False, None
+
+
+def chain_of_preds_sets(preds, term,
+                        old_pos_list, old_viable_pred_pos_states, old_pos_pred_to_chain,
+                        old_neg_list, old_viable_pred_neg_states, old_neg_pred_to_chain):
+    if len(preds) == 0:
+        raise Exception("No predicates to chain.")
+
+    rest = []
+
+    pos_list = old_pos_list.copy()
+    neg_list = old_neg_list.copy()
+
+    for p in preds:
+        pred = strip_outer_mathexpr(p)
+        vars_in_pred = pred.variablesin()
+        if len(vars_in_pred) == 1 and term in pred.variablesin():
+            res = is_chain_pos_pred(pred, term)
+            if res[0]:
+                bisect.insort_left(pos_list, pred, key=lambda x: is_chain_pos_pred(x, term)[1])
+            else:
+                res = is_chain_neg_pred(pred, term)
+                if res[0]:
+                    bisect.insort_left(neg_list, pred, key=lambda x: is_chain_neg_pred(x, term)[1])
+                else:
+                    rest.append(p)
+        else:
+            rest.append(p)
+
+    if len(rest) == len(preds):
+        return ((old_pos_list, old_viable_pred_pos_states, old_pos_pred_to_chain),
+                (old_neg_list, old_viable_pred_neg_states, old_neg_pred_to_chain), rest)
+
+    viable_pred_pos_states = []
+    pos_pred_to_chain = {}
+    if len(pos_list) != len(old_pos_list):
+        for i, p in enumerate(pos_list):
+            if i == 0:
+                viable_pred_pos_states.append(frozenset(pos_list))
+            else:
+                all_before_neg = frozenset([neg(pp) for pp in pos_list[0:i]] + [pp for pp in pos_list[i:]])
+                viable_pred_pos_states.append(all_before_neg)
+            pos_pred_to_chain[p] = viable_pred_pos_states.copy()
+
+        viable_pred_pos_states.append(frozenset(neg(pp) for pp in pos_list))
+    else:
+        viable_pred_pos_states = old_viable_pred_pos_states
+        pos_pred_to_chain = old_pos_pred_to_chain
+
+
+    viable_pred_neg_states = []
+    neg_pred_to_chain = {}
+    if len(neg_list) != len(old_neg_list):
+        for i, p in enumerate(neg_list):
+            if i == 0:
+                viable_pred_neg_states.append(frozenset(neg_list))
+            else:
+                all_before_neg = frozenset([neg(pp) for pp in neg_list[0:i]] + [pp for pp in neg_list[i:]])
+                viable_pred_neg_states.append(all_before_neg)
+            neg_pred_to_chain[p] = viable_pred_neg_states.copy()
+
+        viable_pred_neg_states.append(frozenset(neg(pp) for pp in neg_list))
+    else:
+        viable_pred_neg_states = old_viable_pred_neg_states
+        neg_pred_to_chain = old_neg_pred_to_chain
+
+    return (pos_list, viable_pred_pos_states, pos_pred_to_chain), (neg_list, viable_pred_neg_states, neg_pred_to_chain), rest
+
+
+def chain_of_preds(preds, term, old_pos_list, old_neg_list, current_pos_fs=None, current_neg_fs=None):
+    if len(preds) == 0:
+        raise Exception("No predicates to chain.")
+
+    if current_pos_fs is None or len(current_pos_fs) == 0:
+        current_pos_fs = [[]]
+    if current_neg_fs is None or len(current_neg_fs) == 0:
+        current_neg_fs = [[]]
+    rest = []
+    pos_pred_locs = []
+    neg_pred_locs = []
+
+    pos_list = old_pos_list.copy()
+    neg_list = old_neg_list.copy()
+
+    for p in preds:
+        pred = strip_outer_mathexpr(p)
+        vars_in_pred = pred.variablesin()
+        if len(vars_in_pred) == 1 and term in pred.variablesin():
+            res = is_chain_pos_pred(pred, term)
+            if res[0]:
+                new_loc = bisect_left([is_chain_pos_pred(p, term)[1] for p in pos_list], res[1])
+                pos_list.insert(new_loc, pred)
+                pos_pred_locs.append((pred, new_loc))
+                # bisect.insort_left(pos_chain_of_preds, pred, key=lambda x: int(x.right.name))
+            elif (isinstance(pred, BiOp) and pred.op == "<=" and pred.right == term and
+                (isinstance(pred.right, Value) or
+                 (isinstance(pred.left, UniOp) and pred.left.op == "-" and isinstance(pred.left.right, Value)))):
+                new_loc = bisect_left([1 - int(p.left.name) for p in neg_list], 1 - int(str(pred.right)))
+                neg_list.insert(new_loc, pred)
+                neg_pred_locs.append((pred, new_loc))
+                # bisect.insort_left(neg_chain_of_preds, pred, key=lambda x: 1 - int(x.left.name))
+            else:
+                rest.append(p)
+        else:
+            rest.append(p)
+
+    pos_old_to_new = {}
+    neg_old_to_new = {}
+
+    pos_chain_of_preds = []
+    neg_chain_of_preds = []
+
+    if len(pos_pred_locs) != 0:
+        for old_pos in current_pos_fs:
+            result = update_chain_preds(old_pos, pos_pred_locs)
+            pos_chain_of_preds.extend(result)
+
+            if len(old_pos) > 0:
+                pos_old_to_new[conjunct_formula_set(old_pos)] = [conjunct_formula_set(l) for l in result]
+
+    if len(neg_pred_locs) != 0:
+        for old_neg in current_neg_fs:
+            result = update_chain_preds(old_neg, neg_pred_locs)
+            neg_chain_of_preds.extend(result)
+
+            if len(old_neg) > 0:
+                neg_old_to_new[conjunct_formula_set(old_neg)] = [conjunct_formula_set(l) for l in result]
+
+    return (pos_list, pos_chain_of_preds, pos_old_to_new), (neg_list, neg_chain_of_preds, neg_old_to_new), rest
+
+
+def update_chain_preds(old_pred_rep, pred_locs):
+    corresponding_new_pred_reps = [old_pred_rep]
+    for (pred, loc) in pred_locs:
+        new_corresponding_new_pred_reps = []
+        for corr_pred_rep in corresponding_new_pred_reps:
+            pr = update_chain_pred_one(corr_pred_rep, pred, loc)
+            new_corresponding_new_pred_reps.extend(pr)
+        corresponding_new_pred_reps = new_corresponding_new_pred_reps
+    new_pred_rep = corresponding_new_pred_reps
+    return new_pred_rep
+
+
+def update_chain_pred_one(old_pred_rep, new_pred, loc):
+    new = []
+    if len(old_pred_rep) == 0:
+        new.append([new_pred])
+        new.append([neg(new_pred)])
+    elif loc == 0:
+        new.append([neg(new_pred)] + old_pred_rep)
+        if not isinstance(old_pred_rep[0], UniOp):
+            new.append([new_pred] + old_pred_rep)
+    elif loc == len(old_pred_rep):
+        new.append(old_pred_rep + [new_pred])
+        if isinstance(old_pred_rep[-1], UniOp):
+            new.append(old_pred_rep + [neg(new_pred)])
+    elif loc > len(old_pred_rep):
+        raise Exception("loc out of range")
+    else:
+        new.append(old_pred_rep[:loc] + [new_pred] + old_pred_rep[loc:])
+        if isinstance(old_pred_rep[loc - 1], UniOp):
+            new.append(old_pred_rep[:loc] + [neg(new_pred)] + old_pred_rep[loc:])
+
+    return new

@@ -1,4 +1,4 @@
-program robot_collect_samples_v1 {
+program scheduler {
     STATES {
         int : init, newTasksG, newTasksR, newTasksR01, newTasksR02, newTasksR03, newBoundG, err, stageSt, stage01, stage02, stage03, stage04
     }

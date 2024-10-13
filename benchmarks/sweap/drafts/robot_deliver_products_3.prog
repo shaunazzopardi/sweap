@@ -1,6 +1,6 @@
-program robot_collect_samples_v1 {
+program robot_deliver_products_3 {
     STATES {
-        moveToOffice : init, office, office1, office2, store, bank, moveToBank, moveToStore, updateProductCode
+        moveToOffice : init, office, office1, office2, store, bank, moveToBank, moveToStore, updateProductCode, setd1, setd2, setd3
     }
 
     ENVIRONMENT EVENTS {
@@ -38,18 +38,21 @@ program robot_collect_samples_v1 {
         moveToStore -> moveToStore [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
         moveToStore -> moveToStore [trackPos != 25 & a],
 
-        office -> moveToBank [stop & productCode == 1 $ neededPieces := d1; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
-        office -> moveToBank [stop & productCode == 2 $ neededPieces := d2; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
-        office -> moveToBank [stop & productCode != 1 & productCode != 2 $ neededPieces := d3; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
+        office -> setd1 [stop & productCode == 1 $ sparePieces := 0; money := 0],
+        office -> setd2 [stop & productCode == 2 $ sparePieces := 0; money := 0],
+        office -> setd3 [stop & productCode != 1 & productCode != 2 $ sparePieces := 0; money := 0],
 
-        office -> office [e & f & !g & !stop $ d1 := d1 + 1],
-        office -> office [!e & f & !g & !stop $ d1 := d1 - 1],
+        setd1 -> setd1 [e & !stop $ d1 := d1 + 1],
+        setd1 -> setd1 [!e & !stop $ d1 := d1 - 1],
+        setd1 -> moveToBank [stop $ neededPieces := d1; d1 := 0],
 
-        office -> office [e & !f & !g & !stop $ d2 := d2 + 1],
-        office -> office [!e & !f & !g & !stop $ d2 := d2 - 1],
+        setd2 -> setd2 [e & !stop $ d2 := d2 + 1],
+        setd2 -> setd2 [!e & !stop $ d2 := d2 - 1],
+        setd2 -> moveToBank [stop $ neededPieces := d2],
 
-        office -> office [!e & g & !stop $ d3 := d3 + 1],
-        office -> office [e & g & !stop $ d3 := d3 - 1],
+        setd1 -> setd1 [e & !stop $ d1 := d1 + 1],
+        setd1 -> setd1 [!e & !stop $ d1 := d1 - 1],
+        setd1 -> moveToBank [stop],
 
         bank -> bank [money < neededPieces $ money := money + 1],
         bank -> moveToStore [!(money < neededPieces)],

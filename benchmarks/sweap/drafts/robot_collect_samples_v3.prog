@@ -1,4 +1,4 @@
-program robot_collect_samples_v1 {
+program robot_collect_samples_v3 {
     STATES {
         moveToBase : init, base, collectSamples, moveToSampleSide, setSamplesAB
     }
@@ -36,14 +36,15 @@ program robot_collect_samples_v1 {
         collectSamples -> moveToBase [!(samples < reqSamples)],
         collectSamples -> setSamplesAB [samples < reqSamples $ samplesA := 0; samplesB := 0],
 
-        setSamplesAB -> collectSamples [stop && !(samplesA > 0 | samplesB > 0) $ samples := samples + 1],
-        setSamplesAB -> collectSamples [stop && a && (samplesA > 0 | samplesB > 0) $ samples := samples + samplesA],
-        setSamplesAB -> collectSamples [stop && !a && (samplesA > 0 | samplesB > 0) $ samples := samples + samplesB],
         setSamplesAB -> setSamplesAB [!stop && e $ samplesA := samplesA + 1],
-        setSamplesAB -> setSamplesAB [!stop && !e $ samplesB := samplesB + 1]
+        setSamplesAB -> setSamplesAB [!stop && !e $ samplesB := samplesB + 1],
+
+        setSamplesAB -> collectSamples [stop & !(samplesA > 0 | samplesB > 0) $ samples := samples + 1],
+        setSamplesAB -> collectSamples [stop & a && (samplesA > 0 | samplesB > 0) $ samples := samples + samplesA],
+        setSamplesAB -> collectSamples [stop & !a && (samplesA > 0 | samplesB > 0)$ samples := samples + samplesB]
     }
 
     SPECIFICATION {
-        (G F !setSamplesAB) -> G F base
+        (G F stop) -> G F base
     }
 }

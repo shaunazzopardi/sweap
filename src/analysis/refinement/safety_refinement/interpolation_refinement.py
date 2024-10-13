@@ -3,25 +3,21 @@ import logging
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And
 
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from parsing.string_to_prop_logic import string_to_prop
-from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from analysis.smt_checker import binary_interpolant, sequence_interpolant
+from analysis.smt_checker import sequence_interpolant
 from programs.program import Program
-from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import (ce_state_to_formula, ground_formula_on_ce_state_with_index, project_ce_state_onto_ev,
-                           reduce_up_to_iff)
+from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
-from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
-from prop_lang.uniop import UniOp
-from prop_lang.util import true, neg, conjunct_formula_set, conjunct, dnf_safe, fnode_to_formula, var_to_predicate, \
-    is_tautology, is_contradictory, atomic_predicates
+from prop_lang.util import (neg, conjunct_formula_set, fnode_to_formula, var_to_predicate, is_tautology,
+                            is_contradictory, atomic_predicates)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 def safety_refinement_seq_int(program: Program,
-                      predicate_abstraction: PredicateAbstraction,
+                      predicate_abstraction: EffectsAbstraction,
                       agreed_on_transitions,
                       disagreed_on_state,
                       allow_user_input: bool,
@@ -72,6 +68,8 @@ def safety_refinement_seq_int(program: Program,
 
         new_state_preds_fnode = sequence_interpolant(formulas_fnode)
 
+        if new_state_preds_fnode is None:
+            raise Exception("Bug: Counterexample does not contain a sequence interpolant.")
         reset_vars = [BiOp(Variable(v + "_" + str(i)), ":=", Variable(v)) for v in program.symbol_table.keys() for i in
                       range(0, len(agreed_on_transitions) + 1)]
 
@@ -95,7 +93,9 @@ def safety_refinement_seq_int(program: Program,
         # else:
         #     logging.info("Found state predicates: " + ", ".join([str(p) for p in new_state_preds]))
 
-    state_predicates = predicate_abstraction.get_state_predicates()
+    state_predicates = []
+    state_predicates.extend(predicate_abstraction.get_state_predicates())
+    state_predicates.extend(predicate_abstraction.chain_state_predicates)
     new_state_preds_massaged = []
     for s in new_state_preds:
         if isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.left).lower() == "true":
@@ -111,7 +111,7 @@ def safety_refinement_seq_int(program: Program,
     new_state_preds = new_state_preds_massaged
     new_all_preds = new_state_preds_massaged + state_predicates
 
-    new_all_preds = reduce_up_to_iff(predicate_abstraction.get_state_predicates(),
+    new_all_preds = reduce_up_to_iff(state_predicates,
                                      list(new_all_preds),
                                      symbol_table
                                      | {str(v): TypedValuation(str(v),
@@ -127,7 +127,8 @@ def safety_refinement_seq_int(program: Program,
 
     if len(set(new_all_preds)) == len(set(state_predicates)):
         new_state_preds = []
-        for _, prog_state, _ in agreed_on_transitions:
+        prog_states = [prog_state for _, prog_state, _ in agreed_on_transitions] + [disagreed_on_state[1][1]]
+        for prog_state in prog_states:
             for v in program.local_vars:
                 if str(Value(prog_state[str(v)])).lower() == "true":
                     new_state_preds.append(v)
@@ -135,7 +136,18 @@ def safety_refinement_seq_int(program: Program,
                     new_state_preds.append(neg(v))
                 else:
                     new_state_preds.append(BiOp(v, "=", Value(prog_state[str(v)])))
-        new_all_preds = new_state_preds + state_predicates
+        new_all_preds = list(set(normalise_LIA_state_preds(new_state_preds))) + state_predicates
+        new_all_preds = reduce_up_to_iff(state_predicates,
+                                         new_all_preds,
+                                         symbol_table
+                                         | {str(v): TypedValuation(str(v),
+                                                                   symbol_table[str(v).removesuffix("_prev")].type,
+                                                                   "true")
+                                            for p in new_all_preds
+                                            for v in p.variablesin()
+                                            if str(v).endswith(
+                                                 "prev")})  # TODO symbol_table needs to be updated with prevs
+
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         # raise Exception("Could not find new state predicates..")
 
@@ -162,7 +174,11 @@ def safety_refinement_seq_int(program: Program,
 
     logging.info("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates]))
 
-    return True, {p for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates}
+    new_preds = {p for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates}
+    if len(new_preds) == 0:
+        print("No new state predicates identified.")
+
+    return True, new_preds
 
 
 def interactive_state_predicates():

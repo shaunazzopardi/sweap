@@ -128,7 +128,7 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
             for (key, value) in dic.items():
                 if key.split("_prev")[0] in program_alphabet:
                     program_state[key] = value
-                elif key in cs_alphabet or key.startswith("compatible"):
+                elif key in cs_alphabet or key.startswith("compatible") or key.startswith("pred"):
                     cs_state[key] = value
                 elif key.startswith("guard_") and value == "TRUE":
                     if dic[key.replace("guard_", "act_")] == "TRUE":
@@ -618,13 +618,20 @@ def powerset(S: set):
         return subsets
 
 
-def binary_rep(vars):
+def binary_rep_states(vars):
+    return binary_rep(vars, "bin_st_")
+
+
+def binary_rep(vars, label):
+    if len(vars) == 0:
+        raise Exception("Cannot create binary representation of empty set")
+
     bin = math.log(len(vars), 2)
     bin = math.ceil(bin)
     if bin == 0:
         bin = 1
 
-    bin_vars = ["bin_st_" + str(i) for i in range(0, bin)]
+    bin_vars = [label + str(i) for i in range(0, bin)]
 
     base = '{0:0' + str(bin) + 'b}'
     rep = {}
@@ -643,6 +650,12 @@ def binary_rep(vars):
                 bin_formula = conjunct(bin_formula, new_constraint)
         rep[v] = bin_formula
 
+    for v, f in rep.items():
+        if isinstance(v, frozenset):
+            print("state: " + str(conjunct_formula_set(v)))
+        else:
+            print("state: " + str(v))
+        print("binary rep: " + str(f))
     return bin_vars, rep
 
 

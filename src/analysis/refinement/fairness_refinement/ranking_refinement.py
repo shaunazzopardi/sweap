@@ -97,21 +97,25 @@ def ranking_refinement(ranking, invars, there_is_inc=True):
     else:
         inc = BiOp(ranking, ">", add_prev_suffix(ranking))
         dec = BiOp(ranking, "<", add_prev_suffix(ranking))
-    tran_preds = {dec, inc}
 
     if len(invars) > 0:
         inv = conjunct_formula_set(invars)
         state_preds = atomic_predicates(inv)
         if not there_is_inc:
             constraint = implies(G(F(dec)), G(F(neg(inv))))
+            tran_preds = {dec}
         else:
             constraint = implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))
+            tran_preds = {dec, inc}
     else:
         if there_is_inc:
             constraint = implies(G(F(dec)), G(F(inc)))
+            tran_preds = {dec, inc}
             state_preds = set()
         else:
-            return set(), []
+            constraint = neg(G(F(dec)))
+            tran_preds = {dec}
+            state_preds = set()
 
     return tran_preds, state_preds, (dec, constraint)
 

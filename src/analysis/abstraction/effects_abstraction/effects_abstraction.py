@@ -7,6 +7,8 @@ from analysis.abstraction.effects_abstraction.util.effects_util import merge_tra
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionTransitionType, LTLAbstractionBaseType, \
     LTLAbstractionStructureType, LTLAbstractionType, LTLAbstractionOutputType
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from prop_lang.uniop import UniOp
+from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis import parse_hoa
 from synthesis.mealy_machine import MealyMachine
@@ -20,7 +22,8 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
     true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
-    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula, simplify_formula_without_math, X, iff
+    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula, simplify_formula_without_math, X, iff, \
+    chain_of_preds, chain_of_preds_sets, strip_mathexpr
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,15 @@ class EffectsAbstraction(PredicateAbstraction):
         self.guard_updates = set()
 
         self.state_predicates = []
+        self.chain_state_predicates = []
         self.transition_predicates = []
+
+        self.viable_pred_states = {}
+        self.chains = {}
+        self.current_bin_vars = {}
+        self.current_chain_bin_rep = {}
+        self.current_chain_all_bin_rep = {}
+        self.pred_to_v = {}
 
         self.interpolants = set()
         self.ranking_constraints = {}
@@ -67,6 +78,12 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_program_transitions(parallelise=True)
 
         self.symbol_table = {v: tv for v, tv in program.symbol_table.items()}
+
+        for v in self.symbol_table:
+            tv = self.symbol_table[v]
+            if "_prev_" not in str(tv.name) and \
+                (tv.type.lower().startswith('int') or tv.type.lower().startswith('nat') or ".." in tv.type):
+                self.chains[Variable(v)] = (([],[],{}), ([],[],{}))
 
     def abstract_program_transitions(self, parallelise=True):
         # TODO here get stutter transitions
@@ -105,9 +122,11 @@ class EffectsAbstraction(PredicateAbstraction):
                     results.append(r)
 
         results_init = []
-        empty_effects = {}
         true_set = {frozenset()}
-        empty_effects[frozenset()] = frozenset(true_set)
+        empty_list = list()
+        empty_list.append(list())
+        empty_effects = [(list(), empty_list)]
+        # (frozenset(), frozenset(true_set))
 
         init_disjuncts_set = set()
 
@@ -245,10 +264,6 @@ class EffectsAbstraction(PredicateAbstraction):
                        new_state_predicates: [Formula],
                        new_transition_predicates: [Formula],
                        parallelise=True):
-        for p in new_state_predicates:
-            self.var_relabellings[p] = stringify_pred(p)
-        for p in new_transition_predicates:
-            self.var_relabellings[p] = stringify_pred(p)
 
         self.interpolants.update(new_state_predicates)
         self.add_transition_predicates(new_transition_predicates, parallelise)
@@ -259,7 +274,7 @@ class EffectsAbstraction(PredicateAbstraction):
     def add_ranking_constraints(self, new_ranking_constraints: dict[Formula, [Formula]]):
         for dec, constraint in new_ranking_constraints:
             processed_ltl_constraints = []
-            processed = constraint.right.replace_formulas(self.var_relabellings)
+            processed = strip_mathexpr(constraint.right).replace_formulas(self.var_relabellings)
             processed_ltl_constraints.append(processed)
             processed_dec = self.var_relabellings[dec]
             if processed_dec not in self.ranking_constraints.keys():
@@ -270,7 +285,7 @@ class EffectsAbstraction(PredicateAbstraction):
     def add_structural_loop_constraints(self, new_structural_loop_constraints):
         for constraint in new_structural_loop_constraints:
             processed_ltl_constraints = []
-            processed = constraint.replace_formulas(self.var_relabellings)
+            processed = strip_mathexpr(constraint).replace_formulas(self.var_relabellings)
             processed_ltl_constraints.append(processed)
             self.structural_loop_constraints.extend(processed_ltl_constraints)
 
@@ -283,6 +298,65 @@ class EffectsAbstraction(PredicateAbstraction):
 
         logger.info("Tagging abstract transitions with predicates..")
         start = time.time()
+
+        remaining_st_preds = new_state_predicates
+
+        self.current_chain_all_bin_rep = {}
+        preds_to_chain = {}
+        all_bin_rep = {}
+        for v, info in self.chains.items():
+            (pos_list, viable_pred_pos_states, pos_pred_to_chain), (neg_list, viable_pred_neg_states, neg_pred_to_chain) = info
+            if len(remaining_st_preds) == 0:
+                break
+
+            ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
+             (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain), rest) = (
+                chain_of_preds_sets(remaining_st_preds, v,
+                                    pos_list, viable_pred_pos_states, pos_pred_to_chain,
+                                    neg_list, viable_pred_neg_states, neg_pred_to_chain))
+            remaining_st_preds = rest
+
+            preds_to_chain |= new_pos_pred_to_chain
+            preds_to_chain |= new_neg_pred_to_chain
+
+            if len(pos_list) != len(new_pos_list):
+                pos_list_up_to_neg = set(new_pos_list) | set((neg(p) for p in new_pos_list))
+                new_pos_bin_vars, new_pos_bin_rep = binary_rep(new_viable_pred_pos_states,
+                                                               "bin_" + str(v) + "_pos_")
+                self.current_bin_vars[v] = new_pos_bin_vars
+                self.viable_pred_states[v] = (new_pos_list, pos_list_up_to_neg, new_pos_bin_rep)
+                self.pred_to_v.update({p: v for p in pos_list_up_to_neg})
+                self.current_chain_bin_rep[v] = new_pos_bin_rep.items()
+                all_bin_rep |= new_pos_bin_rep
+
+            if v in self.current_chain_bin_rep.keys():
+                self.current_chain_all_bin_rep |= self.current_chain_bin_rep[v]
+
+            if len(neg_list) != len(new_neg_list):
+                neg_list_up_to_neg = set(new_neg_list) | set((neg(p) for p in new_neg_list))
+                new_neg_bin_vars, new_neg_bin_rep = binary_rep(new_viable_pred_neg_states,
+                                                               "bin_" + str(v) + "_neg_")
+                self.current_bin_vars[UniOp("-", v)] = new_neg_bin_vars
+                self.viable_pred_states[UniOp("-", v)] = (new_neg_list, neg_list_up_to_neg, new_neg_bin_rep)
+                self.pred_to_v.update({p: UniOp("-", v) for p in neg_list_up_to_neg})
+                self.current_chain_bin_rep[UniOp("-", v)] = new_neg_bin_rep.items()
+                all_bin_rep |= new_neg_bin_rep
+
+            if UniOp("-", v) in self.current_chain_bin_rep.keys():
+                self.current_chain_all_bin_rep |= self.current_chain_bin_rep[UniOp("-", v)]
+
+
+            self.chains[v] = ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
+                              (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain))
+
+        self.state_predicates += remaining_st_preds
+        self.chain_state_predicates.extend([p for p in new_state_predicates if p not in remaining_st_preds])
+
+        for p in new_state_predicates:
+            if p in preds_to_chain.keys():
+                self.var_relabellings[p] = disjunct_formula_set([all_bin_rep[ps] for ps in preds_to_chain[p]])
+            else:
+                self.var_relabellings[p] = stringify_pred(p)
 
         for p in new_state_predicates:
             self.symbol_table.update({
@@ -312,6 +386,8 @@ class EffectsAbstraction(PredicateAbstraction):
         arg33 = []
         arg4 = []
         arg5 = []
+        arg55 = []
+        arg66 = []
         arg6 = []
         for gu in self.guard_updates:
             g, u = guard_update_formula_to_guard_update(gu)
@@ -323,29 +399,18 @@ class EffectsAbstraction(PredicateAbstraction):
             arg33.append(self.abstract_effect_tran_preds_constant[gu])
             arg4.append(self.abstract_effect[gu])
             arg5.append(new_state_predicates)
+            arg55.append(self.viable_pred_states)
+            arg66.append(self.pred_to_v)
             arg6.append(self.program.symbol_table)
         with Pool(no_of_workers) as pool:
-            results = pool.map(compute_abstract_effect_for_guard_update, zip(arg1, arg2, arg3, arg31, arg32, arg33, arg4, arg5, arg6))
+            results = pool.map(compute_abstract_effect_for_guard_update,
+                               zip(arg1, arg2, arg3, arg31, arg32, arg33, arg4, arg5, arg55, arg66, arg6))
 
         for g, u, gu, invars, constants, new_effects, gu_ltl in results:
             self.abstract_effect_invars[gu].extend(invars)
             self.abstract_effect_constant[gu].extend(constants)
             self.abstract_effect[gu] = new_effects
             self.abstract_effect_ltl[gu] = gu_ltl
-
-        # if config.debug:
-        #     # sanity check
-        #     for t, E_effects in self.abstract_effect.items():
-        #         t_f = transition_formula(t)
-        #         for E, next_nows in E_effects.items():
-        #             f = conjunct(t_f, add_prev_suffix(conjunct_formula_set(E)))
-        #             for next, nows in next_nows.items():
-        #                 for now in nows:
-        #                     effects_f = disjunct_formula_set([conjunct(conjunct_formula_set(next),
-        #                                                        add_prev_suffix(conjunct_formula_set(now)))])
-        #                     to_check = conjunct(f, effects_f)
-        #                     if not sat(to_check, self.symbol_table):
-        #                         raise Exception("something wrong in effectsabsttraction")
 
         end = time.time()
         logger.info(end - start)
@@ -354,12 +419,14 @@ class EffectsAbstraction(PredicateAbstraction):
         end = time.time()
         logger.info(end - start)
 
-        self.state_predicates += new_state_predicates
 
     def add_transition_predicates(self, new_transition_predicates: [Formula],
                                   parallelise=True):
         if len(new_transition_predicates) == 0:
             return
+
+        for p in new_transition_predicates:
+            self.var_relabellings[p] = stringify_pred(p)
 
         logger.info("Adding predicates to predicate abstraction:")
         logger.info("trans preds: [" + ", ".join(list(map(str, new_transition_predicates))) + "]")
@@ -515,55 +582,88 @@ class EffectsAbstraction(PredicateAbstraction):
 
 
 def compute_abstract_effect_for_guard_update(arg):
-    g, u, gu_formula, invars, constants, tran_preds_constants, old_effects, predicates, symbol_table = arg
+    (g, u, gu_formula, invars, constants, tran_preds_constants, old_effects, predicates, viable_pred_states,
+     preds_to_v, symbol_table) = arg
 
     for p in predicates:
         g, u, gu_formula, invars_p, constants_p, effects = (
-            compute_abstract_effect_with_p_guard_update((g, u, gu_formula, old_effects, p, symbol_table)))
+            compute_abstract_effect_with_p_guard_update((g, u, gu_formula, old_effects, p, symbol_table, p in preds_to_v.keys())))
         old_effects = effects
         invars.extend(invars_p)
         constants.extend(constants_p)
+
     rename_pred = lambda x: label_pred(x, [])
     gu_ltl = []
-    for next, nows in old_effects.items():
-        E_now = disjunct_formula_set(
-            [conjunct_formula_set([rename_pred(p) for p in pred_state]) for pred_state in nows])
-        E_now_simplified = bdd_simplify_ltl_formula(E_now)
-        E_next = conjunct_formula_set([rename_pred(p) for p in next])
+
+    # viable_pred_states[v] = (pred_list, list_up_to_neg, new_bin_rep)
+    # preds_to_v
+
+    for next, nows in old_effects:
+        now_disjuncts = []
+        for now in nows:
+            nows_renamed = []
+            d = {}
+            for p in now:
+                if p in preds_to_v.keys():
+                    v = preds_to_v[p]
+                    if v not in d.keys():
+                        d[v] = {p}
+                    else:
+                        d[v].add(p)
+                else:
+                    nows_renamed.append(rename_pred(p))
+            for v, ps in d.items():
+                (pred_list, list_up_to_neg, new_bin_rep) = viable_pred_states[v]
+                if frozenset(ps) not in new_bin_rep.keys():
+                    print(conjunct_formula_set(ps))
+                    print(v)
+                    for k in new_bin_rep.keys():
+                        print(conjunct_formula_set(k))
+                bin_rep = new_bin_rep[frozenset(ps)]
+                nows_renamed.append(bin_rep)
+            now_disjuncts.append(conjunct_formula_set(nows_renamed))
+
+        E_now = disjunct_formula_set(now_disjuncts)
+        if len(now_disjuncts) > 1:
+            E_now_simplified = bdd_simplify_ltl_formula(E_now)
+        else:
+            E_now_simplified = E_now
+
+        next_conjuncts = []
+        d = {}
+        for p in next:
+            if p in preds_to_v.keys():
+                v = preds_to_v[p]
+                if v not in d.keys():
+                    d[v] = {p}
+                else:
+                    d[v].add(p)
+            else:
+                next_conjuncts.append(rename_pred(p))
+        for v, ps in d.items():
+            (pred_list, list_up_to_neg, new_bin_rep) = viable_pred_states[v]
+            bin_rep = new_bin_rep[frozenset(ps)]
+            next_conjuncts.append(bin_rep)
+
+        E_next = conjunct_formula_set(next_conjuncts)
         E_next_simplified = simplify_formula_without_math(E_next)
         gu_ltl.append(conjunct(E_now_simplified, X(E_next_simplified)))
 
     gu_ltl = disjunct_formula_set(gu_ltl)
     invar_preds_effects = []
-    invar_preds_effects += [iff(rename_pred(p), X(rename_pred(p))) for p in invars]
-    invar_preds_effects += [X(rename_pred(p)) for p in constants]
-    invar_preds_effects += [X(rename_pred(p)) for p in tran_preds_constants]
+    for p in invars:
+        invar_preds_effects.append(iff(rename_pred(p), X(rename_pred(p))))
+
+    for p in constants + tran_preds_constants:
+        invar_preds_effects.append(X(rename_pred(p)))
 
     gu_ltl = conjunct_formula_set([gu_ltl] + invar_preds_effects)
 
     return g, u, gu_formula, invars, constants, old_effects, str(gu_ltl)
 
 
-# def add_transition_predicates_to_t_guard_updates(arg):
-#     gu_formula, old_effects, predicates, symbol_table = arg
-#
-#     invars = []
-#     constants = []
-#     for p in predicates:
-#         if str(p) in str(gu_formula):
-#             constants.append(p)
-#             continue
-#         gu_formula, invars_p, constants_p, effects = (
-#             add_transition_predicate_to_t_guard_updates((g, u, gu_formula, old_effects, p, symbol_table)))
-#         old_effects = effects
-#         invars.extend(invars_p)
-#         constants.extend(constants_p)
-#
-#     return gu_formula, invars, constants, old_effects
-
-
 def compute_abstract_effect_with_p_guard_update(arg):
-    g, u, gu_formula, old_effects, predicate, symbol_table = arg
+    g, u, gu_formula, old_effects, predicate, symbol_table, ignore_invar_constants = arg
 
     if len(old_effects) == 0:
         return g, u, gu_formula, [], [], old_effects
@@ -579,34 +679,34 @@ def compute_abstract_effect_with_p_guard_update(arg):
 
     invars = []
     constants = []
-    new_effects = {x: y for x, y in old_effects.items()}
 
-    variable_used_in_guard = any(True for v in predicate.variablesin() if v in g.variablesin())
-    value_modified = any(True for v in predicate.variablesin()
-                         if v in vars_modified_in_action_without_identity +
-                         vars_used_in_action_without_identity)
-    # if the predicate is a state predicate and is not mentioned in both the guard and action
-    if not is_tran_pred(predicate) and not variable_used_in_guard and not value_modified:
-        # TODO add these predicates to guard lazily, only when needed
-        invars = [predicate]
-    # if the predicate is an inc or dec transition predicate and is not mentioned in the action
-    elif (is_tran_pred(predicate)
-          and isinstance(predicate, BiOp) and predicate.op in ["<", ">"]  # This is only applicable for decs and incs
-          and not value_modified):
-        constants = [neg(predicate)]
-    # if the predicate is always false after the transition
-    elif is_contradictory(conjunct_formula_set([gu_formula, (predicate)]), symbol_table):
-        constants = [neg(predicate)]
-    # if the predicate is always true after the transition
-    elif is_contradictory(conjunct_formula_set([gu_formula, neg(predicate)]), symbol_table):
-        constants = [(predicate)]
-    # if the predicate is maintained by the transition
-    elif is_contradictory(conjunct_formula_set([gu_formula, add_prev_suffix(predicate), neg(predicate)]),
-                          symbol_table) and \
-            is_contradictory(conjunct_formula_set([gu_formula, add_prev_suffix(neg(predicate)), (predicate)]),
-                             symbol_table):
-        # TODO This is a bit too much, still need to consider whether predicate is needed to abstract guard
-        invars = [(predicate)]
+    if not ignore_invar_constants:
+        variable_used_in_guard = any(True for v in predicate.variablesin() if v in g.variablesin())
+        value_modified = any(True for v in predicate.variablesin()
+                             if v in vars_modified_in_action_without_identity +
+                             vars_used_in_action_without_identity)
+        # if the predicate is a state predicate and is not mentioned in both the guard and action
+        if not is_tran_pred(predicate) and not value_modified:
+            # TODO add these predicates to guard lazily, only when needed
+            invars = [predicate]
+        # if the predicate is an inc or dec transition predicate and is not mentioned in the action
+        elif (is_tran_pred(predicate)
+              and isinstance(predicate, BiOp) and predicate.op in ["<", ">"]  # This is only applicable for decs and incs
+              and not value_modified):
+            constants = [neg(predicate)]
+        # if the predicate is always false after the transition
+        elif is_contradictory(conjunct_formula_set([gu_formula, (predicate)]), symbol_table):
+            constants = [neg(predicate)]
+        # if the predicate is always true after the transition
+        elif is_contradictory(conjunct_formula_set([gu_formula, neg(predicate)]), symbol_table):
+            constants = [(predicate)]
+        # if the predicate is maintained by the transition
+        elif is_contradictory(conjunct_formula_set([gu_formula, add_prev_suffix(predicate), neg(predicate)]),
+                              symbol_table) and \
+                is_contradictory(conjunct_formula_set([gu_formula, add_prev_suffix(neg(predicate)), (predicate)]),
+                                 symbol_table):
+            # TODO This is a bit too much, still need to consider whether predicate is needed to abstract guard
+            invars = [(predicate)]
 
     formula_pos = conjunct(gu_formula, add_prev_suffix(predicate))
     if sat(formula_pos, symbol_table):
@@ -619,74 +719,251 @@ def compute_abstract_effect_with_p_guard_update(arg):
         try_neg = True
     else:
         try_neg = False
+    newNextPss = []
+
+    if len(constants) > 0 or len(invars) > 0:
+        # old_effects[E] is an InvertibleMap
+        for (nextPs, Pss) in old_effects:
+            if not relevant_pred_g_u(g, u, nextPs, predicate):
+                newNextPss.append((nextPs, Pss))
+                continue
+
+            new_pos_Ps = []
+            new_neg_Ps = []
+            next_f = conjunct_formula_set(nextPs)
+            for Ps in Pss:
+                f_pos = formula_pos
+                f_neg = formula_neg
+                # if p was true before, is p possible next?
+                if try_pos and sat(conjunct(next_f,
+                                            conjunct(f_pos,
+                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                                   symbol_table):
+                    new_pos_Ps.append(Ps + [predicate])
+
+                # if p was false before, is p possible next?
+                if try_neg and sat(conjunct(next_f,
+                                            conjunct(f_neg,
+                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                                   symbol_table):
+                    new_neg_Ps.append(Ps + [neg(predicate)])
+
+            new_Ps = new_pos_Ps + new_neg_Ps
+            if len(new_Ps) > 0:
+                newNextPss.append((nextPs, new_Ps))
+    else:
+        for (nextPs, Pss) in old_effects:
+            nextPs_with_p = [p for p in nextPs]
+            nextPs_with_p.append(predicate)
+            nextPs_with_neg_p = [p for p in nextPs]
+            nextPs_with_neg_p.append(neg(predicate))
+
+            new_pos_Ps = []
+            new_neg_Ps = []
+            next_f_p = conjunct_formula_set(nextPs_with_p)
+            next_f_neg_p = conjunct_formula_set(nextPs_with_neg_p)
+            for (Ps) in Pss:
+                # if p was true before, is p possible next?
+                if try_pos and sat(conjunct(next_f_p,
+                                            conjunct(formula_pos,
+                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                                   symbol_table):
+                    new_pos_Ps.append(Ps + [predicate])
+
+                # if p was false before, is p possible next?
+                if try_neg and sat(conjunct(next_f_p,
+                                            conjunct(formula_neg,
+                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                                   symbol_table):
+                    new_pos_Ps.append(Ps + [neg(predicate)])
+
+                # if p was true before, is not p possible next?
+                if try_pos and sat(conjunct(next_f_neg_p,
+                                            conjunct(formula_pos,
+                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                                   symbol_table):
+                    new_neg_Ps.append(Ps + [predicate])
+
+                # if p was false before, is not p possible next?
+                if try_neg and sat(conjunct(next_f_neg_p,
+                                            conjunct(formula_neg,
+                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                                   symbol_table):
+                    new_neg_Ps.append(Ps + [neg(predicate)])
+
+            if len(new_pos_Ps) > 0:
+                newNextPss.append((nextPs_with_p, new_pos_Ps))
+            if len(new_neg_Ps) > 0:
+                newNextPss.append((nextPs_with_neg_p, new_neg_Ps))
+
+    new_effects = newNextPss
+    return g, u, gu_formula, invars, constants, new_effects
+
+
+def compute_abstract_effect_with_p_guard_update_chained_preds(arg):
+    g, u, gu_formula, old_effects, symbol_table, (chain, bin_vars, _), to_remove = arg
+
+    if len(old_effects) == 0:
+        return g, u, gu_formula, [], [], old_effects
+
+    action = u
+
+    vars_modified_in_action_without_identity = [a.left for a in action if not a.left == a.right]
+    vars_used_in_action_without_identity = [v for a in action if not a.left == a.right for v in
+                                            a.right.variablesin()]
+
+    invars = []
+    constants = []
+
+    # variable_used_in_guard = any(True for v in chain[0].variablesin() if v in g.variablesin())
+    # value_modified = any(True for v in chain[0].variablesin()
+    #                      if v in vars_modified_in_action_without_identity +
+    #                      vars_used_in_action_without_identity)
+    # # if the predicate is a state predicate and is not mentioned in both the guard and action
+    # if not variable_used_in_guard and not value_modified:
+    #     # TODO add these predicates to guard lazily, only when needed
+    #     invars.extend(bin_vars)
+    # else:
+    #     for prop in chain:
+    #         if is_contradictory(conjunct_formula_set([gu_formula, neg(prop)]), symbol_table):
+    #             constants = [(prop)]
+    #         # # if the predicate is maintained by the transition
+    #         # elif is_contradictory(conjunct_formula_set([gu_formula, add_prev_suffix(prop), neg(prop)]),
+    #         #                       symbol_table) and \
+    #         #         is_contradictory(conjunct_formula_set([gu_formula, add_prev_suffix(neg(prop)), (prop)]),
+    #         #                          symbol_table):
+    #         #     # TODO This is a bit too much, still need to consider whether predicate is needed to abstract guard
+    #         #     invars = [(prop)]
+
+    # formula_pos = conjunct(gu_formula, add_prev_suffix(predicate))
+    # if sat(formula_pos, symbol_table):
+    #     try_pos = True
+    # else:
+    #     try_pos = False
+    #
+    # formula_neg = conjunct(gu_formula, add_prev_suffix(neg(predicate)))
+    # if sat(formula_neg, symbol_table):
+    #     try_neg = True
+    # else:
+    #     try_neg = False
+
     newNextPss = {}
 
     if len(constants) > 0 or len(invars) > 0:
         # old_effects[E] is an InvertibleMap
-        for (nextPs, Pss) in old_effects.items():
-            if not relevant_pred_g_u(g, u, nextPs, predicate):
-                newNextPss[nextPs] = Pss
-                continue
+        for (nextPs_old, Pss) in old_effects.items():
+            nextPs = frozenset(p for p in nextPs_old if p not in to_remove and neg(p) not in to_remove)
 
-            new_pos_Ps = set()
-            new_neg_Ps = set()
-            for Ps in Pss:
+            new_Ps = set()
+            for Ps_old in Pss:
+                Ps = frozenset(p for p in Ps_old if p not in to_remove and neg(p) not in to_remove)
                 # if p was true before, is p possible next?
-                if try_pos and sat(conjunct(conjunct_formula_set(nextPs),
-                                            conjunct(formula_pos,
-                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                   symbol_table):
-                    new_pos_Ps.add(Ps | {predicate})
+                for prop in chain:
+                    formula_pos = conjunct(gu_formula, add_prev_suffix(prop))
+                    if sat(conjunct(conjunct_formula_set(nextPs),
+                                    conjunct(formula_pos,
+                                             conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                           symbol_table):
+                        new_Ps.add(Ps | {prop})
 
-                # if p was false before, is p possible next?
-                if try_neg and sat(conjunct(conjunct_formula_set(nextPs),
-                                            conjunct(formula_neg,
-                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                   symbol_table):
-                    new_neg_Ps.add(Ps | {neg(predicate)})
-
-            new_now = frozenset(P for P in new_neg_Ps | new_pos_Ps)
+            new_now = frozenset(P for P in new_Ps)
             if len(new_now) > 0:
                 newNextPss[nextPs] = new_now
     else:
-        for (nextPs, Pss) in old_effects.items():
-            nextPs_with_p = frozenset(p for p in nextPs | {predicate})
-            nextPs_with_neg_p = frozenset(p for p in nextPs | {neg(predicate)})
-            new_pos_Ps = set()
-            new_neg_Ps = set()
-            for Ps in Pss:
-                # if p was true before, is p possible next?
-                if try_pos and sat(conjunct(conjunct_formula_set(nextPs_with_p),
-                                            conjunct(formula_pos,
-                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                   symbol_table):
-                    new_pos_Ps.add(Ps | {predicate})
+        for (nextPs_old, Pss) in old_effects.items():
+            nextPs = frozenset(p for p in nextPs_old if p not in to_remove and neg(p) not in to_remove)
 
-                # if p was false before, is p possible next?
-                if try_neg and sat(conjunct(conjunct_formula_set(nextPs_with_p),
-                                            conjunct(formula_neg,
-                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                   symbol_table):
-                    new_pos_Ps.add(Ps | {neg(predicate)})
+            next_now_pairs = {}
+            for prop_next in chain:
+                nextPs_with_prop_next = frozenset(nextPs | {prop_next})
+                new_pos_Ps_with_prop_now = set()
 
-                # if p was true before, is not p possible next?
-                if try_pos and sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
-                                            conjunct(formula_pos,
-                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                   symbol_table):
-                    new_neg_Ps.add(Ps | {predicate})
+                for Ps_old in Pss:
+                    Ps = frozenset(p for p in Ps_old if p not in to_remove and neg(p) not in to_remove)
+                    # if p was true before, is p possible next?
 
-                # if p was false before, is not p possible next?
-                if try_neg and sat(conjunct(conjunct_formula_set(nextPs_with_neg_p),
-                                            conjunct(formula_neg,
-                                                     conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
-                                   symbol_table):
-                    new_neg_Ps.add(Ps | {neg(predicate)})
+                    for prop_now in chain:
+                        formula = conjunct(gu_formula, add_prev_suffix(prop_now))
 
-            if len(new_pos_Ps) > 0:
-                newNextPss[nextPs_with_p] = frozenset(P for P in new_pos_Ps)
-            if len(new_neg_Ps) > 0:
-                newNextPss[nextPs_with_neg_p] = frozenset(P for P in new_neg_Ps)
+                        if sat(conjunct(conjunct_formula_set(nextPs_with_prop_next),
+                                        conjunct(formula,
+                                                 conjunct_formula_set([add_prev_suffix(P) for P in Ps]))),
+                               symbol_table):
+                            new_pos_Ps_with_prop_now.add(Ps | {prop_now})
+
+                if len(new_pos_Ps_with_prop_now) != 0:
+                    next_now_pairs[nextPs_with_prop_next] = frozenset(P for P in new_pos_Ps_with_prop_now)
+
+            newNextPss = newNextPss | next_now_pairs
+
+    new_effects = newNextPss
+    return g, u, gu_formula, invars, constants, new_effects
+
+
+def compute_abstract_effect_with_p_guard_update_with_chains(arg):
+    g, u, gu_formula, old_effects, symbol_table, old_chain_preds_to_update = arg
+
+    if len(old_effects) == 0:
+        return g, u, gu_formula, [], [], old_effects
+
+    action = u
+
+    vars_modified_in_action_without_identity = [a.left for a in action if not a.left == a.right]
+    vars_used_in_action_without_identity = [v for a in action if not a.left == a.right for v in
+                                            a.right.variablesin()]
+
+    invars = []
+    invars_chains_vars = set()
+    constants = []
+
+    # for old_chain_rep, new_chain_rep in old_chain_preds_to_update:
+    #     vars_in_chain = old_chain_rep.variablesin()
+    #     value_modified = any(True for v in vars_in_chain
+    #                          if v in vars_modified_in_action_without_identity +
+    #                          vars_used_in_action_without_identity)
+    #     # # if the predicate is a state predicate and is not mentioned in both the guard and action
+    #     if not value_modified:
+    #         invars_chains_vars.update(vars_in_chain)
+    #
+    #     newNextPss = []
+
+    # if len(constants) > 0 or len(invars) > 0:
+    newNextPss = []
+
+    for (nextPs_old, Pss) in old_effects:
+        for p in nextPs_old:
+            if p in old_chain_preds_to_update.keys():
+                nextPs_copy = nextPs_old.copy()
+                nextPs_copy.remove(p)
+                next_choices = old_chain_preds_to_update[p]
+                for f in next_choices:
+                    print(len(next_choices))
+                    nextPs = nextPs_copy + [f]
+
+                    newPss = []
+                    for Ps_old in Pss:
+                        for p in Ps_old:
+                            if p in old_chain_preds_to_update.keys():
+                                nowPs_copy = Ps_old.copy()
+                                nowPs_copy.remove(p)
+                                now_choices = old_chain_preds_to_update[p]
+                                for f in now_choices:
+                                    newPs = nowPs_copy + [f]
+                                    if len(next_choices) == 1 and len(now_choices) == 1:
+                                        newPss.append(newPs)
+                                    elif sat(conjunct(conjunct_formula_set(nextPs),
+                                                      conjunct(gu_formula,
+                                                               conjunct_formula_set(
+                                                                   [add_prev_suffix(p) for p in newPs]))),
+                                             symbol_table):
+                                        newPss.append(newPs)
+                                break
+                    if len(newPss) != 0:
+                        newNextPss.append((nextPs, newPss))
+                break
+
+    if len(newNextPss) == 0:
+        raise Exception("No newNextPss found after refinement")
 
     new_effects = newNextPss
     return g, u, gu_formula, invars, constants, new_effects
@@ -722,7 +999,7 @@ def add_transition_predicate_to_t_guard_updates(arg):
 
     invars = []
     constants = []
-    new_effects = {x: y for x, y in old_effects.items()}
+    new_effects = [(x, y) for x, y in old_effects]
     # if the transition predicate is not mentioned in the action
     if is_contradictory(conjunct_formula_set([t_formula, (predicate)]), symbol_table):
         constants = [neg(predicate)]
@@ -733,11 +1010,11 @@ def add_transition_predicate_to_t_guard_updates(arg):
     else:
         new_formula = gu
 
-        newNextPss = {}
+        newNextPss = []
 
-        for (nextPs, Pss) in old_effects.items():
-            nextPs_with_p = frozenset(p for p in nextPs | {predicate})
-            nextPs_with_neg_p = frozenset(p for p in nextPs | {neg(predicate)})
+        for (nextPs, Pss) in old_effects:
+            nextPs_with_p = [p for p in nextPs + [predicate]]
+            nextPs_with_neg_p = [p for p in nextPs + [neg(predicate)]]
             new_pos_Ps = []
             new_neg_Ps = []
             for Ps in Pss:
@@ -754,9 +1031,9 @@ def add_transition_predicate_to_t_guard_updates(arg):
                     new_neg_Ps.append(Ps)
 
             if len(new_pos_Ps) > 0:
-                newNextPss[nextPs_with_p] = new_pos_Ps
+                newNextPss.append((nextPs_with_p, new_pos_Ps))
             if len(new_neg_Ps) > 0:
-                newNextPss[nextPs_with_neg_p] = new_neg_Ps
+                newNextPss.append((nextPs_with_neg_p, new_neg_Ps))
 
         new_effects = newNextPss
     return gu, invars, constants, new_effects
@@ -776,6 +1053,7 @@ def add_transition_predicate_to_update(arg):
         return True, (u_f, [(predicate)])
     else:
         return False, None
+
 
 def abstract_guard_explicitly_simple_parallel(arg):
     trans, events, symbol_table = arg

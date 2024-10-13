@@ -1,13 +1,12 @@
 import logging
 
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from config import Config
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
-from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from analysis.model_checker import ModelChecker
 from programs.program import Program
-from synthesis.mealy_machine import MealyMachine
 from programs.util import parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
@@ -17,7 +16,7 @@ from synthesis.moore_machine import MooreMachine
 
 
 def compatibility_checking(program: Program,
-                           predicate_abstraction: PredicateAbstraction,
+                           predicate_abstraction: EffectsAbstraction,
                            moore_machine: MooreMachine,
                            is_controller: bool,
                            base_abstraction,
@@ -44,9 +43,11 @@ def compatibility_checking(program: Program,
     all_preds = predicate_abstraction.get_all_preds()
     symbol_table = predicate_abstraction.get_symbol_table()
 
+
     system = create_nuxmv_model_for_compatibility_checking(program,
                                                            moore_nuxmv,
                                                            all_preds,
+                                                           predicate_abstraction.current_chain_all_bin_rep,
                                                            not program.deterministic,
                                                            not program.deterministic,
                                                            predicate_mismatch=True,
@@ -114,7 +115,7 @@ def compatibility_checking(program: Program,
 
 
 def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel,
-                                                  pred_list, include_mismatches_due_to_nondeterminism=False,
+                                                  pred_list, bin_pred_rep, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
     pred_definitions = {label_pred(p, pred_list): p for p in pred_list}
     program_model = program.to_nuXmv_with_turns(include_mismatches_due_to_nondeterminism, colloborate, pred_definitions)
@@ -133,11 +134,16 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
            + ["mismatch : boolean"] \
            + ["init_state : boolean"]
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
-    text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define) + ";\n"
+
+    binned_preds = [str(label_pred(conjunct_formula_set(ps), pred_list)) + " := " + str(rep)
+                    for ps, rep in bin_pred_rep.items() if not(len(ps) == 1 and isinstance(list(ps)[0], UniOp))]
+    text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define + binned_preds) + ";\n"
 
     safety_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                               for p in pred_list if not any([v for v in p.variablesin() if "_prev" in str(
             v)])]
+
+    safety_predicate_truth += [BiOp(label_pred(conjunct_formula_set(ps), pred_list), '<->', conjunct_formula_set(ps)) for ps, rep in bin_pred_rep.items()]
 
     tran_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                             for p in pred_list if any([v for v in p.variablesin() if "_prev" in str(
