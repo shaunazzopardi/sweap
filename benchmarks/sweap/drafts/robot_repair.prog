@@ -20,16 +20,19 @@ program robot_repair {
 
     TRANSITIONS {
         moveToBase -> base [trackPos == 23],
-        moveToBase -> moveToBase [trackPos != 23 & a $ trackPos := trackPos + 1],
-        moveToBase -> moveToBase [trackPos != 23 & !a $ trackPos := trackPos - 1],
+        moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],
+        moveToBase -> moveToBase [trackPos != 23 & !a & !b $ trackPos := trackPos - 1],
+        moveToBase -> moveToBase [trackPos != 23 & a],
 
         moveToDevice -> repair [trackPos == 25],
-        moveToDevice -> moveToDevice [trackPos != 25 & a $ trackPos := trackPos + 1],
-        moveToDevice -> moveToDevice [trackPos != 25 & !a $ trackPos := trackPos - 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & !a & b $ trackPos := trackPos + 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & !a & !b $ trackPos := trackPos - 1],
+        moveToDevice -> moveToDevice [trackPos != 25 & a],
 
         moveToStock -> stock [trackPos == -3],
         moveToStock -> moveToStock [trackPos != -3 & !a & b $ trackPos := trackPos + 1],
         moveToStock -> moveToStock [trackPos != -3 & !a & !b $ trackPos := trackPos - 1],
+        moveToStock -> moveToStock [trackPos != -3 & a],
 
         base -> countBrokenPieces [workingDevice & break $ neededSparePieces := 0; workingDevice := false],
         base -> base [workingDevice & !break],
