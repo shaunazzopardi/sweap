@@ -20,10 +20,10 @@ from programs.util import add_prev_suffix, transition_formula, powerset_complete
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
-from prop_lang.util import conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
+from prop_lang.util import (conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
     true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
-    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula, simplify_formula_without_math, X, iff, \
-    chain_of_preds, chain_of_preds_sets, strip_mathexpr
+    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula, simplify_formula_without_math, X, iff,
+                            chain_of_preds_sets, strip_mathexpr)
 
 logger = logging.getLogger(__name__)
 
@@ -121,12 +121,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     results.append(r)
 
-        results_init = []
-        true_set = {frozenset()}
         empty_list = list()
         empty_list.append(list())
         empty_effects = [(list(), empty_list)]
-        # (frozenset(), frozenset(true_set))
 
         init_disjuncts_set = set()
 
@@ -274,7 +271,7 @@ class EffectsAbstraction(PredicateAbstraction):
     def add_ranking_constraints(self, new_ranking_constraints: dict[Formula, [Formula]]):
         for dec, constraint in new_ranking_constraints:
             processed_ltl_constraints = []
-            processed = strip_mathexpr(constraint.right).replace_formulas(self.var_relabellings)
+            processed = strip_mathexpr(constraint.right)
             processed_ltl_constraints.append(processed)
             processed_dec = self.var_relabellings[dec]
             if processed_dec not in self.ranking_constraints.keys():
@@ -285,7 +282,7 @@ class EffectsAbstraction(PredicateAbstraction):
     def add_structural_loop_constraints(self, new_structural_loop_constraints):
         for constraint in new_structural_loop_constraints:
             processed_ltl_constraints = []
-            processed = strip_mathexpr(constraint).replace_formulas(self.var_relabellings)
+            processed = strip_mathexpr(constraint)
             processed_ltl_constraints.append(processed)
             self.structural_loop_constraints.extend(processed_ltl_constraints)
 
@@ -299,66 +296,80 @@ class EffectsAbstraction(PredicateAbstraction):
         logger.info("Tagging abstract transitions with predicates..")
         start = time.time()
 
-        remaining_st_preds = new_state_predicates
-
-        self.current_chain_all_bin_rep = {}
+        optimise = True
         preds_to_chain = {}
-        all_bin_rep = {}
-        for v, info in self.chains.items():
-            (pos_list, viable_pred_pos_states, pos_pred_to_chain), (neg_list, viable_pred_neg_states, neg_pred_to_chain) = info
-            if len(remaining_st_preds) == 0:
-                break
 
-            ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
-             (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain), rest) = (
-                chain_of_preds_sets(remaining_st_preds, v,
-                                    pos_list, viable_pred_pos_states, pos_pred_to_chain,
-                                    neg_list, viable_pred_neg_states, neg_pred_to_chain))
-            remaining_st_preds = rest
+        if optimise:
+            remaining_st_preds = new_state_predicates
 
-            preds_to_chain |= new_pos_pred_to_chain
-            preds_to_chain |= new_neg_pred_to_chain
+            self.current_chain_all_bin_rep = {}
+            all_bin_rep = {}
+            for v, info in self.chains.items():
+                (pos_list, viable_pred_pos_states, pos_pred_to_chain), (neg_list, viable_pred_neg_states, neg_pred_to_chain) = info
+                if len(remaining_st_preds) == 0:
+                    break
 
-            if len(pos_list) != len(new_pos_list):
-                pos_list_up_to_neg = set(new_pos_list) | set((neg(p) for p in new_pos_list))
-                new_pos_bin_vars, new_pos_bin_rep = binary_rep(new_viable_pred_pos_states,
-                                                               "bin_" + str(v) + "_pos_")
-                self.current_bin_vars[v] = new_pos_bin_vars
-                self.viable_pred_states[v] = (new_pos_list, pos_list_up_to_neg, new_pos_bin_rep)
-                self.pred_to_v.update({p: v for p in pos_list_up_to_neg})
-                self.current_chain_bin_rep[v] = new_pos_bin_rep.items()
-                all_bin_rep |= new_pos_bin_rep
+                ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
+                 (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain), rest) = (
+                    chain_of_preds_sets(remaining_st_preds, v,
+                                        pos_list, viable_pred_pos_states, pos_pred_to_chain,
+                                        neg_list, viable_pred_neg_states, neg_pred_to_chain))
+                remaining_st_preds = rest
 
-            if v in self.current_chain_bin_rep.keys():
-                self.current_chain_all_bin_rep |= self.current_chain_bin_rep[v]
+                preds_to_chain |= new_pos_pred_to_chain
+                preds_to_chain |= new_neg_pred_to_chain
 
-            if len(neg_list) != len(new_neg_list):
-                neg_list_up_to_neg = set(new_neg_list) | set((neg(p) for p in new_neg_list))
-                new_neg_bin_vars, new_neg_bin_rep = binary_rep(new_viable_pred_neg_states,
-                                                               "bin_" + str(v) + "_neg_")
-                self.current_bin_vars[UniOp("-", v)] = new_neg_bin_vars
-                self.viable_pred_states[UniOp("-", v)] = (new_neg_list, neg_list_up_to_neg, new_neg_bin_rep)
-                self.pred_to_v.update({p: UniOp("-", v) for p in neg_list_up_to_neg})
-                self.current_chain_bin_rep[UniOp("-", v)] = new_neg_bin_rep.items()
-                all_bin_rep |= new_neg_bin_rep
+                if len(pos_list) != len(new_pos_list):
+                    pos_list_up_to_neg = set(new_pos_list) | set((neg(p) for p in new_pos_list))
+                    new_pos_bin_vars, new_pos_bin_rep = binary_rep(new_viable_pred_pos_states,
+                                                                   "bin_" + str(v) + "_pos_")
+                    self.current_bin_vars[v] = new_pos_bin_vars
+                    self.viable_pred_states[v] = (new_pos_list, pos_list_up_to_neg, new_pos_bin_rep)
+                    self.pred_to_v.update({p: v for p in pos_list_up_to_neg})
+                    self.current_chain_bin_rep[v] = new_pos_bin_rep.items()
+                    all_bin_rep |= new_pos_bin_rep
 
-            if UniOp("-", v) in self.current_chain_bin_rep.keys():
-                self.current_chain_all_bin_rep |= self.current_chain_bin_rep[UniOp("-", v)]
+                if v in self.current_chain_bin_rep.keys():
+                    self.current_chain_all_bin_rep |= self.current_chain_bin_rep[v]
+
+                if len(neg_list) != len(new_neg_list):
+                    neg_list_up_to_neg = set(new_neg_list) | set((neg(p) for p in new_neg_list))
+                    new_neg_bin_vars, new_neg_bin_rep = binary_rep(new_viable_pred_neg_states,
+                                                                   "bin_" + str(v) + "_neg_")
+                    self.current_bin_vars[UniOp("-", v)] = new_neg_bin_vars
+                    self.viable_pred_states[UniOp("-", v)] = (new_neg_list, neg_list_up_to_neg, new_neg_bin_rep)
+                    self.pred_to_v.update({p: UniOp("-", v) for p in neg_list_up_to_neg})
+                    self.current_chain_bin_rep[UniOp("-", v)] = new_neg_bin_rep.items()
+                    all_bin_rep |= new_neg_bin_rep
+
+                if UniOp("-", v) in self.current_chain_bin_rep.keys():
+                    self.current_chain_all_bin_rep |= self.current_chain_bin_rep[UniOp("-", v)]
 
 
-            self.chains[v] = ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
-                              (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain))
+                self.chains[v] = ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
+                                  (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain))
 
-        self.state_predicates += remaining_st_preds
-        self.chain_state_predicates.extend([p for p in new_state_predicates if p not in remaining_st_preds])
+            self.state_predicates += remaining_st_preds
+            self.chain_state_predicates.extend([p for p in new_state_predicates if p not in remaining_st_preds])
+        else:
+            self.state_predicates += new_state_predicates
+
+        if optimise:
+            for p, vals in preds_to_chain.items():
+                disjuncts = []
+                for ps in vals:
+                    if ps in all_bin_rep.keys():
+                        disjuncts.append(all_bin_rep[ps])
+                    else:
+                        # this means the binary rep for p wasn't changed in current iteration of CEGAR loop
+                        break
+                if len(disjuncts) > 0:
+                    self.var_relabellings[p] = disjunct_formula_set(disjuncts)
 
         for p in new_state_predicates:
-            if p in preds_to_chain.keys():
-                self.var_relabellings[p] = disjunct_formula_set([all_bin_rep[ps] for ps in preds_to_chain[p]])
-            else:
+            if not optimise or p not in preds_to_chain.keys():
                 self.var_relabellings[p] = stringify_pred(p)
 
-        for p in new_state_predicates:
             self.symbol_table.update({
                 str(label_pred(p, new_state_predicates)):
                     TypedValuation(str(label_pred(p, new_state_predicates)), "bool", true())})
