@@ -21,9 +21,10 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import (conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
-    true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
-    is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula, simplify_formula_without_math, X, iff,
-                            chain_of_preds_sets, strip_mathexpr)
+                            true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
+                            is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula,
+                            simplify_formula_without_math, X, iff,
+                            chain_of_preds_sets, strip_mathexpr, implies, propagate_nexts)
 
 logger = logging.getLogger(__name__)
 
@@ -296,7 +297,7 @@ class EffectsAbstraction(PredicateAbstraction):
         logger.info("Tagging abstract transitions with predicates..")
         start = time.time()
 
-        optimise = True
+        optimise = False
         preds_to_chain = {}
 
         if optimise:
@@ -323,6 +324,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     pos_list_up_to_neg = set(new_pos_list) | set((neg(p) for p in new_pos_list))
                     new_pos_bin_vars, new_pos_bin_rep = binary_rep(new_viable_pred_pos_states,
                                                                    "bin_" + str(v) + "_pos_")
+
                     self.current_bin_vars[v] = new_pos_bin_vars
                     self.viable_pred_states[v] = (new_pos_list, pos_list_up_to_neg, new_pos_bin_rep)
                     self.pred_to_v.update({p: v for p in pos_list_up_to_neg})
@@ -344,7 +346,6 @@ class EffectsAbstraction(PredicateAbstraction):
 
                 if UniOp("-", v) in self.current_chain_bin_rep.keys():
                     self.current_chain_all_bin_rep |= self.current_chain_bin_rep[UniOp("-", v)]
-
 
                 self.chains[v] = ((new_pos_list, new_viable_pred_pos_states, new_pos_pred_to_chain),
                                   (new_neg_list, new_viable_pred_neg_states, new_neg_pred_to_chain))
@@ -369,6 +370,7 @@ class EffectsAbstraction(PredicateAbstraction):
         for p in new_state_predicates:
             if not optimise or p not in preds_to_chain.keys():
                 self.var_relabellings[p] = stringify_pred(p)
+                self.var_relabellings[neg(p)] = neg(stringify_pred(p))
 
             self.symbol_table.update({
                 str(label_pred(p, new_state_predicates)):
@@ -410,9 +412,10 @@ class EffectsAbstraction(PredicateAbstraction):
             arg33.append(self.abstract_effect_tran_preds_constant[gu])
             arg4.append(self.abstract_effect[gu])
             arg5.append(new_state_predicates)
-            arg55.append(self.viable_pred_states)
+            arg55.append(self.var_relabellings)
             arg66.append(self.pred_to_v)
             arg6.append(self.program.symbol_table)
+            res = compute_abstract_effect_for_guard_update((arg1[0], arg2[0], arg3[0], arg31[0], arg32[0], arg33[0], arg4[0], arg5[0], arg55[0], arg66[0], arg6[0]))
         with Pool(no_of_workers) as pool:
             results = pool.map(compute_abstract_effect_for_guard_update,
                                zip(arg1, arg2, arg3, arg31, arg32, arg33, arg4, arg5, arg55, arg66, arg6))
@@ -438,6 +441,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
         for p in new_transition_predicates:
             self.var_relabellings[p] = stringify_pred(p)
+            self.var_relabellings[neg(p)] = neg(stringify_pred(p))
 
         logger.info("Adding predicates to predicate abstraction:")
         logger.info("trans preds: [" + ", ".join(list(map(str, new_transition_predicates))) + "]")
@@ -593,82 +597,47 @@ class EffectsAbstraction(PredicateAbstraction):
 
 
 def compute_abstract_effect_for_guard_update(arg):
-    (g, u, gu_formula, invars, constants, tran_preds_constants, old_effects, predicates, viable_pred_states,
+    (g, u, gu_formula, invars, constants, tran_preds_constants, old_effects, predicates, vars_relabelling,
      preds_to_v, symbol_table) = arg
 
     for p in predicates:
         g, u, gu_formula, invars_p, constants_p, effects = (
-            compute_abstract_effect_with_p_guard_update((g, u, gu_formula, old_effects, p, symbol_table, p in preds_to_v.keys())))
+            compute_abstract_effect_with_p_guard_update((g, u, gu_formula, old_effects, p, symbol_table, False)))
         old_effects = effects
         invars.extend(invars_p)
         constants.extend(constants_p)
 
-    rename_pred = lambda x: label_pred(x, [])
     gu_ltl = []
-
-    # viable_pred_states[v] = (pred_list, list_up_to_neg, new_bin_rep)
-    # preds_to_v
 
     for next, nows in old_effects:
         now_disjuncts = []
         for now in nows:
             nows_renamed = []
-            d = {}
             for p in now:
-                if p in preds_to_v.keys():
-                    v = preds_to_v[p]
-                    if v not in d.keys():
-                        d[v] = {p}
-                    else:
-                        d[v].add(p)
-                else:
-                    nows_renamed.append(rename_pred(p))
-            for v, ps in d.items():
-                (pred_list, list_up_to_neg, new_bin_rep) = viable_pred_states[v]
-                if frozenset(ps) not in new_bin_rep.keys():
-                    print(conjunct_formula_set(ps))
-                    print(v)
-                    for k in new_bin_rep.keys():
-                        print(conjunct_formula_set(k))
-                bin_rep = new_bin_rep[frozenset(ps)]
-                nows_renamed.append(bin_rep)
+                nows_renamed.append((vars_relabelling[p]))
             now_disjuncts.append(conjunct_formula_set(nows_renamed))
 
         E_now = disjunct_formula_set(now_disjuncts)
-        if len(now_disjuncts) > 1:
-            E_now_simplified = bdd_simplify_ltl_formula(E_now)
-        else:
-            E_now_simplified = E_now
+        E_now_simplified = E_now
 
         next_conjuncts = []
-        d = {}
         for p in next:
-            if p in preds_to_v.keys():
-                v = preds_to_v[p]
-                if v not in d.keys():
-                    d[v] = {p}
-                else:
-                    d[v].add(p)
-            else:
-                next_conjuncts.append(rename_pred(p))
-        for v, ps in d.items():
-            (pred_list, list_up_to_neg, new_bin_rep) = viable_pred_states[v]
-            bin_rep = new_bin_rep[frozenset(ps)]
-            next_conjuncts.append(bin_rep)
+            next_conjuncts.append((vars_relabelling[p]))
 
         E_next = conjunct_formula_set(next_conjuncts)
         E_next_simplified = simplify_formula_without_math(E_next)
-        gu_ltl.append(conjunct(E_now_simplified, X(E_next_simplified)))
+        gu_ltl.append(conjunct(E_now_simplified, propagate_nexts(X(E_next_simplified))))
 
     gu_ltl = disjunct_formula_set(gu_ltl)
     invar_preds_effects = []
-    for p in invars:
-        invar_preds_effects.append(iff(rename_pred(p), X(rename_pred(p))))
+    for p in set(invars):
+        invar_preds_effects.append(iff(vars_relabelling[p], propagate_nexts(X(vars_relabelling[p]))))
 
-    for p in constants + tran_preds_constants:
-        invar_preds_effects.append(X(rename_pred(p)))
+    constant_effects = []
+    for p in set(constants + tran_preds_constants):
+        constant_effects.append(propagate_nexts(X(vars_relabelling[p])))
 
-    gu_ltl = conjunct_formula_set([gu_ltl] + invar_preds_effects)
+    gu_ltl = conjunct_formula_set([gu_ltl] + invar_preds_effects + constant_effects)
 
     return g, u, gu_formula, invars, constants, old_effects, str(gu_ltl)
 
@@ -948,7 +917,6 @@ def compute_abstract_effect_with_p_guard_update_with_chains(arg):
                 nextPs_copy.remove(p)
                 next_choices = old_chain_preds_to_update[p]
                 for f in next_choices:
-                    print(len(next_choices))
                     nextPs = nextPs_copy + [f]
 
                     newPss = []

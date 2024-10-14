@@ -142,9 +142,9 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
         f = implies(G(F(dec)), conjunct_formula_set(ltl_constraints))
         f = f.replace_formulas(dict_to_replace)
         loop_constraints.append(f)
-        all_preds = {dec}
+        all_preds = set()
         for c in ltl_constraints:
-            all_preds |= atomic_predicates(c)
+            all_preds |= atomic_predicates(f)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
 
@@ -154,6 +154,11 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
         all_preds = set()
         all_preds |= atomic_predicates(f)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
+
+    bin_constraints = []
+    # for v, bin_items in effects_abstraction.current_chain_bin_rep.items():
+    #     if len(bin_items) > 0:
+    #         bin_constraints.append(G(disjunct_formula_set(list(map(lambda x: x[1], bin_items)))))
 
     pred_props.extend(list(set(loop_vars)))
     pred_props = list(set(pred_props))
@@ -171,7 +176,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
         orig_guarantees.append(new_guar)
         # orig_guarantees.append(stringify_formula(new_guar, bool_vars)[0])
 
-    assumptions = (loop_constraints + ltl_abstraction + orig_assumptions)
+    assumptions = (loop_constraints + ltl_abstraction + orig_assumptions + bin_constraints)
     guarantees = orig_guarantees
 
     new_pred_props = {str(v) for v in pred_props}

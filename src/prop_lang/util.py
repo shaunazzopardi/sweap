@@ -1423,6 +1423,8 @@ def chain_of_preds_sets(preds, term,
             pos_pred_to_chain[p] = viable_pred_pos_states.copy()
 
         viable_pred_pos_states.append(frozenset(neg(pp) for pp in pos_list))
+        for i, p in enumerate(pos_list):
+            pos_pred_to_chain[neg(p)] = viable_pred_pos_states[i+1:]
     else:
         viable_pred_pos_states = old_viable_pred_pos_states
         pos_pred_to_chain = old_pos_pred_to_chain
@@ -1440,6 +1442,8 @@ def chain_of_preds_sets(preds, term,
             neg_pred_to_chain[p] = viable_pred_neg_states.copy()
 
         viable_pred_neg_states.append(frozenset(neg(pp) for pp in neg_list))
+        for i, p in enumerate(neg_list):
+            neg_pred_to_chain[neg(p)] = viable_pred_neg_states[i+1:]
     else:
         viable_pred_neg_states = old_viable_pred_neg_states
         neg_pred_to_chain = old_neg_pred_to_chain
