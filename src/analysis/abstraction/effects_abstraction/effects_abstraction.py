@@ -415,7 +415,6 @@ class EffectsAbstraction(PredicateAbstraction):
             arg55.append(self.var_relabellings)
             arg66.append(self.pred_to_v)
             arg6.append(self.program.symbol_table)
-            res = compute_abstract_effect_for_guard_update((arg1[0], arg2[0], arg3[0], arg31[0], arg32[0], arg33[0], arg4[0], arg5[0], arg55[0], arg66[0], arg6[0]))
         with Pool(no_of_workers) as pool:
             results = pool.map(compute_abstract_effect_for_guard_update,
                                zip(arg1, arg2, arg3, arg31, arg32, arg33, arg4, arg5, arg55, arg66, arg6))
