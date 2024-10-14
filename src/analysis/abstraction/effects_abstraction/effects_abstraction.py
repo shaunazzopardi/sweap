@@ -297,7 +297,7 @@ class EffectsAbstraction(PredicateAbstraction):
         logger.info("Tagging abstract transitions with predicates..")
         start = time.time()
 
-        optimise = False
+        optimise = True
         preds_to_chain = {}
 
         if optimise:
