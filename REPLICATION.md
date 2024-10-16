@@ -10,15 +10,14 @@ ulimit -v 16777216
 
 ## Step 2. Run the experiments
 
-Experiments are executed through `make`. Example invocations:
+Experiments are executed through `make`. We only support GNU Make. 
+Example invocations:
 
 ```sh
 make raboniel   # Runs a single tool
 make            # Alias for "make all", runs all tool except temos
 make everything # Runs all tools
 ```
-
-We only support GNU Make. 
 
 This will generate, for every benchmark under `benchmarks/<tool>`,
 a corresponding log file `<bench-name>.<tool-name>.log`.
@@ -46,6 +45,12 @@ make clean-timeouts
 `make` with a different timeout without retrying the experiments that
 already terminated.
 
+We do *not* recommend running the tools in parallel. In particular, we do not
+yet support running 2 or more instances of `sweap` simultaneously.
+Users with a powerful machine who want to speed things up may try running the
+recipes for *other* tools with `make -j2`, but we cannot guarantee that this
+will always work.
+
 ## Step 3. Tabulate the results
 
 Invoke
@@ -69,7 +74,7 @@ For the table in Appendix D3, invoke
 benchmarks/scripts/appendix_table.py benchmarks
 ```
 
-This will tabulate (again, in CSV) the number of state and transition
+This will tabulate (again, in CSV format) the number of state and transition
 predicates used in the initial abstraction, the number and kind of refinements
 applied, and the number of (state/transition) predicates in the final
 abstraction (i.e., before either solution or timeout/OOM).
@@ -79,3 +84,19 @@ manuscript, especially for experiments that time out. A faster machine than
 ours may still time out, but perform more refinement and thus add a higher
 number of predicates to the abstraction.
 
+## Appendix. System configuration
+
+We applied the following changes to our OS, to make performance more uniform
+(and typically better). We ran these commands on Ubuntu 22.04 but similar
+ones should be available on most Linux OSs.
+
+```bash
+# Force OS to only swap when memory is full
+$ sudo sysctl vm.swappiness=0
+# Force a high-performance frequency governor on all CPU cores
+$ for ((i=0;i<$(nproc);i++)); do sudo cpufreq-set -c $i -r -g performance; done
+# Disable simultaneous multithreading (Hyper-Threading)
+# This requires getting super-user permissions
+$ sudo bash
+$ echo off > /sys/devices/system/cpu/smt/control
+```
