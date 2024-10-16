@@ -7,8 +7,8 @@ import re
 from pathlib import Path
 
 
-writer = csv.writer(sys.stdout)
-prefix = re.compile(r"out-sweap(-noacc)?-+")
+writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
+prefix = re.compile(r"(out-)?sweap(-noacc)?-+")
 
 skip = (
     "infinite-race", "chain-simple-param-70", "arbiter-paper-unreal",
@@ -117,12 +117,12 @@ if __name__ == "__main__":
     logs_sweap = [
         Path(x).resolve()
         for y in logs
-        for x in logs_dir.glob(f"out-sweap--{y}.prog.log")]
+        for x in logs_dir.rglob(f"{y}.sweap.log")]
 
     logs_sweap_noacc = [
         Path(x).resolve()
         for y in logs
-        for x in logs_dir.glob(f"out-sweap-noacc--{y}.prog.log")]
+        for x in logs_dir.rglob(f"{y}.sweap-noacc.log")]
 
     writer.writerow(header)
     i = 2
