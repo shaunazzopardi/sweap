@@ -1121,9 +1121,9 @@ def var_to_predicate(p):
     if str(p) in var_to_predicate_cache.keys():
         return var_to_predicate_cache[str(p)]
     elif isinstance(p, UniOp) and p.op == "!" and str(p.right) in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[str(p.right)]
+        return neg(var_to_predicate_cache[str(p.right)])
     elif str(neg(p)) in var_to_predicate_cache.keys():
-        return var_to_predicate_cache[str(neg(p))].right
+        return neg(var_to_predicate_cache[str(neg(p))].right)
     else:
         raise Exception("Could not find predicate for variable: " + str(p))
 
