@@ -1,4 +1,4 @@
-program robot-cat-real-1d {
+program robot-grid-reach-1d {
     STATES {
         setvars: init, move, goal
     }

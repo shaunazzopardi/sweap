@@ -47,7 +47,7 @@ program items_processing {
         l2a -> done [trayItems >= numItems & reset != 1 & !a],
 
         l2a -> l1a [!(trayItems >= numItems) & reset == 1 & !a & !b $ trayItems := numItems; processed := 1],
-        l2a -> l2a [ !(trayItems >= numItems) & reset == 1 & a & !b $ trayItems := trayItems + 1],
+        l2a -> l2a [!(trayItems >= numItems) & reset == 1 & a & !b $ trayItems := trayItems + 1],
         l2a -> l2a [!(trayItems >= numItems) & reset == 1 & !a & b $ trayItems := trayItems - 1],
         l2a -> done [!(trayItems >= numItems) & reset == 1 & a & b $ c := 1],
 

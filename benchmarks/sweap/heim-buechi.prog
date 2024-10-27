@@ -24,14 +24,18 @@ program heim-buechi {
         l0 -> l00 [!dec],
         l00 -> l00 [ipos && !ineg $ x := x + 1],
         l00 -> l00 [!ipos && ineg $ x := x - 1],
-        l00 -> l1 [(ipos <-> ineg) $ x := x],
+        l00 -> l1 [(ipos <-> ineg)],
 
         l1 -> l2 [x <= 42 | (!ipos && !ineg) $],
-        l1 -> l1inc [x > 42 && ((ipos && !ineg && y > 32) || (y <= 32 && ((ineg && !ipos && dec) || (ipos && !ineg && !dec)))) $ x := x + 1],
+        l1 -> l1inc [x > 42 && ((ipos && !ineg && y > 32)) $ x := x + 1],
+        l1 -> l1inc [x > 42 && (y <= 32 && ((ineg && !ipos && dec))) $ x := x + 1],
+        l1 -> l1inc [x > 42 && (y <= 32 && ((ipos && !ineg && !dec))) $ x := x + 1],
         l1inc -> l1inc [ipos $ x := x + 1],
         l1inc -> l1 [!ipos $ x := x + 1],
 
-        l1 -> l1dec [x > 42 && ((ineg && !ipos && y > 32) || (y <= 32 && ((ipos && !ineg && dec) || (ineg && !ipos && !dec)))) $ x := x - 1],
+        l1 -> l1dec [x > 42 && ((ineg && !ipos && y > 32)) $ x := x - 1],
+        l1 -> l1dec [x > 42 && ((y <= 32 && ((ipos && !ineg && dec)))) $ x := x - 1],
+        l1 -> l1dec [x > 42 && ((y <= 32 && ((ineg && !ipos && !dec)))) $ x := x - 1],
         l1dec -> l1dec [ineg $ x := x - 1],
         l1dec -> l1 [!ineg $ x := x - 1],
 
@@ -41,6 +45,6 @@ program heim-buechi {
     }
 
     SPECIFICATION {
-        G F(!l00 && !l1inc && !l1dec) -> (G F (l2 || l3 || l))
+        (G F (l2 || l3 || l | l00 | l1inc | l1dec))
     }
 }

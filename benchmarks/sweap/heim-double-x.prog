@@ -1,4 +1,4 @@
-program running-example-double-x {
+program heim-double-x {
     STATES {
         l0 : init, l1, lG, lB
     }

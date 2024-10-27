@@ -1,4 +1,4 @@
-program fig2heim {
+program robot-resource-1d {
     STATES {
         movetarg : init, incntx, decntx, setntx, goal, unsafe
     }

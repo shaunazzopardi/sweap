@@ -1,4 +1,4 @@
-program arbiter-paper {
+program batch-arbiter {
     STATES {
         q0 : init, q1
     }

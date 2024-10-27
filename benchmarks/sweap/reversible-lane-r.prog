@@ -1,4 +1,4 @@
-program reversible-lane {
+program reversible-lane-r {
     STATES {
         q0 : init
     }

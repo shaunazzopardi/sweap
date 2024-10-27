@@ -1,4 +1,4 @@
-program robot-cat-real-2d {
+program robot-cat-unreal-2d {
     STATES {
         setxvars : init, setyvars, i, mover, goal, fail
     }

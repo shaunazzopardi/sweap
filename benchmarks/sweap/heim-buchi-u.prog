@@ -1,4 +1,4 @@
-program fig2heim {
+program heim-buechi-u {
     STATES {
         l : init, l01, l02, l11, l12, l21, l22, l31, l32
     }
