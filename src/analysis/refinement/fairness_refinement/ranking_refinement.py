@@ -105,17 +105,15 @@ def ranking_refinement(ranking, invars, there_is_inc=True):
             constraint = implies(G(F(dec)), G(F(neg(inv))))
             tran_preds = {dec}
         else:
-            constraint = implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))
             tran_preds = {dec, inc}
+            constraint = implies(G(F(dec)), G(F(disjunct(inc, neg(inv)))))
     else:
         if there_is_inc:
-            constraint = implies(G(F(dec)), G(F(inc)))
             tran_preds = {dec, inc}
+            constraint = implies(G(F(dec)), G(F(inc)))
             state_preds = set()
         else:
-            constraint = neg(G(F(dec)))
-            tran_preds = {dec}
-            state_preds = set()
+            return set(), []
 
     return tran_preds, state_preds, (dec, constraint)
 
