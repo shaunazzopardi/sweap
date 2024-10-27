@@ -62,7 +62,7 @@ def conjunct_formula_set(s, sort=False) -> Formula:
 
     ret = true()
     if not hasattr(s, '__iter__'):
-        print()
+        raise Exception("conjunct_formula_set: needs an iterable." + str(s) + " is not.")
     for f in s:
         ret = conjunct(f, ret)
     return ret
