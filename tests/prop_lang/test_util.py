@@ -1,7 +1,8 @@
 from unittest import TestCase
 
 from parsing.string_to_prop_logic import string_to_prop
-from prop_lang.util import dnf, conjunct, disjunct, neg, cnf
+from programs.typed_valuation import TypedValuation
+from prop_lang.util import dnf, conjunct, disjunct, neg, cnf, chain_of_preds
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 import time
@@ -62,3 +63,49 @@ class Test(TestCase):
         print(str(formula))
 
 
+    def test_chain_of_preds(self):
+        preds = list(map(string_to_prop, ["x <= 1", "x <= 2", "x <= 3", "x <= 4"]))
+        term = Variable("x")
+        pos, neg, _ = chain_of_preds(preds, term)
+
+        self.assertTrue(len(neg) == 0)
+        self.assertTrue(len(pos) == len(preds))
+
+
+    def test_chain_of_preds2(self):
+        preds = list(map(string_to_prop, ["1 <= x", "x <= 1", "x <= 2", "x <= 3", "x <= 4"]))
+        term = Variable("x")
+        pos, neg, _ = chain_of_preds(preds, term)
+
+        self.assertTrue(len(neg) == 1)
+        self.assertTrue(len(pos) == len(preds) - 1)
+
+
+    def test_chain_of_preds3(self):
+        preds = list(map(string_to_prop, ["1 <= x", "2 <= x", "3 <= x", "4 <= x"]))
+        term = Variable("x")
+        pos, neg, _ = chain_of_preds(preds, term)
+
+        self.assertTrue(len(pos) == 0)
+        self.assertTrue(len(neg) == len(preds))
+
+
+    def test_chain_of_preds4(self):
+        preds = list(map(string_to_prop, ["y <= 3", "1 <= x", "2 <= x", "3 <= x", "4 <= x"]))
+        term = Variable("x")
+        pos, neg, rest = chain_of_preds(preds, term)
+
+        self.assertTrue(len(pos) == 0)
+        self.assertTrue(len(neg) == len(preds))
+
+    def test_ff(self):
+        from sympy import symbols, reduce_inequalities, pi
+        x = symbols('x')
+        y = symbols('y')
+        z = symbols('z')
+        q = reduce_inequalities(y - x + 8 >= z, [y,x,z])
+
+        if len(str(x := string_to_prop("1 + y >= x"))) > 0:
+            fnode = x.to_smt({"x": TypedValuation("x", "int", None), "y": TypedValuation("y", "int", None)})
+
+            print(fnode)
