@@ -13,9 +13,6 @@ parsec ~= 3.13
 # syMTri/monitors/parsing/kiss_to_monitor.py: 3,5
 ply ~= 3.11
 
-# syMTri/strix/server_adapter.py: 4
-requests==2.31.0
-
 # syMTri/prop_lang/formula.py: 1
 rply ~= 0.7.8
 
@@ -31,5 +28,3 @@ pysmt
 joblib ~= 1.3.2
 
 docker
-
-python-dotenv ~= 1.0.1
