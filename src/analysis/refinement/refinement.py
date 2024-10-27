@@ -91,6 +91,8 @@ def refinement_standard(program,
 
         logging.info("safety refinement took " + str(time.time() - start))
         if success:
+            if any(p for p in result if p in predicate_abstraction.state_predicates or p in predicate_abstraction.chain_state_predicates):
+                raise Exception("Safety refinement returned already known state predicates.")
             new_state_preds.update(result)
         else:
             raise Exception("Could not find any new state predicates.")
