@@ -9,7 +9,7 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import Effects
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
 from prop_lang.util import atomic_predicates, G, X, label_pred, neg, conjunct_formula_set, conjunct, \
-    disjunct_formula_set, implies, F
+    disjunct_formula_set, implies, F, propagate_nexts
 from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
@@ -65,7 +65,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
             next_preds.append(bin_rep)
 
         pred_next.add(conjunct((conjunct_formula_set([E_formula])),
-                               X(conjunct_formula_set(next_preds + [program.states_binary_map[tgt]]))))
+                               propagate_nexts(X(conjunct_formula_set(next_preds + [program.states_binary_map[tgt]])))))
 
     init_transition_ltl = disjunct_formula_set(pred_next)
 
@@ -99,7 +99,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
             effect_formula = pred_effect_formula
 
         bin_tgt = program.states_binary_map[trans.tgt]
-        next = conjunct(effect_formula, X(bin_tgt))
+        next = conjunct(effect_formula, propagate_nexts(X(bin_tgt)))
 
         if trans.src in transition_ltl.keys():
             transition_ltl[trans.src].append(next)
@@ -139,7 +139,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     loop_vars = []
     loop_constraints = []
     for dec, ltl_constraints in effects_abstraction.ranking_constraints.items():
-        f = implies(G(F(dec)), conjunct_formula_set(ltl_constraints))
+        f = implies(G(F(dec)), propagate_nexts(conjunct_formula_set(ltl_constraints)))
         f = f.replace_formulas(dict_to_replace)
         loop_constraints.append(f)
         all_preds = set()
@@ -149,7 +149,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
 
 
     for f in effects_abstraction.structural_loop_constraints:
-        f = f.replace_formulas(dict_to_replace)
+        f = propagate_nexts(f.replace_formulas(dict_to_replace))
         loop_constraints.append(f)
         all_preds = set()
         all_preds |= atomic_predicates(f)
