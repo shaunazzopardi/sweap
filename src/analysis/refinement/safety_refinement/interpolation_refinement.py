@@ -12,7 +12,7 @@ from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import (neg, conjunct_formula_set, fnode_to_formula, var_to_predicate, is_tautology,
-                            is_contradictory, atomic_predicates)
+                            is_contradictory, atomic_predicates, should_be_math_expr)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -201,12 +201,17 @@ def normalise_LIA_state_preds(state_preds):
     new_state_preds = []
     for p in state_preds:
         if isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (
-                p.formula.op in ["<=", ">=", ">", "<", "=", "=="]):
+                p.formula.op in ["=", "=="]):
             new_state_preds.append(BiOp(p.formula.left, "<=", p.formula.right))
-            new_state_preds.append(BiOp(p.formula.left, ">=", p.formula.right))
-        elif isinstance(p, BiOp) and (p.op in ["<=", ">=", ">", "<", "=", "=="]):
+            new_state_preds.append(BiOp(p.formula.right, "<=", p.formula.left))
+        elif should_be_math_expr(p) and isinstance(p, BiOp) and (
+                p.op in ["=", "=="]):
             new_state_preds.append(BiOp(p.left, "<=", p.right))
-            new_state_preds.append(BiOp(p.left, ">=", p.right))
+            new_state_preds.append(BiOp(p.right, "<=", p.left))
+        elif isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (p.formula.op in [">="]):
+            new_state_preds.append(BiOp(p.formula.right, "<=", p.formula.left))
+        elif isinstance(p, BiOp) and (p.op in [">="]):
+            new_state_preds.append(BiOp(p.right, "<=", p.left))
         else:
             new_state_preds.append(p)
 

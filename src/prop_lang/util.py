@@ -1391,17 +1391,24 @@ def chain_of_preds_sets(preds, term,
     pos_list = old_pos_list.copy()
     neg_list = old_neg_list.copy()
 
+    old_to_new_pos = []
+    old_to_new_neg = []
+
     for p in preds:
         pred = strip_outer_mathexpr(p)
         vars_in_pred = pred.variablesin()
         if len(vars_in_pred) == 1 and term in pred.variablesin():
             res = is_chain_pos_pred(pred, term)
             if res[0]:
-                bisect.insort_left(pos_list, pred, key=lambda x: is_chain_pos_pred(x, term)[1])
+                i = bisect.bisect_left(pos_list, is_chain_pos_pred(pred, term)[1], key=lambda x: is_chain_pos_pred(x, term)[1])
+                pos_list.insert(i, pred)
+                old_to_new_pos.append((i, pos_list.copy()))
             else:
                 res = is_chain_neg_pred(pred, term)
                 if res[0]:
-                    bisect.insort_left(neg_list, pred, key=lambda x: is_chain_neg_pred(x, term)[1])
+                    i = bisect.bisect_left(neg_list, is_chain_neg_pred(pred, term)[1], key=lambda x: is_chain_neg_pred(x, term)[1])
+                    neg_list.insert(i, pred)
+                    old_to_new_neg.append((i, neg_list.copy()))
                 else:
                     rest.append(p)
         else:
@@ -1409,20 +1416,23 @@ def chain_of_preds_sets(preds, term,
 
     if len(rest) == len(preds):
         return ((old_pos_list, old_viable_pred_pos_states, old_pos_pred_to_chain),
-                (old_neg_list, old_viable_pred_neg_states, old_neg_pred_to_chain), rest)
+                (old_neg_list, old_viable_pred_neg_states, old_neg_pred_to_chain),
+                rest,
+                old_to_new_pos,
+                old_to_new_neg)
 
     viable_pred_pos_states = []
     pos_pred_to_chain = {}
     if len(pos_list) != len(old_pos_list):
         for i, p in enumerate(pos_list):
             if i == 0:
-                viable_pred_pos_states.append(frozenset(pos_list))
+                viable_pred_pos_states.append(p)
             else:
-                all_before_neg = frozenset([neg(pp) for pp in pos_list[0:i]] + [pp for pp in pos_list[i:]])
+                all_before_neg = conjunct(neg(pos_list[i-1]), p)
                 viable_pred_pos_states.append(all_before_neg)
             pos_pred_to_chain[p] = viable_pred_pos_states.copy()
 
-        viable_pred_pos_states.append(frozenset(neg(pp) for pp in pos_list))
+        viable_pred_pos_states.append(neg(pos_list[-1]))
         for i, p in enumerate(pos_list):
             pos_pred_to_chain[neg(p)] = viable_pred_pos_states[i+1:]
     else:
@@ -1435,20 +1445,24 @@ def chain_of_preds_sets(preds, term,
     if len(neg_list) != len(old_neg_list):
         for i, p in enumerate(neg_list):
             if i == 0:
-                viable_pred_neg_states.append(frozenset(neg_list))
+                viable_pred_neg_states.append(p)
             else:
-                all_before_neg = frozenset([neg(pp) for pp in neg_list[0:i]] + [pp for pp in neg_list[i:]])
+                all_before_neg = conjunct(neg(neg_list[i-1]), p)
                 viable_pred_neg_states.append(all_before_neg)
             neg_pred_to_chain[p] = viable_pred_neg_states.copy()
 
-        viable_pred_neg_states.append(frozenset(neg(pp) for pp in neg_list))
+        viable_pred_neg_states.append(neg(neg_list[-1]))
         for i, p in enumerate(neg_list):
             neg_pred_to_chain[neg(p)] = viable_pred_neg_states[i+1:]
     else:
         viable_pred_neg_states = old_viable_pred_neg_states
         neg_pred_to_chain = old_neg_pred_to_chain
 
-    return (pos_list, viable_pred_pos_states, pos_pred_to_chain), (neg_list, viable_pred_neg_states, neg_pred_to_chain), rest
+    return ((pos_list, viable_pred_pos_states, pos_pred_to_chain),
+            (neg_list, viable_pred_neg_states, neg_pred_to_chain),
+            rest,
+            old_to_new_pos,
+            old_to_new_neg)
 
 
 def chain_of_preds(preds, term, old_pos_list, old_neg_list, current_pos_fs=None, current_neg_fs=None):

@@ -135,15 +135,22 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
            + ["init_state : boolean"]
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
 
-    binned_preds = [str(label_pred(conjunct_formula_set(ps), pred_list)) + " := " + str(rep)
-                    for ps, rep in bin_pred_rep.items() if not(len(ps) == 1 and isinstance(list(ps)[0], UniOp))]
+    binned_preds = []
+    for ps, rep in bin_pred_rep.items():
+        if isinstance(ps, UniOp):
+            if len(bin_pred_rep[ps].variablesin()) == 1:
+                continue
+            else:
+                binned_preds.append(str(label_pred(ps.right, pred_list)) + " := !(" + str(rep) + ")")
+        else:
+            binned_preds.append(str(label_pred((ps), pred_list)) + " := " + str(rep))
     text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define + binned_preds) + ";\n"
 
     safety_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                               for p in pred_list if not any([v for v in p.variablesin() if "_prev" in str(
             v)])]
 
-    safety_predicate_truth += [BiOp(label_pred(conjunct_formula_set(ps), pred_list), '<->', conjunct_formula_set(ps)) for ps, rep in bin_pred_rep.items()]
+    safety_predicate_truth += [BiOp(label_pred((ps), pred_list), '<->', (ps)) for ps, rep in bin_pred_rep.items()]
 
     tran_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                             for p in pred_list if any([v for v in p.variablesin() if "_prev" in str(
