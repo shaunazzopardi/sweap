@@ -4,17 +4,15 @@ program eventually__allow_grant {
     }
 
     ENVIRONMENT EVENTS {
-        request, dealWithTasks, otherRoom
+        request
     }
 
     CONTROLLER EVENTS {
-        done1
+        a
     }
 
     VALUATION {
         cnt : natural := 0;
-        room1 : bool := true;
-        granting : bool := false;
     }
 
     TRANSITIONS {
@@ -22,13 +20,13 @@ program eventually__allow_grant {
         q0 -> q1 [!request & (cnt > 0)],
         q0 -> q2 [!request & (cnt == 0)],
         q2 -> q0 [ $],
-        q1 -> q1 [done1 && (cnt > 0) $ cnt := cnt - 1;],
-        q1 -> q1 [!done1 && (cnt > 0) $ cnt := cnt + 1],
-        q1 -> q2 [!(done1) & cnt == 0]
+        q1 -> q1 [a && (cnt > 0) $ cnt := cnt - 1],
+        q1 -> q1 [!a && (cnt > 0) $ cnt := cnt + 1],
+        q1 -> q2 [cnt == 0]
     }
 
     SPECIFICATION {
         (G F (!request)) ->
-          (G(q1 -> F cnt == 0))
+          (G(F cnt == 0))
   }
 }
