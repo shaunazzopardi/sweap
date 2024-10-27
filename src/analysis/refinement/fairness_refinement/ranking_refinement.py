@@ -16,7 +16,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (conjunct, conjunct_formula_set, neg, is_boolean, type_constraints, is_tautology, sat,
                             atomic_predicates, disjunct, G, F, implies, iff, stringify_pred, var_to_predicate_alt,
-                            strip_mathexpr)
+                            strip_mathexpr, var_to_predicate)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from synthesis.moore_machine import MooreMachine
@@ -329,8 +329,8 @@ def use_liveness_refinement_state_joined(Cs: MooreMachine,
         tran_cond = prog_trans[i][0].condition
 
         f = iff(pred_state_wo_props, last_pred_state_wo_props)
-        if is_tautology(f.replace_formulas(var_to_predicate_alt), symbol_table_with_inloop_vars):
-            if sat(conjunct(tran_cond, last_pred_state.replace_formulas(var_to_predicate_alt)), symbol_table_with_inloop_vars):
+        if is_tautology(f.replace_formulas(lambda x: x if not isinstance(x, Variable) else var_to_predicate(x)), symbol_table_with_inloop_vars):
+            if sat(conjunct(tran_cond, last_pred_state.replace_formulas(lambda x: x if not isinstance(x, Variable) else var_to_predicate(x))), symbol_table_with_inloop_vars):
                 previous_visits.append(i)
 
     new_ce = list(enumerate(ce + [disagreed_on_state_dict]))
