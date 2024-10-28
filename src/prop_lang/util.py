@@ -783,6 +783,26 @@ def is_conjunction_of_atoms(formula):
         return False
 
 
+def is_conjunction_of_atoms_modulo_vars(formula, synt_props):
+    if isinstance(formula, BiOp) and formula.op[0] == "&":
+        for f in formula.sub_formulas_up_to_associativity():
+            if is_atomic(f):
+                continue
+            if not any(v for v in f.variablesin() if v not in synt_props):
+                continue
+            if isinstance(f, BiOp) and f.op[0] == "&":
+                if any(not is_atomic(ff)
+                       for ff in f.sub_formulas_up_to_associativity()):
+                    return False
+            else:
+                return False
+        return True
+    elif is_atomic(formula):
+        return True
+    else:
+        return False
+
+
 def is_disjunction_of_atoms(formula):
     if isinstance(formula, BiOp) and formula.op[0] == "|":
         for f in formula.sub_formulas_up_to_associativity():

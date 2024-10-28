@@ -22,9 +22,8 @@ from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import (conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
                             true, false, sat, simplify_formula_with_math, is_contradictory, label_pred, stringify_pred, \
-                            is_conjunction_of_atoms, sat_parallel, bdd_simplify_ltl_formula,
-                            simplify_formula_without_math, X, iff,
-                            chain_of_preds_sets, strip_mathexpr, implies, propagate_nexts, negate)
+                            is_conjunction_of_atoms, sat_parallel, simplify_formula_without_math, X, iff,
+                            chain_of_preds_sets, strip_mathexpr, propagate_nexts, is_conjunction_of_atoms_modulo_vars)
 
 logger = logging.getLogger(__name__)
 
@@ -1015,7 +1014,7 @@ def abstract_guard_explicitly_simple_parallel(arg):
     trans, events, symbol_table = arg
     guard = trans.condition
 
-    if is_conjunction_of_atoms(guard):
+    if is_conjunction_of_atoms_modulo_vars(guard, events):
         conjuncts = guard.sub_formulas_up_to_associativity()
         cond = []
         env_con_events = set()
@@ -1040,7 +1039,6 @@ def abstract_guard_explicitly_complex_parallel(trans, events, symbol_table):
     events_in_cond = [e for e in vars_in_cond if e in events]
     powerset = powerset_complete(events_in_cond)
     int_disjuncts_only_events = []
-    disjuncts = []
 
     arg1 = []
     arg2 = []
@@ -1053,15 +1051,19 @@ def abstract_guard_explicitly_complex_parallel(trans, events, symbol_table):
     with Pool(config.Config.getConfig().workers) as pool:
         results = pool.map(deal_with_powerset, zip(arg1, arg2, arg3))
 
+    disjuncts = {}
     for r in results:
         if r is not None:
             (guard_E, E) = r
             int_disjuncts_only_events.append(E)
-            disjuncts.append((guard_E, E))
+            if guard_E in disjuncts.keys():
+                disjuncts[guard_E].append(conjunct_formula_set(E))
+            else:
+                disjuncts[guard_E] = [conjunct_formula_set(E)]
 
     dnfed = disjunct_formula_set([conjunct_formula_set(d) for d in int_disjuncts_only_events])
 
-    return trans, disjuncts, dnfed
+    return trans, [(g, frozenset({disjunct_formula_set(E)})) for g, E in disjuncts.items()], dnfed
 
 
 def deal_with_powerset(arg):
