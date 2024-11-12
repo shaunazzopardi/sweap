@@ -43,8 +43,7 @@ class Program:
         print("Processing program.")
         if preprocess:
             all_vars = self.local_vars
-            self.transitions = [self.add_type_constraints_to_guards(t)
-                                    .complete_outputs(self.out_events)
+            self.transitions = [t.complete_outputs(self.out_events)
                                     .complete_action_set(all_vars) for t in self.transitions]
             unsat_trans = []
             with Pool(config.Config.getConfig().workers) as pool:
