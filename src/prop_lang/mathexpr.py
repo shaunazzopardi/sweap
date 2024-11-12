@@ -15,6 +15,7 @@ class MathExpr(Formula):
             else:
                 raise Exception("Unsupported operator: " + f.op)
         self.formula = f
+        self.prev_representation = None
 
     def __str__(self):
         return str(self.formula)
@@ -77,3 +78,14 @@ class MathExpr(Formula):
                 return MathExpr(self.formula.replace_formulas(context))
         else:
             return MathExpr(self.formula.replace_formulas(context))
+
+    def prev_rep(self):
+        if self.prev_representation is None:
+            self.prev_representation = MathExpr(self.formula.prev_rep())
+        return self.prev_representation
+
+    def replace_formulas_multiple(self, context: dict):
+        if self in context.keys():
+            return context[self]
+        else:
+            return [MathExpr(f) for f in self.formula.replace_formulas_multiple(context)]

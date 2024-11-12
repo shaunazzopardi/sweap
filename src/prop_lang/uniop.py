@@ -13,6 +13,7 @@ class UniOp(Formula):
             print()
         self.op = op
         self.right = right
+        self.prev_representation = None
 
     def __str__(self):
         if self.op == "next" and (
@@ -98,3 +99,14 @@ class UniOp(Formula):
                 return UniOp(self.op, self.right.replace_formulas(context))
         else:
             return UniOp(self.op, self.right.replace_formulas(context))
+
+    def prev_rep(self):
+        if self.prev_representation is None:
+            self.prev_representation = UniOp(self.op, self.right.prev_rep())
+        return self.prev_representation
+
+    def replace_formulas_multiple(self, context: dict):
+        if self in context.keys():
+            return context[self]
+        else:
+            return [UniOp(self.op, f) for f in self.right.replace_formulas_multiple(context)]

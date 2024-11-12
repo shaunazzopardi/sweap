@@ -25,6 +25,8 @@ class BiOp(Formula):
         self.right = right
         self.vars = None
 
+        self.prev_representation = None
+
     def __str__(self):
         if len(self.sub_formulas_up_to_associativity()) == 1:
             return "(" + str(self.left) + " " + self.op + " " + str(self.right) + ")"
@@ -242,3 +244,18 @@ class BiOp(Formula):
                 return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
         else:
             return BiOp(self.left.replace_formulas(context), self.op, self.right.replace_formulas(context))
+
+    def prev_rep(self):
+        if self.prev_representation is None:
+            if self.op == ":=":
+                self.prev_representation = BiOp(self.left, self.op, self.right.prev_rep())
+            else:
+                self.prev_representation = BiOp(self.left.prev_rep(), self.op, self.right.prev_rep())
+        return self.prev_representation
+
+    def replace_formulas_multiple(self, context: dict):
+        if self in context.keys():
+            return context[self]
+        else:
+            return [BiOp(l, self.op, r) for l in self.left.replace_formulas_multiple(context)
+                                        for r in self.right.replace_formulas_multiple(context)]

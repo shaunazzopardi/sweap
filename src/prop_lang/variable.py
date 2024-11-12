@@ -11,6 +11,7 @@ from prop_lang.atom import Atom
 class Variable(Atom):
     def __init__(self, name: str):
         self.name = name
+        self.prev_representation = None
 
     def __str__(self):
         return str(self.name)
@@ -105,3 +106,14 @@ class Variable(Atom):
                 return self
         else:
             return self
+
+    def replace_formulas_multiple(self, context: dict):
+        if self in context.keys():
+            return context[self]
+        else:
+            return [self]
+
+    def prev_rep(self):
+        if self.prev_representation is None:
+            self.prev_representation = Variable(self.name + "_prev")
+        return self.prev_representation

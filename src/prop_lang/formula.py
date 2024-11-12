@@ -39,9 +39,13 @@ class Formula(ABC):
     def replace(self, context):
         return self.replace_vars(context)
 
-    # contexts assumed to be a list of assignments
+    # contexts assumed to be a list of assignments or dicts
     @abstractmethod
     def replace_formulas(self, context: dict):
+        pass
+
+    @abstractmethod
+    def replace_formulas_multiple(self, context: dict):
         pass
 
     @abstractmethod
@@ -66,4 +70,8 @@ class Formula(ABC):
 
     @abstractmethod
     def to_sympy(self):
+        pass
+
+    @abstractmethod
+    def prev_rep(self):
         pass

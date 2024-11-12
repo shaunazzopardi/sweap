@@ -102,3 +102,9 @@ class Value(Atom):
                 return self
         else:
             return self
+
+    def prev_rep(self):
+        return self
+
+    def replace_formulas_multiple(self, context: dict):
+        return [self]
