@@ -658,7 +658,7 @@ def binary_rep(vars, label):
     return bin_vars, rep
 
 
-def var_incremented_or_decremented(program, f):
+def term_incremented_or_decremented(program, f):
     updates = [u for trans in program.transitions for u in trans.action]
     vars_in_f = f.variablesin()
 

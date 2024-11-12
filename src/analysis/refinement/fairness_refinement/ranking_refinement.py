@@ -1,6 +1,6 @@
+import itertools
 import logging
 import re
-import time
 
 from pysmt.shortcuts import And
 
@@ -15,7 +15,7 @@ from programs.util import get_differently_value_vars, ground_predicate_on_vars, 
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (conjunct, conjunct_formula_set, neg, is_boolean, type_constraints, is_tautology, sat,
-                            atomic_predicates, disjunct, G, F, implies, iff, stringify_pred, var_to_predicate_alt,
+                            atomic_predicates, disjunct, G, F, implies, iff, stringify_pred, normalise_pred_multiple_vars,
                             strip_mathexpr, var_to_predicate)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -37,6 +37,8 @@ def already_an_equivalent_ranking(prev_decs, new_dec):
 
 
 def ranking_refinement_both_sides(ranking, invar_pos, invar_neg):
+    raise Exception("ranking_refinement_both_sides has not been updated for a long time")
+
     dec = BiOp(add_prev_suffix(ranking), ">", ranking)
     inc = BiOp(add_prev_suffix(ranking), "<", ranking)
     tran_preds = {dec, inc}
@@ -58,7 +60,7 @@ def ranking_refinement_both_sides(ranking, invar_pos, invar_neg):
     return tran_preds, constraints
 
 
-def ranking_refinement(ranking, invars, there_is_inc=True):
+def ranking_refinement(ranking, invars, signatures, symbol_table, there_is_inc=True):
     ranking = strip_mathexpr(ranking)
     if isinstance(ranking, BiOp):
         left = (ranking.left)
@@ -99,8 +101,9 @@ def ranking_refinement(ranking, invars, there_is_inc=True):
         dec = BiOp(ranking, "<", add_prev_suffix(ranking))
 
     if len(invars) > 0:
-        inv = conjunct_formula_set(invars)
-        state_preds = atomic_predicates(inv)
+        normalised_invars = [normalise_pred_multiple_vars(i, signatures, symbol_table) for i in invars]
+        inv = conjunct_formula_set(map(lambda x: x[1], normalised_invars))
+        state_preds = set(itertools.chain.from_iterable(map(lambda x: x[2], normalised_invars)))
         if not there_is_inc:
             constraint = implies(G(F(dec)), G(F(neg(inv))))
             tran_preds = {dec}

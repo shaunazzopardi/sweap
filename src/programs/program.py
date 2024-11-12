@@ -1,5 +1,4 @@
 import logging
-import multiprocessing as mp
 from multiprocessing import Pool
 from typing import Set
 from textwrap import dedent

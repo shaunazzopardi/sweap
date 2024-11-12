@@ -58,7 +58,7 @@ class PredicateAbstraction(ABC):
         pass
 
     def get_all_preds(self):
-        return self.get_state_predicates() + self.get_transition_predicates()
+        return self.get_state_predicates() | self.get_transition_predicates()
 
     @abstractmethod
     def get_program(self) -> Program:

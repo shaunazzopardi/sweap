@@ -18,12 +18,14 @@ from prop_lang.biop import BiOp
 from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true, resolve_implications, math_exprs_in_formula
 from synthesis.mealy_machine import MealyMachine
 
+existing_refinements = set()
 
 def try_liveness_refinement(Cs: MealyMachine,
                             program: Program,
                             predicate_abstraction: PredicateAbstraction,
                             agreed_on_execution,
                             disagreed_on_state,
+                            signatures,
                             loop_counter,
                             allow_user_input):
     conf = Config.getConfig()
@@ -67,6 +69,7 @@ def try_liveness_refinement(Cs: MealyMachine,
                       entry_predicate,
                       exit_condition,
                       loop,
+                      signatures,
                       loop_counter,
                       symbol_table)
 
@@ -150,9 +153,9 @@ def liveness_step(program,
                   pre_cond,
                   exit_cond,
                   concrete_body,
+                  signatures,
                   counter,
                   symbol_table):
-    conf = Config.getConfig()
     if any(v for v in exit_cond.variablesin() if "_prev" in str(v)):
         return False, (None, None)
 
@@ -207,8 +210,6 @@ def liveness_step(program,
         conditions.append(entry_valuation)
 
     # 4. if the above all don t terminate, then failed to weaken loop
-
-    ranking = None
     add_natural_conditions = True
 
     sufficient_entry_condition = None
@@ -246,7 +247,7 @@ def liveness_step(program,
                     # this is not enough, doesn t take into accound precondition
                     if function_decreases_in_loop_body(ranking, invars, body, symbol_table):
                         used_rankings.add(ranking)
-                        tran_preds, cons = ranking_refinement(ranking, invars)
+                        tran_preds, cons = ranking_refinement(ranking, invars, signatures, symbol_table)
                         _, state_preds, constraint = cons[0]
                         return True, (((state_preds, tran_preds), {constraint}), None)
 
@@ -254,12 +255,31 @@ def liveness_step(program,
             if conditions[-1] == cond:
                 return False, (None, None)
             else:
-                return True, (None, structural_refinement([(true(), t) for t in reduced_body], cond, exit_cond, counter, symbol_table))
+                ts = [(true(), t) for t in reduced_body]
+                ref = structural_refinement(ts, cond, exit_cond, counter, signatures, symbol_table)
+                if check_if_repeated_refinement(ts, cond, exit_cond):
+                    return False, (None, None)
+                else:
+                    return True, (None, ref)
 
     if sufficient_entry_condition == None:
         raise Exception("Bug: Not even concrete loop is terminating..")
 
     if not conf.only_ranking and sufficient_entry_condition != conditions[-1]:
-        return True, (None, structural_refinement([(true(), t) for t in reduced_body], sufficient_entry_condition, exit_cond, counter, symbol_table))
+        ts = [(true(), t) for t in reduced_body]
+        ref = structural_refinement(ts, sufficient_entry_condition, exit_cond, counter, signatures, symbol_table)
+        if check_if_repeated_refinement(ts, sufficient_entry_condition, exit_cond):
+            return False, (None, None)
+        else:
+            return True, (None, ref)
     else:
         return False, (None, None)
+
+
+def check_if_repeated_refinement(ts, entry, exit):
+    ref = ", ".join(map(str, map(lambda x: x[0], ts))) + ", ".join(map(str, map(lambda x: x[1], ts))) + str(entry) + str(exit)
+    if ref in existing_refinements:
+        return True
+    else:
+        existing_refinements.add(ref)
+        return False

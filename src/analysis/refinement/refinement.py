@@ -12,6 +12,7 @@ def refinement_standard(program,
                         real,
                         base_abstraction,
                         ltlAbstractionType,
+                        signatures,
                         loop_counter,
                         #TODO put all the below parameters in a dictionary
                         project_on_abstraction,
@@ -53,6 +54,7 @@ def refinement_standard(program,
                                                   predicate_abstraction,
                                                   agreed_on_execution,
                                                   disagreed_on_state,
+                                                  signatures,
                                                   loop_counter,
                                                   allow_user_input)
 
@@ -85,6 +87,7 @@ def refinement_standard(program,
                                                     predicate_abstraction,
                                                     agreed_on_execution,
                                                     disagreed_on_state,
+                                                    signatures,
                                                     allow_user_input,
                                                     keep_only_bool_interpolants,
                                                     conservative_with_state_predicates)

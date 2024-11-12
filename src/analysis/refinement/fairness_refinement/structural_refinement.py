@@ -1,10 +1,8 @@
-from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
-from analysis.refinement.fairness_refinement.ranking_refinement import find_ranking_function
 from programs.util import add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import disjunct_formula_set, G, conjunct_formula_set, implies, neg, conjunct, X, iff, disjunct, F, \
-    atomic_predicates, sat
+    atomic_predicates, sat, normalise_formula
 from prop_lang.variable import Variable
 
 
@@ -12,6 +10,7 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
                           entry_condition: Formula,
                           exit_condition: Formula,
                           counter,
+                          signatures,
                           symbol_table):
     print("Structural Refinement: \nentry_cond:" + str(entry_condition) + "\nexit_cond:" + str(exit_condition) +
           "\nloop:" + ", ".join(map(str, [a for _, acts in terminating_loop for a in acts])))
@@ -24,14 +23,18 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
     #           the program; would have the redo the predicate abstraction for all the previous predicates on the new
     #           program; or modify the abstraction to deal with predicates that can also talk about control states
 
+    #TODO binary representation for in_loop vars
     in_loop_vars = [Variable("in_loop" + str(counter) + "_" + str(i)) for i in range(0, len(terminating_loop))]
 
     in_loop = disjunct_formula_set(in_loop_vars)
 
+    entry_condition, entry_preds = normalise_formula(entry_condition, signatures, symbol_table)
+    exit_condition, exit_preds = normalise_formula(exit_condition, signatures, symbol_table)
+
     atomic_state_preds = []
     atomic_tran_preds = []
-    atomic_state_preds.extend(atomic_predicates(entry_condition))
-    atomic_state_preds.extend(atomic_predicates(exit_condition))
+    atomic_state_preds.extend(entry_preds)
+    atomic_state_preds.extend(exit_preds)
     constraints = [neg(in_loop)]
 
     if len(in_loop_vars) > 1:
@@ -44,6 +47,7 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
     stutters = []
 
     for i in range(0, len(terminating_loop)):
+        # TODO: preds in guard need to be normalised
         guard, acts = terminating_loop[i]
         complete_acts = [BiOp(c, ":=", c) for c in exit_condition.variablesin() if not any(act for act in acts if act.left == c)]
         complete_acts += acts
@@ -68,7 +72,7 @@ def structural_refinement(terminating_loop: [(Formula, [BiOp])],
 
         if i == 0:
             if not sat(conjunct_formula_set([entry_condition, neg(exit_condition), guard]), symbol_table):
-                print()
+                raise Exception(str(conjunct_formula_set([entry_condition, neg(exit_condition), guard])) + " is not satisfiable.")
             init = G(implies(neg(in_loop),
                      iff(conjunct_formula_set([entry_condition, neg(exit_condition), guard, X(act_i)]),
                          X(next_var))))

@@ -1,8 +1,5 @@
 import logging
 
-from pysmt.fnode import FNode
-from pysmt.shortcuts import And
-
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from parsing.string_to_prop_logic import string_to_prop
 from analysis.smt_checker import sequence_interpolant
@@ -10,9 +7,8 @@ from programs.program import Program
 from programs.typed_valuation import TypedValuation
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
-from prop_lang.mathexpr import MathExpr
 from prop_lang.util import (neg, conjunct_formula_set, fnode_to_formula, var_to_predicate, is_tautology,
-                            is_contradictory, atomic_predicates, should_be_math_expr)
+                            is_contradictory, atomic_predicates, normalise_pred_multiple_vars)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -20,6 +16,7 @@ def safety_refinement_seq_int(program: Program,
                       predicate_abstraction: EffectsAbstraction,
                       agreed_on_transitions,
                       disagreed_on_state,
+                      signatures,
                       allow_user_input: bool,
                       keep_only_bool_interpolants: bool,
                       conservative_with_state_predicates: bool,
@@ -78,38 +75,22 @@ def safety_refinement_seq_int(program: Program,
         new_state_preds = list(set(new_state_preds))
         new_state_preds = [x for x in new_state_preds if
                            not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
-        if enable_equality_to_le:
-            new_state_preds = normalise_LIA_state_preds(new_state_preds)
-        # if len(new_state_preds) == 0:
-        #     logging.info("No state predicates identified.")
-        #     if allow_user_input:
-        #         new_state_preds = interactive_state_predicates()
-        #     else:
-        #         logging.info("I will try using the values of variables instead..")
-        #         vars_mentioned_in_preds = {v for p in disagreed_on_state[0] for v in p.variablesin() if
-        #                                    not str(v).endswith("_prev")}
-        #         new_state_preds |= {BiOp(v, "=", Value(state[str(v)])) for v in vars_mentioned_in_preds for state
-        #                             in [st for (_, st) in agreed_on_transitions + [disagreed_on_state]]}
-        # else:
-        #     logging.info("Found state predicates: " + ", ".join([str(p) for p in new_state_preds]))
 
-    state_predicates = []
-    state_predicates.extend(predicate_abstraction.get_state_predicates())
-    state_predicates.extend(predicate_abstraction.chain_state_predicates)
-    new_state_preds_massaged = []
-    for s in new_state_preds:
-        if isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.left).lower() == "true":
-            new_state_preds_massaged.append(s.right)
-        elif isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.right).lower() == "true":
-            new_state_preds_massaged.append(s.left)
-        if isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.left).lower() == "false":
-            new_state_preds_massaged.append(neg(s.right))
-        elif isinstance(s, BiOp) and s.op in ["=", "=="] and str(s.right).lower() == "false":
-            new_state_preds_massaged.append(neg(s.left))
+    state_predicates = set()
+    state_predicates.update(predicate_abstraction.get_state_predicates())
+    state_predicates.update(predicate_abstraction.chain_state_predicates)
+    # new_state_preds = list(itertools.chain.from_iterable(map(lambda x: x[1], map(normalise_predicate, new_state_preds))))
+    normalised_state_preds = set()
+    for p in new_state_preds:
+        result = normalise_pred_multiple_vars(p, signatures, program.symbol_table)
+        if len(result) == 1:
+            normalised_state_preds.add(result)
         else:
-            new_state_preds_massaged.append(s)
-    new_state_preds = new_state_preds_massaged
-    new_all_preds = new_state_preds_massaged + state_predicates
+            sig, _, preds = result
+            signatures.add(sig)
+            normalised_state_preds.update(preds)
+    new_state_preds = normalised_state_preds
+    new_all_preds = new_state_preds | state_predicates
 
     new_all_preds = reduce_up_to_iff(state_predicates,
                                      list(new_all_preds),
@@ -126,17 +107,20 @@ def safety_refinement_seq_int(program: Program,
         raise Exception("There are somehow less state predicates than previously.")
 
     if len(set(new_all_preds)) == len(set(state_predicates)):
-        new_state_preds = []
+        new_state_preds = set()
         prog_states = [prog_state for _, prog_state, _ in agreed_on_transitions] + [disagreed_on_state[1][1]]
         for prog_state in prog_states:
             for v in program.local_vars:
                 if str(Value(prog_state[str(v)])).lower() == "true":
-                    new_state_preds.append(v)
+                    new_state_preds.add(v)
                 elif str(Value(prog_state[str(v)])).lower() == "false":
-                    new_state_preds.append(neg(v))
+                    new_state_preds.add(neg(v))
                 else:
-                    new_state_preds.append(BiOp(v, "=", Value(prog_state[str(v)])))
-        new_all_preds = list(set(normalise_LIA_state_preds(new_state_preds))) + state_predicates
+                    pred = BiOp(v, "=", Value(prog_state[str(v)]))
+                    sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+                    new_state_preds.update(preds)
+                    signatures.add(sig)
+        new_all_preds = new_state_preds | state_predicates
         new_all_preds = reduce_up_to_iff(state_predicates,
                                          new_all_preds,
                                          symbol_table
@@ -195,24 +179,3 @@ def interactive_state_predicates():
         except Exception as e:
             pass
     return new_preds
-
-
-def normalise_LIA_state_preds(state_preds):
-    new_state_preds = []
-    for p in state_preds:
-        if isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (
-                p.formula.op in ["=", "=="]):
-            new_state_preds.append(BiOp(p.formula.left, "<=", p.formula.right))
-            new_state_preds.append(BiOp(p.formula.right, "<=", p.formula.left))
-        elif should_be_math_expr(p) and isinstance(p, BiOp) and (
-                p.op in ["=", "=="]):
-            new_state_preds.append(BiOp(p.left, "<=", p.right))
-            new_state_preds.append(BiOp(p.right, "<=", p.left))
-        elif isinstance(p, MathExpr) and isinstance(p.formula, BiOp) and (p.formula.op in [">="]):
-            new_state_preds.append(BiOp(p.formula.right, "<=", p.formula.left))
-        elif isinstance(p, BiOp) and (p.op in [">="]):
-            new_state_preds.append(BiOp(p.right, "<=", p.left))
-        else:
-            new_state_preds.append(p)
-
-    return new_state_preds

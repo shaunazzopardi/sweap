@@ -10,7 +10,7 @@ from programs.program import Program
 from programs.util import parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, label_pred
+from prop_lang.util import conjunct_formula_set, label_pred, stringify_pred
 from prop_lang.variable import Variable
 from synthesis.moore_machine import MooreMachine
 
@@ -47,7 +47,7 @@ def compatibility_checking(program: Program,
     system = create_nuxmv_model_for_compatibility_checking(program,
                                                            moore_nuxmv,
                                                            all_preds,
-                                                           predicate_abstraction.current_chain_all_bin_rep,
+                                                           predicate_abstraction.v_to_chain_pred.values(),
                                                            not program.deterministic,
                                                            not program.deterministic,
                                                            predicate_mismatch=True,
@@ -115,7 +115,7 @@ def compatibility_checking(program: Program,
 
 
 def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel,
-                                                  pred_list, bin_pred_rep, include_mismatches_due_to_nondeterminism=False,
+                                                  pred_list, chain_preds, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
     pred_definitions = {label_pred(p, pred_list): p for p in pred_list}
     program_model = program.to_nuXmv_with_turns(include_mismatches_due_to_nondeterminism, colloborate, pred_definitions)
@@ -135,22 +135,20 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
            + ["init_state : boolean"]
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
 
+    pred_rep_to_val = {}
     binned_preds = []
-    for ps, rep in bin_pred_rep.items():
-        if isinstance(ps, UniOp):
-            if len(bin_pred_rep[ps].variablesin()) == 1:
-                continue
-            else:
-                binned_preds.append(str(label_pred(ps.right, pred_list)) + " := !(" + str(rep) + ")")
-        else:
-            binned_preds.append(str(label_pred((ps), pred_list)) + " := " + str(rep))
+    for ch_p in chain_preds:
+        for p, rep in ch_p.bin_rep.items():
+            bool_rep = stringify_pred(p).name
+            pred_rep_to_val[bool_rep] = p
+            binned_preds.append(bool_rep + " := " + str(rep))
     text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define + binned_preds) + ";\n"
 
     safety_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                               for p in pred_list if not any([v for v in p.variablesin() if "_prev" in str(
             v)])]
 
-    safety_predicate_truth += [BiOp(label_pred((ps), pred_list), '<->', (ps)) for ps, rep in bin_pred_rep.items()]
+    safety_predicate_truth += [BiOp(bool_rep, '<->', (p)) for bool_rep, p in pred_rep_to_val.items()]
 
     tran_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
                             for p in pred_list if any([v for v in p.variablesin() if "_prev" in str(

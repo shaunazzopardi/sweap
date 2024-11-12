@@ -6,15 +6,13 @@ from typing import Tuple
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
-from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement, \
-    ranking_refinement_both_sides, already_an_equivalent_ranking
+from analysis.refinement.fairness_refinement.ranking_refinement import ranking_refinement
 from analysis.refinement.refinement import refinement_standard
 
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
-from programs.util import reduce_up_to_iff, var_incremented_or_decremented
+from programs.util import term_incremented_or_decremented
 from prop_lang.mathexpr import MathExpr
-from prop_lang.value import Value
 from synthesis.ltl_synthesis import ltl_synthesis, syfco_ltl, syfco_ltl_in, syfco_ltl_out
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from synthesis.mealy_machine import MealyMachine
@@ -22,7 +20,7 @@ from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import true, stringify_formula, should_be_math_expr, normalise_mathexpr, ranking_from_predicate, \
-    atomic_predicates, finite_state_preds, strip_mathexpr
+    atomic_predicates, finite_state_preds, strip_mathexpr, normalise_pred_multiple_vars, normalise_formula
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -58,7 +56,7 @@ def finite_state_synth(program: Program,
     ltl_assumptions = new_ltl_assumptions
     ltl_guarantees = new_ltl_guarantees
 
-    abstr.add_predicates(preds, {})
+    abstr.add_predicates(preds, {}, {})
     logging.info(f"initial abstraction took {time.time() - start}")
 
     start = time.time()
@@ -176,36 +174,52 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     #  a solution here may be to use the atomic predicates appearing the in the transition guard as state predicates
 
     add_all_boolean_vars = True
+    env_con_events = set(program.con_events + program.env_events)
 
-    new_state_preds = []
+    new_state_preds = set()
     if add_all_boolean_vars:
-        new_state_preds.extend([Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool")])
+        new_state_preds.update(Variable(b.name) for b in program.valuation if b.type.lower().startswith("bool"))
 
     if config.Config.getConfig().add_all_preds_in_prog:
         for t in program.transitions:
             preds_in_cond = atomic_predicates(t.condition)
-            new_state_preds.extend([p for p in preds_in_cond if p not in program.con_events + program.env_events])
+            new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
+
+    # TODO don't normalise here; normalise inside of effectsabstraction
+    # rankings should also be added inside of abstraction, based on normalised preds?
+    symbol_table = program.symbol_table
+    signatures = set()
+    normalised_state_preds = set()
+    for p in new_state_preds:
+        result = normalise_pred_multiple_vars(p, signatures, symbol_table)
+        if len(result) == 1:
+            normalised_state_preds.add(result)
+        else:
+            sig, _, preds = result
+            signatures.add(sig)
+            normalised_state_preds.update(preds)
+    new_state_preds = normalised_state_preds
+
+    # new_state_preds = set(itertools.chain.from_iterable(map(lambda x: x[1], map(normalise_predicate, set(new_state_preds)))))
 
     prog_state_vars = [Variable(s) for s in program.states]
     new_ltl_assumptions = []
-    ltl_state_preds = []
+    ignore_these = set(in_acts + out_acts + prog_state_vars)
     for ltl in ltl_assumptions:
         ltl = ltl.replace_formulas(normalise_mathexpr)
-        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
-        ltl_state_preds += preds
-        new_ltl_assumptions.append(strip_mathexpr(ltl))
+        new_ltl, new_preds = normalise_formula(ltl, signatures, symbol_table, ignore_these)
+        new_state_preds.update(new_preds)
+        new_ltl_assumptions.append(strip_mathexpr(new_ltl))
 
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
         ltl = ltl.replace_formulas(normalise_mathexpr)
-        new_ltl, preds = stringify_formula(ltl, in_acts + out_acts + prog_state_vars)
-        ltl_state_preds += preds
-        new_ltl_guarantees.append(strip_mathexpr(ltl))
+        new_ltl, new_preds = normalise_formula(ltl, signatures, symbol_table, ignore_these)
+        new_state_preds.update(new_preds)
+        new_ltl_guarantees.append(strip_mathexpr(new_ltl))
 
     ltl_assumptions = new_ltl_assumptions
     ltl_guarantees = new_ltl_guarantees
-
-    new_state_preds = (set(new_state_preds))
 
     new_tran_preds = set()
     new_ranking_constraints = []
@@ -213,26 +227,26 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     rankings = []
     if config.Config.getConfig()._natural_fairness:
-        for tv in program.valuation:
-            if tv.type.lower().startswith("bool"):
-                continue
-
-            # if not var_incremented_or_decremented(program, Variable(tv.name)):
-            #     continue
-            if tv.type.lower().startswith("int"):
-                ranking = Variable(tv.name)
-                pos_rk = BiOp(ranking, ">=", Value("0"))
-                neg_rk = BiOp(ranking, "<=", Value("0"))
-                invars_top = [neg_rk]
-                invars_bot = [pos_rk]
-                rankings += [ranking_refinement_both_sides(ranking, invars_bot, invars_top)]
-            elif tv.type.lower().startswith("nat"):
-                ranking = Variable(tv.name)
-                invars = []
-                rankings += [ranking_refinement(ranking, invars)]
-            elif ".." in tv.type:
-                ranking = Variable(tv.name)
-                rankings += [ranking_refinement_both_sides(ranking, [], [])]
+        raise Exception("Natural fairness not implemented with binary encoding yet.")
+        # for tv in program.valuation:
+        #     if tv.type.lower().startswith("bool"):
+        #         continue
+        #     # if not var_incremented_or_decremented(program, Variable(tv.name)):
+        #     #     continue
+        #     if tv.type.lower().startswith("int"):
+        #         ranking = Variable(tv.name)
+        #         pos_rk = BiOp(ranking, ">=", Value("0"))
+        #         neg_rk = BiOp(ranking, "<=", Value("0"))
+        #         invars_top = [neg_rk]
+        #         invars_bot = [pos_rk]
+        #         rankings += [ranking_refinement_both_sides(ranking, invars_bot, invars_top)]
+        #     elif tv.type.lower().startswith("nat"):
+        #         ranking = Variable(tv.name)
+        #         invars = []
+        #         rankings += [ranking_refinement(ranking, invars)]
+        #     elif ".." in tv.type:
+        #         ranking = Variable(tv.name)
+        #         rankings += [ranking_refinement_both_sides(ranking, [], [])]
 
     loop_counter = 0
 
@@ -253,17 +267,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     to_add_rankings_for = []
 
-    new_new_state_preds = set()
-    for st_pred in new_state_preds:
-        if isinstance(st_pred, MathExpr) or should_be_math_expr(st_pred):
-            normalised = normalise_mathexpr(st_pred)
-            if normalised is None:
-                normalised = st_pred
-            new_st_preds = atomic_predicates(normalised)
-            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, new_st_preds, predicate_abstraction.symbol_table, tautology_check=False)
-        else:
-            new_new_state_preds = reduce_up_to_iff(new_new_state_preds, [st_pred], predicate_abstraction.symbol_table, tautology_check=False)
-    new_state_preds = new_new_state_preds | set(ltl_state_preds)
     print(str(len(new_state_preds)) + ": " + ", ".join(map(str, new_state_preds)))
     while True:
         if add_tran_preds_immediately and not only_safety:
@@ -274,13 +277,10 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                     result = ranking_from_predicate(state_pred)
                     if result is None: continue
                     f, invar = result
-                    only_updated_by_constants, there_is_dec, there_is_inc = var_incremented_or_decremented(program, f)
+                    only_updated_by_constants, there_is_dec, there_is_inc = term_incremented_or_decremented(program, f)
 
-                    if only_updated_by_constants:
-                        only_updated_by_constants, there_is_dec, there_is_inc = var_incremented_or_decremented(program,
-                                                                                                               f)
                     if not only_updated_by_constants and there_is_dec:
-                        rankings.append(ranking_refinement(f, [invar], there_is_inc))
+                        rankings.append(ranking_refinement(f, [invar], signatures, symbol_table, there_is_inc))
             add_tran_preds_immediately = False
 
         for tran_preds, st_prds, constraint in rankings:
@@ -299,7 +299,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         start = time.time()
         print(str(len(new_state_preds | new_tran_preds)) + ": " + ", ".join(map(str, new_state_preds | new_tran_preds)))
         print("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction")
-        predicate_abstraction.add_predicates(new_state_preds, new_tran_preds, True)
+        predicate_abstraction.add_predicates(new_state_preds | new_tran_preds, set(), True)
         logging.info("adding " + ", ".join(map(str, new_state_preds | new_tran_preds)) + " to predicate abstraction" + " took " + str(time.time() - start))
 
         predicate_abstraction.add_ranking_constraints(new_ranking_constraints)
@@ -360,6 +360,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                  real,
                                                  base_abstraction,
                                                  ltlAbstractionType,
+                                                 signatures,
                                                  loop_counter,
                                                  project_on_abstraction,
                                                  prefer_lasso_counterexamples,

@@ -94,7 +94,7 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
         else:
             predicate_vars.add(effects_abstraction.var_relabellings[p])
 
-    predicate_vars.update([Variable(x) for v in effects_abstraction.current_bin_vars.values() for x in v])
+    predicate_vars.update([x for _, pred in effects_abstraction.v_to_chain_pred.items() for x in pred.bin_vars])
 
     program = effects_abstraction.get_program()
     pred_props = program.bin_state_vars + list(predicate_vars)
@@ -125,7 +125,6 @@ def abstract_ltl_problem(original_LTL_problem: LTLSynthesisProblem,
     pred_props.extend(list(set(loop_vars)))
     pred_props = list(set(pred_props))
 
-    bool_vars = list(list(states_binary_map.values())[0].variablesin()) + [Variable(x) for v in effects_abstraction.current_bin_vars.values() for x in v] + program.env_events + program.con_events
     orig_assumptions = []
     for ass in original_LTL_problem.assumptions:
         new_ass = ass.replace_formulas(dict_to_replace)
