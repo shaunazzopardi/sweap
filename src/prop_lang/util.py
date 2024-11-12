@@ -1344,6 +1344,271 @@ def ranking_from_predicate(predicate):
     return None
     # raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
 
+def normalise_formula(f, signatures, symbol_table, ignore_these=None):
+    if ignore_these is None:
+        ignore_these = []
+    preds = atomic_predicates(f)
+    if len(preds) == 0:
+        return f, set()
+    preds = [p for p in preds if p not in ignore_these]
+    old_to_new = {}
+    new_preds = set()
+    for pp in preds:
+        result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
+        if len(result) == 1:
+            old_to_new[pp] = result
+            new_preds.add(result)
+        else:
+            sig, new_pred, preds = result
+            old_to_new[pp] = new_pred
+            signatures.add(sig)
+            new_preds.update(result[2])
+
+    return f.replace_formulas(old_to_new), new_preds
+
+
+# preds here may be use in structural refinements, careful
+def normalise_predicate_old(pred, signatures, symbol_table) -> (Formula, [Formula]):
+    pred = strip_outer_mathexpr(pred)
+    if isinstance(pred, BiOp) and (pred.op == "==" or pred.op == "="):
+        pred1 = BiOp(pred.left, "<=", pred.right)
+        pred2 = BiOp(pred.right, "<=", pred.left)
+
+        signature1, rep1, preds1 = normalise_pred_multiple_vars(pred1, signatures, symbol_table)
+        signature2, rep2, preds2 = normalise_pred_multiple_vars(pred2, signatures, symbol_table)
+
+        return conjunct(rep1, rep2), [(signature1, preds1), (signature2, preds2)]
+    elif isinstance(pred, BiOp) and pred.op == "!=":
+        pred1 = BiOp(pred.left, "<", pred.right)
+        pred2 = BiOp(pred.right, "<", pred.left)
+
+        signature1, rep1, preds1 = normalise_pred_multiple_vars(pred1, signatures, symbol_table)
+        signature2, rep2, preds2 = normalise_pred_multiple_vars(pred2, signatures, symbol_table)
+
+        return disjunct(rep1, rep2), [(signature1, preds1), (signature2, preds2)]
+    else:
+        signature, p, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+        return p, [(signature, preds)]
+
+
+def normalise_pred_with_var_on_one_side(pred, v):
+    try:
+        sympy_pred = sympy.solve(pred.to_sympy(), v.to_sympy())
+    except Exception as e:
+        raise Exception(e)
+    preds = str(sympy_pred).split(" & ")
+    if len(preds) > 1:
+        preds = [string_to_prop(p) for p in preds if "oo <" not in p and "oo >" not in p
+                                                    and "> oo" not in p and "< oo" not in p
+                                                    and "> -oo" not in p and "< -oo" not in p]
+    if len(preds) > 1:
+        raise Exception("Predicate " + ", ".join(map(str, preds)) + " has more than one conjunct")
+    elif len(preds) == 0:
+        raise Exception("Sympy predicate " + str(sympy_pred) + " is not well-formed")
+
+    pred_with_var_on_one_side = strip_outer_mathexpr(string_to_prop(str(preds[0])))
+
+    if isinstance(pred_with_var_on_one_side, BiOp):
+        if pred_with_var_on_one_side.op == "<":
+            # x < c is good already
+            if pred_with_var_on_one_side.left == v:
+                return pred_with_var_on_one_side, [pred_with_var_on_one_side]
+            else:
+                # of form c < x -> x > c -> ! x <= c
+                new_pred = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
+                return neg(new_pred), [new_pred]
+        elif pred_with_var_on_one_side.op == "<=":
+            # x < c is good already
+            if pred_with_var_on_one_side.left == v:
+                return pred_with_var_on_one_side, [pred_with_var_on_one_side]
+            else:
+                # c <= x -> x >= c -> ! x < c
+                new_pred = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
+                return neg(new_pred), [new_pred]
+        elif pred_with_var_on_one_side.op == ">":
+            # x > c -> !(x <= c)
+            if pred_with_var_on_one_side.left == v:
+                new_pred = BiOp(pred_with_var_on_one_side.left, "<=", pred_with_var_on_one_side.right)
+                return neg(new_pred), [new_pred]
+            else:
+                # of form c > x, then can represent as x < c
+                new_pred = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
+                return new_pred, [new_pred]
+        elif pred_with_var_on_one_side.op == ">=":
+            if pred_with_var_on_one_side.left == v:
+                # x >= c -> ! x < c
+                new_pred = BiOp(pred_with_var_on_one_side.left, "<", pred_with_var_on_one_side.right)
+                return neg(new_pred), [new_pred]
+            else:
+                # c >= x -> x <= c
+                new_pred = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
+                return new_pred, [new_pred]
+        elif pred_with_var_on_one_side.op[0] == "=":
+            if pred_with_var_on_one_side.right == v:
+                # c == x -> c <= x and c >= x
+                new_pred1 = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
+                new_pred2 = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
+                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+            else:
+                new_pred1 = BiOp(pred_with_var_on_one_side.left, "<=", pred_with_var_on_one_side.right)
+                new_pred2 = BiOp(pred_with_var_on_one_side.left, "<", pred_with_var_on_one_side.right)
+                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+        elif pred_with_var_on_one_side.op == "!=":
+            if pred_with_var_on_one_side.right == v:
+                # c == x -> c <= x and c >= x
+                new_pred1 = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
+                new_pred2 = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
+                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+            else:
+                new_pred1 = BiOp(pred_with_var_on_one_side.left, "<=", pred_with_var_on_one_side.right)
+                new_pred2 = BiOp(pred_with_var_on_one_side.left, "<", pred_with_var_on_one_side.right)
+                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+        else:
+            raise Exception("Predicate " + str(pred_with_var_on_one_side) + " has an unexpected relational operator")
+    else:
+        raise Exception("Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp")
+
+
+def normalise_pred_multiple_vars(pred, signatures, symbol_table):
+    if isinstance(pred, Variable):
+        return pred
+    signature, pred_with_var_on_one_side = put_vars_on_left_side(strip_mathexpr(pred))
+    op = pred_with_var_on_one_side.op
+    vars_on_left = True
+    if signature not in signatures:
+        for sig in signatures:
+            if is_tautology(BiOp(sig, "=", signature), symbol_table):
+                signature = sig
+                pred_with_var_on_one_side = BiOp(sig, op, pred_with_var_on_one_side.right)
+                break
+            elif is_tautology(BiOp(sig, "=", UniOp("-", signature)), symbol_table):
+                signature = sig
+                new_right = propagate_minuses(UniOp("-", pred_with_var_on_one_side.right))
+                new_right = simplify_sum(new_right, {})
+                pred_with_var_on_one_side = BiOp(new_right, op, sig)
+                vars_on_left = False
+                break
+
+    left = pred_with_var_on_one_side.left
+    right = pred_with_var_on_one_side.right
+
+    if isinstance(pred_with_var_on_one_side, BiOp):
+        if op == "<":
+            # x < c is good already
+            if vars_on_left:
+                return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
+            else:
+                # of form c < x -> x > c -> ! x <= c
+                new_pred = BiOp(right, "<=", left)
+                return signature, neg(new_pred), [new_pred]
+        elif op == "<=":
+            # x < c is good already
+            if vars_on_left:
+                return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
+            else:
+                # c <= x -> x >= c -> ! x < c
+                new_pred = BiOp(right, "<", left)
+                return signature, neg(new_pred), [new_pred]
+        elif op == ">":
+            # x > c -> !(x <= c)
+            if vars_on_left:
+                new_pred = BiOp(left, "<=", right)
+                return signature, neg(new_pred), [new_pred]
+            else:
+                # of form c > x, then can represent as x < c
+                new_pred = BiOp(right, "<", left)
+                return signature, new_pred, [new_pred]
+        elif op == ">=":
+            if vars_on_left:
+                # x >= c -> ! x < c
+                new_pred = BiOp(left, "<", right)
+                return signature, neg(new_pred), [new_pred]
+            else:
+                # c >= x -> x <= c
+                new_pred = BiOp(right, "<=", left)
+                return signature, new_pred, [new_pred]
+        elif op[0] == "=":
+            if vars_on_left:
+                # c == x -> c <= x and c >= x
+                new_pred1 = BiOp(right, "<=", left)
+                new_pred2 = BiOp(right, "<", left)
+                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+            else:
+                new_pred1 = BiOp(left, "<=", right)
+                new_pred2 = BiOp(left, "<", right)
+                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+        elif op == "!=":
+            if vars_on_left:
+                # c == x -> c <= x and c >= x
+                new_pred1 = BiOp(right, "<=", left)
+                new_pred2 = BiOp(right, "<", left)
+                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+            else:
+                new_pred1 = BiOp(left, "<=", right)
+                new_pred2 = BiOp(left, "<", right)
+                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+        else:
+            raise Exception("Predicate " + str(pred_with_var_on_one_side) + " has an unexpected relational operator")
+    else:
+        raise Exception("Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp")
+
+
+def put_vars_on_left_side(pred):
+    # put all the variables of a Linear Integer Arithmetic inequality on one side
+    # assuming op is of form <=, <, >=, >
+
+    if isinstance(pred, BiOp):
+        left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
+        right_vars, right_constants = get_vars_and_constants_in_term(pred.right)
+
+        new_left_vars = left_vars + [propagate_minuses(UniOp("-", t)) for t in right_vars]
+        new_left = sum(new_left_vars)
+
+        new_right_constants = right_constants + [propagate_minuses(UniOp("-", c)) for c in left_constants]
+        if len(new_right_constants) == 0:
+            new_right = Value("0")
+        else:
+            new_right = sum(new_right_constants)
+
+        new_left_vars.sort(key=lambda x: str(x))
+        new_right = simplify_sum(new_right, {}) # this should evaluate the sum
+        return new_left, BiOp(new_left, pred.op, new_right)
+    else:
+        raise Exception("Predicate " + str(pred) + " is not a BiOp")
+
+
+def get_vars_and_constants_in_term(term):
+    vars = []
+    constants = []
+    left_to_do = term.sub_formulas_up_to_associativity()
+    while (True):
+        new_left_to_do = []
+        if len(left_to_do) == 0:
+            break
+        for t in left_to_do:
+            for p in t.sub_formulas_up_to_associativity():
+                if isinstance(p, BiOp):
+                    new_left_to_do.append(p)
+                elif isinstance(p, Value):
+                    constants.append(p)
+                else:
+                    vars.append(p)
+        left_to_do = new_left_to_do
+    vars.sort(key=lambda x: str(x))
+    return vars, constants
+
+
+def sum(terms):
+    if len(terms) == 0:
+        raise Exception("No terms to sum")
+    elif len(terms) == 1:
+        return terms[0]
+    else:
+        term = terms[0]
+        for i in range(1, len(terms)):
+            term = BiOp(term, "+", terms[i])
+        return term
+
 
 def strip_outer_mathexpr(f):
     if isinstance(f, MathExpr):
