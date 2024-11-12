@@ -307,7 +307,7 @@ def use_liveness_refinement_state_joined(Cs: MooreMachine,
     last_pred_state = ground_predicate_on_vars(program,
                                                Cs.out[last_cs_state],
                                                last_props_state_dict,
-                                               inloop_vars,
+                                               irrelevant_vars,
                                                symbol_table_with_inloop_vars)
 
     last_pred_state_wo_props = ground_predicate_on_vars(program,
@@ -315,6 +315,10 @@ def use_liveness_refinement_state_joined(Cs: MooreMachine,
                                                         last_props_state_dict,
                                                         irrelevant_vars,
                                                         symbol_table_with_inloop_vars)
+
+    if all(str(v).startswith("bin_st") for v in last_pred_state.variablesin()):
+        return False, None
+
     previous_visits = []
     for i, ce_state in enumerate(ce):
         cs_st = [str(st) for st in Cs.states if ce_state[str(st)] == "TRUE"][0]
