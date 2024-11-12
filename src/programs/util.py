@@ -631,7 +631,7 @@ def binary_rep(vars, label):
     if bin == 0:
         bin = 1
 
-    bin_vars = [label + str(i) for i in range(0, bin)]
+    bin_vars = [Variable(label + str(i)) for i in range(0, bin)]
 
     base = '{0:0' + str(bin) + 'b}'
     rep = {}
@@ -640,9 +640,9 @@ def binary_rep(vars, label):
         bin_formula = None
         for j, pos in enumerate(bin_rep):
             if pos == '0':
-                new_constraint = neg(Variable(bin_vars[j]))
+                new_constraint = neg(bin_vars[j])
             else:
-                new_constraint = Variable(bin_vars[j])
+                new_constraint = bin_vars[j]
 
             if bin_formula is None:
                 bin_formula = new_constraint
