@@ -223,6 +223,25 @@ def prime_action(acts: [BiOp]) -> Formula:
     return conjunct_formula_set(primed_acts)
 
 
+def propagate_minuses(formula, init=False):
+    if isinstance(formula, Value) or isinstance(formula, Variable):
+        if init:
+            return UniOp("-", formula)
+        else:
+            return formula
+    elif isinstance(formula, MathExpr):
+        return MathExpr(propagate_minuses(formula.formula, init))
+    elif isinstance(formula, UniOp):
+        if formula.op == "-":
+            return propagate_minuses(formula.right, not init)
+        else:
+            return UniOp(formula.op, propagate_minuses(formula.right, init))
+    elif isinstance(formula, BiOp):
+        return BiOp(propagate_minuses(formula.left, init), formula.op, propagate_minuses(formula.right, init))
+    else:
+        return formula
+
+
 def propagate_nexts(formula, init=False):
     if isinstance(formula, Value) or isinstance(formula, Variable):
         if init:
@@ -342,6 +361,16 @@ def simplify_formula_with_math(formula, symbol_table):
             to_formula = fnode_to_formula(simplified)
             logging.info(str(e))
         return to_formula
+
+
+def simplify_sum(formula, symbol_table):
+    with Environment() as environ:
+        simplified = environ.simplifier.simplify(formula.to_smt(symbol_table)[0])
+        str_simpl = serialize(simplified)
+        if str_simpl[0] == "-":
+            return UniOp("-", Value(str_simpl[1:]))
+        else:
+            return Value(str_simpl)
 
 
 def simplify_formula_without_math(formula, symbol_table=None):

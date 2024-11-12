@@ -19,6 +19,13 @@ class BiOp(Formula):
         if right == None:
             raise Exception("BiOp: right is None")
         assert(isinstance(left, Formula), "left is not a formula")
+        if op == "-":
+            self.op = "+"
+            self.right = UniOp("-", right)
+        else:
+            self.op = op
+            self.right = right
+
         self.left = left
         self.op = op.strip()
         assert(isinstance(right, Formula), "right is not a formula")
@@ -38,6 +45,8 @@ class BiOp(Formula):
             is_same_as_op = lambda x: x[0] == "&"
         elif self.op == "||" or self.op == "|":
             is_same_as_op = lambda x: x[0] == "|"
+        elif self.op == "+":
+            is_same_as_op = lambda x: x[0] == "+"
         else:
             return [self]
 

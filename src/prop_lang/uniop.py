@@ -84,6 +84,10 @@ class UniOp(Formula):
     def to_sympy(self):
         if self.op == "!":
             return sympy.Not(self.right.to_sympy())
+        elif self.op == "-":
+            return sympy.Mul(sympy.Integer(-1), self.right.to_sympy())
+        else:
+            raise Exception("Unsupported operator: " + self.op)
 
     def replace_formulas(self, context):
         if isinstance(context, dict):

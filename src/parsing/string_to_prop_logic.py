@@ -87,6 +87,7 @@ GRAMMAR = '''
         | number
         | '-' number
         | atom
+        | '-' atom
         ;
         
     negated_atom 
