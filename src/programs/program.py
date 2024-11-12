@@ -15,6 +15,7 @@ from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.util import disjunct_formula_set, neg, true, \
     sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology, sat_parallel, mutually_exclusive_rules
+from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
@@ -108,6 +109,32 @@ class Program:
         self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
         self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
         self.states_binary_map |= {Variable(st): bin_st for st, bin_st in self.states_binary_map.items()}
+
+        self.project_out_constants()
+
+
+    def project_out_constants(self):
+        vars_to_project_out = []
+        new_valuation = []
+        for tv in self.valuation:
+            if all(BiOp(Variable(tv.name), ":=", Variable(tv.name)) in t.action for t in self.transitions):
+                vars_to_project_out.append(tv)
+            else:
+                new_valuation.append(tv)
+
+        for tv in vars_to_project_out:
+            var = Variable(tv.name)
+            stutter_act = BiOp(var, ":=", var)
+            to_replace = [BiOp(var, ":=", Value(tv.value))]
+            for t in self.transitions:
+                t.action.remove(stutter_act)
+                t.condition = t.condition.replace(to_replace)
+            del self.symbol_table[tv.name]
+            del self.symbol_table[tv.name + "_prev"]
+            del self.symbol_table[tv.name + "_prev_prev"]
+
+        self.valuation = new_valuation
+        self.local_vars = [Variable(tv.name) for tv in new_valuation]
 
 
     def add_type_constraints_to_guards(self, transition: Transition):
