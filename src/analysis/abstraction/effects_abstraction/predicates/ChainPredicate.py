@@ -286,7 +286,7 @@ class ChainPredicate(Predicate):
             return f, self
 
     def boolean_rep(self):
-        # TODO need to add rep for original preds too
+        return self.single_pred_bin_rep | self.bin_rep
 
     def init_ranking_refinement(self):
         only_updated_by_constants, there_is_dec, there_is_inc = term_incremented_or_decremented(self.program, self.term)
