@@ -266,7 +266,9 @@ class ChainPredicate(Predicate):
             post = True
         else:
             p = f
-        if p in self.old_to_new.keys():
+        # need to check that self.old_to_new is dict because when turning of parallelisation, and a transition with the
+        # same gu could have been processed already
+        if isinstance(self.old_to_new, dict) and p in self.old_to_new.keys():
             for new_p in self.old_to_new[p]:
                 if is_tautology(implies(gu, new_p), symbol_table):
                     if post:
