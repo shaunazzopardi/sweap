@@ -82,7 +82,7 @@ class StatePredicate(Predicate):
                       symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
         new_effects = []
         for now, nexts in old_effects:
-            new_nexts = self.refine_nexts_with_p(now, nexts, symbol_table)
+            new_nexts = self.refine_nexts_with_p(conjunct(gu, now.prev_rep()), nexts, symbol_table)
             new_effects.append((now, new_nexts))
         return new_effects
 

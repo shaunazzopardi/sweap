@@ -99,6 +99,7 @@ class ChainPredicate(Predicate):
             else:
                 int_old_to_new_pos = old_preds_to_new(i, self.raw_state_preds)
                 old_to_new_pos = {old_p: p_or_dict_val(ps, int_old_to_new_pos) for old_p, ps in old_to_new_pos.items()}
+                old_to_new_pos |= {old_p: ps for old_p, ps in int_old_to_new_pos.items() if old_p in self.chain and old_p not in old_to_new_pos.keys()}
 
         self.old_to_new = old_to_new_pos
 
