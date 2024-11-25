@@ -6,7 +6,9 @@ from programs.util import binary_rep, add_prev_suffix, term_incremented_or_decre
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct, neg, sat, is_tautology, implies, disjunct_formula_set, X, G, F, disjunct
+from prop_lang.util import conjunct, neg, sat, is_tautology, implies, disjunct_formula_set, X, G, F, disjunct, \
+    stringify_term, conjunct_formula_set
+from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
@@ -130,14 +132,21 @@ class ChainPredicate(Predicate):
 
         for i, f in enumerate(self.chain):
             if i + 1 < len(self.chain):
-                self.single_pred_bin_rep[self.raw_state_preds[i]] = disjunct_formula_set(
-                    [self.bin_rep[p] for p in self.chain[0:i + 1]])
-                self.single_pred_bin_rep[neg(self.raw_state_preds[i])] = disjunct_formula_set(
-                    [self.bin_rep[p] for p in self.chain[i + 1:]])
-        # else:
-        #     str_pred = stringify_pred(self.raw_preds[0])
-        #     self.single_pred_bin_rep[self.raw_preds[0]] = str_pred
-        #     self.single_pred_bin_rep[neg(self.raw_preds[0])] = neg(str_pred)
+                # TODO for v = 8, we have a big representation, when !(v <= 7) && v <= 8 suffices
+                if i < len(self.chain)/2:
+                    if i != 0:
+                        self.single_pred_bin_rep[self.raw_state_preds[i]] = disjunct_formula_set(
+                            [self.bin_rep[p] for p in self.chain[0:i + 1]])
+                    if i < len(self.raw_state_preds):
+                        self.single_pred_bin_rep[neg(self.raw_state_preds[i])] = conjunct_formula_set(
+                            [neg(self.bin_rep[p]) for p in self.chain[0:i + 1]])
+                else:
+                    if i != 0:
+                        self.single_pred_bin_rep[self.raw_state_preds[i]] = conjunct_formula_set(
+                            [neg(self.bin_rep[p]) for p in self.chain[i + 1:]])
+                    if i < len(self.raw_state_preds):
+                        self.single_pred_bin_rep[neg(self.raw_state_preds[i])] = disjunct_formula_set(
+                            [self.bin_rep[p] for p in self.chain[i + 1:]])
 
     def refine_and_rename_nexts(self, gu, prev_state, nexts, symbol_table):
         new_nexts = []
