@@ -38,6 +38,10 @@ def old_preds_to_new(new_i, chain):
         return {conjunct(neg(old_i_minus_1), old_i): [conjunct(neg(old_i_minus_1), new_pred), conjunct(neg(new_pred), old_i)]}
 
 
+def recheck_nexts(prev_state, nexts, symbol_table):
+    return [v_next for v_next in nexts if sat(conjunct(prev_state, v_next), symbol_table)]
+
+
 class ChainPredicate(Predicate):
     def __init__(self, term: Formula, program, accelerate=False):
         # TODO this is class is no longer updating correctly;
@@ -162,9 +166,6 @@ class ChainPredicate(Predicate):
                     new_nexts.append(next)
         return new_nexts
 
-    def recheck_nexts(self, gu, prev_state, nexts, symbol_table):
-        return [(u, [v_next for v_next in v_nexts if sat(conjunct(prev_state, v_next), symbol_table)]) for (u, v_nexts) in nexts]
-
     def replace_formulas_multiple_but(self, old_to_new, f, gu, now_or_next):
         if (now_or_next and gu not in self.init_now) or (not now_or_next and gu not in self.init_next):
             if isinstance(f, Value):
@@ -207,9 +208,9 @@ class ChainPredicate(Predicate):
                     if len(nexts) == 0:
                         new_effects.append((new_now, nexts))
                     else:
-                        nexts = self.recheck_nexts(gu, prev_state, nexts, symbol_table)
-                        if len(nexts) > 0:
-                            new_effects.append((new_now, nexts))
+                        new_nexts = recheck_nexts(prev_state, nexts, symbol_table)
+                        if len(new_nexts) > 0:
+                            new_effects.append((new_now, new_nexts))
                         else:
                             raise Exception("Is gu unsatisfiable? " + str(gu))
 
