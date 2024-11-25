@@ -123,12 +123,25 @@ def tuple_to_formula(node, hoa_flag) -> Formula:
             v2 = ((node[2]))
             if v0 == None or v2 == None:
                 print("None")
-            if node[1] in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "=", "!="]:
+            if node[1] in ["+", "-", "<", ">", "<=", ">=", "==", "=", "!="]:
                 return MathExpr(BiOp((node[0]), node[1].replace("==", "="), (node[2])))
             elif node[0] == "(" and node[2] == ")":
                 return node[1]
             else:
-                return BiOp((node[0]), node[1], (node[2]))
+                if node[1] in ["&&", "||", "&", "|", "->", "<->"]:
+                    return BiOp((node[0]), node[1], (node[2]))
+                elif node[1] == "*":
+                    if str(node[0]) == "-1":
+                        return UniOp("-", (node[2]))
+                    elif str(node[0]) == "1":
+                        return node[2]
+                elif node[1] == "/":
+                    if str(node[2]) == "-1":
+                        return UniOp("-", (node[1]))
+                    elif str(node[2]) == "1":
+                        return node[1]
+                raise Exception("Cannot handled non LIA operators: " + str(node))
+                # return BiOp((node[0]), node[1], (node[2]))
     else:
         raise Exception("Invalid node: " + str(node))
 
