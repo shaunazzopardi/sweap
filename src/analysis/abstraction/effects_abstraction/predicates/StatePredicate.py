@@ -27,6 +27,9 @@ class StatePredicate(Predicate):
         self.last_pre = {}
         self.last_post = {}
 
+    def __str__(self):
+        return str(self.pred)
+
     def __eq__(self, other):
         return isinstance(other, StatePredicate) and self.pred == other.pred
 
