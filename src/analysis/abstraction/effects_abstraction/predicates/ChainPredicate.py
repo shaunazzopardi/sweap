@@ -7,7 +7,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct, neg, sat, is_tautology, implies, disjunct_formula_set, X, G, F, disjunct, \
-    conjunct_formula_set
+    stringify_term, conjunct_formula_set
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -134,8 +134,7 @@ class ChainPredicate(Predicate):
         for i, p in enumerate(self.raw_state_preds):
             self.pred_to_chain[neg(p)] = self.chain[i + 1:]
 
-        # if not isinstance(old_to_new_pos, list):
-        self.bin_vars, self.bin_rep = binary_rep(self.chain, "bin_" + str(self.term))
+        self.bin_vars, self.bin_rep = binary_rep(self.chain, "bin_" + stringify_term(self.term))
 
         for i, f in enumerate(self.chain):
             if i + 1 < len(self.chain):
