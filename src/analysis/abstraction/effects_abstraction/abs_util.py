@@ -41,7 +41,7 @@ def partition_preds(preds, all_vars):
                 if v in done_vars:
                     continue
                 else:
-                    v_to_partition = {len(partitions)}
+                    v_to_partition[v] = len(partitions)
                     done_vars.add(v)
                     for p in v_to_p[v]:
                         new_preds.add(p)
