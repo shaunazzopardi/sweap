@@ -7,7 +7,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct, neg, sat, is_tautology, implies, disjunct_formula_set, X, G, F, disjunct, \
-    stringify_term, conjunct_formula_set
+    conjunct_formula_set
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -39,11 +39,11 @@ def old_preds_to_new(new_i, chain):
 
 
 class ChainPredicate(Predicate):
-    def __init__(self, term: Formula, program):
+    def __init__(self, term: Formula, program, accelerate=False):
         # TODO this is class is no longer updating correctly;
         #  if term is over multiple variables, then updates need to be partitioned according to vars appearing in term
         #
-
+        self.program = program
         self.raw_state_preds = []
         self.tran_preds = []
         self.bottom_ranking = None
@@ -63,7 +63,7 @@ class ChainPredicate(Predicate):
         self.init_now = set()
         self.init_next = set()
 
-        self.init_ranking_refinement(program)
+        self.accelerate = accelerate
 
     def __eq__(self, other):
         """Overrides the default implementation"""
@@ -117,13 +117,20 @@ class ChainPredicate(Predicate):
 
         new_chain.append(neg(self.raw_state_preds[-1]))
 
-        if self.chain[0] != new_chain[0] and self.bottom_ranking is not None:
-            self.bottom_ranking = self.bottom_ranking.replace_formulas_multiple({self.chain[0]: new_chain[0]})
+        if len(self.chain) == 0:
+            self.chain = new_chain
+            if self.accelerate:
+                self.init_ranking_refinement()
+        else:
+            if self.accelerate:
+                if self.chain[0] != new_chain[0] and self.bottom_ranking is not None:
+                    self.bottom_ranking = self.bottom_ranking.replace_formulas({self.chain[0]: new_chain[0]})
 
-        if self.chain[-1] != new_chain[-1] and self.top_ranking is not None:
-            self.top_ranking = self.top_ranking.replace_formulas_multiple({self.chain[-1]: new_chain[-1]})
+                if self.chain[-1] != new_chain[-1] and self.top_ranking is not None:
+                    self.top_ranking = self.top_ranking.replace_formulas({self.chain[-1]: new_chain[-1]})
 
-        self.chain = new_chain
+            self.chain = new_chain
+
         for i, p in enumerate(self.raw_state_preds):
             self.pred_to_chain[neg(p)] = self.chain[i + 1:]
 
@@ -282,14 +289,8 @@ class ChainPredicate(Predicate):
     def boolean_rep(self):
         # TODO need to add rep for original preds too
 
-        # if only one predicate in chain, then keep basic representation
-        # if isinstance(self.old_to_new, list):
-        #     return self.single_pred_bin_rep
-        # else:
-        return self.bin_rep | self.single_pred_bin_rep
-
-    def init_ranking_refinement(self, program):
-        only_updated_by_constants, there_is_dec, there_is_inc = term_incremented_or_decremented(program, self.term)
+    def init_ranking_refinement(self):
+        only_updated_by_constants, there_is_dec, there_is_inc = term_incremented_or_decremented(self.program, self.term)
 
         if not only_updated_by_constants:
             if there_is_dec:
