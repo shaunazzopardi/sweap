@@ -156,19 +156,10 @@ class ChainPredicate(Predicate):
 
     def refine_and_rename_nexts(self, gu, prev_state, nexts, symbol_table):
         new_nexts = []
-        for u, v_nexts in nexts:
-            new_v_nexts = []
-            if u.left in self.vars:
-                for old_v_next in v_nexts:
-                    for v_next in self.replace_formulas_multiple_but(self.old_to_new, old_v_next, gu, False):
-                        if sat(conjunct(prev_state, v_next), symbol_table):
-                            new_v_nexts.append(v_next)
-                new_nexts.append((u, new_v_nexts))
-            else:
-                for v_next in v_nexts:
-                    if sat(conjunct(prev_state, v_next), symbol_table):
-                        new_v_nexts.append(v_next)
-                new_nexts.append((u, new_v_nexts))
+        for old_next in nexts:
+            for next in self.replace_formulas_multiple_but(self.old_to_new, old_next, gu, False):
+                if sat(conjunct(prev_state, next), symbol_table):
+                    new_nexts.append(next)
         return new_nexts
 
     def recheck_nexts(self, gu, prev_state, nexts, symbol_table):
