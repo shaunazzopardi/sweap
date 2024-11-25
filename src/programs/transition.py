@@ -1,6 +1,6 @@
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.util import true, conjunct, neg, negate
+from prop_lang.util import true, conjunct, neg, negate, conjunct_formula_set
 from prop_lang.variable import Variable
 
 
@@ -11,6 +11,7 @@ class Transition:
         self.action = [] if action is None else action
         self.output = sorted(output, key=lambda x: str(x))
         self.tgt = tgt
+        self.f = None
 
     def __str__(self) -> str:
         to_str = lambda x: str(x) if type(x) != tuple or type(x[1]) != frozenset else str(x[0]) + ", " + ', '.join(
@@ -54,3 +55,8 @@ class Transition:
         if len(self.action) != len(vars):
             raise Exception("Error in action set completion")
         return self
+
+    def formula(self):
+        if self.f is None:
+            self.f = conjunct_formula_set([self.condition.prev_rep()] + [BiOp(a.left, "=", a.right.prev_rep()) for a in self.action])
+        return self.f
