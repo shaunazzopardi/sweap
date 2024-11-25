@@ -1,14 +1,14 @@
 program follow {
     STATES {
-        env : init; con; unsafe
+        move0: init, move1
     }
 
     ENVIRONMENT EVENTS {
-        incx; decx; incy; decy;
+        incx, incy, stax, stay
     }
 
     CONTROLLER EVENTS {
-        incxc; decxc; incyc; decyc;
+       a, b, c, d
     }
 
     VALUATION {
@@ -19,24 +19,31 @@ program follow {
     }
 
     TRANSITIONS {
-        env -> con [$
-                     x0:= x0 + 1 if incx && !decx;
-                     x0:= x0 - 1 if !incx && decx;
-                     y0 := y0 + 1 if incy && !decy;
-                     y0 := y0 - 1 if !incy && decy;
-                     ],
-        con -> env [$
-                     x1 := x1 + 1 if incxc && !decxc;
-                     x1 := x1 - 1 if !incxc && decxc;
-                     y1 := y1 + 1 if incyc && !decyc;
-                     y1 := y1 - 1 if !incyc && decyc;
-                     ]
-        }
+        move0 -> move1 [d],
+        move0 -> move1 [a & !b & !c & !d $ x0 := x0 + 1],
+        move0 -> move1 [!a & b & !c & !d $ x0 := x0 + 1; y0 := y0 + 1],
+        move0 -> move1 [!a & !b & c & !d $ x0 := x0 + 1; y0 := y0 - 1],
+        move0 -> move1 [a & b & !c & !d $ y0 := y0 + 1],
+        move0 -> move1 [!a & b & c & !d $ y0 := y0 - 1],
+        move0 -> move1 [a & !b & c & !d $ x0 := x0 - 1],
+        move0 -> move1 [!a & !b & !c & !d $ x0 := x0 - 1; y0 := y0 + 1],
+        move0 -> move1 [a & b & c & !d $ x0 := x0 - 1; y0 := y0 - 1],
+
+        move1 -> move0 [!stax && stay && incx && !incy $ x1 := x1 + 1],
+        move1 -> move0 [!stax && stay && !incx && !incy $ x1 := x1 - 1],
+        move1 -> move0 [!stax && !stay && incy && incx $ x1 := x1 + 1; y1 := y1 + 1],
+        move1 -> move0 [!stax && !stay && !incy && incx $ x1 := x1 + 1; y1 := y1 - 1],
+        move1 -> move0 [!stax && !stay && incy && !incx $ x1 := x1 - 1; y1 := y1 + 1],
+        move1 -> move0 [!stax && !stay && !incy && !incx $ x1 := x1 - 1; y1 := y1 - 1],
+        move1 -> move0 [stax && !stay && incy && !incx $ y1 := y1 + 1],
+        move1 -> move0 [stax && !stay && !incy && !incx $ y1 := y1 - 1],
+        move1 -> move0 [!stax && !stay && !incy && !incx]
+    }
 
     SPECIFICATION {
-        G !(((0 <= x0 - x1 && 0 <= y0 - y1 && (((x0 - x1) + (y0 - y1)) > 2)) ||
-            (0 <= x1 - x0 && 0 <= y0 - y1 && (((x1 - x0) + (y0 - y1)) > 2)) ||
-            (0 <= x0 - x1 && 0 <= y1 - y0 && (((x0 - x1) + (y1 - y0)) > 2 )) ||
-            (0 <= x1 - x0 && 0 <= y1 - y0 && (((x1 - x0) + (y1 - y0)) > 2 ))))
+        (G ((!(0 <= x0 - x1) || !(0 <= y0 - y1) || !(((x0 - x1) + (y0 - y1)) > 2)) &&
+            (!(0 <= x1 - x0) || !(0 <= y1 - y0) || !(((x1 - x0) + (y1 - y0)) > 2)) &&
+            (!(0 <= x0 - x1) || !(0 <= y1 - y0) || !(((x0 - x1) + (y1 - y0)) > 2)) &&
+            (!(0 <= x1 - x0) || !(0 <= y0 - y1) || !(((x1 - x0) + (y0 - y1)) > 2))))
     }
 }

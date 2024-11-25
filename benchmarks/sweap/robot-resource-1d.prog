@@ -36,6 +36,6 @@ program robot-resource-1d {
     }
 
     SPECIFICATION {
-        (G F goal) || F G (incntx || decntx)
+        ((G F goal) || F G (incntx || decntx))
     }
 }

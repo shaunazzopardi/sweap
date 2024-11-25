@@ -4,11 +4,11 @@ program square5x5 {
     }
 
     ENVIRONMENT EVENTS {
-        incxe; decxe; incye; decye;
+        incx, incy, stax, stay
     }
 
     CONTROLLER EVENTS {
-        incxc; decxc; incyc; decyc;
+       a, b, c, d
     }
 
     VALUATION {
@@ -17,19 +17,26 @@ program square5x5 {
     }
 
     TRANSITIONS {
-        move0 -> move1 [$
-                     x := x + 1 if incxc && !decxc;
-                     x := x - 1 if !incxc && decxc;
-                     y := y + 1 if incyc && !decyc;
-                     y := y - 1 if !incyc && decyc;
-                     ],
-        move1 -> move0 [$
-                     x := x + 1 if incxe && !decxe;
-                     x := x - 1 if !incxe && decxe;
-                     y := y + 1 if incye && !decye;
-                     y := y - 1 if !incye && decye;
-                     ]
-        }
+        move0 -> move1 [d],
+        move0 -> move1 [a & !b & !c & !d $ x := x + 1],
+        move0 -> move1 [!a & b & !c & !d $ x := x + 1; y := y + 1],
+        move0 -> move1 [!a & !b & c & !d $ x := x + 1; y := y - 1],
+        move0 -> move1 [a & b & !c & !d $ y := y + 1],
+        move0 -> move1 [!a & b & c & !d $ y := y - 1],
+        move0 -> move1 [a & !b & c & !d $ x := x - 1],
+        move0 -> move1 [!a & !b & !c & !d $ x := x - 1; y := y + 1],
+        move0 -> move1 [a & b & c & !d $ x := x - 1; y := y - 1],
+
+        move1 -> move0 [!stax && stay && incx && !incy $ x := x + 1],
+        move1 -> move0 [!stax && stay && !incx && !incy $ x := x - 1],
+        move1 -> move0 [!stax && !stay && incy && incx $ x := x + 1; y := y + 1],
+        move1 -> move0 [!stax && !stay && !incy && incx $ x := x + 1; y := y - 1],
+        move1 -> move0 [!stax && !stay && incy && !incx $ x := x - 1; y := y + 1],
+        move1 -> move0 [!stax && !stay && !incy && !incx $ x := x - 1; y := y - 1],
+        move1 -> move0 [stax && !stay && incy && !incx $ y := y + 1],
+        move1 -> move0 [stax && !stay && !incy && !incx $ y := y - 1],
+        move1 -> move0 [stax && stay]
+    }
 
     SPECIFICATION {
         G !(x < 0 || x > 4 || y < 0 || y > 4)

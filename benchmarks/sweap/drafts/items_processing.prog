@@ -4,7 +4,7 @@ program items_processing {
     }
 
     ENVIRONMENT EVENTS {
-        einc, stop
+        einc, stop, reset
     }
 
     CONTROLLER EVENTS {
@@ -15,7 +15,6 @@ program items_processing {
         trayItems : integer := 0;
         numItems : integer := 0;
         processed : integer := 0;
-        reset : integer := 0;
         c : integer := 0;
     }
 
@@ -40,20 +39,20 @@ program items_processing {
         l1a -> l1a [trayItems != 0 & !a & !b $ trayItems := trayItems - 1],
         l1a -> done [trayItems != 0 & b $ c := 1],
 
-        l2a -> l1b [trayItems >= numItems & reset == 1 & a $ trayItems := numItems; processed := 1],
-        l2a -> done [trayItems >= numItems & reset == 1 & !a $ c := 1],
+        l2a -> l1b [trayItems >= numItems & reset & a $ trayItems := numItems; processed := 1],
+        l2a -> done [trayItems >= numItems & reset & !a $ c := 1],
 
-        l2a -> l1a [trayItems >= numItems & reset != 1 & a $ trayItems := numItems; processed := 1],
-        l2a -> done [trayItems >= numItems & reset != 1 & !a],
+        l2a -> l1a [trayItems >= numItems & !reset & a $ trayItems := numItems; processed := 1],
+        l2a -> done [trayItems >= numItems & !reset & !a],
 
-        l2a -> l1a [!(trayItems >= numItems) & reset == 1 & !a & !b $ trayItems := numItems; processed := 1],
-        l2a -> l2a [!(trayItems >= numItems) & reset == 1 & a & !b $ trayItems := trayItems + 1],
-        l2a -> l2a [!(trayItems >= numItems) & reset == 1 & !a & b $ trayItems := trayItems - 1],
-        l2a -> done [!(trayItems >= numItems) & reset == 1 & a & b $ c := 1],
+        l2a -> l1a [!(trayItems >= numItems) & reset & !a & !b $ trayItems := numItems; processed := 1],
+        l2a -> l2a [!(trayItems >= numItems) & reset & a & !b $ trayItems := trayItems + 1],
+        l2a -> l2a [!(trayItems >= numItems) & reset & !a & b $ trayItems := trayItems - 1],
+        l2a -> done [!(trayItems >= numItems) & reset & a & b $ c := 1],
 
-        l2a -> l2a [!(trayItems >= numItems) & reset != 1 & a $ trayItems := trayItems + 1],
-        l2a -> l2a [!(trayItems >= numItems) & reset != 1 & !a & b $ trayItems := trayItems - 1],
-        l2a -> done [!(trayItems >= numItems) & reset != 1 & !a & !b $ c := 1],
+        l2a -> l2a [!(trayItems >= numItems) & !reset & a $ trayItems := trayItems + 1],
+        l2a -> l2a [!(trayItems >= numItems) & !reset & !a & b $ trayItems := trayItems - 1],
+        l2a -> done [!(trayItems >= numItems) & !reset & !a & !b $ c := 1],
 
         l1b -> done [trayItems == 0 & a $ processed := 1],
         l1b -> l2b [trayItems == 0 & !a],

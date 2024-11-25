@@ -1,41 +1,41 @@
 program evasion {
     STATES {
-        env: init, con
+        move0: init, move1
     }
     ENVIRONMENT EVENTS {
-        incx, decx, incy, decy
+        incx, incy, stax, stay
     }
     CONTROLLER EVENTS {
-        incxc, decxc, incyc, decyc
+        a, b, c, d
     }
     VALUATION {
-        x : integer := 0;
-        y : integer := 0;
-        xc : integer := 2;
-        yc : integer := 0;
+        x0 : integer := 2;
+        y0 : integer := 0;
+        x1 : integer := 0;
+        y1 : integer := 0;
     }
     TRANSITIONS {
-        env -> con [(!decy & !((((incx & decx) | !decx) & !incy) | incy)) | (decy & !((((incx & decx) | !decx) & incy) | !incy)) $ x := (x - 1); y := y; xc := xc; yc := yc],
-        env -> con [!decx & !((!((!decy & !incy) | (decy & incy)) & incx) | !incx) $ x := (x + 1); y := y; xc := xc; yc := yc],
-        env -> con [(!(incx | (!incx & (!decy | (decy & incy)))) & !decx) | (decx & !((incx & (!decy | (decy & incy))) | !incx)) $ y := (y - 1); x := x; xc := xc; yc := yc],
-        env -> con [(!(incx | (!incx & (decy | (!decy & !incy)))) & !decx) | (decx & !((incx & (decy | (!decy & !incy))) | !incx)) $ y := (y + 1); x := x; xc := xc; yc := yc],
-        env -> con [!((incx & (decy | (!decy & !incy))) | !incx) & !decx $ x := (x + 1); y := (y + 1); xc := xc; yc := yc],
-        env -> con [!decy & !((((incx & decx) | !decx) & incy) | !incy) $ y := (y + 1); x := (x - 1); xc := xc; yc := yc],
-        env -> con [(!incx & !decx & !((!decy & incy) | (decy & !incy))) | (((!decy & !incy) | (decy & incy)) & incx & decx) $ x := x; y := y; xc := xc; yc := yc],
-        env -> con [!(incx | (!incx & (!decy | (decy & incy)))) & decx $ y := (y - 1); x := (x - 1); xc := xc; yc := yc],
-        env -> con [!((incx & (!decy | (decy & incy))) | !incx) & !decx $ x := (x + 1); y := (y - 1); xc := xc; yc := yc],
-        con -> env [!decxc & !(!incxc | ((decyc | (!decyc & !incyc)) & incxc)) $ xc := (xc + 1); yc := (yc + 1); x := x; y := y],
-        con -> env [(decyc & !(!incyc | ((!decxc | (incxc & decxc)) & incyc))) | (!decyc & !((!incyc & (!decxc | (incxc & decxc))) | incyc)) $ xc := (xc - 1); x := x; y := y; yc := yc],
-        con -> env [!(incxc | (!incxc & ((decyc & incyc) | !decyc))) & decxc $ xc := (xc - 1); yc := (yc - 1); x := x; y := y],
-        con -> env [!((incxc & ((decyc & incyc) | !decyc)) | !incxc) & !decxc $ yc := (yc - 1); xc := (xc + 1); x := x; y := y],
-        con -> env [(!(((decyc | (!decyc & !incyc)) & !incxc) | incxc) & !decxc) | (decxc & !(!incxc | ((decyc | (!decyc & !incyc)) & incxc))) $ yc := (yc + 1); x := x; y := y; xc := xc],
-        con -> env [!decxc & !(!incxc | (!((!decyc & !incyc) | (decyc & incyc)) & incxc)) $ xc := (xc + 1); x := x; y := y; yc := yc],
-        con -> env [!decyc & !(!incyc | ((!decxc | (incxc & decxc)) & incyc)) $ xc := (xc - 1); yc := (yc + 1); x := x; y := y],
-        con -> env [(((!decyc & !incyc) | (decyc & incyc)) & incxc & decxc) | (!incxc & !((!decyc & incyc) | (decyc & !incyc)) & !decxc) $ x := x; y := y; xc := xc; yc := yc],
-        con -> env [(!(incxc | (!incxc & ((decyc & incyc) | !decyc))) & !decxc) | (!((incxc & ((decyc & incyc) | !decyc)) | !incxc) & decxc) $ yc := (yc - 1); x := x; y := y; xc := xc]
+        move0 -> move1 [d],
+        move0 -> move1 [a & !b & !c & !d $ x0 := x0 + 1],
+        move0 -> move1 [!a & b & !c & !d $ x0 := x0 + 1; y0 := y0 + 1],
+        move0 -> move1 [!a & !b & c & !d $ x0 := x0 + 1; y0 := y0 - 1],
+        move0 -> move1 [a & b & !c & !d $ y0 := y0 + 1],
+        move0 -> move1 [!a & b & c & !d $ y0 := y0 - 1],
+        move0 -> move1 [a & !b & c & !d $ x0 := x0 - 1],
+        move0 -> move1 [!a & !b & !c & !d $ x0 := x0 - 1; y0 := y0 + 1],
+        move0 -> move1 [a & b & c & !d $ x0 := x0 - 1; y0 := y0 - 1],
+
+        move1 -> move0 [!stax && stay && incx $ x1 := x1 + 1],
+        move1 -> move0 [!stax && stay && !incx $ x1 := x1 - 1],
+        move1 -> move0 [!stax && !stay && incy && incx $ x1 := x1 + 1; y1 := y1 + 1],
+        move1 -> move0 [!stax && !stay && !incy && incx $ x1 := x1 + 1; y1 := y1 - 1],
+        move1 -> move0 [!stax && !stay && incy && !incx $ x1 := x1 - 1; y1 := y1 + 1],
+        move1 -> move0 [!stax && !stay && !incy && !incx $ x1 := x1 - 1; y1 := y1 - 1],
+        move1 -> move0 [stax && !stay && incy && !incx $ y1 := y1 + 1],
+        move1 -> move0 [stax && !stay && !incy && !incx $ y1 := y1 - 1]
     }
 
     SPECIFICATION {
-        G (xc != x || yc != y)
+        G (!(x0 == x1 & y0 == y1))
     }
 }
