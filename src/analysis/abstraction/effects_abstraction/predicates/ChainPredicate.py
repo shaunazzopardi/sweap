@@ -169,10 +169,11 @@ class ChainPredicate(Predicate):
         return [(u, [v_next for v_next in v_nexts if sat(conjunct(prev_state, v_next), symbol_table)]) for (u, v_nexts) in nexts]
 
     def replace_formulas_multiple_but(self, old_to_new, f, gu, now_or_next):
-        if now_or_next and gu not in self.init_now:
-            return [conjunct(f, p) for p in self.chain]
-        elif not now_or_next and gu not in self.init_next:
-            return [conjunct(f, p) for p in self.chain] + self.tran_preds
+        if (now_or_next and gu not in self.init_now) or (not now_or_next and gu not in self.init_next):
+            if isinstance(f, Value):
+                return self.chain
+            else:
+                return [conjunct(f, p) for p in self.chain]
         else:
             modified = set(itertools.chain.from_iterable(old_to_new.values()))
 
