@@ -12,8 +12,9 @@ from programs.typed_valuation import TypedValuation
 from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep_states
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
-from prop_lang.util import disjunct_formula_set, neg, true, \
-    sat, type_constraints_acts, conjunct_formula_set, implies, is_tautology, sat_parallel, mutually_exclusive_rules
+from prop_lang.util import (disjunct_formula_set, neg, true, \
+    sat, type_constraints_acts, implies, is_tautology, sat_parallel, mutually_exclusive_rules, atomic_predicates,
+                            simplify_formula_with_math_wo_type_constraints)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -113,24 +114,30 @@ class Program:
 
 
     def project_out_constants(self):
-        vars_to_project_out = []
+        vars_to_project_out = {}
+        stutter_acts = []
         new_valuation = []
         for tv in self.valuation:
             if all(BiOp(Variable(tv.name), ":=", Variable(tv.name)) in t.action for t in self.transitions):
-                vars_to_project_out.append(tv)
+                vars_to_project_out[Variable(tv.name)] = Value(tv.value)
+                stutter_acts.append(BiOp(Variable(tv.name), ":=", Variable(tv.name)))
             else:
                 new_valuation.append(tv)
 
-        for tv in vars_to_project_out:
-            var = Variable(tv.name)
-            stutter_act = BiOp(var, ":=", var)
-            to_replace = [BiOp(var, ":=", Value(tv.value))]
-            for t in self.transitions:
-                t.action.remove(stutter_act)
-                t.condition = t.condition.replace(to_replace)
-            del self.symbol_table[tv.name]
-            del self.symbol_table[tv.name + "_prev"]
-            del self.symbol_table[tv.name + "_prev_prev"]
+        if len(vars_to_project_out.keys()) == 0:
+            return
+
+        for t in self.transitions:
+            t.action = [a for a in t.action if a.left not in vars_to_project_out.keys()]
+            preds_in_cond = atomic_predicates(t.condition)
+            preds_to_replace = {p: simplify_formula_with_math_wo_type_constraints(p.replace_formulas(vars_to_project_out), self.symbol_table)
+                                for p in preds_in_cond if not vars_to_project_out.keys().isdisjoint(p.variablesin())}
+            t.condition = t.condition.replace_formulas(preds_to_replace)
+
+        for v in vars_to_project_out.keys():
+            del self.symbol_table[v.name]
+            del self.symbol_table[v.name + "_prev"]
+            del self.symbol_table[v.name + "_prev_prev"]
 
         self.valuation = new_valuation
         self.local_vars = [Variable(tv.name) for tv in new_valuation]
