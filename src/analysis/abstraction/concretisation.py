@@ -53,7 +53,7 @@ def concretize_transitions(program,
         if (incompatible_state[2]["compatible_state_predicates"] == "FALSE" or
                 incompatible_state[2]["compatible_tran_predicates"] == "FALSE"):
             pred_state = preds_in_state(incompatible_state[2])
-            predicate_state_before_incompatibility = list(map(add_prev_suffix, preds_in_state(concretized[-1][2])))
+            predicate_state_before_incompatibility = [add_prev_suffix(p) for p in preds_in_state(concretized[-1][2]) if "_prev" not in str(p)]
             # we check if this incompatible state formula is ever possibly true after the last transition
                 # if it is then the problem is with the predicate state
             if sat(conjunct_formula_set(pred_state + predicate_state_before_incompatibility +
