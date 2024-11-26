@@ -4,6 +4,7 @@ import re
 
 from pysmt.shortcuts import And
 
+from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from parsing.string_to_prop_logic import string_to_prop, string_to_math_expression
 from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.ranker import Ranker
@@ -296,8 +297,8 @@ def use_liveness_refinement_state_joined(Cs: MooreMachine,
                                          disagreed_on_state_dict,
                                          symbol_table):
     # processing last_cs_state to ignore env behaviour
-    tran_preds = [stringify_pred(t) for t in predicate_abstraction.get_transition_predicates()]
-    tran_preds += [stringify_pred(t) for t in predicate_abstraction.get_state_predicates() if "_prev" in str(t)]
+    tran_preds = [t for p in predicate_abstraction.get_transition_predicates() for t in p.bool_rep.values()]
+    tran_preds += [p.bool_var for p in predicate_abstraction.get_state_predicates()]
     # TODO do this better later
     inloop_vars = [Variable(k) for k in ce[0].keys() if k.startswith("in_loop")]
     irrelevant_vars = program.env_events + tran_preds + inloop_vars
@@ -436,7 +437,7 @@ def massage_ce(Cs: MooreMachine,
 
 
 def use_fairness_refinement(Cs: MooreMachine,
-                            predicate_abstraction: PredicateAbstraction,
+                            predicate_abstraction: EffectsAbstraction,
                             agreed_on_execution,
                             disagreed_on_state,
                             symbol_table):
@@ -486,13 +487,14 @@ def use_fairness_refinement(Cs: MooreMachine,
                                                 for key, value in ce_prog_loop_tran_concretised[0][1].items()
                                                 if key == tv.name])
 
-        all_state_preds = predicate_abstraction.get_state_predicates()
-
+        # TODO these need to be formulas, not of type Predicate
+        # all_state_preds = predicate_abstraction.get_state_predicates()
+        all_state_preds = {p for cp in predicate_abstraction.v_to_chain_pred.values() for p in cp.chain}
 
         true_preds = [p for p in all_state_preds if
                       check(And(*conjunct(p, entry_valuation).to_smt(symbol_table)))]
-        false_preds = [neg(p) for p in all_state_preds if p not in true_preds]
-        entry_predicate = conjunct_formula_set(true_preds + false_preds)
+        # false_preds = [neg(p) for p in all_state_preds if p not in true_preds]
+        entry_predicate = conjunct_formula_set(true_preds)
 
         return True, ce_prog_loop_tran_concretised, entry_valuation, entry_predicate, pred_mismatch
     else:
