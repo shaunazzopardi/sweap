@@ -362,6 +362,15 @@ def simplify_formula_with_math(formula, symbol_table):
             logging.info(str(e))
         return to_formula
 
+def simplify_formula_with_math_wo_type_constraints(formula, symbol_table):
+    with Environment() as environ:
+        simplified = environ.simplifier.simplify(formula.to_smt(symbol_table)[0])
+        try:
+            to_formula = fnode_to_formula(simplified)
+        except Exception as e:
+            to_formula = fnode_to_formula(simplified)
+            logging.info(str(e))
+        return to_formula
 
 def simplify_sum(formula, symbol_table):
     with Environment() as environ:
