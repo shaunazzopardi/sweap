@@ -85,7 +85,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.symbol_table = {v: tv for v, tv in program.symbol_table.items()}
 
     def abstract_program_transitions(self, old_to_new_st_preds):
-        orig_transitions, stutter = self.program.complete_transitions_stutter_explicit()
+        orig_transitions, stutter = self.program.orig_ts, self.program.stutter_ts
 
         self.init_program_trans = []
 

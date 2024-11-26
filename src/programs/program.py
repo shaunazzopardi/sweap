@@ -82,6 +82,8 @@ class Program:
                 self.transitions.append(concrete_trans)
             self.transitions.remove(otherwise_trans)
 
+        self.orig_ts, self.stutter_ts = self.complete_transitions_stutter_explicit()
+        self.transitions = self.orig_ts + self.stutter_ts
         # TODO this can take a long time, see concurrent-safety-response
         self.state_to_trans = {}
         for t in self.transitions:
