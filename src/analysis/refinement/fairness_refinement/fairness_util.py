@@ -52,7 +52,7 @@ def try_liveness_refinement(Cs: MealyMachine,
 
     # TODO this isn't the real exit trans, it's a good approximation for now, but it may be a just
     #  an explicit or implicit stutter transition
-    exit_condition = neg(conjunct_formula_set([p for p in disagreed_on_state[0]]))
+    exit_condition = neg(conjunct_formula_set([p for p in set(disagreed_on_state[0])]))
     known_math_exprs = math_exprs_in_formula(entry_predicate)
     new_entry_constraints = []
     for p in math_exprs_in_formula(exit_condition):
