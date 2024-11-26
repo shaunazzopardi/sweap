@@ -7,7 +7,7 @@ program solitary {
     }
 
     CONTROLLER EVENTS {
-        incx; decx; incy; decy;
+        incx; incy;
     }
 
     VALUATION {
@@ -17,10 +17,10 @@ program solitary {
 
     TRANSITIONS {
         q -> q [$
-                     x := x + 1 if incx && !decx;
-                     x := x - 1 if !incx && decx;
-                     y := y + 1 if incy && !decy;
-                     y := y - 1 if !incy && decy;
+                     x := x + 1 if incx;
+                     x := x - 1 if !incx;
+                     y := y + 1 if incy;
+                     y := y - 1 if !incy;
                      ]
         }
 

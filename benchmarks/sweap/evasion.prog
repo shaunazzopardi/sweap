@@ -32,7 +32,8 @@ program evasion {
         move1 -> move0 [!stax && !stay && incy && !incx $ x1 := x1 - 1; y1 := y1 + 1],
         move1 -> move0 [!stax && !stay && !incy && !incx $ x1 := x1 - 1; y1 := y1 - 1],
         move1 -> move0 [stax && !stay && incy && !incx $ y1 := y1 + 1],
-        move1 -> move0 [stax && !stay && !incy && !incx $ y1 := y1 - 1]
+        move1 -> move0 [stax && !stay && !incy && !incx $ y1 := y1 - 1],
+        move1 -> move0 [stax && stay]
     }
 
     SPECIFICATION {
