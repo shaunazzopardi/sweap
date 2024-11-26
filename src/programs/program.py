@@ -252,11 +252,7 @@ class Program:
 
         return dot
 
-    def to_nuXmv_with_turns(self,
-                            include_mismatches_due_to_nondeterminism=False,
-                            prefer_compatibility=False,
-                            pred_definitions: dict={}):
-
+    def to_nuXmv_with_turns(self):
         real_acts = []
         guards = []
         acts = []
@@ -309,30 +305,7 @@ class Program:
 
         guard_and_act.append("(guard_" + str(len(guards) - 1) + " & " + "act_" + str(len(guards) - 1) + ")")
 
-        if not prefer_compatibility:
-            transitions = guard_and_act
-        else:
-            guard_act_and_compatible = []
-            guard_and_not_compatible = []
-            for i, ga in enumerate(guard_and_act):
-                (action, outputs, tgt) = real_acts[i]
-                action = [a.to_nuxmv() for a in action]
-                compatible_next = conjunct_formula_set([implies(pred,
-                                                            defn.replace(action
-                                                                         + [BiOp(Variable(str(v) + "_prev"), ":=", v)
-                                                                                 for v in defn.variablesin()]))
-                                                        for pred, defn in pred_definitions.items()])
-                next_outputs_and_state = " & ".join(["prog_" + str(o) for o in outputs if isinstance(o, Variable)] +\
-                                                                            ["!prog_" + str(o) for o in self.out_events if o not in outputs] + \
-                                                                            ([str(tgt)] if tgt is not None else []))
-                compatible_next = str(compatible_next)
-                if len(next_outputs_and_state) > 0:
-                    compatible_next += " & " + next_outputs_and_state
-                guard_act_and_compatible.append("(" + ga + " & act_" + str(i) + " & (" + str(compatible_next) + "))")
-                guard_and_not_compatible.append("(guard_" + str(i) + " & " + str(compatible_next) + ")")
-
-            transitions = ["(" + " | ".join(guard_act_and_compatible) + ")"] + [
-                "(!(" + " | ".join(guard_and_not_compatible) + ") & (" + " | ".join(guard_and_act) + "))"]
+        transitions = guard_and_act
 
         vars = ["turn : {prog, cs}"]
         vars += [str(st) + " : boolean" for st in self.bin_state_vars]
@@ -364,11 +337,6 @@ class Program:
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
         invar += [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
         invar.extend([str(val.name) + "_prev" + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")])
-
-        # if include_mismatches_due_to_nondeterminism is not None and not include_mismatches_due_to_nondeterminism:
-        #     for i in range(len(guards)):
-        #         all_others_neg = ["!guard_" + str(j) for j in range(len(guards)) if j != i]
-        #         invar += ["guard_" + str(i) + " -> (" + " & ".join(all_others_neg) + ")"]
 
         return NuXmvModel(self.name, vars, define, init, invar, trans)
 
