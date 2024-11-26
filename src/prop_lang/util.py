@@ -1631,6 +1631,10 @@ def get_vars_and_constants_in_term(term):
             for p in t.sub_formulas_up_to_associativity():
                 if isinstance(p, BiOp):
                     new_left_to_do.append(p)
+                    if p in left_to_do:
+                        raise Exception("Cycle detected in get_vars_and_constants_in_term")
+                elif isinstance(p, UniOp) and p.op == "-" and isinstance(p.right, Value):
+                    constants.append(p)
                 elif isinstance(p, Value):
                     constants.append(p)
                 else:
