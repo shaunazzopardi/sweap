@@ -62,7 +62,7 @@ class MathExpr(Formula):
         return Variable("math_" + str(cnt)), {("math_" + str(cnt)): self}
 
     def to_sympy(self):
-        raise Exception("Unsupported operator: " + self.op)
+        return self.formula.to_sympy()
 
     def replace_formulas(self, context):
         if isinstance(context, dict):
