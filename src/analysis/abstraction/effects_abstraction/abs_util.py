@@ -108,7 +108,7 @@ def update_var_partition_mult(preds, partitions, v_to_p, v_to_partition):
 
 
 def update_var_partition(pred: Predicate, partitions, v_to_p, v_to_partition):
-    vars_in_pred = set(pred.vars)
+    vars_in_pred = set(pred.variablesin())
     parts_to_merge = set()
     new_part = None
     new_vs = set()

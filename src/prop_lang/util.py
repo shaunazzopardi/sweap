@@ -1535,8 +1535,9 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
 
     if isinstance(pred_with_var_on_one_side, BiOp):
         if op == "<":
-            # x < c is good already
+            # turn x < c into x <= c - 1
             if vars_on_left:
+                pred_with_var_on_one_side = l_to_le(pred_with_var_on_one_side)
                 return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
             else:
                 # of form c < x -> x > c -> ! x <= c
