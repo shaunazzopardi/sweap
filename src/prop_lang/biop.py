@@ -29,9 +29,6 @@ class BiOp(Formula):
             self.right = right
 
         self.left = left
-        self.op = op.strip()
-        assert(isinstance(right, Formula), "right is not a formula")
-        self.right = right
         self.vars = None
 
         self.prev_representation = None
