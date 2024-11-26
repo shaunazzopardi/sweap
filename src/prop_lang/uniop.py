@@ -10,7 +10,7 @@ from prop_lang.variable import Variable
 class UniOp(Formula):
     def __init__(self, op: str, right: Formula):
         if not isinstance(right, Formula):
-            print()
+            print(str(right) + " is not a formula")
         self.op = op
         self.right = right
         self.prev_representation = None
