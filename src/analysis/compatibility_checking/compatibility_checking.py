@@ -1,6 +1,8 @@
 import logging
 
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
+from analysis.abstraction.effects_abstraction.predicates.StatePredicate import StatePredicate
+from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import TransitionPredicate
 from config import Config
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionType
@@ -117,8 +119,9 @@ def compatibility_checking(program: Program,
 def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel,
                                                   pred_list, chain_preds, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
-    pred_definitions = {label_pred(p, pred_list): p for p in pred_list}
-    program_model = program.to_nuXmv_with_turns(include_mismatches_due_to_nondeterminism, colloborate, pred_definitions)
+    program_model = program.to_nuXmv_with_turns()
+    bool_preds = [p.bool_var for p in pred_list if isinstance(p, StatePredicate)]
+    bool_preds.extend([t for p in pred_list if isinstance(p, TransitionPredicate) for t in p.bool_rep.values()])
 
     text = "MODULE main\n"
     strategy_states = sorted([v for v in strategy_model.vars
@@ -144,15 +147,13 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
             binned_preds.append(bool_rep + " := " + str(rep))
     text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define + binned_preds) + ";\n"
 
-    safety_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
-                              for p in pred_list if not any([v for v in p.variablesin() if "_prev" in str(
-            v)])]
+    safety_predicate_truth = [BiOp(p.pred, '<->', p.bool_var)
+                              for p in pred_list if isinstance(p, StatePredicate)]
 
     safety_predicate_truth += [BiOp(bool_rep, '<->', (p)) for bool_rep, p in pred_rep_to_val.items()]
 
-    tran_predicate_truth = [BiOp(label_pred(p, pred_list), '<->', p)
-                            for p in pred_list if any([v for v in p.variablesin() if "_prev" in str(
-            v)])]
+    tran_predicate_truth = [BiOp(pred, '<->', bool_var)
+                            for p in pred_list if isinstance(p, TransitionPredicate) for pred, bool_var in p.bool_rep.items()]
 
     prog_output_equality = [BiOp(o, '=', Variable("prog_" + o.name))
                            for o in program.out_events]
@@ -190,7 +191,7 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
         [BiOp(UniOp("next", Variable("prog_" + str(m))), ' = ', Variable("prog_" + str(m)))
          for m in (program.out_events)]
         + [BiOp(UniOp("next", Variable(str(m))), ' = ', Variable(str(m))) for m in
-           program.bin_state_vars + [label_pred(p, pred_list) for p in pred_list]]))
+           program.bin_state_vars + bool_preds]))
     new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic
     normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
 
