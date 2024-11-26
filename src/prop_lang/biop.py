@@ -221,6 +221,16 @@ class BiOp(Formula):
             return sympy.And(self.left.to_sympy(), self.right.to_sympy())
         elif self.op[0] == "=" or self.op == "<->":
             return sympy.Equivalent(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op == ">":
+            return sympy.StrictGreaterThan(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op == "<":
+            return sympy.StrictLessThan(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op == ">=":
+            return sympy.GreaterThan(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op == "<=":
+            return sympy.LessThan(self.left.to_sympy(), self.right.to_sympy())
+        elif self.op == "-":
+            return sympy.Add(self.left.to_sympy(), sympy.Mul(sympy.Integer(-1), self.right.to_sympy()))
         else:
             raise Exception("Unsupported operator: " + self.op)
 
