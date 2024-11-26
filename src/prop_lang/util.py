@@ -1243,6 +1243,16 @@ def stringify_pred(p):
     return representation
 
 
+def stringify_term(p):
+    representation = str(p).replace(" + -", "_sub_")\
+                              .replace(" + ", "_add_")\
+                              .replace("-", "_min_")\
+                              .replace("(", "")\
+                              .replace(")", "")
+
+    return representation
+
+
 def stringify_pred_take_out_neg(p):
     res = None
     if (isinstance(p, UniOp) and p.op == "!"):
