@@ -106,8 +106,8 @@ class MooreMachine:
         return dot
 
     def to_nuXmv_with_turns(self, prog_states, prog_out_events, state_pred_list, trans_pred_list):
-        state_pred_acts = [label_pred(p, state_pred_list) for p in state_pred_list]
-        trans_pred_acts = [label_pred(p, trans_pred_list) for p in trans_pred_list]
+        state_pred_acts = [p.bool_var for p in state_pred_list]
+        trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
         pred_acts = state_pred_acts + trans_pred_acts
 
         guards_acts = {}
