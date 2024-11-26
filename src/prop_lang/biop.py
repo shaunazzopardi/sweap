@@ -1,3 +1,5 @@
+import functools
+
 import sympy
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And, Or, Implies
@@ -136,6 +138,7 @@ class BiOp(Formula):
     def replace_vars(self, context):
         return BiOp(self.left.replace_vars(context), self.op, self.right.replace_vars(context))
 
+    @functools.lru_cache()
     def to_nuxmv(self):
         if self.op == "%":
             return UniOp("toint", BiOp(UniOp("unsigned word[8]", self.left.to_nuxmv()), "mod",
