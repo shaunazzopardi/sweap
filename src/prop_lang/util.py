@@ -1297,6 +1297,19 @@ def finite_state_preds(valuation: TypedValuation):
         for x in range(lo, hi+1):
             yield MathExpr(BiOp(variable, "=", Value(str(x))))
 
+
+def enumerate_finite_state_vars(valuation: TypedValuation):
+    variable = Variable(valuation.name)
+    if not valuation.is_finite_state():
+        return []
+    if "bool" in valuation.type:
+        yield variable
+    else:
+        lo, hi = valuation.type.split("..")
+        lo, hi = int(lo), int(hi)
+        for x in range(lo, hi+1):
+            yield MathExpr(BiOp(variable, "=", Value(str(x))))
+
 def ltl_back_to_vars(formula):
     if isinstance(formula, Value):
         return formula
