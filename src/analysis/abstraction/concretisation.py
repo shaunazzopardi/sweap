@@ -1,12 +1,12 @@
 from pysmt.shortcuts import And
 
-from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.smt_checker import check
 from programs.util import stutter_transition, preds_in_state, transition_formula, add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.util import neg, conjunct_formula_set, disjunct_formula_set, propagate_negations, sat, \
-    simplify_formula_with_math, var_to_predicate, is_predicate_var, normalise_mathexpr, true
+    simplify_formula_with_math, var_to_predicate, is_predicate_var, normalise_mathexpr, true, atomic_predicates, \
+    is_tautology, is_contradictory
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -75,6 +75,15 @@ def concretize_transitions(program,
                 failed_condition = concretized[-1][0].condition
                 reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][2][str(v)]))
                                                     for v in program.env_events + program.con_events])
+                if is_tautology(reduced, program.symbol_table):
+                    raise Exception("Something wrong in abstraction: " +
+                                    "effect of mismatched transition is not modelled precisely enough: " + "\n" +
+                                    "transition: " + str(concretized[-1][0]) + "\n" +
+                                    "now: " + ", ".join(map(str, preds_in_state(concretized[-1][2]))) + "\n" +
+                                    "next: " + ", ".join(map(str, preds_in_state(incompatible_state[2]))))
+                elif is_contradictory(reduced, program.symbol_table):
+                    raise Exception("Something wrong in LTL or compatibility checking, transition guard is false but taken: " +
+                                    "transition: " + str(concretized[-1][0]))
                 reduced_simplified = neg(simplify_formula_with_math(reduced, program.symbol_table))
                 reduced_normalised = reduced_simplified.replace_formulas(
                     lambda x: normalise_mathexpr(x) if isinstance(x, MathExpr) else None)
