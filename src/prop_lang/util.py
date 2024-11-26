@@ -1535,16 +1535,15 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
 
     if isinstance(pred_with_var_on_one_side, BiOp):
         if op == "<":
-            # turn x < c into x <= c - 1
+            # turn x < c is good already
             if vars_on_left:
-                pred_with_var_on_one_side = l_to_le(pred_with_var_on_one_side)
                 return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
             else:
                 # of form c < x -> x > c -> ! x <= c
                 new_pred = BiOp(right, "<=", left)
                 return signature, neg(new_pred), [new_pred]
         elif op == "<=":
-            # x < c is good already
+            # x <= c is good already
             if vars_on_left:
                 return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
             else:
@@ -1571,24 +1570,25 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
                 return signature, new_pred, [new_pred]
         elif op[0] == "=":
             if vars_on_left:
-                # c == x -> c <= x and c >= x
-                new_pred1 = BiOp(right, "<=", left)
-                new_pred2 = BiOp(right, "<", left)
-                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
-            else:
+                # x == c -> x <= c and ! x < c
                 new_pred1 = BiOp(left, "<=", right)
                 new_pred2 = BiOp(left, "<", right)
-                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+                return signature, conjunct(neg(new_pred2), new_pred1), [new_pred1, new_pred2]
+            else:
+                # c == x -> x <= c and ! x < c
+                new_pred1 = BiOp(right, "<=", left)
+                new_pred2 = BiOp(right, "<", left)
+                return signature, conjunct(neg(new_pred2), new_pred1), [new_pred1, new_pred2]
         elif op == "!=":
             if vars_on_left:
-                # c == x -> c <= x and c >= x
-                new_pred1 = BiOp(right, "<=", left)
-                new_pred2 = BiOp(right, "<", left)
-                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
-            else:
+                # x != c -> !(x <= c) or x < c
                 new_pred1 = BiOp(left, "<=", right)
                 new_pred2 = BiOp(left, "<", right)
-                return signature, conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
+                return signature, disjunct(neg(new_pred1), new_pred2), [new_pred1, new_pred2]
+            else:
+                new_pred1 = BiOp(right, "<=", left)
+                new_pred2 = BiOp(right, "<", left)
+                return signature, disjunct(neg(new_pred1), new_pred2), [new_pred1, new_pred2]
         else:
             raise Exception("Predicate " + str(pred_with_var_on_one_side) + " has an unexpected relational operator")
     else:
