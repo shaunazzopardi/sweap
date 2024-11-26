@@ -119,6 +119,9 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     program_transitions = []
     cs_states = []
 
+    if len(prefix) == 0:
+        raise Exception("Initial state is not compatible with the program.")
+
     for dic in prefix:
         # monitor only makes decisions at env and mon turns
         if dic["turn"] == "cs":
