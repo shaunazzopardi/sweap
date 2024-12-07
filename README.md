@@ -24,7 +24,20 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
   - Ensure you have Java 17 installed,
   - set the environment variable `JAVA' to your Java 17 executable:
     - for example, `JAVA=/usr/lib/jvm/java-17-openjdk-amd64/bin/java`
-  - `sweap` also requires nuXmv 2.0.0, download from https://nuxmv.fbk.eu/, and add to the path or put the binary in `./binaries` (ensure the nuXmv binary is named `nuxmv`).
+  - CPAChecker requires the mathsat5j shared library for msat:
+    - This is undocumented, but we follow the instructions [here](https://groups.google.com/g/cpachecker-users/c/QxPDzTXxscU).
+    - Download MathSat, https://mathsat.fbk.eu/l
+    - Download `java-smt` https://github.com/sosy-lab/java-smt/tree/master
+    - Download gmp from http://gmplib.org/
+      - extract, `cd` to directory and run:
+        - `./configure --enable-cxx --with-pic --disable-shared --enable-fat`
+        - `make`
+    - go to `<java-smt-dir>/lib/native/source/libmathsat5j`
+    - run `./compile.sh <math-sat-dir> <gmp-dir`
+    - This should generate `libmathsat5j.so`
+      - Move this to somewhere on java.library.path (e.g., `/usr/lib/`), or modify `./sweap/binaries/CPAChecker-2.3-unix/scripts/cpa.sh` to include a directory containing this file to the library path, i.e. add and set `-Djava.library.path=`
+
+- `sweap` also requires nuXmv 2.0.0, download from https://nuxmv.fbk.eu/, and add to the path or put the binary in `./binaries` (ensure the nuXmv binary is named `nuxmv`).
 
 ### Setup
 
