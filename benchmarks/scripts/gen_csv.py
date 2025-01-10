@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from typing import Optional
+from collections import defaultdict, Counter
 
 @dataclass
 class ToolInfo:
@@ -134,13 +135,12 @@ base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
 
 out_files = {t: list(Path(base_dir).glob(f"out-{t}-[0-9]*")) for t in tools}
 
+STATS = {t: defaultdict(int) for t in tools}
+
+
 def get_result(tool, tool_info, bench, bench_info, files):
     result = None
     try:
-        # bench = (
-        #     bench_info.aliases.get(tool, bench)
-        #     if bench_info.aliases
-        #     else bench)
         for name in (bench, *aliases.get(bench, [])):
             log = list(Path(base_dir).rglob(f"{name}.{tool}.log"))
             if log:
@@ -157,12 +157,16 @@ def get_result(tool, tool_info, bench, bench_info, files):
                 else (tool_info.unreal, tool_info.real)
             )
             if right_match.search(raw_result):
+                STATS[tool]["right"] += 1
                 result = runtime
             elif wrong_match.search(raw_result):
+                STATS[tool]["wrong"] += 1
                 result = -runtime
             else:
+                STATS[tool]["err"] += 1
                 result = 2
         else:
+            STATS[tool]["to"] += 1
             result = runtime
         # else:
         #     raise ValueError(f"{bench=}, {tool=} [no runtime]")
@@ -187,3 +191,4 @@ for benchs in (infinite_benchs,):
             row.append(result)
         writer.writerow(row)
     print()
+    print(STATS, file=sys.stderr)
