@@ -72,26 +72,31 @@ def concretize_transitions(program,
                 return concretized, env_pred_state
             #if not, then we choose the wrong transition
             else:
-                failed_condition = concretized[-1][0].condition
-                reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][2][str(v)]))
-                                                    for v in program.env_events + program.con_events])
-                if is_tautology(reduced, program.symbol_table):
-                    raise Exception("Something wrong in abstraction: " +
-                                    "effect of mismatched transition is not modelled precisely enough: " + "\n" +
-                                    "transition: " + str(concretized[-1][0]) + "\n" +
-                                    "now: " + ", ".join(map(str, preds_in_state(concretized[-1][2]))) + "\n" +
-                                    "next: " + ", ".join(map(str, preds_in_state(incompatible_state[2]))))
-                elif is_contradictory(reduced, program.symbol_table):
-                    raise Exception("Something wrong in LTL or compatibility checking, transition guard is false but taken: " +
-                                    "transition: " + str(concretized[-1][0]))
-                reduced_simplified = neg(simplify_formula_with_math(reduced, program.symbol_table))
-                reduced_normalised = reduced_simplified.replace_formulas(
-                    lambda x: normalise_mathexpr(x) if isinstance(x, MathExpr) else None)
+                raise Exception("Something wrong in abstraction.\nAbstract transition is not satisfiable:\n\n" +
+                                str(conjunct_formula_set([add_prev_suffix(p) for p in preds_in_state(concretized[-1][2])])) + "\n" +
+                                str(conjunct_formula_set(pred_state)) + "\n" +
+                                str(transition_formula(concretized[-1][0])))
 
-                if reduced_normalised == neg(true()) or reduced_normalised == true():
-                    raise Exception("Incompatibility formula is not correct")
-
-                return concretized[:-1], ([reduced_normalised], concretized[-1])
+                # failed_condition = concretized[-1][0].condition
+                # reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][2][str(v)]))
+                #                                     for v in program.env_events + program.con_events])
+                # if is_tautology(reduced, program.symbol_table):
+                #     raise Exception("Something wrong in abstraction: " +
+                #                     "effect of mismatched transition is not modelled precisely enough: " + "\n" +
+                #                     "transition: " + str(concretized[-1][0]) + "\n" +
+                #                     "now: " + ", ".join(map(str, preds_in_state(concretized[-1][2]))) + "\n" +
+                #                     "next: " + ", ".join(map(str, preds_in_state(incompatible_state[2]))))
+                # elif is_contradictory(reduced, program.symbol_table):
+                #     raise Exception("Something wrong in LTL or compatibility checking, transition guard is false but taken: " +
+                #                     "transition: " + str(concretized[-1][0]))
+                # reduced_simplified = neg(simplify_formula_with_math(reduced, program.symbol_table))
+                # reduced_normalised = reduced_simplified.replace_formulas(
+                #     lambda x: normalise_mathexpr(x) if isinstance(x, MathExpr) else None)
+                #
+                # if reduced_normalised == neg(true()) or reduced_normalised == true():
+                #     raise Exception("Incompatibility formula is not correct")
+                #
+                # return concretized[:-1], ([reduced_normalised], concretized[-1])
 
                 # return process_transition_mismatch(program,
                 #                                     concretized,
