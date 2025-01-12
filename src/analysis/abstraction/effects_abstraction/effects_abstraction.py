@@ -439,7 +439,7 @@ def update_constants_invars_chain_pre(p: ChainPredicate, gu, symbol_table, const
         new_pre, _ = p.refine_old_post_or_pre_cond(last_pre, gu, symbol_table)
         if new_pre is None:
             constants.remove(last_pre)
-            del p.last_pre[gu]
+            p.last_pre.pop(gu)
             return False, None
         else:
             if last_pre != new_pre:
@@ -459,6 +459,7 @@ def update_constants_invars_chain_post(p: ChainPredicate, gu, symbol_table, cons
         new_post, _ = p.refine_old_post_or_pre_cond(last_post, gu, symbol_table)
         if new_post is None:
             constants.remove(last_post)
+            p.last_post.pop(gu)
             return False, None
         else:
             if last_post != new_post:
