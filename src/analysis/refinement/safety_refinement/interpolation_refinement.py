@@ -81,8 +81,8 @@ def safety_refinement_seq_int(program: Program,
                            not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
 
     state_predicates = set()
-    state_predicates.update(predicate_abstraction.get_state_predicates())
-    state_predicates.update(predicate_abstraction.chain_state_predicates)
+    state_predicates.update(s.pred for s in predicate_abstraction.get_state_predicates())
+    state_predicates.update(s for c in predicate_abstraction.v_to_chain_pred.values() for s in c.chain)
     # new_state_preds = list(itertools.chain.from_iterable(map(lambda x: x[1], map(normalise_predicate, new_state_preds))))
     normalised_state_preds = set()
     for p in new_state_preds:
