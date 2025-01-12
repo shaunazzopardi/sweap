@@ -24,6 +24,8 @@ def safety_refinement_seq_int(program: Program,
     symbol_table = predicate_abstraction.get_symbol_table()
     new_symbol_table = {}
 
+    add_actions = "_prev" in str(disagreed_on_state[0])
+
     if allow_user_input:
         new_state_preds = interactive_state_predicates()
     else:
@@ -45,6 +47,8 @@ def safety_refinement_seq_int(program: Program,
                 for k, v in cs_state.items():
                     if k.startswith("pred_"):
                         pred = var_to_predicate(k)
+                        if not add_actions and "_prev" in str(pred):
+                            continue
                         if v == "TRUE":
                             ps.append(pred)
                         else:
