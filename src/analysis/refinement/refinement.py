@@ -94,7 +94,9 @@ def refinement_standard(program,
 
         logging.info("safety refinement took " + str(time.time() - start))
         if success:
-            if any(p for p in result if p in predicate_abstraction.state_predicates or p in predicate_abstraction.chain_state_predicates):
+            result = [p for p in result if not(p in predicate_abstraction.state_predicates or p in predicate_abstraction.chain_state_predicates)]
+            # TODO why is there sometimes a predicate we already know? is abstraction not presice enough?
+            if len(result) == 0:
                 raise Exception("Safety refinement returned already known state predicates.")
             new_state_preds.update(result)
         else:
