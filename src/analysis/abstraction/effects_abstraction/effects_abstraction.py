@@ -329,7 +329,7 @@ class EffectsAbstraction(PredicateAbstraction):
             partitions.append(self.partitions)
             v_to_preds.append(self.v_to_p)
             v_to_partitions.append(self.v_to_partition)
-            u_to_curr_us.append(self.t_u_to_curr_u[t])
+            u_to_curr_us.append(self.t_u_to_curr_u[gu])
             us_parts.append(self.t_us_part[gu])
             us_part_to_preds.append(self.t_us_part_to_pred[gu])
             ignore_in_nows.append(self.t_ignore_in_nows[gu])
