@@ -23,7 +23,7 @@ from programs.typed_valuation import TypedValuation
 from programs.program import Program
 from prop_lang.formula import Formula
 from prop_lang.util import (conjunct, neg, conjunct_formula_set, conjunct_typed_valuation_set, disjunct_formula_set, \
-                            true, sat, label_pred, X, iff, strip_mathexpr, propagate_nexts, is_tautology)
+                            true, sat, X, iff, strip_mathexpr, propagate_nexts, is_tautology)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,10 @@ class EffectsAbstraction(PredicateAbstraction):
         self.init_program_trans = None
         self.non_init_program_trans = None
 
+        self.init_program_gus = None
+        self.non_init_program_gus = None
+        self.gu_to_trans = {}
+
         self.wrapped_preds = set()
         self.state_predicates = set()
         self.chain_state_predicates = set()
@@ -97,34 +101,43 @@ class EffectsAbstraction(PredicateAbstraction):
         self.init_program_trans = {t for t in all_trans if
                                t.src == self.program.initial_state and sat(conjunct(self.init_conf.prev_rep(), t.formula()),
                                                                            self.program.symbol_table)}
+        for t in self.init_program_trans:
+            gu = t.formula()
+            if gu in self.gu_to_trans.keys():
+                self.gu_to_trans[gu].append(t)
+            else:
+                self.gu_to_trans[gu] = [t]
+
+        self.init_program_gus = {t.formula() for t in self.init_program_trans}
 
         self.non_init_program_trans = all_trans
+        self.non_init_program_gus = {t.formula() for t in self.non_init_program_trans}
 
-        for t in self.init_program_trans:
-            self.second_state_abstraction[t] = []
-
-        self.empty_trans = []
-        self.non_empty_trans = []
-        for t in all_trans:
-            if len([a for a in t.action if a.left != a.right]) == 0:
-                self.empty_trans.append(t)
-                # continue
+        for t in self.non_init_program_trans:
+            gu = t.formula()
+            if gu in self.gu_to_trans.keys():
+                self.gu_to_trans[gu].append(t)
             else:
-                self.non_empty_trans.append(t)
+                self.gu_to_trans[gu] = [t]
 
-            self.abstract_effect_ltl[t] = true()
-            self.abstract_effect_invars[t] = set()
-            self.abstract_effect_constant[t] = set()
-            self.abstract_effect_tran_preds_constant[t] = []
+        for gu in self.init_program_gus:
+            self.second_state_abstraction[gu] = []
 
-            self.t_u_to_curr_u[t] = {a: frozenset({a}) for a in t.action}
-            parts = self.t_u_to_curr_u[t].values()
-            self.t_us_part[t] = [part for part in parts]
-            self.t_us_part_to_pred[t] = {part: (set(), set()) for part in parts}
-            self.t_ignore_in_nows[t] = set()
-            self.t_ignore_in_nexts[t] = set()
+        for gu in self.non_init_program_gus:
+            self.abstract_effect_ltl[gu] = true()
+            self.abstract_effect_invars[gu] = set()
+            self.abstract_effect_constant[gu] = set()
+            self.abstract_effect_tran_preds_constant[gu] = []
+
+            t = self.gu_to_trans[gu][0]
+            self.t_u_to_curr_u[gu] = {a: frozenset({a}) for a in t.action}
+            parts = self.t_u_to_curr_u[gu].values()
+            self.t_ignore_in_nows[gu] = set()
+            self.t_ignore_in_nexts[gu] = set()
+            self.t_us_part[gu] = [part for part in parts]
+            self.t_us_part_to_pred[gu] = {part: (set(), set()) for part in parts}
             empty_effects = {part : [(true(), [true()])] for part in parts}
-            self.abstract_effect[t] = empty_effects
+            self.abstract_effect[gu] = empty_effects
 
     def add_predicates(self,
                        new_state_predicates: [Formula],
@@ -199,11 +212,11 @@ class EffectsAbstraction(PredicateAbstraction):
                 v_chain_pred.add_predicate(preds)
 
                 if new_chain_pred and accelerate and len(v_chain_pred.tran_preds) > 0:
-                    t = TransitionPredicate(v_chain_pred.tran_preds)
-                    new_preds.add(t)
-                    self.transition_predicates.add(t)
-                    self.var_relabellings.update(t.boolean_rep())
-                    remaining_st_preds.append(t)
+                    gu = TransitionPredicate(v_chain_pred.tran_preds)
+                    new_preds.add(gu)
+                    self.transition_predicates.add(gu)
+                    self.var_relabellings.update(gu.boolean_rep())
+                    remaining_st_preds.append(gu)
                 new_preds.add(v_chain_pred)
 
                 self.var_relabellings.update(v_chain_pred.boolean_rep())
@@ -215,11 +228,11 @@ class EffectsAbstraction(PredicateAbstraction):
                             self.init_state_abstraction.append(p)
                             break
 
-                    for t in self.init_program_trans:
+                    for gu in self.init_program_gus:
                         for p in v_chain_pred.chain:
                             if sat(conjunct(conjunct(self.init_conf.prev_rep(),
-                                                     t.formula()), p), self.symbol_table):
-                                self.second_state_abstraction[t].append(p)
+                                                     gu), p), self.symbol_table):
+                                self.second_state_abstraction[gu].append(p)
                                 break
                 else:
                     old_to_new = v_chain_pred.old_to_new
@@ -232,14 +245,14 @@ class EffectsAbstraction(PredicateAbstraction):
                                     self.init_state_abstraction.append(p)
                                     break
 
-                    for t in self.init_program_trans:
+                    for gu in self.init_program_gus:
                         for old_p in old_to_new.keys():
-                            if old_p in self.second_state_abstraction[t]:
-                                self.second_state_abstraction[t].remove(old_p)
+                            if old_p in self.second_state_abstraction[gu]:
+                                self.second_state_abstraction[gu].remove(old_p)
                                 for p in old_to_new[old_p]:
                                     if sat(conjunct(conjunct(self.init_conf.prev_rep(),
-                                                     t.formula()), p), self.symbol_table):
-                                        self.second_state_abstraction[t].append(p)
+                                                     gu), p), self.symbol_table):
+                                        self.second_state_abstraction[gu].append(p)
                                         break
 
         self.partitions, self.v_to_p, self.v_to_partition = \
@@ -254,10 +267,10 @@ class EffectsAbstraction(PredicateAbstraction):
                         TypedValuation(str(bool_var), "bool", true()) for bool_var in p.bool_rep.values()})
 
                 self.init_state_abstraction.append(p.stutter)
-                for t in self.init_program_trans:
+                for gu in self.init_program_gus:
                     for option in p.options:
-                        if sat(conjunct(conjunct(self.init_conf.prev_rep(), t.formula()), option), self.symbol_table):
-                            self.second_state_abstraction[t].append(option)
+                        if sat(conjunct(conjunct(self.init_conf.prev_rep(), gu), option), self.symbol_table):
+                            self.second_state_abstraction[gu].append(option)
                             break
             else:
                 self.symbol_table.update({
@@ -274,17 +287,21 @@ class EffectsAbstraction(PredicateAbstraction):
                     else:
                         self.init_state_abstraction.append(neg(p.pred))
 
-                for t in self.init_program_trans:
-                    if sat(conjunct(conjunct(self.init_conf.prev_rep(), t.formula()), p.pred), self.symbol_table):
-                        self.second_state_abstraction[t].append(p.pred)
+                for gu in self.init_program_gus:
+                    if sat(conjunct(conjunct(self.init_conf.prev_rep(), gu), p.pred), self.symbol_table):
+                        self.second_state_abstraction[gu].append(p.pred)
                     else:
-                        self.second_state_abstraction[t].append(neg(p.pred))
+                        self.second_state_abstraction[gu].append(neg(p.pred))
 
         no_of_workers = config.Config.getConfig().workers if parallelise else 1
 
         all_preds = self.state_predicates | set(self.v_to_chain_pred.values())
 
-        ts = []
+        new_preds = list(new_preds)
+        # we do this sorting to ensure deterministic behaviour in abstraction, in case of bugs
+        new_preds.sort(key=lambda x: str(x))
+        
+        gus = []
         gu_invars = []
         gu_constants = []
         gu_tran_preds_constants = []
@@ -301,34 +318,34 @@ class EffectsAbstraction(PredicateAbstraction):
         ignore_in_nexts = []
         relabelling = []
         symbol_tables = []
-        for t in self.non_init_program_trans:
-            ts.append(t)
-            gu_invars.append(self.abstract_effect_invars[t])
-            gu_constants.append(self.abstract_effect_constant[t])
-            gu_tran_preds_constants.append(self.abstract_effect_tran_preds_constant[t])
-            gu_effects.append(self.abstract_effect[t])
+        for gu in self.non_init_program_gus:
+            gus.append(gu)
+            gu_invars.append(self.abstract_effect_invars[gu])
+            gu_constants.append(self.abstract_effect_constant[gu])
+            gu_tran_preds_constants.append(self.abstract_effect_tran_preds_constant[gu])
+            gu_effects.append(self.abstract_effect[gu])
             all_predss.append(all_preds)
             new_predss.append(new_preds)
             partitions.append(self.partitions)
             v_to_preds.append(self.v_to_p)
             v_to_partitions.append(self.v_to_partition)
             u_to_curr_us.append(self.t_u_to_curr_u[t])
-            us_parts.append(self.t_us_part[t])
-            us_part_to_preds.append(self.t_us_part_to_pred[t])
-            ignore_in_nows.append(self.t_ignore_in_nows[t])
-            ignore_in_nexts.append(self.t_ignore_in_nexts[t])
+            us_parts.append(self.t_us_part[gu])
+            us_part_to_preds.append(self.t_us_part_to_pred[gu])
+            ignore_in_nows.append(self.t_ignore_in_nows[gu])
+            ignore_in_nexts.append(self.t_ignore_in_nexts[gu])
             relabelling.append(self.var_relabellings)
             symbol_tables.append(self.symbol_table)
         with Pool(no_of_workers) as pool:
             results = pool.map(compute_abstract_effect_for_guard_update,
-                               zip(ts, gu_invars, gu_constants, gu_tran_preds_constants, gu_effects,
+                               zip(gus, gu_invars, gu_constants, gu_tran_preds_constants, gu_effects,
                                    all_predss, new_predss,
                                    partitions, v_to_preds, v_to_partitions,
                                    u_to_curr_us, us_parts, us_part_to_preds,
                                    ignore_in_nows, ignore_in_nexts, relabelling,
                                    symbol_tables))
 
-        for (t, invars, constants, new_effects,
+        for (gu, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
             bookkeeping, new_ignore_in_nows, new_ignore_in_nexts, gu_ltl) in results:
             (init_nows, init_nexts, pres, posts) = bookkeeping
@@ -355,9 +372,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 if isinstance(p, ChainPredicate):
                     actual_p = self.v_to_chain_pred[p.term]
                     if gu in p.last_pre.keys():
-                        if p.last_pre[gu] not in constants:
-                            print()
-                        else:
+                        if p.last_pre[gu] in constants:
                             constants.remove(p.last_pre[gu])
                     actual_p.last_pre.update({gu: pre})
                 constants.add(pre)
@@ -365,21 +380,19 @@ class EffectsAbstraction(PredicateAbstraction):
                 if isinstance(p, ChainPredicate):
                     actual_p = self.v_to_chain_pred[p.term]
                     if gu in p.last_post.keys():
-                        if p.last_post[gu] not in constants:
-                            print()
-                        else:
+                        if p.last_post[gu] in constants:
                             constants.remove(p.last_post[gu])
                     actual_p.last_post.update({gu: post})
                 constants.add(post)
 
-            self.abstract_effect_invars[t] = {p for p in invars if not isinstance(p, ChainPredicate)}
-            self.abstract_effect_invars[t].update({self.v_to_chain_pred[p.term] for p in invars if isinstance(p, ChainPredicate)})
-            self.abstract_effect_constant[t] = constants
-            self.abstract_effect[t] = new_effects
-            self.abstract_effect_ltl[t] = gu_ltl
-            self.t_u_to_curr_u[t] = new_u_to_curr_u
-            self.t_us_part[t] = new_us_part
-            self.t_us_part_to_pred[t] = new_us_part_to_pred
+            self.abstract_effect_invars[gu] = {p for p in invars if not isinstance(p, ChainPredicate)}
+            self.abstract_effect_invars[gu].update({self.v_to_chain_pred[p.term] for p in invars if isinstance(p, ChainPredicate)})
+            self.abstract_effect_constant[gu] = constants
+            self.abstract_effect[gu] = new_effects
+            self.abstract_effect_ltl[gu] = gu_ltl
+            self.t_u_to_curr_u[gu] = new_u_to_curr_u
+            self.t_us_part[gu] = new_us_part
+            self.t_us_part_to_pred[gu] = new_us_part_to_pred
 
         end = time.time()
         logger.info(end - start)
@@ -627,13 +640,12 @@ def update_effects(effects, us, gu, curr_preds, new_preds, partitions, v_to_part
 
 
 def compute_abstract_effect_for_guard_update(arg):
-    (t, invars, constants, tran_preds_constants, effects,
+    (gu, invars, constants, tran_preds_constants, effects,
      all_preds, new_preds,
      partitions, v_to_preds, v_to_partition,
      old_u_to_curr_u, old_us_part, old_us_part_to_pred,
      ignore_in_nows, ignore_in_nexts, vars_relabelling, symbol_table) = arg
 
-    gu = t.formula()
     init_nows = []
     init_nexts = []
     pres = {}
@@ -723,6 +735,7 @@ def compute_abstract_effect_for_guard_update(arg):
         except Exception as e:
             print("Xxx")
             print(str(e))
+        us_part_effects = update_effects(us_part_effects_joined, us_part, gu, curr_preds, new_preds, partitions, v_to_partition, v_to_preds, ignore_in_nows, ignore_in_nexts, symbol_table)
 
     unused_new_preds = all_preds.difference(all_relevant_next_preds)
     unused_new_preds.difference_update(ignore_in_nexts)
@@ -737,8 +750,9 @@ def compute_abstract_effect_for_guard_update(arg):
 
     gu_ltl = effects_to_ltl(new_effects, constants, invars, vars_relabelling)
     # print("\n\n\n" + str(t) + "\n" + str(gu_ltl))
+    print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
 
-    return (t, invars, constants, new_effects,
+    return (gu, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
             (init_nows, init_nexts, pres, posts),
             ignore_in_nows, ignore_in_nexts, str(gu_ltl))
@@ -790,4 +804,40 @@ def effects_to_ltl(effects, constants, invars, vars_relabelling):
     gu_ltl = conjunct_formula_set([effects_ltl] + list(invar_preds_effects) + constant_effects)
 
     return gu_ltl
+
+
+def effects_to_ltl_non_bin(effects, constants, invars):
+    parts_ltl = []
+    for part in effects.keys():
+        part_ltl = []
+        for now, nexts in effects[part]:
+            if len(nexts) == 1 and nexts[0] == true():
+                continue
+
+            E_now = now
+            next_disjuncts = []
+            for next in nexts:
+                next_disjuncts.append(next)
+
+            E_next = disjunct_formula_set(next_disjuncts)
+            part_ltl.append(conjunct(E_now, (X(E_next))))
+        if len(part_ltl) != 0:
+            parts_ltl.append(disjunct_formula_set(part_ltl))
+
+    effects_ltl = conjunct_formula_set(parts_ltl)
+
+    invar_preds_effects = set()
+    for p in set(invars):
+        if isinstance(p, ChainPredicate):
+            invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
+        else:
+            if "prev" not in str(p):
+                invar_preds_effects.add(iff(p, X(p)))
+
+    constant_effects = []
+    for p in set(constants):
+        constant_effects.append((p))
+
+    gu_ltl = conjunct_formula_set([effects_ltl] + list(invar_preds_effects) + constant_effects)
+    print(gu_ltl)
 

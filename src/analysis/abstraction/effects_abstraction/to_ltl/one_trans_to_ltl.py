@@ -19,35 +19,38 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
     init_state = conjunct(init_explicit_state, conjunct_formula_set(init_preds))
 
     pred_next = set()
-    for t, post in predicate_abstraction.second_state_abstraction.items():
-        E_formula = t.condition.replace_formulas(predicate_abstraction.var_relabellings)
-        next_preds = [rename_pred(p) for p in post]
+    for gu, post in predicate_abstraction.second_state_abstraction.items():
+        for t in predicate_abstraction.gu_to_trans[gu]:
+            E_formula = t.condition.replace_formulas(predicate_abstraction.var_relabellings)
+            next_preds = [rename_pred(p) for p in post]
 
-        pred_next.add(conjunct((conjunct_formula_set([E_formula])),
-                               propagate_nexts(X(conjunct_formula_set(next_preds + [program.states_binary_map[t.tgt]])))))
+            pred_next.add(conjunct((conjunct_formula_set([E_formula])),
+                                   propagate_nexts(X(conjunct_formula_set(next_preds + [program.states_binary_map[t.tgt]])))))
 
     init_transition_ltl = disjunct_formula_set(pred_next)
 
     transition_ltl = {}
-    for t in predicate_abstraction.non_init_program_trans:
-        cond = t.condition.replace_formulas(predicate_abstraction.var_relabellings)
-        guard = program.states_binary_map[t.src]
-        gu_ltl = conjunct(cond, predicate_abstraction.abstract_effect_ltl[t])
+    for gu in predicate_abstraction.gu_to_trans.keys():
+        cond = predicate_abstraction.gu_to_trans[gu][0].condition.replace_formulas(predicate_abstraction.var_relabellings)
+        effect = predicate_abstraction.abstract_effect_ltl[gu]
+        for t in predicate_abstraction.gu_to_trans[gu]:
+            guard = program.states_binary_map[t.src]
+            gu_ltl = conjunct(cond, effect)
 
-        pred_effect_formula = gu_ltl
-        if len(t.output) > 0:
-            output_formula = conjunct_formula_set([X(o) for o in t.output])
-            effect_formula = conjunct(pred_effect_formula, output_formula)
-        else:
-            effect_formula = pred_effect_formula
+            pred_effect_formula = gu_ltl
+            if len(t.output) > 0:
+                output_formula = conjunct_formula_set([X(o) for o in t.output])
+                effect_formula = conjunct(pred_effect_formula, output_formula)
+            else:
+                effect_formula = pred_effect_formula
 
-        bin_tgt = program.states_binary_map[t.tgt]
-        next = conjunct(effect_formula, propagate_nexts(X(bin_tgt)))
+            bin_tgt = program.states_binary_map[t.tgt]
+            next = conjunct(effect_formula, propagate_nexts(X(bin_tgt)))
 
-        if guard in transition_ltl.keys():
-            transition_ltl[guard] = disjunct(transition_ltl[guard], next)
-        else:
-            transition_ltl[guard] = next
+            if guard in transition_ltl.keys():
+                transition_ltl[guard] = disjunct(transition_ltl[guard], next)
+            else:
+                transition_ltl[guard] = next
 
     _transition_ltl = [(G(implies(g, transition_ltl[g]))) for g in
                            transition_ltl.keys()]
