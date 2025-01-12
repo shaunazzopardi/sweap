@@ -608,14 +608,14 @@ def update_effects(effects, us, gu, curr_preds, new_preds, partitions, v_to_part
     # adding preds to now that are relevant to determining transition preds
     tran_pred_rel_vars = set()
     for p in next_preds | curr_preds[1]:
-        if isinstance(p, TransitionPredicate):
-            tran_pred_rel_vars.update(p.vars)
+        # if isinstance(p, TransitionPredicate):
+        tran_pred_rel_vars.update(p.vars)
         #     new_now_preds.update({p for v in p.vars for p in v_to_preds[v]
         #                           if (p not in now_preds or p in new_preds) and p not in ignore_in_nows and "_prev" not in str(p)})
         # now_preds.update(new_now_preds)
 
     more_nows_vs = set(itertools.chain.from_iterable(partitions[v_to_partition[v]] for v in tran_pred_rel_vars))
-    more_now_preds = {p for v in more_nows_vs for p in v_to_preds[v] if not isinstance(p, TransitionPredicate) and (p not in now_preds or p in new_preds) and p not in ignore_in_nows}
+    more_now_preds = {p for v in more_nows_vs for p in v_to_preds[v] if (p not in now_preds or p in new_preds) and p not in ignore_in_nows}
     new_now_preds.update(more_now_preds)
     now_preds.update(more_now_preds)
 
@@ -724,18 +724,13 @@ def compute_abstract_effect_for_guard_update(arg):
     new_effects = {}
     new_us_part_to_pred = {}
     for us_part, old_parts in new_part_to_curr_parts.items():
-        try:
-            us_part_effects_joined, curr_preds = join_parts(effects, list(old_parts), old_us_part_to_pred)
-            us_part_effects = update_effects(us_part_effects_joined, us_part, t.formula(), curr_preds, new_preds, partitions, v_to_partition, v_to_preds, ignore_in_nows, ignore_in_nexts, symbol_table)
-            new_effects[us_part] = us_part_effects
-            new_us_part_to_pred[us_part] = curr_preds
-            all_relevant_next_preds.update(curr_preds[1])
-            init_nows.extend(curr_preds[0])
-            init_nexts.extend(curr_preds[1])
-        except Exception as e:
-            print("Xxx")
-            print(str(e))
+        us_part_effects_joined, curr_preds = join_parts(effects, list(old_parts), old_us_part_to_pred)
         us_part_effects = update_effects(us_part_effects_joined, us_part, gu, curr_preds, new_preds, partitions, v_to_partition, v_to_preds, ignore_in_nows, ignore_in_nexts, symbol_table)
+        new_effects[us_part] = us_part_effects
+        new_us_part_to_pred[us_part] = curr_preds
+        all_relevant_next_preds.update(curr_preds[1])
+        init_nows.extend(curr_preds[0])
+        init_nexts.extend(curr_preds[1])
 
     unused_new_preds = all_preds.difference(all_relevant_next_preds)
     unused_new_preds.difference_update(ignore_in_nexts)
@@ -749,8 +744,8 @@ def compute_abstract_effect_for_guard_update(arg):
             invars.add(p.bool_var)
 
     gu_ltl = effects_to_ltl(new_effects, constants, invars, vars_relabelling)
-    # print("\n\n\n" + str(t) + "\n" + str(gu_ltl))
     print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
+    effects_to_ltl_non_bin(new_effects, constants, invars)
 
     return (gu, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
