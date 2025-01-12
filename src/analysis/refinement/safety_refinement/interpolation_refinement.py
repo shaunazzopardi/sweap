@@ -111,30 +111,31 @@ def safety_refinement_seq_int(program: Program,
         raise Exception("There are somehow less state predicates than previously.")
 
     if len(set(new_all_preds)) == len(set(state_predicates)):
-        new_state_preds = set()
-        prog_states = [prog_state for _, prog_state, _ in agreed_on_transitions] + [disagreed_on_state[1][1]]
-        for prog_state in prog_states:
-            for v in program.local_vars:
-                if str(Value(prog_state[str(v)])).lower() == "true":
-                    new_state_preds.add(v)
-                elif str(Value(prog_state[str(v)])).lower() == "false":
-                    new_state_preds.add(neg(v))
-                else:
-                    pred = BiOp(v, "=", Value(prog_state[str(v)]))
-                    sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
-                    new_state_preds.update(preds)
-                    signatures.add(sig)
-        new_all_preds = new_state_preds | state_predicates
-        new_all_preds = reduce_up_to_iff(state_predicates,
-                                         new_all_preds,
-                                         symbol_table
-                                         | {str(v): TypedValuation(str(v),
-                                                                   symbol_table[str(v).removesuffix("_prev")].type,
-                                                                   "true")
-                                            for p in new_all_preds
-                                            for v in p.variablesin()
-                                            if str(v).endswith(
-                                                 "prev")})  # TODO symbol_table needs to be updated with prevs
+        raise Exception("Did not find new state predicates.")
+        # new_state_preds = set()
+        # prog_states = [prog_state for _, prog_state, _ in agreed_on_transitions] + [disagreed_on_state[1][1]]
+        # for prog_state in prog_states:
+        #     for v in program.local_vars:
+        #         if str(Value(prog_state[str(v)])).lower() == "true":
+        #             new_state_preds.add(v)
+        #         elif str(Value(prog_state[str(v)])).lower() == "false":
+        #             new_state_preds.add(neg(v))
+        #         else:
+        #             pred = BiOp(v, "=", Value(prog_state[str(v)]))
+        #             sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+        #             new_state_preds.update(preds)
+        #             signatures.add(sig)
+        # new_all_preds = new_state_preds | state_predicates
+        # new_all_preds = reduce_up_to_iff(state_predicates,
+        #                                  new_all_preds,
+        #                                  symbol_table
+        #                                  | {str(v): TypedValuation(str(v),
+        #                                                            symbol_table[str(v).removesuffix("_prev")].type,
+        #                                                            "true")
+        #                                     for p in new_all_preds
+        #                                     for v in p.variablesin()
+        #                                     if str(v).endswith(
+        #                                          "prev")})  # TODO symbol_table needs to be updated with prevs
 
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         # raise Exception("Could not find new state predicates..")
