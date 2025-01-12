@@ -48,6 +48,9 @@ class EffectsAbstraction(PredicateAbstraction):
         self.t_v_to_p = {}
         self.t_v_to_partition = {}
 
+        self.t_ignore_in_nows = {}
+        self.t_ignore_in_nexts = {}
+
         self.t_u_to_curr_u = {}
         self.t_us_part = {}
         self.t_us_part_to_pred = {}
@@ -118,6 +121,8 @@ class EffectsAbstraction(PredicateAbstraction):
             parts = self.t_u_to_curr_u[t].values()
             self.t_us_part[t] = [part for part in parts]
             self.t_us_part_to_pred[t] = {part: (set(), set()) for part in parts}
+            self.t_ignore_in_nows[t] = set()
+            self.t_ignore_in_nexts[t] = set()
             empty_effects = {part : [(true(), [true()])] for part in parts}
             self.abstract_effect[t] = empty_effects
 
@@ -292,6 +297,8 @@ class EffectsAbstraction(PredicateAbstraction):
         u_to_curr_us = []
         us_parts = []
         us_part_to_preds = []
+        ignore_in_nows = []
+        ignore_in_nexts = []
         relabelling = []
         symbol_tables = []
         for t in self.non_init_program_trans:
@@ -318,7 +325,8 @@ class EffectsAbstraction(PredicateAbstraction):
                                    all_predss, new_predss,
                                    partitions, v_to_preds, v_to_partitions,
                                    u_to_curr_us, us_parts, us_part_to_preds,
-                                   relabelling, symbol_tables))
+                                   ignore_in_nows, ignore_in_nexts, relabelling,
+                                   symbol_tables))
 
         for (t, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
@@ -641,8 +649,6 @@ def compute_abstract_effect_for_guard_update(arg):
     #
     # predicates that are not ever handled in nexts are invars (unless they are prev preds)
 
-    ignore_in_nows = set()
-    ignore_in_nexts = set()
 
     for p in new_preds:
         if isinstance(p, TransitionPredicate):
