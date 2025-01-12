@@ -540,16 +540,24 @@ def fully_determined_guard(guard, effects, constants, symbol_table):
 def join_parts(effects, parts_to_join, us_part_to_pred):
     if len(parts_to_join) == 0:
         raise Exception("join_parts called on empty parts_to_join")
+    emptyNowNexts = [(true(), [true()])]
 
-    part = parts_to_join[0]
-    if len(parts_to_join) == 1:
-        return effects[part], us_part_to_pred[part]
-    new_part_effects = effects[part]
-    (new_now_preds, new_next_preds) = us_part_to_pred[part]
+    parts_to_join_red = [(effects[old_part], us_part_to_pred[old_part]) for old_part in parts_to_join
+                            if effects[old_part] != emptyNowNexts]
 
-    parts_remaining = [(effects[old_part], us_part_to_pred[old_part]) for old_part in parts_to_join[1:]]
+    match len(parts_to_join_red):
+        case 0: return emptyNowNexts, (set(), set())
+        case 1: return parts_to_join_red[0]
+
+    part = parts_to_join_red[0]
+    new_part_effects = part[0]
+    (new_now_preds, new_next_preds) = part[1]
+
+    parts_remaining = parts_to_join_red[1:]
 
     for nowNexts, (now_preds, next_preds) in parts_remaining:
+        if nowNexts == emptyNowNexts:
+            continue
         old_part_effects = new_part_effects
         new_part_effects = []
         for new_now, new_nexts in old_part_effects:
