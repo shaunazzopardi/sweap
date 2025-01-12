@@ -308,6 +308,8 @@ class EffectsAbstraction(PredicateAbstraction):
             u_to_curr_us.append(self.t_u_to_curr_u[t])
             us_parts.append(self.t_us_part[t])
             us_part_to_preds.append(self.t_us_part_to_pred[t])
+            ignore_in_nows.append(self.t_ignore_in_nows[t])
+            ignore_in_nexts.append(self.t_ignore_in_nexts[t])
             relabelling.append(self.var_relabellings)
             symbol_tables.append(self.symbol_table)
         with Pool(no_of_workers) as pool:
@@ -320,9 +322,11 @@ class EffectsAbstraction(PredicateAbstraction):
 
         for (t, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
-            bookkeeping, gu_ltl) in results:
-            gu = t.formula()
+            bookkeeping, new_ignore_in_nows, new_ignore_in_nexts, gu_ltl) in results:
             (init_nows, init_nexts, pres, posts) = bookkeeping
+            self.t_ignore_in_nows[gu] = new_ignore_in_nows
+            self.t_ignore_in_nexts[gu] = new_ignore_in_nexts
+
             for p in init_nows:
                 if isinstance(p, ChainPredicate):
                     actual_p = self.v_to_chain_pred[p.term]
@@ -611,7 +615,7 @@ def compute_abstract_effect_for_guard_update(arg):
      all_preds, new_preds,
      partitions, v_to_preds, v_to_partition,
      old_u_to_curr_u, old_us_part, old_us_part_to_pred,
-       vars_relabelling, symbol_table) = arg
+     ignore_in_nows, ignore_in_nexts, vars_relabelling, symbol_table) = arg
 
     gu = t.formula()
     init_nows = []
@@ -644,15 +648,24 @@ def compute_abstract_effect_for_guard_update(arg):
             if is_pre:
                 pres[p] = x
                 ignore_in_nows.add(p)
+            else:
+                if p in ignore_in_nows:
+                    ignore_in_nows.remove(p)
             is_post, x = update_post(p, gu, symbol_table, constants)
             if is_post:
                 posts[p] = x
                 ignore_in_nexts.add(p)
                 if is_pre:
                     continue
+            else:
+                if p in ignore_in_nexts:
+                    ignore_in_nexts.remove(p)
             is_invar = update_invars(p, gu, symbol_table, invars, constants)
             if is_invar:
                 ignore_in_nexts.add(p)
+            else:
+                if p in ignore_in_nexts and not is_post:
+                    ignore_in_nexts.remove(p)
 
     curr_us_to_ignore = set()
     new_us_part = []
@@ -713,7 +726,19 @@ def compute_abstract_effect_for_guard_update(arg):
 
     return (t, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
-            (init_nows, init_nexts, pres, posts), str(gu_ltl))
+            (init_nows, init_nexts, pres, posts),
+            ignore_in_nows, ignore_in_nexts, str(gu_ltl))
+
+
+def debug_check_sat(gu, now_nexts, invars, constants,  symbol_table):
+    for now, nexts in now_nexts:
+        for next in nexts:
+            f = conjunct_formula_set([gu, now.prev_rep(), next])
+            if not sat(f, symbol_table):
+                print("following not sat with transition: " + str(gu))
+                print("now" + str(now))
+                print("next" + str(next))
+
 
 
 def effects_to_ltl(effects, constants, invars, vars_relabelling):
