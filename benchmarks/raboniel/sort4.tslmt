@@ -1,0 +1,12 @@
+//-- State: a,b,c,d
+
+always guarantee {
+  ([a <- b] && [b <- a] && [c <- c] && [d <- d]) || // flip(a,b)
+  ([b <- c] && [c <- b] && [a <- a] && [d <- d]) || // flip(b,c)
+  ([c <- d] && [d <- c] && [a <- a] && [b <- b]) || // flip(c,d)
+  ([a <- a] && [b <- b] && [c <- c] && [d <- d]);   // no-op
+}
+
+guarantee {
+  F G (ge a b && ge b c && ge c d);
+}
