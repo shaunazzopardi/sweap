@@ -4,9 +4,9 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from subprocess import CalledProcessError, check_output
+from subprocess import CalledProcessError
 from typing import Optional
-from collections import defaultdict, Counter
+from collections import defaultdict
 
 @dataclass
 class ToolInfo:

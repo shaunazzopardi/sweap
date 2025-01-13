@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from subprocess import check_output, CalledProcessError
 import csv
-import glob
 import sys
 import re
 from pathlib import Path
