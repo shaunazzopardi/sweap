@@ -15,11 +15,11 @@ tools = [
 legend = {
     "sweap": "Our tool (synthesis)",
     "sweap-noacc": "Our tool, lazy (synthesis)",
-    "raboniel": "Raboniel",
-    "temos": "Temos",
-    "rpgsolve": "Rpgsolve",
+    "raboniel": "Raboniel (synthesis)",
+    "temos": "Temos (synthesis)",
+    "rpgsolve": "Rpgsolve (realizability)",
     "rpgsolve-syn": "Rpgsolve (synthesis)",
-    "rpg-stela": "Rpg-stela",
+    "rpg-stela": "Rpg-stela (realizability)",
 }
 
 def cum_sum(tool_name: str):
@@ -34,11 +34,11 @@ def cum_sum(tool_name: str):
         .select(instances=pl.col("instances"), **{col_name: pl.cum_sum(tool_name)/1000})
     )
     df = q.collect()
-    # zero = (
-    #     pl.DataFrame({"instances": [0], col_name: [0]})
-    #     .cast({"instances": pl.UInt32, col_name: pl.Int64}))
-    # return pl.concat([zero, df])
-    return df
+    zero = (
+        pl.DataFrame({"instances": [0], col_name: [None]})
+        .cast({"instances": pl.UInt32, col_name: pl.Float64}))
+    return pl.concat([zero, df])
+    # return df
 
 # def remove_right(df: pl.DataFrame):
 #     return {
@@ -61,7 +61,14 @@ for df in dataframes[1:]:
 print(joined)
 
 
-real_df = joined.drop(*(legend[x] for x in ("raboniel", "temos", "rpgsolve-syn")))
+real_df = (
+    joined
+    .drop(*(legend[x] for x in ("raboniel", "temos", "rpgsolve-syn"))))
+real_df = real_df.rename({
+        x: x.replace(" (realizability)", "")
+        for x in real_df.columns})
+
+
 plot = sns.lineplot(
     data=real_df.drop("instances").to_pandas(),
     markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5,
@@ -83,20 +90,33 @@ syn_df = (
         x: x.replace(" (synthesis)", "")
         for x in joined.columns}))
 
-
 plot_syn = sns.lineplot(
     data=syn_df.drop("instances").to_pandas(),
     markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5)
 plot_syn.get_legend().set_title("Synthesis")
 plot_syn.set(xlabel="Instances solved")
 plot_syn.set(ylabel="Time (s)")
-fig_syn = plot_syn.get_figure()
-fig_syn.tight_layout()
-fig_syn.savefig("cactus-syn.png", dpi=300)
+fig = plot_syn.get_figure()
+fig.tight_layout()
+fig.savefig("cactus-syn.png", dpi=300)
+
+
+fig.clear()
+easy_df = joined.limit(20)
+
+plot_easy = sns.lineplot(
+    data=easy_df.drop("instances").to_pandas(),
+    markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5)
+plot_easy.set(xlabel="Instances solved")
+plot_easy.set(ylabel="Time (s)")
+plot_easy.set(yscale='log')
+plot_easy.set(xticks=[1,5,10,15,20])
+fig = plot_easy.get_figure()
+fig.tight_layout()
+fig.savefig("cactus-easy.png", dpi=300)
 
 
 
-# plot.set(yscale='log')
 # fig = plot.get_figure()
 # fig.tight_layout()
 # fig.savefig("cactus-log.png", dpi=300)
