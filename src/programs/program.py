@@ -9,12 +9,15 @@ import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep_states
+from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep_states, \
+    add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.util import (disjunct_formula_set, neg, true, \
-    sat, type_constraints_acts, implies, is_tautology, sat_parallel, mutually_exclusive_rules, atomic_predicates,
-                            simplify_formula_with_math_wo_type_constraints)
+                            sat, type_constraints_acts, implies, is_tautology, sat_parallel, mutually_exclusive_rules,
+                            atomic_predicates,
+                            simplify_formula_with_math_wo_type_constraints, conjunct, conjunct_typed_valuation_set,
+                            conjunct_formula_set)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -113,7 +116,30 @@ class Program:
         self.states_binary_map |= {Variable(st): bin_st for st, bin_st in self.states_binary_map.items()}
 
         self.project_out_constants()
+        while self.refine_var_types():
+            pass
 
+    def refine_var_types(self):
+        new_symbol_table = {}
+        for n, tv in self.symbol_table.items():
+            if tv.type.startswith("int"):
+                v = Variable(tv.name)
+                nat_pred = BiOp(v, ">=", Value("0"))
+                if not is_tautology(implies(conjunct_typed_valuation_set(self.valuation), nat_pred), self.symbol_table):
+                    continue
+                symbol_table_with_prevs = {(m + "_prev") : TypedValuation(m + "_preb", tv.type, tv.value) for m, tv in self.symbol_table.items()}
+                exit = False
+                prev_nat = add_prev_suffix(nat_pred)
+                for t in self.transitions:
+                    if not is_tautology(implies(conjunct(prev_nat, t.formula()), nat_pred), self.symbol_table | symbol_table_with_prevs):
+                        exit = True
+                        break
+                if not exit:
+                    print("turned " + n + " into a natural")
+                    new_symbol_table[n] = TypedValuation(n, "natural", tv.value)
+
+        self.symbol_table.update(new_symbol_table)
+        return len(new_symbol_table) > 0
 
     def project_out_constants(self):
         vars_to_project_out = {}
