@@ -1,0 +1,28 @@
+program tasks {
+    STATES {
+        q0: init
+    }
+    ENVIRONMENT EVENTS {
+    }
+    CONTROLLER EVENTS {
+        changex, decy
+    }
+    VALUATION {
+        x : integer := 10;
+        y : integer := 10;
+        done : integer := 0;
+    }
+    TRANSITIONS {
+        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) && !changex && !decy $ x := x; y := y; done := done],
+        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) && !changex &&  decy $ x := x; y := (y - 1); done := done],
+        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) &&  changex && !decy $ x := (x - 1); y := y; done := done],
+        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) &&  changex &&  decy $ x := (x - 1); y := (y - 1); done := done],
+        q0 -> q0 [(done == 0) && (x == 0) $ x := x; y := y; done := 1],
+        q0 -> q0 [(done == 0) && (y == 0) $ x := x; y := y; done := 1],
+        q0 -> q0 [(done == 1) && !(y == 0) $ x := x + 1; y := y; done := 1]
+    }
+
+    SPECIFICATION {
+        (F (x == 0 || y == 0)) & (F (!(done == 0) && (x >= 20) || (y >= 20)))
+    }
+}
