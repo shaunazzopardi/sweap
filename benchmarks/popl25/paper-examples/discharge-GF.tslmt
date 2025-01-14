@@ -1,0 +1,24 @@
+var Int c
+var Int x
+
+inp Int e
+
+SPECIFICATION
+
+
+
+guarantee {
+
+    // updates c
+    G ([c <- i0()] || [c <- i1()]);
+
+
+    // updates x
+    G ( (eq c i0()) -> [x <- add x i1()]);
+    G (!(eq c i0()) -> [x <- i10000()]);
+    
+    // objectives
+    G ((X (eq c i1())) -> (eq e i1()));
+    G F (gte x i10000());
+
+}

@@ -1,0 +1,55 @@
+var Int numE
+var Int buffE
+var Int iprocessE
+
+inp Int idone
+
+
+SPECIFICATION
+
+processE = eq iprocessE i1();
+done = eq idone i1();
+
+MINE = i64();
+MAXB = i128();
+
+buffFull = (gte buffE MAXB);
+bufferAdd = ([buffE <- add buffE i1()] && [numE <- numE]);
+bufferFlush = ([buffE <- i0()] && [numE <- add numE buffE]);
+
+moreElems = (gt numE MINE);
+fewElems = (lt numE MINE);
+
+
+assume {
+    (!processE) && (eq buffE i0()) && (eq numE i0());
+}
+
+guarantee{
+
+
+    // buffering elements
+
+    G ((!processE && !done && !buffFull) -> ((bufferAdd || bufferFlush) && [iprocessE <- iprocessE]));
+    G ((!processE && !done && buffFull) -> (bufferFlush && [iprocessE <- iprocessE]));
+    G ((!processE && done && (gte buffE MINE)) -> (bufferFlush && [iprocessE <- idone]));
+    G ((!processE && done && (lt buffE MINE)) -> ([buffE <- buffE] && [numE <- numE] && [iprocessE <- idone]));
+    G (processE -> [buffE <- buffE]);
+
+    
+    // processing elements
+
+    // if enough elements, remove one
+    G ((processE && moreElems) -> ([numE <- sub numE i1()] && [iprocessE <- iprocessE]));
+
+    // if too few elems then stuck
+    G ((processE && fewElems) -> ([numE <- numE] && [iprocessE <- iprocessE]));
+
+    // flush remaining elements
+    G ((processE && !fewElems && !moreElems) -> ([numE <- i0()] && [iprocessE <- i0()]));
+    
+    // eventually buffer empty
+    G (processE -> F (eq numE i0()));
+
+}
+

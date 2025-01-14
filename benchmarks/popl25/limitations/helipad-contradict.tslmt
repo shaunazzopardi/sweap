@@ -1,0 +1,33 @@
+var Bool free
+inp Bool depart
+inp Bool land
+
+inp Bool r1
+inp Bool r2
+var Int ack
+
+inp Bool emergency
+var Int evacTimer
+inp Int evacTime
+
+SPECIFICATION
+
+CLEAR = (depart || (lte evacTimer i0() && emergency));
+
+guarantee {
+
+    // Handeling of state
+    G (free && land -> ([free <- false] W CLEAR));
+    G (CLEAR -> ([free <- true] W land));
+
+    // Evacuation on emergency
+    G (!emergency -> [evacTimer <- sub i0() i1()]);
+    G (emergency && gt evacTimer i0() -> [evacTimer <- sub evacTimer i1()]);
+    G (emergency && lte evacTimer i0() -> [evacTimer <- evacTime]);
+    G (emergency -> F lte evacTimer i0());
+
+    // Landing managment
+    G ([ack <- i0()] && r1 && !r2 -> ([ack <- i1()] W (land || emergency)));
+    G ([ack <- i0()] && r2 && !r1 -> ([ack <- i2()] W (land || emergency)));
+    G (emergency -> X [ack <- i0()]); 
+}

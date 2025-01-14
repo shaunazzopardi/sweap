@@ -1,0 +1,13 @@
+var Int x
+
+
+SPECIFICATION
+
+assume{
+    (eq x i10000());
+}
+
+guarantee {
+    G [x <- add x i1()];    
+    G F (lte x i10000());
+}

@@ -1,0 +1,17 @@
+var Int x
+var Int y
+
+SPECIFICATION
+
+assume {
+  lte x i3();
+  gte x i0();
+}
+
+always guarantee {
+  lte x i3(); /* INV */
+  gte x i0(); /* INV */
+
+  ([x <- x] || [x <- add x i1()] || [x <- sub x i1()]);
+  ([y <- y] || [y <- add y i1()] || [y <- sub y i1()]);
+}

@@ -1,0 +1,15 @@
+var Int x
+
+SPECIFICATION
+
+guarantee{
+    X X (eq x i100());
+    X X X (lt x i100());
+}
+
+always guarantee {
+    [x <- (add x i1())] || [x <- (sub x i1())] || [x <- i100()];
+
+    (eq x i100()) -> (X G (gte x i100()));
+    (eq x i100()) -> (X F (gte x i1000()));
+}

@@ -1,0 +1,32 @@
+var Int c
+var Int x
+var Int y
+
+inp Int e
+
+SPECIFICATION
+
+assume{
+    (eq x i0());
+    (eq c i0());
+}
+
+guarantee {
+
+    // updates c
+    G ([c <- i0()] || [c <- i1()]);
+    G ((eq c i1()) -> [c <- i1()]);
+    
+    // updates x
+    G ( (eq c i0()) -> [x <- add x e] || [x <- sub x  e]);
+    G (!(eq c i0()) -> [x <- add x y]);
+
+    // updates y
+    [y <- add x i1()];
+    X G [y <- y];
+    
+    // objectives
+    G ((eq c i0()) -> (gte x i0()));
+    G (!(eq c i0()) -> F (lte x (sub i0() i10000())));
+    X (gt y i0());
+}

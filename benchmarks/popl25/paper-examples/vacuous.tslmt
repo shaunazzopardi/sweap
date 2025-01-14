@@ -1,0 +1,18 @@
+var Int x
+var Int y
+
+inp Int e
+
+
+SPECIFICATION
+
+
+guarantee {
+    G ( (gt y i0()) -> [x <- y]);
+    G (!(gt y i0()) -> [x <- add x (sub i1() y)]);
+
+    G ( (gt e i10000()) -> [y <- e]);
+    G (!(gt e i10000()) -> [y <- i0()]);
+  
+    F (gt x i10000());
+ }

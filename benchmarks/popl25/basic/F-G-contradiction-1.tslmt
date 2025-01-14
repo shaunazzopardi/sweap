@@ -1,0 +1,14 @@
+var Int x
+
+
+SPECIFICATION
+
+guarantee {
+
+    G ([x <- (add x i1())] || [x <- (sub x i1())] || [x <- i10()]);
+    
+    X (eq x i10());
+    X ((gte x i5()) -> X G (gte x i11()));
+    X F (lte x (sub i0() i1000()));
+    
+ }

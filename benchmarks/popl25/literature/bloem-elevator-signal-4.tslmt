@@ -1,0 +1,32 @@
+inp Int signal
+var Int floor
+var Int target
+
+SPECIFICATION
+
+assume {
+  eq target i0();
+  gte floor i1();
+  gte i4() floor;
+}
+
+always assume {
+  gte signal i0();
+  gte i4() signal;
+  !(eq target i0()) -> eq signal i0();
+}
+
+always guarantee {
+  gte floor i1(); /* INV */
+  gte i4() floor; /* INV */
+  !(eq signal i0()) && !(eq floor target) -> [target <- signal];
+  eq signal i0() && !(eq floor target) -> [target <- target];
+  eq floor target -> [target <- i0()];
+
+  [floor <- floor] || [floor <- add floor i1()] || [floor <- sub floor i1()];
+
+  eq target i1() -> F (eq floor i1());
+  eq target i2() -> F (eq floor i2());
+  eq target i3() -> F (eq floor i3());
+  eq target i4() -> F (eq floor i4());
+}

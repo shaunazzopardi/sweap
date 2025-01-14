@@ -1,0 +1,50 @@
+var Int x
+var Int tx
+var Int deliveri
+var Int hasPackagei
+
+var Int mode
+
+inp Int customerPos
+inp Int stationPos
+
+SPECIFICATION
+
+deliver = eq deliveri i1();
+hasPackage = eq hasPackagei i1();
+
+toCustomer = [mode <- i0()];
+toStation = [mode <- i1()];
+
+guarantee {
+    
+    // Movement
+    G (deliver && lt x tx -> [x <- add x i1()]);
+    G (deliver && gt x tx -> [x <- sub x i1()]);
+    G (deliver && eq x tx -> [x <- x]);
+   
+    G (deliver && eq x tx -> [deliveri <- i0()]);
+    G (deliver && !eq x tx -> [deliveri <- i1()]);
+  
+    // Liveness condition
+    G (deliver -> F eq x tx);
+
+    // Target allocation and package logic
+    toCustomer || toStation;
+
+    // System does not switch recipients
+    G (toCustomer -> (toCustomer W !deliver));
+    G (toStation -> (toStation W !deliver));
+
+    // System does not loose packages or the target
+    G (deliver -> [hasPackagei <- hasPackagei]);
+    G (deliver -> [tx <- tx]);
+    
+    // Realocation of targets
+    G (toCustomer && !deliver -> [deliveri <- i1()] && [tx <- customerPos] && X (toStation || toCustomer));
+    G (toStation && !deliver ->  [deliveri <- i1()] && [tx <- stationPos] && X toCustomer);
+
+    // Package pickup and leaving
+    G (toCustomer && !deliver -> hasPackage && [hasPackagei <- i0()]);
+    G (toStation && !deliver -> [hasPackagei <- i1()]);
+}

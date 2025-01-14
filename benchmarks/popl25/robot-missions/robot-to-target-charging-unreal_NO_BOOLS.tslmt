@@ -1,0 +1,51 @@
+var Int cDist
+var Int battery
+var Int atStationi
+
+inp Int distToTarget
+
+SPECIFICATION
+
+atStation = eq atStationi i1();
+
+MIND = i50();
+MAXD = i70();
+
+MAXBAT = i100();
+
+move =  [cDist <- sub cDist i1()] && [battery <- sub battery i1()];
+charge = [cDist <- cDist] && [battery <- add battery i1()];
+stay = [cDist <- cDist] && [battery <- battery];
+atGoal = (lte cDist i0());
+
+
+assume {
+    (eq battery i0());   
+    atStation && atStation;
+
+    (gte distToTarget MIND) && (lte distToTarget MAXD);    
+}
+
+
+guarantee {
+       
+    // initially
+    atStation && [cDist <- distToTarget] && [atStationi <- i0()] && [battery <- battery];
+    X ((gte cDist MIND) && (lte cDist MAXD));
+
+    // at station
+    X G (atStation && (lt battery distToTarget) ->  [atStationi <- i1()] && charge);
+    X G (atStation && (gte battery distToTarget) -> [atStationi <- i1()] && charge || 
+                                             [atStationi <- i0()] && stay);   
+    // on the way
+    G (!atStation && !atGoal -> [atStationi <- i0()] && move);
+    G (!atStation && atGoal -> [atStationi <- i0()] && stay);
+
+    // battery 
+    G (lte battery MAXBAT);
+    G (gte battery i0());
+
+    // objective
+    F (atGoal);
+
+}

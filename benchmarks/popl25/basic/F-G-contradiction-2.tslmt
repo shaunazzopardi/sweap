@@ -1,0 +1,22 @@
+var Int x
+var Int y
+inp Int e
+
+SPECIFICATION
+
+assume{
+    (gt e i0());
+}
+
+guarantee {
+    
+    [x <- i0()];
+    X G ([x <- add x y] || [x <- add x i1()]);    
+
+    [y <- e];
+    X G ([y <- y]);
+    X (gt y i0());
+    
+    F (lte x (sub i0() i10000()));
+
+}

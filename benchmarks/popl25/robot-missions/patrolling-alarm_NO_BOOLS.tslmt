@@ -1,0 +1,55 @@
+var Int pos
+var Int timer
+
+inp Int alarm1i
+inp Int alarm2i
+
+
+SPECIFICATION
+
+alarm1 = eq alarm1i i0();
+alarm2 = eq alarm2i i0();
+
+L1 = i1();
+L2 = i2();
+BASE = i0();
+
+DONE = (gte timer i60());
+
+assume {
+    (eq pos BASE);
+    (eq timer i0());
+}
+
+
+guarantee {
+
+    // position update
+
+    G ((eq pos BASE) || (eq pos L1) || (eq pos L2));
+
+    G ((eq pos BASE) -> [pos <- BASE] || [pos <- L1] || [pos <- L2]) ;
+    G ((eq pos L1) -> [pos <- BASE]);
+    G ((eq pos L2) -> [pos <- BASE]);
+    
+
+    // do not leave BASE untill DONE
+
+    G ((eq pos BASE) && !DONE && !alarm1 && !alarm2 -> [pos <- BASE]);
+    G ((eq pos BASE) && DONE -> [pos <- L1] || [pos <- L2]);
+    
+        
+    // timer update
+    G (gte timer i0());
+    G ( (eq pos BASE) -> [timer <- add timer i1()]);
+    G (!(eq pos BASE) -> [timer <- i0()]);
+
+
+    // objectives 
+
+    G F ((gt pos BASE));
+    G (alarm1 && (eq pos BASE) -> X (eq pos L1));
+    G (!alarm1 && alarm2 && (eq pos BASE) -> X (eq pos L2));
+
+}
+

@@ -1,0 +1,41 @@
+var Int numE
+var Int process
+
+SPECIFICATION
+
+MINELEMS = i64();
+
+moreElems = (gt numE MINELEMS);
+fewElems = (lt numE MINELEMS);
+empty  = (lte numE i0());
+
+processing =  !(eq process i0());
+
+assume {
+    (eq numE i0());
+    !processing;
+}
+
+guarantee{
+
+    G (gte numE i0());
+    G ((eq process i0()) || (eq process i1()));
+
+    // fill storage
+    G (empty -> [numE <- add numE i1()] && ([process <- i0()] || [process <- i1()]));
+    G (!empty && !processing -> [numE <- add numE i1()] && ([process <- i0()] || [process <- i1()]));
+
+    // if more than MINE elements, remove one
+    G (!empty && processing && moreElems -> [numE <- sub numE i1()] && [process <- process]);
+
+    // if too few elems then stuck
+    G (!empty && processing && fewElems -> [numE <- numE] && [process <- process]);
+
+    // batch-process remaining elements
+    G (!empty && processing && !fewElems && !moreElems -> [numE <- i0()] && [process <- i0()]);
+    
+    // infinitely often storage empty
+    G F (empty);
+
+}
+

@@ -1,0 +1,42 @@
+var Int x
+var Int y
+var Int done
+
+SPECIFICATION
+
+START = i10();
+TARGET = i20();
+
+assume{
+    (eq x START);
+    (eq y START);
+    (eq done i0());
+}
+
+guarantee{
+
+    // phase 1
+    F ((eq x i0()) || (eq y i0()));
+
+    //phase 2
+    F (!(eq done i0()) && ((gte x TARGET) || (gte y TARGET)));
+
+    
+    // updates to x
+    G ((eq done i0()) && !(eq y i0()) -> ([x <- x] || [x <- sub x i1()]));
+    G ((eq done i0()) &&  (eq y i0()) -> [x <- i0()]);
+    G (!(eq done i0()) && !(eq y i0()) -> [x <- add x i1()]);
+    G (!(eq done i0()) &&  (eq y i0()) -> [x <- x]);
+
+    // updates to y
+    G ((eq done i0()) && !(eq y i0()) -> ([y <- y] || [y <- sub y i1()]));
+    G ((eq done i0()) &&  (eq y i0()) -> [y <- i0()]);
+    G (!(eq done i0()) -> [y <- y]);
+
+    // updates to done
+    G ((eq done i0()) && ((eq x i0()) || (eq y i0())) -> [done <- i1()]);
+    G ((eq done i0()) && !((eq x i0()) || (eq y i0())) -> [done <- done]);
+    G (!(eq done i0()) -> [done <- done]);
+
+}
+

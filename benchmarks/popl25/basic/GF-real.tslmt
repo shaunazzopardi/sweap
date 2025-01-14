@@ -1,0 +1,17 @@
+var Int x
+
+inp Int e
+
+SPECIFICATION
+
+
+guarantee {
+
+    [x <- e];
+
+    X G [x <- add x i1()];    
+
+    G F (gt x i10000());
+}
+
+
