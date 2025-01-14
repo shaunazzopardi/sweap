@@ -1,0 +1,22 @@
+var Int x
+var Int y
+inp Int env_x_move
+
+SPECIFICATION
+
+assume {
+  gte y (sub x i1());
+  lte y (add x i1());
+}
+
+always assume {
+  eq env_x_move i1() || eq env_x_move (sub i0() i1()) || eq env_x_move i0();
+}
+
+always guarantee {
+  gte y (sub x i2()); /* INV */
+  lte y (add x i2()); /* INV */
+
+  [x <- (add x env_x_move)];
+  ([y <- y] || [y <- add y i1()] || [y <- sub y i1()]);
+}

@@ -1,5 +1,5 @@
 # Shortnames we give to the tools
-TOOLS := raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc temos
+TOOLS := raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc temos tslmt2rpg
 # Timeout for each benchmark, in seconds
 TIMEOUT := 1200
 
@@ -14,6 +14,7 @@ SWEAP_BENCHS += 	$(basename $(wildcard benchmarks/sweap/drafts/*.prog))
 RPG_BENCHS := 		$(basename $(wildcard benchmarks/rpgsolve/*.rpg))
 RABONIEL_BENCHS := 	$(basename $(wildcard benchmarks/raboniel/*.tslmt))
 TEMOS_BENCHS := 	$(basename $(wildcard benchmarks/temos/*.tslt))
+TSLMT2RPG_BENCHS := $(basename $(wildcard benchmarks/tslmt2rpg/*.tslmt))
 
 SWEAP_LOGS := 		$(addsuffix .sweap.log, 			$(SWEAP_BENCHS))
 SWEAP_LAZY_LOGS := 	$(addsuffix .sweap-noacc.log, 		$(SWEAP_BENCHS))
@@ -22,9 +23,7 @@ RPG_SYN_LOGS := 	$(addsuffix .rpgsolve-syn.log,		$(RPG_BENCHS))
 RPG_LOGS := 		$(addsuffix .rpgsolve.log,			$(RPG_BENCHS))
 RABONIEL_LOGS :=	$(addsuffix .raboniel.log,			$(RABONIEL_BENCHS))
 TEMOS_LOGS :=		$(addsuffix .temos.log,				$(TEMOS_BENCHS))
-
-SWEAP_CMD := python3 main.py --synthesise
-
+TSLMT2RPG_LOGS :=   $(addsuffix .tslmt2rpg.log,			$(TSLMT2RPG_BENCHS))
 
 # Tool command-line invocation
 $(SWEAP_LOGS): cmd = 		python3 main.py --synthesise --accelerate --p
@@ -34,6 +33,7 @@ $(RPG_SYN_LOGS): cmd = 		rpgsolve --generate-program <
 $(RPG_LOGS): cmd = 			rpgsolve <
 $(RABONIEL_LOGS): cmd = 	./raboniel --spec
 $(TEMOS_LOGS): cmd = 		temos.sh
+$(TSLMT2RPG_LOGS): cmd =    run-pruned.sh
 
 # paths that the tool needs in $PATH
 path = 						binaries
@@ -60,7 +60,7 @@ define FOOTER
 	mv $$FILE $(ROOT_DIR)/$@
 endef
 
-all: raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc
+all: raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc tslmt2rpg
 everything: all temos
 
 sweap: $(SWEAP_LOGS)
@@ -70,6 +70,7 @@ rpgsolve-syn: $(RPG_SYN_LOGS)
 rpgsolve: $(RPG_LOGS)
 raboniel: $(RABONIEL_LOGS)
 temos: $(TEMOS_LOGS)
+tslmt2rpg: $(TSLMT2RPG_LOGS)
 
 ################################################################################
 # Here are the core commands that run a tool on a benchmark <bench>.<ext>
@@ -104,6 +105,12 @@ $(RABONIEL_LOGS): %.raboniel.log : %.tslmt
 $(TEMOS_LOGS): %.temos.log : %.tslt
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
+
+$(TSLMT2RPG_LOGS): %.tslmt2rpg.log : %.tslmt
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
+
+	
 ################################################################################
 
 ################################################################################
@@ -117,6 +124,7 @@ clean: clean-aux
 	-@rm $(RPG_STELA_LOGS) 2>/dev/null || true
 	-@rm $(RABONIEL_LOGS) 2>/dev/null || true
 	-@rm $(TEMOS_LOGS) 2>/dev/null || true
+	-@rm $(TSLMT2RPG_LOGS) 2>/dev/null || true
 
 clean-aux: confirm
 	@echo "Cleaning up auxiliary files..."
