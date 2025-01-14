@@ -6,7 +6,7 @@ TIMEOUT := 1200
 # Directory that contains this Makefile
 ROOT_DIR:=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-.PHONY: all others everything clean clean-aux clean-timeouts confirm $(TOOLS)
+.PHONY: all others everything clean clean-aux clean-timeouts confirm check-ulimit $(TOOLS)
 
 # Paths to benchmark files
 SWEAP_BENCHS := 	$(basename $(wildcard benchmarks/sweap/*.prog))
@@ -63,14 +63,14 @@ endef
 all: raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc tslmt2rpg
 everything: all temos
 
-sweap: $(SWEAP_LOGS)
-sweap-noacc: $(SWEAP_LAZY_LOGS)
-rpg-stela: $(RPG_STELA_LOGS)
-rpgsolve-syn: $(RPG_SYN_LOGS)
-rpgsolve: $(RPG_LOGS)
-raboniel: $(RABONIEL_LOGS)
-temos: $(TEMOS_LOGS)
-tslmt2rpg: $(TSLMT2RPG_LOGS)
+sweap:          check-ulimit $(SWEAP_LOGS)
+sweap-noacc:    check-ulimit $(SWEAP_LAZY_LOGS)
+rpg-stela:      check-ulimit $(RPG_STELA_LOGS)
+rpgsolve-syn:   check-ulimit $(RPG_SYN_LOGS)
+rpgsolve:       check-ulimit $(RPG_LOGS)
+raboniel:       check-ulimit $(RABONIEL_LOGS)
+temos:          check-ulimit $(TEMOS_LOGS)
+tslmt2rpg:      check-ulimit $(TSLMT2RPG_LOGS)
 
 ################################################################################
 # Here are the core commands that run a tool on a benchmark <bench>.<ext>
@@ -147,3 +147,11 @@ clean-timeouts: confirm
 confirm:
 	@echo -n "Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 ################################################################################
+
+ULIM := $(shell ulimit -v)
+
+# Checks whether a memory limit has been set
+check-ulimit:
+ifeq ("$(ULIM)", "unlimited")
+	@echo -n "memory unlimited! Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
+endif
