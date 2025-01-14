@@ -1,0 +1,31 @@
+program buffer_storage {
+    STATES {
+        notProcessE: init, processE
+    }
+    ENVIRONMENT EVENTS {
+        done
+    }
+    CONTROLLER EVENTS {
+        swap
+    }
+    VALUATION {
+        buffE : integer := 0;
+        numE : integer := 0;
+    }
+    TRANSITIONS {
+
+        notProcessE -> notProcessE [!done & (buffE < 128) & !swap $ buffE := buffE + 1; numE := numE],
+        notProcessE -> notProcessE [!done & (buffE < 128) & swap $ buffE := 0; numE := numE + buffE],
+        notProcessE -> notProcessE [!done & (buffE >= 128) $ buffE := 0; numE := numE + buffE],
+        notProcessE -> processE [done & (buffE >= 64) $ buffE := 0; numE := numE + buffE],
+        notProcessE -> processE [done & (buffE < 64) $ buffE := buffE; numE := numE],
+
+        processE -> processE [(numE > 64) $ buffE := buffE; numE := numE - 1],
+        processE -> processE [(numE < 64) $ buffE := buffE; numE := numE],
+        processE -> notProcessE [(numE == 64) $ buffE := buffE; numE := 0]
+    }
+
+    SPECIFICATION {
+        G (processE -> F (numE == 0))
+    }
+}
