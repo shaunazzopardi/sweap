@@ -1,0 +1,47 @@
+#LIA
+//-- State:  x, dX
+//-- Inputs: first
+
+L1 = int50();
+L2 = (sub int0() int50());
+START = int0();
+
+
+move =  [x <- add x dX];
+moveUp =  [x <- add x int1()];
+moveDown =  [x <- add x (sub int0() int1())];
+stay = [x <- x];
+
+changeDir = ([dX <- int1()] || [dX <- sub int0() int1()]);
+keepDir = [dX <- dX];
+changeDirUp = [dX <- int1()];
+changeDirDown = [dX <- sub int0() int1()];
+
+
+assume {
+    (eq x START);
+
+    (eq first int1()) || (eq first int2());
+}
+
+guarantee {
+
+    X G ((eq dX int1()) || (eq dX (sub int0() int1())));
+
+    // at the beginning
+    stay && changeDir;
+
+    // at L1
+    X G ((gte x L1) -> moveDown && changeDirDown);
+    
+    // at L2
+    X G ((lte x L2) -> moveUp && changeDirUp);
+
+    // on the way
+    X G (!(gte x L1) && !(lte x L2) -> move && keepDir);
+
+    F (gte x L1); 
+    F (lte x L2); 
+    ((eq first int1()) -> (!(lte x L2) W (gte x L1)));
+    ((eq first int2()) -> (!(gte x L1) W (lte x L2)));
+}

@@ -1,0 +1,35 @@
+program ordered_visits {
+    STATES {
+        q0: init, q1
+    }
+    ENVIRONMENT EVENTS {
+        first
+    }
+    CONTROLLER EVENTS {
+        flipx
+    }
+    VALUATION {
+        x : integer := 0;
+        dX : integer := 1;
+    }
+    TRANSITIONS {
+        q0 -> q1 [first & flipx $ x := x; dX := -1],
+        q0 -> q1 [!first & !flipx],
+        
+        q1 -> q1 [(x >= 50) $ x := x - 1; dX := -1],
+        q1 -> q1 [(x <= -50) $ x := x + 1; dX := 1],
+        q1 -> q1 [!(x <= -50) && !(x >= 50) $ x := x + dX; dX := dX]
+    }
+
+    SPECIFICATION {
+        (F (x >= 50))
+        &&
+        (F (x <= 50))
+        &&
+        ((!first) -> ((!(x <= -50)) W (x >= 50)))
+        &&
+        (first -> ((!(x >= 50)) W (x <= -50)))
+    }
+}
+
+
