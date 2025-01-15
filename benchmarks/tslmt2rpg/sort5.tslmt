@@ -15,5 +15,5 @@ always guarantee {
 }
 
 guarantee {
-  F G (gte a b && ge b c && ge c d && ge d e);
+  F G (gte a b && gte b c && gte c d && gte d e);
 }
