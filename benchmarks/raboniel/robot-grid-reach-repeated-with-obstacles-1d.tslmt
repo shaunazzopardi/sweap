@@ -1,8 +1,12 @@
 //-- State: i_x, loc
+//--Inputs: obstacle, env_in
+
+assume {
+    (ge env_in i0());
+}
 
 guarantee {
 [loc  <- i0()];
-(ge env_in i0());
 }
 
 always guarantee{
@@ -13,5 +17,5 @@ always guarantee{
 ([loc  <- i1()]) -> (X ([loc <- i0()] && [i_x <- env_in]));
 }
 
-guarantee { (G F (le obstacle i0())) G F([loc  <- i1()]);}
+guarantee { (G F (le obstacle i0())) -> G F([loc  <- i1()]);}
 
