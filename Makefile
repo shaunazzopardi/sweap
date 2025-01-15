@@ -40,7 +40,8 @@ path = 						binaries
 $(SWEAP_LOGS) : path = 		binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_LAZY_LOGS): path = 	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(RPG_SYN_LOGS): path = 	binaries/z3-4-8:binaries
-$(RABONIEL_LOGS): path = 	. 	# Because Raboniel will run from binaries/
+# Because Raboniel will run from binaries/
+$(RABONIEL_LOGS): path = 	.
 
 # Set up environment variables, create temporary log file, record start time
 define HEADER
