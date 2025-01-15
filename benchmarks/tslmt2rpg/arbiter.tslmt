@@ -1,0 +1,28 @@
+var Int cnt
+var Int con_room
+var Int env_room
+var Int q
+
+inp Int env_cnt
+inp Int room
+
+SPECIFICATION
+
+assume {
+  eq q i0();
+}
+
+always assume {
+    !(eq q i0()) -> ((eq cnt env_cnt) && (eq env_room room));
+    (eq room i0()) || (eq room i1());
+}
+
+always guarantee {
+  (eq q i0()) -> ([cnt <- env_cnt] && [env_room <- room] && [q <- i1()]);
+  ((eq q i1()) && (ge cnt i0())) -> (([cnt <- sub cnt i1()] || [q <- i0()]));
+  ((eq q i1()) && (!(eq cnt i0())) && (!(eq con_room env_room))) -> [q <- i2()];
+  (eq q i2()) -> (([con_room <- i0()] || [con_room <- i1()]) && [q <- i1()]);
+  ((eq q i1()) && (!(eq cnt i0())) && ((eq con_room env_room))) -> ([q <- i1()] && ([cnt <- sub cnt i1()] || [cnt <- cnt]));
+
+  G F (eq q i0());
+}

@@ -1,0 +1,32 @@
+var Int floor
+var Int target
+var Int q
+
+inp Int inc
+inp Int dooropen
+inp Int env_target
+
+SPECIFICATION
+
+assume {
+  eq floor i0();
+  eq q i0();
+}
+
+always assume {
+  eq dooropen i0() || eq dooropen i1();
+  G F (eq dooropen i0());
+  G F (eq dooropen i1());
+}
+
+always guarantee {
+  (eq q i0() && (eq dooropen i1())) -> ([target <- target] && [q <- i0()]);
+  (eq q i0() && eq dooropen i0()) -> ([target <- env_target] && [q <- i1()]);
+
+  (eq q i1()) -> [floor <- add floor i1()] || [floor <- sub floor i1()] || [floor <- floor];
+  (eq q i1() && eq floor target) -> [q <- i0()];
+
+  (eq dooropen i1()) -> [floor <- floor];
+
+  G F (eq floor target);
+}

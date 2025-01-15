@@ -1,0 +1,19 @@
+var Int i_x
+var Int i_y
+var Int loc
+
+inp Int i_i
+
+SPECIFICATION
+
+guarantee {
+[loc  <- i0()];
+G ([loc  <- i0()] -> ([i_x <- i_i] && X [loc  <- i1()]) || ([i_y <- (sub i_y i1())] && X [loc  <- i3()]) || false);
+G ([loc  <- i1()] -> (((le i_x i42()) || ((eq i_i i0()))) -> (X [loc  <- i2()]) || false) && ((! ((le i_x i42()) || ((eq i_i i0()))) ) -> ((gt i_y i32()) -> ([i_x <- (add i_x i_i)] && X [loc  <- i1()]) || false) && ((! (gt i_y i32()) ) -> ([i_x <- (add i_x i_i)] && X [loc  <- i1()]) || ([i_x <- (sub i_x i_i)] && X [loc  <- i1()]) || false)));
+G ([loc  <- i2()] -> ([i_y <- i64()] && X [loc  <- i0()]) || false);
+G ([loc  <- i3()] -> ((gte i_y i16()) -> (X [loc  <- i0()]) || false) && ((! (gte i_y i16()) ) -> (X [loc  <- i4()]) || false));
+G ([loc  <- i4()] -> (X [loc  <- i4()]) || false);
+}
+
+guarantee { G F([loc  <- i2()] || [loc  <- i3()] || false);}
+

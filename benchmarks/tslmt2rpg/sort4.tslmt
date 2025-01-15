@@ -1,0 +1,17 @@
+var Int a
+var Int b
+var Int c
+var Int d
+
+SPECIFICATION
+
+always guarantee {
+  ([a <- b] && [b <- a] && [c <- c] && [d <- d]) || // flip(a,b)
+  ([b <- c] && [c <- b] && [a <- a] && [d <- d]) || // flip(b,c)
+  ([c <- d] && [d <- c] && [a <- a] && [b <- b]) || // flip(c,d)
+  ([a <- a] && [b <- b] && [c <- c] && [d <- d]);   // no-op
+}
+
+guarantee {
+  F G (gte a b && gte b c && gte c d);
+}
