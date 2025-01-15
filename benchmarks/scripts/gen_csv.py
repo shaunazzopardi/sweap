@@ -43,7 +43,8 @@ tools = {
     "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", ext="rpg", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
     "sweap": ToolInfo(name="sweap", ext="prog", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-noacc": ToolInfo(name="sweap-noacc", ext="prog", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
-    "rpg-stela": ToolInfo(name="rpg-stela", ext="rpg", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re)
+    "rpg-stela": ToolInfo(name="rpg-stela", ext="rpg", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
+    "tslmt2rpg": ToolInfo(name="tslmt2rpg", ext="rpg", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
 }
 
 # map bench name to its realisability (True<->realisable)
@@ -91,6 +92,11 @@ infinite_benchs = {
     "robot_repair": True,
     "scheduler": True,
     "robot_collect_samples_v4": True,
+    "buffer-storage": True,
+    "ordered-visits": True,
+    "sort4": True,
+    "sort5": True,
+    "tasks": True
 }
 
 finite_benchs = {
