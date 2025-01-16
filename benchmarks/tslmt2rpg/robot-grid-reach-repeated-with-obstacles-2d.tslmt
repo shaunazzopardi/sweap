@@ -9,8 +9,8 @@ inp Int obstacle
 SPECIFICATION
 
 assume {
-    (ge env_in_x i0());
-    (ge env_in_y i0());
+    (gte env_in_x i0());
+    (gte env_in_y i0());
 }
 
 guarantee {
