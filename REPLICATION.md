@@ -28,7 +28,7 @@ raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc temos
 ```
 
 Notice that running with the default timeout (1200 seconds) will take
-a _long_ time. We suggest overriding the timeout value as follows:
+a _long_ time. To set a custom timeout, invoke `make` as follows:
 
 ```sh
 make TIMEOUT=300  # i.e., 5 minutes
@@ -66,7 +66,8 @@ id, the name of the benchmark, and a numeric value for each tool.
 A value of `1` denotes that the benchmark was not run on that tool. A value of
 `2` indicates that the tool encountered an error (typically OOM, but more
 information may be found in the log files). All other values indicate the
-experiment's running time in milliseconds.
+experiment's running time in milliseconds. A negative value indicates that the
+tool terminated, but gave an incorrect verdict.
 
 For the table in Appendix D3, invoke
 
