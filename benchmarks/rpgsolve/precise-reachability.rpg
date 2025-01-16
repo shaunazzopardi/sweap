@@ -1,0 +1,19 @@
+type Buechi
+
+output y  Int
+output x  Int
+
+loc l0_q1 1 ; Loc 0
+loc l1_q2 1 ; Loc 1
+loc l2_q3 0 ; Loc 2
+loc l3_q4 0 ; Loc 3
+loc l4_q5 0 ; Loc 4
+
+init l2_q3
+
+trans l0_q1 sys( ((x (+ x 1))(y (+ y x))) l0_q1 ((x (+ x 1))) l0_q1 ((y (+ y x))) l0_q1 () l0_q1 )
+trans l1_q2 sys( ((x (+ x 1))(y (+ y x))) l1_q2 )
+trans l2_q3 if (= x 1) then sys( ((x (+ x 1))(y (+ y x))) l3_q4 ((x (+ x 1))) l3_q4 ) else sys( ((x (+ x 1))(y (+ y x))) l0_q1 ((x (+ x 1))) l0_q1 ((y (+ y x))) l0_q1 () l0_q1 )
+trans l3_q4 if (>= y 1000) then sys( ((x (+ x 1))(y (+ y x))) l1_q2 ) else sys( ((x (+ x 1))(y (+ y x))) l3_q4 )
+trans l4_q5 sys( () l4_q5 )
+

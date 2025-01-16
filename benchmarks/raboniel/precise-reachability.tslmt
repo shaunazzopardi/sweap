@@ -1,0 +1,17 @@
+//-- State:  x, y
+
+assume{
+    (eq x i1());
+}
+
+guarantee {
+
+    (eq x i1());
+    
+    G ([x <- (add x i1())]);
+
+    X G ([y <- (add y x)]);
+
+    X F (ge y i1000());
+     
+ }

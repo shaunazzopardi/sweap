@@ -1,0 +1,21 @@
+var Int x
+var Int y
+
+SPECIFICATION
+
+assume{
+    (eq x i1());
+}
+
+guarantee {
+
+    (eq x i1());
+    
+    G ([x <- (add x i1())]);
+
+    X G ([y <- (add y x)]);
+
+    X F (gte y i1000());
+     
+ }
+

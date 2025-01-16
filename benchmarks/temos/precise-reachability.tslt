@@ -1,0 +1,18 @@
+#LIA
+//-- State:  x, y
+
+assume{
+    (eq x int1());
+}
+
+guarantee {
+
+    (eq x int1());
+    
+    G ([x <- (add x int1())]);
+
+    X G ([y <- (add y x)]);
+
+    X F (gte y int1000());
+     
+ }
