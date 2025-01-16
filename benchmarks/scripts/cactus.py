@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import polars as pl
 import seaborn as sns
+import matplotlib as mpl
+from itertools import cycle
 
 TIMEOUT = 1200000
-FILENAME = "infinitestate-stela.csv"
+FILENAME = "../../newnew.csv"
+# FILENAME = "infinitestate-stela.csv"
 # sns.set_theme("notebook")
 
 
@@ -16,10 +19,11 @@ legend = {
     "sweap": "Our tool (synthesis)",
     "sweap-noacc": "Our tool, lazy (synthesis)",
     "raboniel": "Raboniel (synthesis)",
-    "temos": "Temos (synthesis)",
-    "rpgsolve": "Rpgsolve (realizability)",
     "rpgsolve-syn": "Rpgsolve (synthesis)",
-    "rpg-stela": "Rpg-stela (realizability)",
+    "temos": "Temos (synthesis)",
+    "rpg-stela": "Rpg-stela (realisability)",
+    "rpgsolve": "Rpgsolve (realisability)",
+    "tslmt2rpg": "tslmt2rpg (realisability)"
 }
 
 def cum_sum(tool_name: str):
@@ -60,23 +64,100 @@ for df in dataframes[1:]:
 
 print(joined)
 
+## Easiest 20 instances
+easy_df = joined.limit(20)
+plot_easy = sns.lineplot(
+    data=easy_df.drop("instances").to_pandas(),
+    markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5)
+
+# for ln, style in zip(plot_easy.lines, [x["line"] for x in style.values()]):
+#     ln.set_linestyle(style)
+# plot_easy.legend()
+
+# Some black magic to sort & add headers to our legend
+dummy = mpl.lines.Line2D([], [], color="none")
+handles, labels = plot_easy.get_legend_handles_labels()
+zipped = list(zip(handles, labels))
+
+# Save styles for later
+styles = {lbl: line2d for line2d, lbl in zipped}
+def sort(handle_label):
+    _, label = handle_label
+    return ("realisability" in label, label)
+
+zipped = sorted(zipped, key=sort)
+handles, labels = (list(x) for x in zip(*zipped))
+labels = [x.replace(" (realisability)", "").replace(" (synthesis)", "") for x in labels]
+handles.insert(0, dummy)
+labels.insert(0, "$\\bf{Synthesis}$")
+
+handles.insert(6, dummy)
+labels.insert(6, "")
+handles.insert(6, dummy)
+labels.insert(6, "$\\bf{Realisability}$")
+
+plot_easy.legend(handles, labels, ncol=2)
+
+
+
+
+
+plot_easy.set_title("Behaviour on first 20 solved instances")
+plot_easy.set(xlabel="Instances solved")
+plot_easy.set(ylabel="Time (s)")
+plot_easy.set(yscale='log')
+plot_easy.set(xticks=[1,5,10,15,20])
+
+
+fig = plot_easy.get_figure()
+fig.tight_layout()
+fig.savefig("cactus-easy.png", dpi=300)
+
+fig.clear()
 
 real_df = (
     joined
-    .drop(*(legend[x] for x in ("raboniel", "temos", "rpgsolve-syn"))))
-real_df = real_df.rename({
-        x: x.replace(" (realizability)", "")
-        for x in real_df.columns})
+    .drop(*(name for name in legend.values() if "(realisability)" not in name and "Our tool" not in name)))
 
 
-plot = sns.lineplot(
+plot_real = sns.lineplot(
     data=real_df.drop("instances").to_pandas(),
-    markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5,
-    )
-plot.get_legend().set_title("Realizability")
-plot.set(xlabel="Instances solved")
-plot.set(ylabel="Time (s)")
-fig = plot.get_figure()
+    markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5)
+
+# Keep line styles consistent
+handles, labels = plot_real.get_legend_handles_labels()
+
+linestyles = {
+    legend["sweap"]: "-",
+    legend["sweap-noacc"]: "--",
+    legend["raboniel"]: ":",
+    legend["temos"]: "-.",
+    legend["rpgsolve"]: "--",
+    legend["rpgsolve-syn"]: "-",
+    legend["rpg-stela"]: "-.",
+    legend["tslmt2rpg"]: "-."
+}
+for i, tool in enumerate(real_df.drop("instances").columns):
+    for ln in (plot_real.lines[i], handles[i]):
+        ln.set_color(styles[tool].get_color())
+        ln.set_linestyle(linestyles[tool])
+        ln.set_marker(styles[tool].get_marker())
+# labels = [x.replace(" (realisability)", "") for x in labels]
+
+# Sort legend alphabetically
+zipped = sorted(zip(handles, labels), key=lambda x: x[1])
+handles, labels = zip(*zipped)
+
+plot_real.legend(handles, labels)
+
+
+
+plot_real.set_title("Realisability")
+plot_real.set(xlabel="Instances solved")
+plot_real.set(ylabel="Time (s)")
+
+
+fig = plot_real.get_figure()
 fig.tight_layout()
 fig.savefig("cactus-real.png", dpi=300)
 
@@ -85,35 +166,35 @@ fig.clear()
 
 syn_df = (
     joined
-    .drop(*(legend[x] for x in ("rpg-stela", "rpgsolve")))
-    .rename({
-        x: x.replace(" (synthesis)", "")
-        for x in joined.columns}))
+    .drop(*(name for name in legend.values() if "(synthesis)" not in name)))
 
 plot_syn = sns.lineplot(
     data=syn_df.drop("instances").to_pandas(),
     markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5)
-plot_syn.get_legend().set_title("Synthesis")
+plot_syn.set_title("Synthesis")
 plot_syn.set(xlabel="Instances solved")
 plot_syn.set(ylabel="Time (s)")
+
+
+# Keep line styles consistent
+handles, labels = plot_syn.get_legend_handles_labels()
+for i, tool in enumerate(syn_df.drop("instances").columns):
+    for ln in (plot_syn.lines[i], handles[i]):
+        ln.set_color(styles[tool].get_color())
+        ln.set_linestyle(linestyles[tool])
+        # ln.set_linestyle(styles[tool].get_linestyle())
+        ln.set_marker(styles[tool].get_marker())
+labels = [x.replace(" (realisability)", "").replace(" (synthesis)", "") for x in labels]
+# Sort legend alphabetically
+zipped = sorted(zip(handles, labels), key=lambda x: x[1])
+handles, labels = zip(*zipped)
+plot_syn.legend(handles, labels)
+
 fig = plot_syn.get_figure()
 fig.tight_layout()
 fig.savefig("cactus-syn.png", dpi=300)
 
 
-fig.clear()
-easy_df = joined.limit(20)
-
-plot_easy = sns.lineplot(
-    data=easy_df.drop("instances").to_pandas(),
-    markers=True, markeredgecolor=None, markeredgewidth=1, markersize=5)
-plot_easy.set(xlabel="Instances solved")
-plot_easy.set(ylabel="Time (s)")
-plot_easy.set(yscale='log')
-plot_easy.set(xticks=[1,5,10,15,20])
-fig = plot_easy.get_figure()
-fig.tight_layout()
-fig.savefig("cactus-easy.png", dpi=300)
 
 
 

@@ -144,7 +144,7 @@ out_files = {t: list(Path(base_dir).glob(f"out-{t}-[0-9]*")) for t in tools}
 STATS = {t: defaultdict(int) for t in tools}
 
 
-def get_result(tool, tool_info, bench, bench_info, files):
+def get_result(tool, tool_info, bench, bench_info):
     result = None
     try:
         for name in (bench, *aliases.get(bench, [])):
@@ -152,6 +152,8 @@ def get_result(tool, tool_info, bench, bench_info, files):
             if log:
                 break
         if not log:
+            if tool == "tslmt2rpg":
+                return get_result("rpgsolve", tools["rpgsolve"], bench, bench_info)
             return 1
         with open(log[0], "r") as log_file:
             raw_result = log_file.read()
@@ -163,16 +165,12 @@ def get_result(tool, tool_info, bench, bench_info, files):
                 else (tool_info.unreal, tool_info.real)
             )
             if right_match.search(raw_result):
-                STATS[tool]["right"] += 1
                 result = runtime
             elif wrong_match.search(raw_result):
-                STATS[tool]["wrong"] += 1
                 result = -runtime
             else:
-                STATS[tool]["err"] += 1
                 result = 2
         else:
-            STATS[tool]["to"] += 1
             result = runtime
         # else:
         #     raise ValueError(f"{bench=}, {tool=} [no runtime]")
@@ -189,11 +187,15 @@ for benchs in (infinite_benchs,):
         row = [i, b]
         bench_info = benchs[b]
         for tool, tool_info in tools.items():
-            result = None
-            if  False: #not out_files.get(tool, []):
-                result = 1
-            else:
-                result = get_result(tool, tool_info, b, bench_info, out_files[tool])
+            result = get_result(tool, tool_info, b, bench_info)
+            if result > 2 and result < timeout:
+                STATS[tool]["right"] += 1
+            elif result == 2:
+                STATS[tool]["err"] += 1
+            elif result >= timeout:
+                STATS[tool]["to"] += 1
+            elif result < 0:
+                STATS[tool]["wrong"] += 1
             row.append(result)
         writer.writerow(row)
     print()
