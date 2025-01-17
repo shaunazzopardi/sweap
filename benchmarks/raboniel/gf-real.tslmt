@@ -1,0 +1,12 @@
+//-- State:  x
+//-- Inputs: e
+
+
+guarantee {
+
+    [x <- e];
+
+    X G [x <- add x i1()];    
+
+    G F (gt x i10000());
+}

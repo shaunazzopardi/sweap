@@ -1,0 +1,15 @@
+#LIA
+//-- State:  x
+//-- Inputs: e
+
+
+guarantee {
+
+    [x <- e];
+
+    X G [x <- add x int1()];
+
+    G F (gt x int10000());
+}
+
+
