@@ -67,7 +67,7 @@ infinite_benchs = {
     "arbiter": True,
     "arbiter-unreal": False,
     "reversible-lane-r": True,
-    "xyloop": True,
+    "robot-tasks": True,
     "arbiter-with-failure": True,
     "neider-square-5x5": True,
     "robot-resource-1d": False,
@@ -96,7 +96,8 @@ infinite_benchs = {
     "ordered-visits": True,
     "sort4": True,
     "sort5": True,
-    "tasks": True
+    "tasks": True,
+    "precise-reachability": True
 }
 
 finite_benchs = {
@@ -118,7 +119,7 @@ aliases = {
     "evasion": ("neider-evasion", ),
     "follow": ("neider-follow", ),
     "solitary": ("neider-solitary", ),
-    "arbiter": ("arbiter-paper", ),
+    "arbiter": ("arbiter-paper", "batch-arbiter"),
     "arbiter-unreal": ("arbiter-paper-unreal", ),
     "square": ("neider-square5x5", "square5x5"),
     "robot_analyze_samples": ("robot_analyze_samples_v1", ),
@@ -152,6 +153,9 @@ def get_result(tool, tool_info, bench, bench_info):
             if log:
                 break
         if not log:
+            # Some benchmarks for this are not available in tslmt format
+            # So we use the time from rpgsolve and assume the "translation"
+            # time to be null
             if tool == "tslmt2rpg":
                 return get_result("rpgsolve", tools["rpgsolve"], bench, bench_info)
             return 1
