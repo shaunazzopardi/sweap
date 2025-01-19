@@ -63,10 +63,12 @@ The script will tabulate in CSV format all results found in the directory
 passed as its argument (`benchmarks`, in this case). It will report a unique
 id, the name of the benchmark, and a numeric value for each tool.
 
-A value of `1` denotes that the benchmark was not run on that tool. A value of
-`2` indicates that the tool encountered an error (typically OOM, but more
-information may be found in the log files). All other values indicate the
-experiment's running time in milliseconds. A negative value indicates that the
+A value of `0` denotes that the benchmark was not run on that tool. A value of
+`1` indicates that the tool encountered an error (typically OOM, but more
+information may be found in the log files). All other positive values indicate the
+experiment's running time in milliseconds;
+values greater than 1200000 (i.e., 20 minutes) denote a timeout.
+A negative value indicates that the
 tool terminated, but gave an incorrect verdict.
 
 For the table in Appendix D3, invoke
@@ -82,7 +84,7 @@ abstraction (i.e., before either solution or timeout/OOM).
 
 We are aware that the contents of this CSV may differ from those in our
 manuscript, especially for experiments that time out. A faster machine than
-ours may still time out, but perform more refinement and thus add a higher
+ours may still time out, but perform more refinements and thus add a higher
 number of predicates to the abstraction.
 
 ## Appendix. System configuration
@@ -90,14 +92,13 @@ number of predicates to the abstraction.
 We applied the following changes to our OS, to make performance more uniform
 (and typically better). We ran these commands on Ubuntu 22.04 but similar
 ones should be available on most Linux OSs.
+**Some of these operations may require superuser privileges.**
 
 ```bash
 # Force OS to only swap when memory is full
-$ sudo sysctl vm.swappiness=0
+$ sysctl vm.swappiness=0
 # Force a high-performance frequency governor on all CPU cores
 $ for ((i=0;i<$(nproc);i++)); do sudo cpufreq-set -c $i -r -g performance; done
 # Disable simultaneous multithreading (Hyper-Threading)
-# This requires getting super-user permissions
-$ sudo bash
 $ echo off > /sys/devices/system/cpu/smt/control
 ```
