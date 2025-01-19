@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
+import sys
+
 import polars as pl
 import seaborn as sns
 import matplotlib as mpl
-from itertools import cycle
 
 TIMEOUT = 1200000
-FILENAME, is_old_dataset = "../../newnew.csv", False
-# FILENAME, is_old_dataset = "infinitestate-stela.csv", True
+if len(sys.argv) < 2:
+    print("Usage: ./cactus.py <file.csv>")
+    sys.exit(1)
+FILENAME = sys.argv[1]
+FORMAT = "png"
+
 exclude_full_ltl = False
 lineplot_config = dict(
-    markers="osdPso^X", markersize=6
+    markers="osdPso^XX", markersize=5
 )
 
 
@@ -26,7 +31,8 @@ legend = {
     "temos": "Temos (synthesis)",
     "rpg-stela": "Rpg-stela (realisability)",
     "rpgsolve": "Rpgsolve (realisability)",
-    "tslmt2rpg": "tslmt2rpg (realisability)"
+    "tslmt2rpg": "tslmt2rpg (realisability)",
+    "tslmt2rpg-syn": "tslmt2rpg (synthesis)"
 }
 
 linestyles = {
@@ -37,7 +43,8 @@ linestyles = {
     legend["rpgsolve-syn"]: "-",
     legend["rpgsolve"]: ":",
     legend["rpg-stela"]: ":",
-    legend["tslmt2rpg"]: ":"
+    legend["tslmt2rpg"]: ":",
+    legend["tslmt2rpg-syn"]: "--"
 }
 
 full_ltl_benchs = (
@@ -114,12 +121,15 @@ labels = [x.replace(" (realisability)", "").replace(" (synthesis)", "") for x in
 handles.insert(0, dummy)
 labels.insert(0, "$\\bf{Synthesis}$")
 
-handles.insert(6, dummy)
-labels.insert(6, "")
-handles.insert(6, dummy)
-labels.insert(6, "$\\bf{Realisability}$")
+# handles.insert(6, dummy)
+# labels.insert(6, "")
+handles.insert(4, dummy)
+labels.insert(4, "$\\bf{Synthesis}$")
 
-plot_easy.legend(handles, labels, ncol=2)
+handles.insert(8, dummy)
+labels.insert(8, "$\\bf{Realisability}$")
+
+plot_easy.legend(handles, labels, ncol=3)
 
 plot_easy.set_title(f"Behaviour on first 20 solved instances{' (excl. novel LTL instances)' if exclude_full_ltl else ''}")
 plot_easy.set(xlabel="Instances solved")
@@ -130,13 +140,17 @@ plot_easy.set(xticks=[1,5,10,15,20])
 
 fig = plot_easy.get_figure()
 fig.tight_layout()
-fig.savefig("cactus-easy.pdf", dpi=300)
+fig.savefig(f"cactus-easy.{FORMAT}", dpi=300)
 
 fig.clear()
 
 real_df = (
     joined
-    .drop(*(name for name in legend.values() if "(realisability)" not in name and "Our tool" not in name)))
+    .drop(*(
+        name for name in legend.values()
+        if name in joined.columns and 
+        "(realisability)" not in name and
+        "Our tool" not in name)))
 
 
 plot_real = sns.lineplot(
@@ -168,7 +182,7 @@ plot_real.set(ylabel="Time (s)")
 
 fig = plot_real.get_figure()
 fig.tight_layout()
-fig.savefig("cactus-real.pdf", dpi=300)
+fig.savefig(f"cactus-real.{FORMAT}", dpi=300)
 
 ## Synthesis results
 fig.clear()
@@ -199,7 +213,7 @@ plot_syn.legend(handles, labels)
 
 fig = plot_syn.get_figure()
 fig.tight_layout()
-fig.savefig("cactus-syn.pdf", dpi=300)
+fig.savefig(f"cactus-syn.{FORMAT}", dpi=300)
 
 
 
@@ -207,4 +221,4 @@ fig.savefig("cactus-syn.pdf", dpi=300)
 
 # fig = plot.get_figure()
 # fig.tight_layout()
-# fig.savefig("cactus-log.pdf", dpi=300)
+# fig.savefig(f"cactus-log.{FORMAT}", dpi=300)
