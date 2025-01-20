@@ -8,11 +8,15 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Optional, Sequence
 from collections import defaultdict, Counter
+from itertools import product
 
 OUT_CSV = "results.csv"
 OUT_LATEX = "table-results.tex"
+LTL_LATEX = "table-ltl.tex"
 REF_LATEX = "table-refinements.tex"
 SUMM_LATEX = "table-summ.tex"
+bullet = r"$\bullet$"
+
 timeout = 1200000
 
 @dataclass
@@ -358,8 +362,7 @@ def do_latex_body(benchs, title, double_hline_at_end=True):
             best = min(positive_results, key=positive_results.get)
             r[best] = f"\\textbf{{{r[best]}}}"
         fmt_r = " & ".join(r.values())
-        bullet = "" if is_realizable else r"$\bullet$"
-        yield rf"& {b.replace('_', '-')} & {bullet} & {fmt_r} \\"
+        yield rf"& {b.replace('_', '-')} & {'' if is_realizable else bullet} & {fmt_r} \\"
         yield '\n'
     yield "\hline\hline\n" if double_hline_at_end else "\hline\n"
 
@@ -379,6 +382,40 @@ with open(OUT_LATEX, "w") as latex:
     latex.write(r"\end{tabular}")
     latex.write("\n")
 
+with open(LTL_LATEX, "w") as latex:
+    latex.write(dedent(rf"""
+        \begin{{tabular}}{{|c|c|c||c|c|c|c|c|c||c|}}
+        \hline
+        \multirow{{2}}{{*}}{{Name}} 
+        & \multirow{{2}}{{*}}{{U}}
+        & \multirow{{2}}{{*}}{{acc}} 
+        & \multicolumn{{2}}{{c|}}{{init}}
+        & \multicolumn{{2}}{{c|}}{{ref}}
+        & \multicolumn{{2}}{{c||}}{{add}}
+        & \multirow{{2}}{{*}}{{time}}\\\cline{{4-9}}
+        & & & s & t &sf. &sl. & sp & tp & \\\hline
+        """[1:]))
+    for b in ltl_benchs:
+        latex.write(dedent(rf"""
+            \hline
+            \multirow{{2}}{{*}}{{{b.replace("_", "-")}}} & \multirow{{2}}{{*}}{{{"" if ltl_benchs[b] else bullet}}} &
+            """[1:]))
+        best = min(("sweap", "sweap-noacc"), key=results[b].get)
+        
+        for tool in ("sweap", "sweap-noacc"):
+            init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[b][tool]
+            latex.write(dedent(rf"""
+                {bullet if tool == 'sweap' else '&&'}
+                & {init_st} & {init_tr} & {count_fair_ref} & {count_safe_ref} & {add_st} & {add_tr} & """[1:]))
+            latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
+            latex.write(r"\\\cline{3-10}" if tool == "sweap" else r"\\\hline")
+            latex.write("\n")
+
+    latex.write("\n")
+    latex.write(r"\end{tabular}")
+    latex.write("\n")
+
+
 
 # Refinements #################################################################
 with open(REF_LATEX, "w") as latex:
@@ -391,7 +428,6 @@ with open(REF_LATEX, "w") as latex:
         \multicolumn{1}{|c||}{Name} & acc & s & t &sf. &sl. & sp & tp\\\hline\hline""")
     all_keys = sorted(refinements.keys())
     keys_1, keys_2 = all_keys[:len(all_keys)//2], all_keys[len(all_keys)//2:]
-    bullet = r"$\bullet$"
     for keys in (keys_1, keys_2):
         latex.write(begin_tabular)
         for k in keys:
@@ -458,15 +494,16 @@ with open(SUMM_LATEX, "w") as latex:
     not_our_tools=[t for t in summ_tools if "sweap" not in t]
 
     latex.write(dedent(rf"""
-    \begin{{tabular}}{{|c|p{{5em}}||{"|".join("c" for _ in not_our_tools)}||c|c|}}\hline
-    \multicolumn{{2}}{{|c||}}{{Results (out of {len(infinite_benchs)-len(ltl_benchs)})}} & {header} \\\hline
-    \multirow{{3}}{{*}}{{Synthesis}}
-        & \# solved & {fmt_syn_solved}\\
-        & \# best & {fmt_syn_best}\\
-        & \# unique & {fmt_syn_uniq}\\\hline
-    \multirow{{3}}{{*}}{{Realisability}}
-        & \# solved & {fmt_r11y_solved}\\
-        & \# best & {fmt_r11y_best}\\
-        & \# unique & {fmt_r11y_uniq}\\\hline
+    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in not_our_tools)}||c|c|}}\hline
+    Synthesis & {header} \\\hline
+        solved & {fmt_syn_solved}\\
+        best & {fmt_syn_best}\\
+        unique & {fmt_syn_uniq}\\\hline
+    \end{{tabular}}\\
+    \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in not_our_tools)}||c|c|}}\hline
+    Realisability & {header} \\\hline
+        solved & {fmt_r11y_solved}\\
+        best & {fmt_r11y_best}\\
+        unique & {fmt_r11y_uniq}\\\hline
     \end{{tabular}}
     """))
