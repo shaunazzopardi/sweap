@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 import csv
 import re
+from subprocess import CalledProcessError, check_output
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from textwrap import dedent
+from typing import Optional, Sequence
 from collections import defaultdict, Counter
 
 OUT_CSV = "results.csv"
-OUT_LATEX = "results.tex"
+OUT_LATEX = "table-results.tex"
+REF_LATEX = "table-refinements.tex"
+SUMM_LATEX = "table-summ.tex"
 timeout = 1200000
 
 @dataclass
 class ToolInfo:
     name: str
-    ext: str
     latex_name: str
     real: re.Pattern
     unreal: re.Pattern
@@ -41,17 +44,17 @@ class CheckMissing:
         return self.s not in string
 
 tools = {
-    "raboniel": ToolInfo(name="raboniel", ext="tslmt", latex_name="R", real=raboniel_real_re, unreal=raboniel_unreal_re, err=CheckMissing("Result")),
-    "temos": ToolInfo(name="temos", ext="tslt", latex_name="T", real=strix_real_re, unreal=strix_unreal_re),
-    "rpgsolve": ToolInfo(name="rpgsolve", ext="rpg", latex_name="RPG$_r$", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
-    "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", ext="rpg", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
-    "sweap": ToolInfo(name="sweap", ext="prog", latex_name=r"O$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
-    "sweap-noacc": ToolInfo(name="sweap-noacc", ext="prog", latex_name=r"O", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
-    "rpg-stela": ToolInfo(name="rpg-stela", ext="rpg", latex_name="RSt$_r$", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
-    "tslmt2rpg": ToolInfo(name="tslmt2rpg", ext="rpg", latex_name="T2R$_r$", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re),
-    "tslmt2rpg-syn": ToolInfo(name="tslmt2rpg-syn", ext="rpg", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
+    "raboniel": ToolInfo(name="raboniel", latex_name="Rab", real=raboniel_real_re, unreal=raboniel_unreal_re, err=CheckMissing("Result")),
+    "temos": ToolInfo(name="temos", latex_name="Tem", real=strix_real_re, unreal=strix_unreal_re),
+    "rpgsolve": ToolInfo(name="rpgsolve", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
+    "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
+    "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
+    "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
+    "tslmt2rpg": ToolInfo(name="tslmt2rpg", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re),
+    "tslmt2rpg-syn": ToolInfo(name="tslmt2rpg-syn", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
 }
-# These dictionaries map each benchmark 
+# These dictionaries map each benchmark
 # to its expected realisability (True<->realisable)
 safety_benchs_popl24 = {
     "box": True,
@@ -109,7 +112,6 @@ ltl_benchs = {
 }
 
 buechi_benchs_popl25 = {
-    "infinite-race": True,
     "buffer-storage": True,
     "ordered-visits": True,
     "sort4": True,
@@ -132,6 +134,7 @@ infinite_benchs = {
 other_benchs = {
     "repeated-robot-resource-1d": True,
     "heim-normal": True,
+    "infinite-race": True,
 }
 
 finite_benchs = {
@@ -161,8 +164,8 @@ aliases = {
     "rep-reach-obst-1d": ("robot-grid-reach-repeated-with-obstacles-1d", ),
     "rep-reach-obst-2d": ("robot-grid-reach-repeated-with-obstacles-2d", ),
     "robot_analyze": ("robot_analyze_samples", "robot_analyze_samples_v1", ),
-    "robot-commute-1d": ("robot-grid-comute-1d"),
-    "robot-commute-2d": ("robot-grid-comute-2d"),
+    "robot-commute-1d": ("robot-grid-comute-1d", ),
+    "robot-commute-2d": ("robot-grid-comute-2d", ),
     "solitary": ("neider-solitary", ),
     "square": ("neider-square5x5", "neider-square-5x5", "square5x5"),
     **{f"chain-{i}": (f"chain_{i}", ) for i in (4, 5, 6, 7)},
@@ -182,6 +185,43 @@ base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
 
 STATS = {t: defaultdict(int) for t in tools}
 
+def get_refinements(fname):
+    def shell(cmd):
+        return check_output(cmd, shell=True, encoding="utf-8")
+    def handle_predicates_line(line):
+        preds = (
+            line.
+            strip().
+            replace("adding ", "").
+            replace(" to predicate abstraction", "").
+            split(", "))
+        preds = [p for p in preds if p]
+        tr = sum(1 for p in preds if "_prev" in p)
+        st = len(preds) - tr
+        return st, tr
+
+    init_preds = shell(
+        f"""grep -A1 "Starting abstract synthesis loop." {fname} | tail -n1""")
+    init_st, init_tr = handle_predicates_line(init_preds)
+
+    try:
+        all_pred_lines = shell(f"""grep "^adding" {fname}""").split("\n")
+        all_pred_lines = [handle_predicates_line(x) for x in all_pred_lines if x]
+    except CalledProcessError:
+        all_pred_lines = []
+    add_st, add_tr = 0, 0
+    count_fair_ref, count_safe_ref = 0, 0
+    if len(all_pred_lines):
+        all_st, all_tr = zip(*all_pred_lines)
+        add_st, add_tr = sum(all_st) - init_st, sum(all_tr) - init_tr
+
+        count_fair_ref = shell(
+            f"""grep "Structural Refinement" {fname} | wc -l""").strip()
+        count_safe_ref = shell(
+            f"""grep "safety refinement" {fname} | wc -l""").strip()
+    return init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr
+
+
 def get_result(tool, tool_info, bench, bench_info):
     result = None
     for name in (bench, *aliases.get(bench, [])):
@@ -195,9 +235,12 @@ def get_result(tool, tool_info, bench, bench_info):
             # and assume the "translation" time from tslmt to be zero
             return get_result("rpgsolve", tools["rpgsolve"], bench, bench_info)
         if tool == "tslmt2rpg-syn":
-            return get_result("rpgsolve", tools["rpgsolve-syn"], bench, bench_info)
+            return get_result("rpgsolve-syn", tools["rpgsolve-syn"], bench, bench_info)
         # 0 means no log found
         return 0
+    if tool in ("sweap", "sweap-noacc"):
+        refinements[b][tool] = get_refinements(log[0])
+
     with open(log[0], "r") as log_file:
         raw_result = log_file.read()
     runtime = int(raw_result.splitlines()[-1])
@@ -210,6 +253,9 @@ def get_result(tool, tool_info, bench, bench_info):
             else (tool_info.unreal, tool_info.real))
         # Time is positive/negative if verdict was correct/incorrect
         if right_match.search(raw_result):
+            if tool == "temos" and not bench_info.real:
+                # Temos' unrealizability verdicts cannot be trusted
+                return 1
             result = max(runtime, 2)
         elif wrong_match.search(raw_result):
             result = -runtime
@@ -223,16 +269,17 @@ def get_result(tool, tool_info, bench, bench_info):
         raise ValueError(f"{bench=}, {tool=}")
     return result
 
-writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
-latex = """
-    \begin{tabular}{lfff}
-"""
 
 results = defaultdict(dict)
+refinements = defaultdict(dict)
 
-def update_stats(result: int, tool: str):
+def update_stats(result: int, tool: str, bench: str):
     if 1 < result < timeout:
-        STATS[tool]["right"] += 1
+        if tool == "temos" and not infinite_benchs[b]:
+            # Temos' unrealizability verdicts cannot be trusted
+            STATS[tool]["err"] += 1
+        else:
+            STATS[tool]["right"] += 1
     elif result == 1:
         STATS[tool]["err"] += 1
     elif result >= timeout:
@@ -240,100 +287,133 @@ def update_stats(result: int, tool: str):
     elif result < 0:
         STATS[tool]["wrong"] += 1
 
-for benchs in (infinite_benchs,):
+with open(OUT_CSV, 'w', newline='') as csv_file:
+    writer = csv.writer(csv_file, dialect="excel", lineterminator="\n")
     writer.writerow(["row-id", "benchmark", *tools])
-    for i, b in enumerate(benchs, start=2):
+    for i, b in enumerate(infinite_benchs, start=2):
+        print(i-1, b, "...", file=sys.stderr)
         row = [i, b]
-        bench_info = benchs[b]
+        bench_info = infinite_benchs[b]
         for tool, tool_info in tools.items():
             result = get_result(tool, tool_info, b, bench_info)
             results[b][tool] = result
-            update_stats(result, tool)
+            update_stats(result, tool, b)
             row.append(result)
         writer.writerow(row)
-    print()
-    print(STATS, file=sys.stderr)
 
+print(STATS, file=sys.stderr)
+
+# Results (latex) #############################################################
 latex_order = (
     "rpgsolve", "tslmt2rpg", "rpg-stela",
     "rpgsolve-syn", "tslmt2rpg-syn",
-    "raboniel", "temos", 
+    "raboniel", "temos",
     "sweap", "sweap-noacc")
 fmt_names = " & ".join(tools[x].latex_name for x in latex_order)
 
+
 latex_header = rf"""
 \begin{{tabular}}{{|c|c|c||c|c|c||c|c|c|c||c|c|}}\hline
-G. & Name & U & {fmt_names}\\\hline
+\multirow{{2}}{{*}}{{G.}}
+& \multirow{{2}}{{*}}{{Name}}
+& \multirow{{2}}{{*}}{{U}}
+& \multicolumn{{3}}{{c||}}{{Realisability}}
+& \multicolumn{{6}}{{c|}}{{Synthesis}}\\\cline{{4-12}}
+& & & {fmt_names}\\\hline\hline
 """
-
 
 def fmt_result(x: int, real: bool=False):
     if x == 0:
         return ""
     if x == 1:
-        return "ERR"
+        return r"\ERROR"
     if x < 0:
         return r"\textsf{x}"
     if x >= timeout:
-        return "--"
+        return r"\TIMEOUT"
     return f"{x/1000:.2f}{'$_r$' if real else ''}"
 
 
 syn_tools = ("raboniel", "temos", "rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
 r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap_noacc")
 
-def do_latex_body(benchs, title):
+def do_latex_body(benchs, title, double_hline_at_end=True):
     yield rf"\multirow{{{len(benchs)}}}{{*}}{{\rotatebox[origin=c]{{90}}{{{title}}}}}"
     yield '\n'
     for b, is_realizable in benchs.items():
 
         # Sort & Format results for this benchmark b
-        r = {x: fmt_result(results[b][x], x in r11y_tools) for x in latex_order}
+        r = {x: fmt_result(results[b][x], False) for x in latex_order}
 
         # Temos' unrealizability verdicts cannot be trusted
         if not is_realizable and 1 < results[b].get("temos", 0) < timeout:
-            r["temos"] = "unk"
+            r["temos"] = r"\ERR"
 
         # Highlight best (synthesis) time
         positive_results = {
             tool: results[b][tool]
-            for tool in latex_order if results[b][tool] > 2}
+            for tool in latex_order
+            if tool in syn_tools and results[b][tool] > 2}
         if positive_results:
             best = min(positive_results, key=positive_results.get)
             r[best] = f"\\textbf{{{r[best]}}}"
-
-        # Replace with realizability time if synthesis failed
-        # if not (2 < results[b]["rpgsolve-syn"] < timeout):
-        #     r["rpgsolve-syn"] = fmt_result(results[b]["rpgsolve"], True)
-        # if not (2 < results[b]["tslmt2rpg-syn"] < timeout):
-        #     r["tslmt2rpg-syn"] = fmt_result(results[b]["tslmt2rpg"], True)
-        # Yield formatted value
         fmt_r = " & ".join(r.values())
         bullet = "" if is_realizable else r"$\bullet$"
         yield rf"& {b.replace('_', '-')} & {bullet} & {fmt_r} \\"
         yield '\n'
-    yield "\hline\hline\n"
+    yield "\hline\hline\n" if double_hline_at_end else "\hline\n"
 
 
-# latex = sys.stdout
-with open("table.tex", "w") as latex:
+with open(OUT_LATEX, "w") as latex:
     latex.write(latex_header)
-    latex.writelines(do_latex_body(safety_benchs_popl24, "Safety"))
-    latex.writelines(do_latex_body(reach_benchs_popl24, "Reachability"))
-    latex.writelines(do_latex_body(buechi_benchs_popl24, r"""Det. B\"uchi"""))
-    latex.writelines(do_latex_body(buechi_benchs_cav24, r"""Det. B\"uchi, CAV'24"""))
-    latex.writelines(do_latex_body(buechi_benchs_popl25, "POPL'25"))
-    latex.writelines(do_latex_body(ltl_benchs, "Full LTL"))
+    for benchs, title, double_hline in (
+        (safety_benchs_popl24,  "Safety",                       True),
+        (reach_benchs_popl24,   "Reachability",                 True),
+        (buechi_benchs_popl24,  r"""Det. B\"uchi""",            True),
+        (buechi_benchs_cav24,   r"""Det. B\"uchi, CAV'24""",    True),
+        (buechi_benchs_popl25,  "POPL'25",                      True),
+        (ltl_benchs,            "Full LTL",                     False)
+    ):
+        latex.writelines(do_latex_body(benchs, title, double_hline))
     latex.write("\n")
     latex.write(r"\end{tabular}")
     latex.write("\n")
 
 
-# Compute best/unique times
+# Refinements #################################################################
+with open(REF_LATEX, "w") as latex:
+    begin_tabular = dedent(r"""
+        \begin{tabular}[t]{|l||c||c|c|c|c|c|c||}
+        \hline
+        && \multicolumn{2}{c|}{init}
+        & \multicolumn{2}{c|}{ref}
+        & \multicolumn{2}{c||}{add}\\\hline
+        \multicolumn{1}{|c||}{Name} & acc & s & t &sf. &sl. & sp & tp\\\hline\hline""")
+    all_keys = sorted(refinements.keys())
+    keys_1, keys_2 = all_keys[:len(all_keys)//2], all_keys[len(all_keys)//2:]
+    bullet = r"$\bullet$"
+    for keys in (keys_1, keys_2):
+        latex.write(begin_tabular)
+        for k in keys:
+            latex.write(rf"\multirow{{2}}{{*}}[0em]{{{k.replace('_', '-')}}}")
+            latex.write("\n")
+            for tool in ("sweap", "sweap-noacc"):
+                init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[k][tool]
+                latex.write(dedent(rf"""
+                    & {bullet if tool == 'sweap' else ''}
+                    & {init_st} & {init_tr} & {count_fair_ref} & {count_safe_ref} & {add_st} & {add_tr}"""))
+                latex.write(r"\\\cline{2-8}" if tool == "sweap" else r"\\\hline")
+        latex.write("\n")
+        latex.write(r"\end{tabular}")
+
+# Agregates ###################################################################
 syn_best, syn_uniq, r11y_best, r11y_uniq = (Counter() for _ in range(4))
 
 for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11y_uniq, r11y_tools)):
     for b in infinite_benchs:
+        # Exclude LTL benchmarks
+        if b in ltl_benchs:
+            continue
         good_times = {
             tool: t
             for tool, t in results[b].items()
@@ -345,8 +425,48 @@ for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11
             uniq_tool, *_ = good_times.keys()
             uniq[uniq_tool] += 1
 
-print(f"{syn_best=}")
-print(f"{r11y_best=}")
-print(f"{syn_uniq=}")
-print(f"{r11y_uniq=}")
+def fmt_summ_data(summ_dict: dict, tools: Sequence[str], real: bool=False):
+    max_tool = max(summ_dict, key=summ_dict.get)
+    if real:
+        tools = [t.replace("-syn", "") for t in tools]
+    fmt_summ_dict = " & ".join(
+        rf"\textbf{{{summ_dict.get(k, 0)}}}"
+        if k == max_tool else str(summ_dict.get(k, 0))
+        for k in tools)
+    return fmt_summ_dict
 
+with open(SUMM_LATEX, "w") as latex:
+    summ_tools = ("raboniel", "rpgsolve-syn", "temos", "tslmt2rpg-syn", "sweap", "sweap-noacc")
+    header = " & ".join(tools[x].latex_name for x in summ_tools)
+
+    all_solved = {
+        t: sum(
+            int(1 < results[b][t] < timeout)
+            for b in results if b not in ltl_benchs)
+            for t in tools}
+
+    syn_solved = {t: d for t, d in all_solved.items() if t in summ_tools}
+
+    fmt_syn_solved = fmt_summ_data(syn_solved, summ_tools)
+    fmt_syn_best = fmt_summ_data(syn_best, summ_tools)
+    fmt_syn_uniq = fmt_summ_data(syn_uniq, summ_tools)
+
+    fmt_r11y_solved = fmt_summ_data(all_solved, summ_tools, real=True)
+    fmt_r11y_best = fmt_summ_data(r11y_best, summ_tools, real=True)
+    fmt_r11y_uniq = fmt_summ_data(r11y_uniq, summ_tools, real=True)
+
+    not_our_tools=[t for t in summ_tools if "sweap" not in t]
+
+    latex.write(dedent(rf"""
+    \begin{{tabular}}{{|c|p{{5em}}||{"|".join("c" for _ in not_our_tools)}||c|c|}}\hline
+    \multicolumn{{2}}{{|c||}}{{Results (out of {len(infinite_benchs)-len(ltl_benchs)})}} & {header} \\\hline
+    \multirow{{3}}{{*}}{{Synthesis}}
+        & \# solved & {fmt_syn_solved}\\
+        & \# best & {fmt_syn_best}\\
+        & \# unique & {fmt_syn_uniq}\\\hline
+    \multirow{{3}}{{*}}{{Realisability}}
+        & \# solved & {fmt_r11y_solved}\\
+        & \# best & {fmt_r11y_best}\\
+        & \# unique & {fmt_r11y_uniq}\\\hline
+    \end{{tabular}}
+    """))
