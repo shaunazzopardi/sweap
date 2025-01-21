@@ -16,6 +16,7 @@ from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars
 from prop_lang.biop import BiOp
 from prop_lang.util import neg, conjunct_formula_set, conjunct, sat, true, resolve_implications, math_exprs_in_formula
+from prop_lang.variable import Variable
 from synthesis.mealy_machine import MealyMachine
 
 existing_refinements = set()
@@ -185,6 +186,20 @@ def liveness_step(program,
      .simplify())
     exit_cond = resolve_implications(exit_cond).simplify().to_nuxmv()
 
+    # this checks that there are increments and decrements in body of loop
+    # if there are just assignments then loop refinement gives nothing informative
+    stop = True
+    for t in reduced_body:
+        breakk = False
+        for a in t:
+            if not isinstance(a.right, Variable):
+                breakk = True
+                break
+        if breakk:
+            stop = False
+            break
+    if stop:
+        return False, (None, None)
     # heuristical search for sufficient weaker precondition for termination
     sufficient_weaker_precondition = None
     conditions = []
@@ -214,8 +229,7 @@ def liveness_step(program,
 
     sufficient_entry_condition = None
 
-    reduced_body_flattened = itertools.chain.from_iterable(reduced_body)
-    reduced_body_flattened = [Transition("q0", true(), [a], [], "q0") for a in reduced_body_flattened]
+    reduced_body_no_conds = [Transition("q0", true(), acts, [], "q0") for acts in reduced_body]
 
     conf = Config.getConfig()
     for cond in conditions:
@@ -229,7 +243,7 @@ def liveness_step(program,
         success, output = find_ranking_function(symbol_table,
                                                 program,
                                                 cond,
-                                                reduced_body_flattened,
+                                                reduced_body_no_conds,
                                                 exit_cond,
                                                 add_natural_conditions)
         if not success:

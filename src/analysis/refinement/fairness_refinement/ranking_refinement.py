@@ -125,10 +125,10 @@ def ranking_refinement(ranking, invars, signatures, symbol_table, there_is_inc=T
 def find_ranking_function(symbol_table,
                           program,
                           entry_condition,
-                          unfolded_loop: [Transition],
+                          body: [Transition],
                           exit_predicate_grounded,
                           add_natural_conditions=True):
-    c_code = loop_to_c(symbol_table, program, entry_condition, unfolded_loop,
+    c_code = loop_to_c(symbol_table, program, entry_condition, body,
                        exit_predicate_grounded, add_natural_conditions)
     logging.info(c_code)
 
@@ -155,38 +155,42 @@ def loop_to_nuxmv(symbol_table, program: Program, entry_condition: Formula, loop
     raise NotImplementedError("loop_to_nuxmv not implemented yet")
 
 
-def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_before_exit: [Transition],
+def loop_to_c(symbol_table, program: Program, entry_condition: Formula, body: [Transition],
               exit_cond: Formula, add_natural_conditions=True):
     type_constraints_str = []
     # params
     params = []
+    relevant_vars = {str(vv) for t in body for vv in
+                     (t.condition.variablesin()
+                      + entry_condition.variablesin()
+                      + exit_cond.variablesin()
+                      + [act.left for act in t.action]
+                      + [a for act in t.action for a in
+                         act.right.variablesin()])}
     for v in {v.name for v in program.valuation} | set(entry_condition.variablesin()):
         if is_boolean(v, program.valuation):
             continue
 
-        relevant_vars = [str(vv) for t in loop_before_exit for vv in
-                                                                (t.condition.variablesin()
-                                                                 + entry_condition.variablesin()
-                                                                 + exit_cond.variablesin()
-                                                                 + [act.left for act in t.action]
-                                                                 + [a for act in t.action for a in
-                                                                    act.right.variablesin()])]
         if v not in relevant_vars:
             continue
 
         type = symbol_table[str(v)].type
         if type in ["natural", "nat"]:
             params.append("int " + str(v))
+            params.append("int " + str(v) + "_prev")
             type_constraints_str.append(str(v) + " >= 0 ")
         elif type in ["int", "integer"]:
             params.append("int " + str(v))
+            params.append("int " + str(v) + "_prev")
         elif re.match(r"-?[0-9]+\.\.-?[0-9]+", type):
             params.append("int " + str(v))
+            params.append("int " + str(v) + "_prev")
             lower, upper = type.split("..")[0:2]
             type_constraints_str.append(str(v) + " >= " + lower)
             type_constraints_str.append(str(v) + " <= " + upper)
         else:
             params.append(type + " " + str(v))
+            params.append(type + " " + str(v) + "_prev")
 
     param_list = ", ".join(params)
 
@@ -199,13 +203,15 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, loop_bef
         init = []
     choices = []
 
-    for t in loop_before_exit:
+    for t in body:
         safety = str(type_constraints(t.condition, symbol_table)) \
             .replace(" = ", " == ") \
             .replace(" & ", " && ") \
             .replace(" | ", " || ")
         cond_simpl = str(t.condition.simplify()).replace(" = ", " == ").replace(" & ", " && ").replace(" | ", " || ")
-        acts = "\n\t\t".join([str(act.left) + " = " + str(act.right) + ";" for act in t.action if
+        acts_prev = "\n\t\t".join([str(v) + "_prev = " + str(v) + ";" for v in relevant_vars if
+                              not is_boolean(v, program.valuation)])
+        acts = acts_prev + "\n\t\t" + "\n\t\t".join([str(act.left) + " = " + str(act.right.prev_rep()) + ";" for act in t.action if
                               not is_boolean(act.left, program.valuation) if act.left != act.right])
 
         if isinstance(string_to_prop(cond_simpl).simplify(), Value):
