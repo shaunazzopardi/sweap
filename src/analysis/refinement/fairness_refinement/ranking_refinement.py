@@ -209,8 +209,8 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, body: [T
             .replace(" & ", " && ") \
             .replace(" | ", " || ")
         cond_simpl = str(t.condition.simplify()).replace(" = ", " == ").replace(" & ", " && ").replace(" | ", " || ")
-        acts_prev = "\n\t\t".join([str(v) + "_prev = " + str(v) + ";" for v in relevant_vars if
-                              not is_boolean(v, program.valuation)])
+        acts_prev = "\n\t\t".join([str(act.left) + "_prev = " + str(act.left) + ";" for act in t.action if
+                              not is_boolean(act.left, program.valuation) if act.left != act.right])
         acts = acts_prev + "\n\t\t" + "\n\t\t".join([str(act.left) + " = " + str(act.right.prev_rep()) + ";" for act in t.action if
                               not is_boolean(act.left, program.valuation) if act.left != act.right])
 
