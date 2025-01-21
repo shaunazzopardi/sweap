@@ -167,6 +167,7 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, body: [T
                       + [act.left for act in t.action]
                       + [a for act in t.action for a in
                          act.right.variablesin()])}
+    local_vars = []
     for v in {v.name for v in program.valuation} | set(entry_condition.variablesin()):
         if is_boolean(v, program.valuation):
             continue
@@ -177,20 +178,20 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, body: [T
         type = symbol_table[str(v)].type
         if type in ["natural", "nat"]:
             params.append("int " + str(v))
-            params.append("int " + str(v) + "_prev")
+            local_vars.append("int " + str(v) + "_prev;")
             type_constraints_str.append(str(v) + " >= 0 ")
         elif type in ["int", "integer"]:
             params.append("int " + str(v))
-            params.append("int " + str(v) + "_prev")
+            local_vars.append("int " + str(v) + "_prev;")
         elif re.match(r"-?[0-9]+\.\.-?[0-9]+", type):
             params.append("int " + str(v))
-            params.append("int " + str(v) + "_prev")
+            local_vars.append("int " + str(v) + "_prev;")
             lower, upper = type.split("..")[0:2]
             type_constraints_str.append(str(v) + " >= " + lower)
             type_constraints_str.append(str(v) + " <= " + upper)
         else:
             params.append(type + " " + str(v))
-            params.append(type + " " + str(v) + "_prev")
+            local_vars.append(type + " " + str(v) + "_prev;")
 
     param_list = ", ".join(params)
 
@@ -209,10 +210,15 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, body: [T
             .replace(" & ", " && ") \
             .replace(" | ", " || ")
         cond_simpl = str(t.condition.simplify()).replace(" = ", " == ").replace(" & ", " && ").replace(" | ", " || ")
-        acts_prev = "\n\t\t".join([str(act.left) + "_prev = " + str(act.left) + ";" for act in t.action if
-                              not is_boolean(act.left, program.valuation) if act.left != act.right])
-        acts = acts_prev + "\n\t\t" + "\n\t\t".join([str(act.left) + " = " + str(act.right.prev_rep()) + ";" for act in t.action if
-                              not is_boolean(act.left, program.valuation) if act.left != act.right])
+        if len(t.action) == 1:
+            acts = "\n\t\t" + "\n\t\t".join(
+                [str(act.left) + " = " + str(act.right) + ";" for act in t.action if
+                 not is_boolean(act.left, program.valuation) if act.left != act.right])
+        else:
+            acts_prev = "\n\t\t".join([str(act.left) + "_prev = " + str(act.left) + ";" for act in t.action if
+                                  not is_boolean(act.left, program.valuation) if act.left != act.right])
+            acts = acts_prev + "\n\t\t" + "\n\t\t".join([str(act.left) + " = " + str(act.right.prev_rep()) + ";" for act in t.action if
+                                  not is_boolean(act.left, program.valuation) if act.left != act.right])
 
         if isinstance(string_to_prop(cond_simpl).simplify(), Value):
             if string_to_prop(cond_simpl).simplify().is_false():
@@ -249,7 +255,10 @@ def loop_to_c(symbol_table, program: Program, entry_condition: Formula, body: [T
             .replace(" | ", " || ") \
                     + "){" + loop_code + "\n\t}"
 
-    c_code = "#include<stdbool.h>\n\nvoid main(" + param_list + "){\n\t" + "\n\t".join(init).strip() + loop_code + "\n}"
+    c_code = ("#include<stdbool.h>\n\nvoid main(" + param_list +
+              "){\n\t"
+              + "\n\t".join(local_vars) + "\n\t"
+              + "\n\t".join(init).strip() + loop_code + "\n}")
     c_code = c_code.replace("TRUE", "true")
     c_code = c_code.replace("True", "true")
     c_code = c_code.replace("FALSE", "false")
