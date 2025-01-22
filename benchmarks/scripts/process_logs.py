@@ -105,7 +105,6 @@ buechi_benchs_cav24 = {
 ltl_benchs = {
     "arbiter": True,
     "arbiter-failure": True,
-    "arbiter-unreal": False,
     "elevator": True,
     "reversible-lane-r": True,
     "reversible-lane-u": False,
@@ -139,6 +138,7 @@ other_benchs = {
     "repeated-robot-resource-1d": True,
     "heim-normal": True,
     "infinite-race": True,
+    "arbiter-unreal": False,
 }
 
 finite_benchs = {
@@ -339,7 +339,7 @@ def fmt_result(x: int, real: bool=False):
 
 
 syn_tools = ("raboniel", "temos", "rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
-r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap_noacc")
+r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap-noacc")
 
 def do_latex_body(benchs, title, double_hline_at_end=True):
     yield rf"\multirow{{{len(benchs)}}}{{*}}{{\rotatebox[origin=c]{{90}}{{{title}}}}}"
@@ -374,8 +374,8 @@ with open(OUT_LATEX, "w") as latex:
         (reach_benchs_popl24,   "Reachability",                 True),
         (buechi_benchs_popl24,  r"""Det. B\"uchi""",            True),
         (buechi_benchs_cav24,   r"""Det. B\"uchi, CAV'24""",    True),
-        (buechi_benchs_popl25,  "POPL'25",                      True),
-        (ltl_benchs,            "Full LTL",                     False)
+        (buechi_benchs_popl25,  "POPL'25",                      False),
+        # (ltl_benchs,            "Full LTL",                     False)
     ):
         latex.writelines(do_latex_body(benchs, title, double_hline))
     latex.write("\n")
@@ -472,8 +472,8 @@ def fmt_summ_data(summ_dict: dict, tools: Sequence[str], real: bool=False):
     return fmt_summ_dict
 
 with open(SUMM_LATEX, "w") as latex:
-    summ_tools = ("raboniel", "rpgsolve-syn", "temos", "tslmt2rpg-syn", "sweap", "sweap-noacc")
-    header = " & ".join(tools[x].latex_name for x in summ_tools)
+    syn_header = " & ".join(tools[x].latex_name for x in syn_tools)
+    r11y_header = " & ".join(tools[x].latex_name for x in r11y_tools)
 
     all_solved = {
         t: sum(
@@ -481,29 +481,28 @@ with open(SUMM_LATEX, "w") as latex:
             for b in results if b not in ltl_benchs)
             for t in tools}
 
-    syn_solved = {t: d for t, d in all_solved.items() if t in summ_tools}
+    syn_solved = {t: d for t, d in all_solved.items() if t in syn_tools}
 
-    fmt_syn_solved = fmt_summ_data(syn_solved, summ_tools)
-    fmt_syn_best = fmt_summ_data(syn_best, summ_tools)
-    fmt_syn_uniq = fmt_summ_data(syn_uniq, summ_tools)
+    fmt_syn_solved = fmt_summ_data(syn_solved, syn_tools)
+    fmt_syn_best = fmt_summ_data(syn_best, syn_tools)
+    fmt_syn_uniq = fmt_summ_data(syn_uniq, syn_tools)
 
-    fmt_r11y_solved = fmt_summ_data(all_solved, summ_tools, real=True)
-    fmt_r11y_best = fmt_summ_data(r11y_best, summ_tools, real=True)
-    fmt_r11y_uniq = fmt_summ_data(r11y_uniq, summ_tools, real=True)
+    fmt_r11y_solved = fmt_summ_data(all_solved, r11y_tools, real=True)
+    fmt_r11y_best = fmt_summ_data(r11y_best, r11y_tools, real=True)
+    fmt_r11y_uniq = fmt_summ_data(r11y_uniq, r11y_tools, real=True)
 
-    not_our_tools=[t for t in summ_tools if "sweap" not in t]
 
     latex.write(dedent(rf"""
-    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in not_our_tools)}||c|c|}}\hline
-    Synthesis & {header} \\\hline
+    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in range(len(syn_tools)-1))}||c|c|}}\hline
+    Synthesis & {syn_header} \\\hline
         solved & {fmt_syn_solved}\\
         best & {fmt_syn_best}\\
         unique & {fmt_syn_uniq}\\\hline
     \end{{tabular}}\\
-    \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in not_our_tools)}||c|c|}}\hline
-    Realisability & {header} \\\hline
+    \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in range(len(r11y_tools)-2))}||c|c|}}\hline
+    Realisability & {r11y_header} \\\hline
         solved & {fmt_r11y_solved}\\
         best & {fmt_r11y_best}\\
         unique & {fmt_r11y_uniq}\\\hline
     \end{{tabular}}
-    """))
+    """[1:]))

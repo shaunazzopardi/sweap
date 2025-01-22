@@ -8,6 +8,10 @@ import matplotlib.pyplot as plt
 
 mpl.rc("font", family="serif", size=11)
 
+FORMAT = "pdf"
+TIMEOUT = 1200000
+
+
 # def export_legend(ax, ncols=10, filename="legend.pdf"):
 #     # https://stackoverflow.com/a/62013436
 #     fig2 = plt.figure()
@@ -21,12 +25,10 @@ mpl.rc("font", family="serif", size=11)
 #     bbox  = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
 #     fig.savefig(filename, dpi="figure", bbox_inches=bbox)
 
-TIMEOUT = 1200000
 if len(sys.argv) < 2:
     print("Usage: ./cactus.py <file.csv>")
     sys.exit(1)
 FILENAME = sys.argv[1]
-FORMAT = "pdf"
 
 exclude_full_ltl = True
 lineplot_config = dict(markers="osdPso^XX", markersize=5)
@@ -138,17 +140,18 @@ labels = [x.replace(" (realisability)", "").replace(" (synthesis)", "") for x in
 handles.insert(0, dummy)
 labels.insert(0, "$\\bf{Synthesis}$")
 
-# handles.insert(6, dummy)
-# labels.insert(6, "")
 handles.insert(4, dummy)
 labels.insert(4, "$\\bf{Synthesis}$")
 
-handles.insert(8, dummy)
-labels.insert(8, "$\\bf{Realisability}$")
+handles.insert(7, dummy)
+labels.insert(7, "$\\bf{Realisability}$")
+handles.insert(7, dummy)
+labels.insert(7, "")
 
 plot_easy.legend(handles, labels, ncol=3)
 
-plot_easy.set_title(f"Behaviour on first 20 solved instances{' (excl. novel LTL instances)' if exclude_full_ltl else ''}")
+newline = '\n'
+plot_easy.set_title(f"Behaviour on first 20 solved instances{newline + ' (excl. novel LTL instances)' if exclude_full_ltl else ''}")
 plot_easy.set(xlabel="Instances solved")
 plot_easy.set(ylabel="Time (s)")
 plot_easy.set(yscale='log')
