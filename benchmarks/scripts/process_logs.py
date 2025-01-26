@@ -18,6 +18,9 @@ SUMM_LATEX = "table-summ.tex"
 bullet = r"$\bullet$"
 
 timeout = 1200000
+popl24 = r"\cite{10.1145/3632899}"
+cav24 = r"\cite{DBLP:conf/cav/SchmuckHDN24}"
+popl25 = r"\cite{DBLP:journals/pacmpl/HeimD25}"
 
 @dataclass
 class ToolInfo:
@@ -78,6 +81,9 @@ reach_benchs_popl24 = {
     "robot-grid-reach-1d": True,
     "robot-grid-reach-2d": True,
     "heim-double-x": True,
+}
+
+reach_benchs_novel = {
     "robot-tasks": True,
 }
 
@@ -114,22 +120,27 @@ ltl_benchs = {
     "taxi-service": True,
 }
 
+reach_benchs_popl25 = {
+    "f-real": True,
+    "precise-reachability": True,
+    "sort4": True,
+    "sort5": True,
+}
+
 buechi_benchs_popl25 = {
     "buffer-storage": True,
     "ordered-visits": True,
-    "sort4": True,
-    "sort5": True,
-    "tasks": True,
-    "precise-reachability": True,
+    "tasks": True, 
     "gf-real": True,
-    "f-real": True,
 }
 
 infinite_benchs = {
     **safety_benchs_popl24,
     **reach_benchs_popl24,
+    **reach_benchs_novel,
     **buechi_benchs_cav24,
     **buechi_benchs_popl24,
+    **reach_benchs_popl25,
     **buechi_benchs_popl25,
     **ltl_benchs
 }
@@ -317,13 +328,13 @@ fmt_names = " & ".join(tools[x].latex_name for x in latex_order)
 
 
 latex_header = rf"""
-\begin{{tabular}}{{|c|c|c||c|c|c||c|c|c|c||c|c|}}\hline
+\begin{{tabular}}{{|c|lr|c||c|c|c||c|c|c|c||c|c|}}\hline
 \multirow{{2}}{{*}}{{G.}}
-& \multirow{{2}}{{*}}{{Name}}
+& \multirow{{2}}{{*}}{{Name, source}} &
 & \multirow{{2}}{{*}}{{U}}
 & \multicolumn{{3}}{{c||}}{{Realisability}}
-& \multicolumn{{6}}{{c|}}{{Synthesis}}\\\cline{{4-12}}
-& & & {fmt_names}\\\hline\hline
+& \multicolumn{{6}}{{c|}}{{Synthesis}}\\\cline{{5-13}}
+& & & & {fmt_names}\\\hline\hline
 """
 
 def fmt_result(x: int, real: bool=False):
@@ -341,13 +352,11 @@ def fmt_result(x: int, real: bool=False):
 syn_tools = ("raboniel", "temos", "rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
 r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap-noacc")
 
-def do_latex_body(benchs, title, double_hline_at_end=True):
-    yield rf"\multirow{{{len(benchs)}}}{{*}}{{\rotatebox[origin=c]{{90}}{{{title}}}}}"
-    yield '\n'
+def do_latex_body(benchs, source):
     for b, is_realizable in benchs.items():
 
         # Sort & Format results for this benchmark b
-        r = {x: fmt_result(results[b][x], False) for x in latex_order}
+        r = {x: fmt_result(results[b].get(x, 0), False) for x in latex_order}
 
         # Temos' unrealizability verdicts cannot be trusted
         if not is_realizable and 1 < results[b].get("temos", 0) < timeout:
@@ -362,23 +371,27 @@ def do_latex_body(benchs, title, double_hline_at_end=True):
             best = min(positive_results, key=positive_results.get)
             r[best] = f"\\textbf{{{r[best]}}}"
         fmt_r = " & ".join(r.values())
-        yield rf"& {b.replace('_', '-')} & {'' if is_realizable else bullet} & {fmt_r} \\"
+        yield rf"& {b.replace('_', '-')} & {source} & {'' if is_realizable else bullet} & {fmt_r} \\"
         yield '\n'
-    yield "\hline\hline\n" if double_hline_at_end else "\hline\n"
 
 
 with open(OUT_LATEX, "w") as latex:
     latex.write(latex_header)
-    for benchs, title, double_hline in (
-        (safety_benchs_popl24,  "Safety",                       True),
-        (reach_benchs_popl24,   "Reachability",                 True),
-        (buechi_benchs_popl24,  r"""Det. B\"uchi""",            True),
-        (buechi_benchs_cav24,   r"""Det. B\"uchi, CAV'24""",    True),
-        (buechi_benchs_popl25,  "POPL'25",                      False),
-        # (ltl_benchs,            "Full LTL",                     False)
-    ):
-        latex.writelines(do_latex_body(benchs, title, double_hline))
-    latex.write("\n")
+    latex.write(rf"\multirow{{{len(safety_benchs_popl24)}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Safety}}}}" "\n") 
+    latex.writelines(do_latex_body(safety_benchs_popl24, popl24))
+    latex.write("\\hline\\hline\n")
+    how_many_reach = len(reach_benchs_popl24) + len(reach_benchs_popl25) + len(reach_benchs_novel)
+    latex.write(rf"\multirow{{{how_many_reach}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Reachability}}}}" "\n") 
+    latex.writelines(do_latex_body(reach_benchs_popl24, popl24))
+    latex.writelines(do_latex_body(reach_benchs_popl25, popl25))
+    latex.writelines(do_latex_body(reach_benchs_novel, ""))
+    latex.write("\\hline\\hline\n")
+    how_many_buechi = len(buechi_benchs_cav24) + len(buechi_benchs_popl24) + len(buechi_benchs_popl25)
+    latex.write(rf"\multirow{{{how_many_buechi}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Deterministic B\"uchi}}}}" "\n") 
+    latex.writelines(do_latex_body(buechi_benchs_popl24, popl24))
+    latex.writelines(do_latex_body(buechi_benchs_cav24, cav24))
+    latex.writelines(do_latex_body(buechi_benchs_popl25, popl25))
+    latex.write("\\hline\n")
     latex.write(r"\end{tabular}")
     latex.write("\n")
 
@@ -406,7 +419,7 @@ with open(LTL_LATEX, "w") as latex:
             init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[b][tool]
             latex.write(dedent(rf"""
                 {bullet if tool == 'sweap' else '&&'}
-                & {init_st} & {init_tr} & {count_fair_ref} & {count_safe_ref} & {add_st} & {add_tr} & """[1:]))
+                & {init_st} & {init_tr} & {count_safe_ref} & {count_fair_ref} & {add_st} & {add_tr} & """[1:]))
             latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
             latex.write(r"\\\cline{3-10}" if tool == "sweap" else r"\\\hline")
             latex.write("\n")
@@ -426,7 +439,7 @@ with open(REF_LATEX, "w") as latex:
         & \multicolumn{2}{c|}{ref}
         & \multicolumn{2}{c||}{add}\\\hline
         \multicolumn{1}{|c||}{Name} & acc & s & t &sf. &sl. & sp & tp\\\hline\hline""")
-    all_keys = sorted(refinements.keys())
+    all_keys = [k for k in sorted(refinements.keys()) if k not in ltl_benchs]
     keys_1, keys_2 = all_keys[:len(all_keys)//2], all_keys[len(all_keys)//2:]
     for keys in (keys_1, keys_2):
         latex.write(begin_tabular)
