@@ -48,7 +48,7 @@ class ModelChecker:
                 elif "is false" in out:
                     return False, out
                 elif "Maximum bound reached" in out:
-                    return False, None
+                    return False, out
                 else:
                     # TODO
                     return NotImplemented

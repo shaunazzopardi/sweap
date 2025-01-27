@@ -16,7 +16,7 @@ class Config:
     _only_ranking = False
     _only_safety = False
     _eager_fairness = True
-    _natural_fairness = True
+    _verify_controller = True
     _add_all_preds_in_prog = True
     _mc = False
     _debug = False
@@ -29,11 +29,11 @@ class Config:
     def _set_e_f(self, value: bool):
         self._eager_fairness = value
 
-    def _get_n_f(self):
-        return self._natural_fairness
+    def _get_v_c(self):
+        return self._verify_controller
 
-    def _set_n_f(self, value: bool):
-        self._natural_fairness = value
+    def _set_v_c(self, value: bool):
+        self._verify_controller = value
 
     def _get_a_p_i_p(self):
         return self._add_all_preds_in_prog
@@ -97,7 +97,7 @@ class Config:
     only_ranking = property(_get_o_r, _set_o_r, _do_nothing, "")
     only_safety = property(_get_o_safety, _set_o_safety, _do_nothing, "")
     eager_fairness = property(_get_e_f, _set_e_f, _do_nothing, "")
-    natural_fairness = property(_get_n_f, _set_n_f, _do_nothing, "")
+    verify_controller = property(_get_v_c, _set_v_c, _do_nothing, "")
     add_all_preds_in_prog = property(_get_a_p_i_p, _set_a_p_i_p, _do_nothing, "")
     mc = property(_get_mc, _set_mc, _do_nothing, "")
     debug = property(_get_debug, _set_debug, _do_nothing, "")

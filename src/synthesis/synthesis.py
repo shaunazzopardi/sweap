@@ -6,6 +6,7 @@ from typing import Tuple
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 from analysis.abstraction.interface.ltl_abstraction_type import LTLAbstractionStructureType, \
     LTLAbstractionTransitionType, LTLAbstractionBaseType, LTLAbstractionType, LTLAbstractionOutputType
+from analysis.compatibility_checking.compatibility_checking_con import compatibility_checking_con
 from analysis.refinement.refinement import refinement_standard
 
 from parsing.string_to_ltl import string_to_ltl
@@ -17,7 +18,8 @@ from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (true, stringify_formula, atomic_predicates, finite_state_preds, strip_mathexpr,
-                            normalise_pred_multiple_vars, normalise_formula, enumerate_finite_state_vars)
+                            normalise_pred_multiple_vars, normalise_formula, enumerate_finite_state_vars,
+                            conjunct_formula_set, implies)
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -228,29 +230,6 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_ranking_constraints = []
     new_structural_loop_constraints = []
 
-    rankings = []
-    if config.Config.getConfig()._natural_fairness:
-        raise Exception("Natural fairness not implemented with binary encoding yet.")
-        # for tv in program.valuation:
-        #     if tv.type.lower().startswith("bool"):
-        #         continue
-        #     # if not var_incremented_or_decremented(program, Variable(tv.name)):
-        #     #     continue
-        #     if tv.type.lower().startswith("int"):
-        #         ranking = Variable(tv.name)
-        #         pos_rk = BiOp(ranking, ">=", Value("0"))
-        #         neg_rk = BiOp(ranking, "<=", Value("0"))
-        #         invars_top = [neg_rk]
-        #         invars_bot = [pos_rk]
-        #         rankings += [ranking_refinement_both_sides(ranking, invars_bot, invars_top)]
-        #     elif tv.type.lower().startswith("nat"):
-        #         ranking = Variable(tv.name)
-        #         invars = []
-        #         rankings += [ranking_refinement(ranking, invars)]
-        #     elif ".." in tv.type:
-        #         ranking = Variable(tv.name)
-        #         rankings += [ranking_refinement_both_sides(ranking, [], [])]
-
     loop_counter = 0
 
     ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(LTLAbstractionBaseType.effects_representation,
@@ -305,7 +284,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
         if real and not debug:
             logging.info("Realizable")
-            if project_on_abstraction:
+            if config.Config.getConfig().verify_controller:
                 # TODO actually project
                 print("massaging abstract controller")
                 mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
@@ -313,6 +292,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                                  ltlAbstractionType,
                                                                  abstract_ltl_problem,
                                                                  real)
+                original_ltl_spec = implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees))
+                compatibility_checking_con(program, predicate_abstraction, mm, original_ltl_spec)
                 return True, mm
             else:
                 return True, mm_hoa
