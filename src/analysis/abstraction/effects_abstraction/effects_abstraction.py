@@ -747,7 +747,6 @@ def compute_abstract_effect_for_guard_update(arg):
 
     gu_ltl = effects_to_ltl(new_effects, constants, invars, vars_relabelling)
     print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
-    effects_to_ltl_non_bin(new_effects, constants, invars)
 
     return (gu, invars, constants, new_effects,
             new_u_to_curr_u, new_us_part, new_us_part_to_pred,
