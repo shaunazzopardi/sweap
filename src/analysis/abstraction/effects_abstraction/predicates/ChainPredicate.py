@@ -173,6 +173,9 @@ class ChainPredicate(Predicate):
             else:
                 return [conjunct(f, p) for p in self.chain]
         else:
+            if isinstance(old_to_new, list):
+                return [conjunct(f, p) for p in self.chain]
+                # raise Exception("replace_formulas_multiple_but: Unexpectedly old_to_new is of type list.")
             modified = set(itertools.chain.from_iterable(old_to_new.values()))
 
             return f.replace_formulas_multiple(old_to_new | {p: [p] for p in self.chain if p not in modified})
