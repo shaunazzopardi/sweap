@@ -6,7 +6,7 @@ program helipad-contradict {
         depart, land, r1, r2
     }
     CONTROLLER EVENTS {
-        free
+        f, a1, a2
     }
     VALUATION {
         free : bool := false;
@@ -36,10 +36,10 @@ program helipad-contradict {
         q -> setEvacTime [ $
                             free := true if f;
                             free := false if !f;
-                            evacTimer := -1 if e1 & e2;
-                            evacTimer := evacTimer - 1 if !e1 & e2;
-                            evacTimer := evacTime if !e1 & !e2;
-                            evacTimer := evacTimer if e1 & !e2;
+                            evacTimer := -1 if r1 & r2;
+                            evacTimer := evacTimer - 1 if !r1 & r2;
+                            evacTimer := evacTime if !r1 & !r2;
+                            evacTimer := evacTimer if r1 & !r2;
                             ack := 0 if a1;
                             ack := 1 if !a1 & a2;
                             ack := 2 if !a1 & !a2;
@@ -51,7 +51,7 @@ program helipad-contradict {
             ((free && land) -> ((X !free) W (depart || (evactimer >= 0 && emergency))) &&
             ((depart || (evactimer >= 0 && emergency)) -> (free W land)) &&
             (!emergency -> X(evacTimer == -1)) &&
-            ((emergency && evactTimer > 0) -> (!e1 & e2)) &&
+            ((emergency && evactTimer > 0) -> (!r1 & r2)) &&
             ((emergency && evacTimer <= 0) -> X (setEvacTime U (q && evacTimer = evacTime)))) &&
             ((emergency) -> F (evacTimer <= 0)) &&
             (((X (ack == 0)) && r1 && !r2) -> (X (ack == 1) W (land || emergency))) &&
