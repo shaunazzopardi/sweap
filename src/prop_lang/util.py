@@ -927,7 +927,7 @@ def depth_of_formula(formula):
 
 def should_be_math_expr(formula):
     if isinstance(formula, BiOp):
-        if formula.op in ["<", ">", "<=", ">=", "=", "=="]:
+        if formula.op in ["<", ">", "<=", ">=", "=", "==", "!="]:
             return True
     return False
 
