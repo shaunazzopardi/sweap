@@ -1,0 +1,19 @@
+program gf-unreal {
+    STATES {
+        q: init
+    }
+    ENVIRONMENT EVENTS {
+    }
+    CONTROLLER EVENTS {
+    }
+    VALUATION {
+        x : integer := 10000;
+    }
+    TRANSITIONS {
+        q -> q [$ x := x + 1]
+    }
+
+    SPECIFICATION {
+      G F (x <= 100000)
+    }
+}

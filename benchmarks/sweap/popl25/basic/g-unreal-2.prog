@@ -1,0 +1,51 @@
+program g-unreal-1{
+    STATES{
+        setx: init, sety, sete, q
+    }
+
+    ENVIRONMENT EVENTS {
+        e0, e1
+    }
+
+    CONTROLLER EVENTS{
+        c2, c3, c4, c5
+    }
+
+    VALUATION{
+        x: int := 0;
+        y: int := 0;
+        e: int := 0;
+    }
+
+    TRANSITIONS{
+        setx -> setx [e0 $ x := x + 1],
+        setx -> setx [!e0 & e1 $ x := x - 1],
+        setx -> sety [!e0 & !e1],
+
+        sety -> sety [e0 $ y := y + 1],
+        sety -> sety [!e0 & e1 $ y := y - 1],
+        sety -> sete [!e0 & !e1],
+
+        sete -> sete [e0 $ e := e + 1],
+        sete -> sete [!e0 & e1 $ e := e - 1],
+        sete -> q [!e0 & !e1],
+
+        q -> sete [!c2 & !c3 & !c4 & !c5 $ x := x + 1 + e; y := y + e + 1],
+        q -> sete [!c2 & !c3 & !c4 & c5 $ x := x + 1 + e; y := y - e],
+        q -> sete [!c2 & !c3 & c4 & !c5 $ x := x + 1 + e; y := 20],
+
+        q -> sete [!c2 & !c3 & c4 & c5 $ x := x - e; y := y + e + 1],
+        q -> sete [!c2 & c3 & !c4 & !c5 $ x := x - e; y := y - e],
+        q -> sete [!c2 & c3 & !c4 & c5 $ x := x - e; y := 20],
+
+        q -> sete [!c2 & c3 & c4 & c5 $ x := 500; y := y + e + 1],
+        q -> sete [c2 & !c3 & !c4 & !c5 $ x := 500; y := y - e],
+        q -> sete [c2 & !c3 & !c4 & c5 $ x := 500; y := 20]
+    }
+
+    SPECIFICATION{
+        (G F q) -> G (
+            x >= 100 && (true | e == 0)
+        )
+    }
+}

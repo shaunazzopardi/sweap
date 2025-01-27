@@ -1,0 +1,35 @@
+program GF-G-contradiction{
+    STATES{
+        setx: init, sety, sete, q
+    }
+
+    ENVIRONMENT EVENTS {
+        e0, e1
+    }
+
+    CONTROLLER EVENTS{
+        c1, c2
+    }
+
+    VALUATION{
+        x: int := 0;
+    }
+
+    TRANSITIONS{
+        setx -> setx [e0 $ x := x + 1],
+        setx -> setx [!e0 & e1 $ x := x - 1],
+        setx -> q [!e0 & !e1],
+
+        q -> q [c1 & c2 $ x := x + 1],
+        q -> q [c1 & !c2 $ x := x - 1],
+        q -> q [!c1 & !c2 $ x := 0]
+    }
+
+    SPECIFICATION{
+        (G F q) -> (!q U (q &&
+            (X (x == 0)) &&
+            (G((x >= 0) -> (G (x >= 0)))) &&
+            (G F (x <= -100))
+        ))
+    }
+}

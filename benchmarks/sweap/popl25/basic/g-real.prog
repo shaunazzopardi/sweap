@@ -1,0 +1,41 @@
+program g-unreal{
+    STATES{
+        sety: init, sete, q
+    }
+
+    ENVIRONMENT EVENTS {
+        e0, e1
+    }
+
+    CONTROLLER EVENTS{
+        c1, c2
+    }
+
+    VALUATION{
+        c: int := 0;
+        x: int := 0;
+        y: int := 0;
+        e: int := 0;
+    }
+
+    TRANSITIONS{
+        sety -> sete [$ y := 1],
+        sete -> sete [e0 $ e := e + 1],
+        sete -> sete [!e0 & e1 $ e := e - 1],
+        sete -> q [!e0 & !e1],
+
+        q -> q [c == 1 $ c := 1; x := x + y],
+        q -> sete [c == 0 & c1 & c2 $ c := 1; x := x + e],
+        q -> sete [c == 0 & c1 & !c2 $ c := 1; x := x - e],
+        q -> sete [c == 0 & !c1 & c2 $ c := 0; x := x + e],
+        q -> sete [c == 0 & !c1 & !c2 $ c := 0; x := x - e]
+    }
+
+    SPECIFICATION{
+        (G F (!sete)) -> G (q ->
+            (((c == 0) -> x >= 0) &&
+            ((c != 0) -> F (x <= -10000)) &&
+            X (y > 0))
+        )
+    }
+}

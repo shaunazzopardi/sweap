@@ -1,0 +1,32 @@
+program g-unreal-1{
+    STATES{
+        sete: init, q
+    }
+
+    ENVIRONMENT EVENTS {
+        e0, e1
+    }
+
+    CONTROLLER EVENTS{
+        c1, c2
+    }
+
+    VALUATION{
+        x: int := 0;
+        t: int := 0;
+    }
+
+    TRANSITIONS{
+        sete -> sete [e0 $ t := t + 1],
+        sete -> sete [!e0 & e1 $ t := t - 1],
+        sete -> q [!e0 & !e1],
+
+        q -> q [$ x := x + 1]
+    }
+
+    SPECIFICATION{
+        (G F (!sete)) -> G (q ->
+            x <= (t + 42)
+        )
+    }
+}

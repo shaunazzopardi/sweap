@@ -1,0 +1,31 @@
+program f-unreal{
+    STATES{
+        q0: init, q1
+    }
+
+    ENVIRONMENT EVENTS {
+        e0, e1
+    }
+
+    CONTROLLER EVENTS{
+    }
+
+    VALUATION{
+        x: int := 0;
+        a: int := 0;
+    }
+
+    TRANSITIONS{
+        q0 -> q0 [e0 $ a := a + 1],
+        q0 -> q0 [!e0 & e1 $ a := a - 1],
+        q0 -> q1 [!e0 & !e1],
+
+        q1 -> q1 [$ x := x + 1]
+    }
+
+    SPECIFICATION{
+        (F (q1 && y > 0)) -> (q0 U (q1 &
+            F (x <= -10000)
+        ))
+    }
+}
