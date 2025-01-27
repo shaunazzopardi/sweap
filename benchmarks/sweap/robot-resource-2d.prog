@@ -25,16 +25,16 @@ program robot-resource-2d {
         movetarg -> movetarg [!(x <= 0 && y <= 0) && cinc && !cdec && cxory $ x := x + 1],
         movetarg -> movetarg [!(x <= 0 && y <= 0) && !cinc && cdec && !cxory $ x := x - 1],
 
-        goal -> unsafe [resource < 0],
-        goal -> incntx [resource >= 0],
+        goal -> unsafe [resource < 0 || resource > 4],
+        goal -> incntx [resource >= 0 $ resource := resource - 1],
 
         incntx -> incntx [inc && xory $ x := x + 1],
         incntx -> incntx [inc && !xory $ y := y + 1],
-        incntx -> decntx [!inc $ resource := resource - 1],
+        incntx -> decntx [!inc],
 
         decntx -> decntx [!inc && xory $ x := x - 1],
         decntx -> decntx [!inc && !xory $ y := y - 1],
-        decntx -> movetarg [inc $ resource := resource - 1]
+        decntx -> movetarg [inc]
     }
 
     SPECIFICATION {
