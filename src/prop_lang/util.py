@@ -1396,7 +1396,7 @@ def normalise_formula(f, signatures, symbol_table, ignore_these=None):
     new_preds = set()
     for pp in preds:
         result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
-        if len(result) == 1:
+        if isinstance(result, Variable) or len(result) == 1:
             old_to_new[pp] = result
             new_preds.add(result)
         else:
