@@ -24,7 +24,7 @@ program thermostat-F{
 
         q -> setSense [mode == 0 && !((sense >= 20) && (sense <= 25)) & c $ mode := 1; temp := sense],
         q -> setSense [mode == 0 && !((sense >= 20) && (sense <= 25)) & !c $ mode := -1; temp := sense],
-        q -> setSense [mode == 0 && ((sense >= 20) && (sense <= 25)) $ mode := 0 temp := sense],
+        q -> setSense [mode == 0 && ((sense >= 20) && (sense <= 25)) $ mode := 0; temp := sense],
 
         q -> setSense [mode == 1 && !((temp >= 20) && (temp <= 25)) $ temp := temp + 1],
         q -> setSense [mode == -1 && !((temp >= 20) && (temp <= 25)) $ temp := temp - 1],
