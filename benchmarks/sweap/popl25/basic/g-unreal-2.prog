@@ -45,7 +45,7 @@ program g-unreal-1{
 
     SPECIFICATION{
         (G F q) -> G (
-            x >= 100 && (true | e == 0)
+            x >= 100
         )
     }
 }
