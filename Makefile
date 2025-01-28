@@ -6,11 +6,17 @@ TIMEOUT := 1200
 # Directory that contains this Makefile
 ROOT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-.PHONY: all others everything clean clean-aux clean-timeouts confirm check-ulimit $(TOOLS)
+.PHONY: all others everything clean clean-aux clean-timeouts confirm check-ulimit tables plots $(TOOLS)
 
 # Paths to benchmark files
 SWEAP_BENCHS :=		$(basename $(wildcard benchmarks/sweap/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/drafts/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/basic/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/limitations/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/robot-missions/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/tasks/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/thermostat/*.prog))
 RPG_BENCHS :=		$(basename $(wildcard benchmarks/rpgsolve/*.rpg))
 RABONIEL_BENCHS :=	$(basename $(wildcard benchmarks/raboniel/*.tslmt))
 TEMOS_BENCHS := 	$(basename $(wildcard benchmarks/temos/*.tslt))
@@ -25,6 +31,8 @@ RABONIEL_LOGS :=		$(addsuffix .raboniel.log,			$(RABONIEL_BENCHS))
 TEMOS_LOGS :=			$(addsuffix .temos.log,				$(TEMOS_BENCHS))
 TSLMT2RPG_LOGS :=		$(addsuffix .tslmt2rpg.log,			$(TSLMT2RPG_BENCHS))
 TSLMT2RPG_SYN_LOGS :=	$(addsuffix .tslmt2rpg-syn.log,		$(TSLMT2RPG_BENCHS))
+
+ALL_LOGS := $(SWEAP_LOGS) $(SWEAP_LAZY_LOGS) $(RPG_STELA_LOGS) $(RPG_LOGS) $(RABONIEL_LOGS) $(TEMOS_LOGS) $(TSLMT2RPG_LOGS) $(TSLMT2RPG_SYN_LOGS)
 
 # Tool command-line invocation
 $(SWEAP_LOGS): cmd = 			python3 main.py --synthesise --accelerate --p
@@ -168,3 +176,10 @@ check-ulimit:
 ifeq ("$(ULIM)", "unlimited")
 	@echo -n "memory unlimited! Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 endif
+
+tables: #$(ALL_LOGS)
+	@benchmarks/scripts/process_logs.py benchmarks
+
+plots:
+	cd benchmarks/scripts; \
+	./cactus.py ../../results.csv
