@@ -33,19 +33,25 @@ program g-unreal-1{
         q -> sete [!c2 & !c3 & !c4 & !c5 $ x := x + 1 + e; y := y + e + 1],
         q -> sete [!c2 & !c3 & !c4 & c5 $ x := x + 1 + e; y := y - e],
         q -> sete [!c2 & !c3 & c4 & !c5 $ x := x + 1 + e; y := 20],
+        q -> sete [c2 & c3 & c4 & !c5 $ x := x + 1 + e; y := 200],
 
         q -> sete [!c2 & !c3 & c4 & c5 $ x := x - e; y := y + e + 1],
         q -> sete [!c2 & c3 & !c4 & !c5 $ x := x - e; y := y - e],
         q -> sete [!c2 & c3 & !c4 & c5 $ x := x - e; y := 20],
+        q -> sete [c2 & c3 & !c4 & !c5 $ x := x - e; y := 200],
 
         q -> sete [!c2 & c3 & c4 & c5 $ x := 500; y := y + e + 1],
         q -> sete [c2 & !c3 & !c4 & !c5 $ x := 500; y := y - e],
-        q -> sete [c2 & !c3 & !c4 & c5 $ x := 500; y := 20]
+        q -> sete [c2 & !c3 & !c4 & c5 $ x := 500; y := 20],
+        q -> sete [c2 & !c3 & c4 & !c5 $ x := 500; y := 200]
     }
 
     SPECIFICATION{
-        (G F q) -> G (
-            x >= 100
-        )
+        (G F q) -> (
+                G(q -> x >= 100) &&
+                G(q -> ((x >= 0) -> X (!q U (q & G (y >= 100))))) &&
+                G(q -> ((y >= 0) -> F (y >= 100))) &&
+                !q U (q & X(!q U (q & X(!q U (q & X(!q U (q & y < 50)))))))
+            )
     }
 }
