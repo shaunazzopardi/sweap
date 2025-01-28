@@ -1,0 +1,85 @@
+program package-delivery {
+    STATES {
+        setDeliver: init, setHasPackage, setMode, setX, setTx, setCustomerPos, setStationPos, q
+    }
+    ENVIRONMENT EVENTS {
+        r1, r2
+    }
+    CONTROLLER EVENTS {
+        cx1, cx2, d, m, tx1, tx2, hp1, hp2
+    }
+    VALUATION {
+        x : integer := 0;
+        tx : integer := 0;
+        mode : integer := 0;
+        customerPos : integer := 0;
+        stationPos : integer := 0;
+        deliver : bool := false;
+        hasPackage : bool := false;
+    }
+    TRANSITIONS {
+        setDeliver -> setHasPackage [r1 $ deliver := true],
+        setDeliver -> setHasPackage [!r1 $ deliver := false],
+        setHasPackage -> setMode [r1 $ hasPackage := true],
+        setHasPackage -> setMode [!r1 $ hasPackage := false],
+
+        setMode -> setMode [r1 $ mode := mode + 1],
+        setMode -> setMode [!r1 & r2 $ mode := mode - 1],
+        setMode -> setX [!r1 & !r2],
+
+        setX -> setX [r1 $ x := x + 1],
+        setX -> setX [!r1 & r2 $ x := x - 1],
+        setX -> setTx [!r1 & !r2],
+
+        setTx -> setTx [r1 $ tx := tx + 1],
+        setTx -> setTx [!r1 & r2 $ tx := tx - 1],
+        setTx -> setCustomerPos [!r1 & !r2],
+
+        setCustomerPos -> setCustomerPos [r1 $ customerPos := customerPos + 1],
+        setCustomerPos -> setCustomerPos [!r1 & r2 $ customerPos := customerPos - 1],
+        setCustomerPos -> setStationPos [!r1 & !r2],
+
+        setStationPos -> setStationPos [r1 $ stationPos := stationPos + 1],
+        setStationPos -> setStationPos [!r1 & r2 $ stationPos := stationPos - 1],
+        setStationPos -> q [!r1 & !r2],
+
+        q -> setCustomerPos [ $
+                            x := x + 1 if cx1;
+                            x := x - 1 if !cx1 & cx2;
+                            x := x if !cx1 & !cx2;
+                            deliver := false if d;
+                            deliver := true if !d;
+                            mode := 0 if m;
+                            mode := 1 if !m;
+                            tx := tx if tx1;
+                            tx := customerPos if !tx1 & tx2;
+                            tx := stationPos if !tx1 & !tx2;
+                            hasPackage := true if hp1;
+                            hasPackage := false if !hp1 & hp2;
+                            hasPackage := hasPackage if !hp1 & !hp2;
+                            ]
+    }
+
+    SPECIFICATION {
+        (G F(q)) -> G(q -> (
+            ((deliver && x < tx) -> cx1) &&
+            ((deliver && x > tx) -> !cx1 & cx2) &&
+            ((deliver && x == tx) -> (!cx1 & !cx2 & d)) &&
+            ((deliver && x != tx) -> (!d)) &&
+
+            (deliver -> F x == tx) &&
+
+            (m -> (m W !deliver)) &&
+            (!m -> (!m W !deliver)) &&
+
+            (deliver -> (!hp1 & !hp2)) &&
+            (deliver -> tx1) &&
+
+            ((m && !deliver) -> (!d && !tx1 & tx2 && X (!q U (q && (!m || m))))) &&
+            ((!m && !deliver) -> (!d && !tx1 & !tx2 && X (!q U (q && m)))) &&
+
+            ((m && !deliver) -> (hasPackage && !hp1 & hp2)) &&
+            ((!m && !deliver) -> hp1)
+            ))
+    }
+}

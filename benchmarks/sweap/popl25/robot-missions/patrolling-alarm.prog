@@ -1,0 +1,42 @@
+program patrolling-alarm {
+    STATES {
+        q: init
+    }
+    ENVIRONMENT EVENTS {
+        alarm1, alarm2
+    }
+    CONTROLLER EVENTS {
+        p1, p2, t
+    }
+    VALUATION {
+        pos : integer := 0;
+        timer : integer := 0;
+    }
+    TRANSITIONS {
+        q -> q [ $ pos := 0 if p1;
+                   pos := 1 if !p1 & p2;
+                   pos := 2 if !p1 & !p2;
+                   timer := timer + 1 if t;
+                   timer := 0 if !t]
+    }
+
+    SPECIFICATION {
+        G (pos == 0 || pos == 1 || pos == 2) &&
+
+        G ((pos == 1) -> p1) &&
+        G ((pos == 2) -> p1) &&
+
+        G (((pos == 0) && !(timer >= 60) && !alarm1 & !alarm2) -> p1) &&
+        G (((pos == 0) && timer >= 60) -> (!p1)) &&
+
+        G (timer > 0) &&
+        G ( (pos == 0) -> t) &&
+        G (!(pos == 0) -> !t) &&
+
+        G F ((pos > 0)) &&
+        G ((alarm1 && pos == 0) -> X (pos == 1)) &&
+        G ((!alarm1 && alarm2 && pos == 0) -> X (pos == 2))
+    }
+}
+
+

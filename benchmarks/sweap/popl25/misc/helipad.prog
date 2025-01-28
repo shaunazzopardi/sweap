@@ -1,4 +1,4 @@
-program helipad-contradict {
+program helipad {
     STATES {
         setFree: init, setAck, setEvacTimer, setEvacTime, q
     }
@@ -53,6 +53,6 @@ program helipad-contradict {
             ((emergency) -> F (evacTimer <= 0)) &&
             (((a1) && r1 && !r2) -> ((!a1 & a2) W (land || emergency))) &&
             (((a1) && r2 && !r1) -> ((!a1 & !a2) W (land || emergency))) &&
-            ((emergency) -> X (setEvacTime U (q & a1))))
+            ((emergency) -> (a1)))
     }
 }

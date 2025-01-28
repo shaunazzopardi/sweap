@@ -1,0 +1,36 @@
+program discharge-GF {
+    STATES {
+        setC: init, setE, setX, q
+    }
+    ENVIRONMENT EVENTS {
+        e1, e2
+    }
+    CONTROLLER EVENTS {
+        c1
+    }
+    VALUATION {
+        x : integer := 0;
+        c : integer := 0;
+        e : integer := 0;
+    }
+    TRANSITIONS {
+        setC -> setC [e1 $ c := c + 1],
+        setC -> setC [!e1 & e2 $ c := c - 1],
+        setC -> setE [!e1 & !e2],
+
+        setX -> setX [e1 $ x := x + 1],
+        setX -> setX [!e1 & e2 $ x := x - 1],
+        setX -> setE [!e1 & !e2],
+
+        setE -> setE [e1 $ e := e + 1],
+        setE -> setE [!e1 & e2 $ e := e - 1],
+        setE -> q [!e1 & !e2],
+
+        q -> setE [c == 0 & !c1 $ x := x + 1; c := 0],
+        q -> setE [c != 0 & c1 $ x := 10000; c := 1]
+    }
+
+    SPECIFICATION {
+        (G F (q)) -> G(q -> (((X c == 1) -> (e == 1))) && F x >= 10000)
+    }
+}

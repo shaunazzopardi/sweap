@@ -1,0 +1,43 @@
+program robot-to-target {
+    STATES {
+        setX: init, setTarget, q
+    }
+    ENVIRONMENT EVENTS {
+        ed1, ed2
+    }
+    CONTROLLER EVENTS {
+        d1, d2, cx, ct
+    }
+    VALUATION {
+        x : integer := 0;
+        dx : integer := 0;
+        tx : integer := 0;
+        target : integer := 0;
+    }
+    TRANSITIONS {
+        setX -> setX [ed1 $ x := x + 1],
+        setX -> setX [!ed1 & ed2 $ x := x - 1],
+        setX -> setTarget [!ed1 & !ed2],
+
+        setTarget -> q [ed1 $ target := 1000],
+        setTarget -> q [!ed1 $ target := -1000],
+
+        q -> setTarget [ $ x := x + dx if cx;
+                   x := x if !cx;
+                   tx := target if ct;
+                   tx := tx if !ct;
+                   dx := 1 if d1;
+                   dx := -1 if !d1 & d2;
+                   dx := dx if !d1 & !d2]
+    }
+
+    SPECIFICATION {
+        (G F q) -> (!q U (q & (
+            !cx & ct && X G(q -> (
+                cx & !d1 & !d2 & (tx == 1000 || tx == -1000) && F (x <= tx) && F (x >= tx)
+            ))
+        )))
+    }
+}
+
+
