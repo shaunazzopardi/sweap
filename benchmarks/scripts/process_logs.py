@@ -354,8 +354,8 @@ latex_header = rf"""
 \multirow{{2}}{{*}}{{G.}}
 & \multirow{{2}}{{*}}{{Name, source}} &
 & \multirow{{2}}{{*}}{{U}}
-& \multicolumn{{3}}{{c||}}{{Realisability}}
-& \multicolumn{{6}}{{c|}}{{Synthesis}}\\\cline{{5-13}}
+& \multicolumn{{3}}{{c||}}{{Realisability (s)}}
+& \multicolumn{{6}}{{c|}}{{Synthesis (s)}}\\\cline{{5-13}}
 & & & & {fmt_names}\\\hline\hline
 """
 
@@ -517,13 +517,13 @@ with open(SUMM_LATEX, "w") as latex:
 
     latex.write(dedent(rf"""
     \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in range(len(syn_tools)-2))}||c|c|}}\hline
-    Synthesis (s) & {syn_header} \\\hline
+    Synthesis & {syn_header} \\\hline
         solved & {fmt_syn_solved}\\
         best & {fmt_syn_best}\\
         unique & {fmt_syn_uniq}\\\hline
     \end{{tabular}}\\
     \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in range(len(r11y_tools)-2))}||c|c|}}\hline
-    Realisability (s) & {r11y_header} \\\hline
+    Realisability & {r11y_header} \\\hline
         solved & {fmt_r11y_solved}\\
         best & {fmt_r11y_best}\\
         unique & {fmt_r11y_uniq}\\\hline
@@ -555,9 +555,9 @@ with open(MACROS_LATEX, "w") as latex:
     latex.write(rf"\newcommand*{{\SECONDBEST}}{{{best_competitor[0].replace('-syn', '')}}}" "\n")
     latex.write(rf"\newcommand*{{\SECONDBESTSCORE}}{{{syn_solved[best_competitor[0]]}}}" "\n")
 
-    latex.write(rf"\newcommand*{{\SWEAPTIME}}{{{round(cumul_times['sweap']/1000)}}}" "\n")
-    latex.write(rf"\newcommand*{{\SWEAPAVGTIME}}{{{(cumul_times['sweap']/1000)/syn_solved['sweap']:.2f}}}" "\n")
-    latex.write(rf"\newcommand*{{\SECONDBESTTIME}}{{{round(cumul_times[best_competitor[0]]/1000)}}}" "\n")
-    latex.write(rf"\newcommand*{{\SECONDBESTAVGTIME}}{{{(cumul_times[best_competitor[0]]/1000)/syn_solved[best_competitor[0]]:.2f}}}" "\n")
+    # latex.write(rf"\newcommand*{{\SWEAPTIME}}{{{round(cumul_times['sweap']/1000)}}}" "\n")
+    # latex.write(rf"\newcommand*{{\SWEAPAVGTIME}}{{{(cumul_times['sweap']/1000)/syn_solved['sweap']:.2f}}}" "\n")
+    # latex.write(rf"\newcommand*{{\SECONDBESTTIME}}{{{round(cumul_times[best_competitor[0]]/1000)}}}" "\n")
+    # latex.write(rf"\newcommand*{{\SECONDBESTAVGTIME}}{{{(cumul_times[best_competitor[0]]/1000)/syn_solved[best_competitor[0]]:.2f}}}" "\n")
 
     
