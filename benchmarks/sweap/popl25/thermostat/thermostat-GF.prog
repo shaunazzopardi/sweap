@@ -1,0 +1,50 @@
+program thermostat-GF{
+    STATES{
+        setSense: init, q
+    }
+
+    ENVIRONMENT EVENTS{
+        e1, e2
+    }
+
+    CONTROLLER EVENTS{
+        m0, m1, t1, t2
+    }
+
+    VALUATION{
+        temp: int := 0;
+        mode: int := 0;
+        sense: int := 0;
+    }
+
+    TRANSITIONS{
+        setSense -> setSense [e1 $ sense := sense + 1],
+        setSense -> setSense [!e1 & e2 $ sense := sense - 1],
+        setSense -> q [!e1 & !e2],
+
+        q -> setSense [$ mode := 0 if m0 & m1;
+                         mode := 1 if !m0 & m1;
+                         mode := -1 if m0 & !m1;
+                         mode := mode if !m0 & !m1;
+                         temp := temp + 1 if t1 & t2;
+                         temp := temp - 1 if !t1 & t2;
+                         temp := sense if t1 & !t2;
+                         temp := temp if !t1 & !t2;]
+    }
+
+    SPECIFICATION{
+        (G F q) -> (!q U (q & G(q -> (
+            (mode == 0 || mode == 1 || mode == -1) &
+            ((mode == -1 && !((temp >= 20) && (temp <= 25))) -> (m0 & !m1)) &
+            ((mode == 1 && !((temp >= 20) && (temp <= 25))) -> (!m0 & m1)) &
+            (((mode == 1 || mode == -1) && ((temp >= 20) && (temp <= 25))) -> (m0 & m1)) &
+            (((mode == 0) && !((sense >= 20) && (sense <= 25))) -> !(m0 <-> m1)) &
+            (((mode == 0) && ((sense >= 20) && (sense <= 25))) -> (m0 & m1)) &
+
+            (((mode == 0)) -> (t1 & !t2)) &
+            (((mode == 1)) -> (t1 & t2)) &
+            (((mode == 1)) -> (!t1 & t2)) &
+            F mode == 0
+        ))))
+    }
+}
