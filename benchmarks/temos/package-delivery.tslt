@@ -1,0 +1,39 @@
+#LIA
+//-- State:  x, txvar Bool delivervar Bool hasPackage, mode
+//-- Inputs: customerPos, stationPos
+
+toCustomer = [mode <- int0()];
+toStation = [mode <- int1()];
+
+guarantee {
+    
+    // Movement
+    G (deliver && lt x tx -> [x <- add x int1()]);
+    G (deliver && gt x tx -> [x <- sub x int1()]);
+    G (deliver && eq x tx -> [x <- x]);
+   
+    G (deliver && eq x tx -> [deliver <- false]);
+    G (deliver && !eq x tx -> [deliver <- true]);
+  
+    // Liveness condition
+    G (deliver -> F eq x tx);
+
+    // Target allocation and packagte logic
+    toCustomer || toStation;
+
+    // System does not switch recipients
+    G (toCustomer -> (toCustomer W !deliver));
+    G (toStation -> (toStation W !deliver));
+
+    // System does not loose packages or the target
+    G (deliver -> [hasPackagte <- hasPackage]);
+    G (deliver -> [tx <- tx]);
+    
+    // Realocation of targets
+    G (toCustomer && !deliver -> [deliver <- true] && [tx <- customerPos] && X (toStation || toCustomer));
+    G (toStation && !deliver ->  [deliver <- true] && [tx <- stationPos] && X toCustomer);
+
+    // Packagte pickup and leaving
+    G (toCustomer && !deliver -> hasPackagte && [hasPackagte <- false]);
+    G (toStation && !deliver -> [hasPackagte <- true]);
+}
