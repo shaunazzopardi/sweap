@@ -1,12 +1,12 @@
 program helipad-contradict {
     STATES {
-        notProcessE: init, processE
+        setFree: init, setEmergency, setAck, setEvacTimer, setEvacTime, q
     }
     ENVIRONMENT EVENTS {
         depart, land, r1, r2
     }
     CONTROLLER EVENTS {
-        f, a1, a2
+        f, e1, e2, a1, a2
     }
     VALUATION {
         free : bool := false;
@@ -23,7 +23,7 @@ program helipad-contradict {
 
         setAck -> setAck [r1 $ ack := ack + 1],
         setAck -> setAck [!r1 & r2 $ ack := ack - 1],
-        setAck -> setEvactTime [!r1 & !r2],
+        setAck -> setEvacTimer [!r1 & !r2],
 
         setEvacTimer -> setEvacTimer [r1 $ evacTimer := evacTimer + 1],
         setEvacTimer -> setEvacTimer [!r1 & r2 $ evacTimer := evacTimer - 1],
@@ -36,10 +36,10 @@ program helipad-contradict {
         q -> setEvacTime [ $
                             free := true if f;
                             free := false if !f;
-                            evacTimer := -1 if r1 & r2;
-                            evacTimer := evacTimer - 1 if !r1 & r2;
-                            evacTimer := evacTime if !r1 & !r2;
-                            evacTimer := evacTimer if r1 & !r2;
+                            evacTimer := -1 if e1 & e2;
+                            evacTimer := evacTimer - 1 if !e1 & e2;
+                            evacTimer := evacTime if !e1 & !e2;
+                            evacTimer := evacTimer if e1 & !e2;
                             ack := 0 if a1;
                             ack := 1 if !a1 & a2;
                             ack := 2 if !a1 & !a2;
@@ -48,11 +48,11 @@ program helipad-contradict {
 
     SPECIFICATION {
         (G F(q)) -> G (!q U (q &&
-            ((free && land) -> ((X !free) W (depart || (evactimer >= 0 && emergency))) &&
-            ((depart || (evactimer >= 0 && emergency)) -> (free W land)) &&
+            ((free && land) -> ((X !free) W (depart || (evacTimer >= 0 && emergency))) &&
+            ((depart || (evacTimer >= 0 && emergency)) -> (free W land)) &&
             (!emergency -> X(evacTimer == -1)) &&
-            ((emergency && evactTimer > 0) -> (!r1 & r2)) &&
-            ((emergency && evacTimer <= 0) -> X (setEvacTime U (q && evacTimer = evacTime)))) &&
+            ((emergency && evacTimer > 0) -> (!e1 & e2)) &&
+            ((emergency && evacTimer <= 0) -> X (setEvacTime U (q && evacTimer == evacTime)))) &&
             ((emergency) -> F (evacTimer <= 0)) &&
             (((X (ack == 0)) && r1 && !r2) -> (X (ack == 1) W (land || emergency))) &&
             (((X (ack == 0)) && r2 && !r1) -> (X (ack == 2) W (land || emergency))) &&
