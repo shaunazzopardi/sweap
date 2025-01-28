@@ -1,0 +1,48 @@
+var Int x
+var Int dX
+
+SPECIFICATION
+
+L1 = i50();
+L2 = (sub i0() i50());
+START = i0();
+
+
+move =  [x <- add x dX];
+moveUp =  [x <- add x i1()];
+moveDown =  [x <- add x (sub i0() i1())];
+stay = [x <- x];
+
+changeDir = ([dX <- i1()] || [dX <- sub i0() i1()]);
+keepDir = [dX <- dX];
+changeDirUp = [dX <- i1()];
+changeDirDown = [dX <- sub i0() i1()];
+
+
+assume {
+    (eq x START);
+}
+
+guarantee {
+
+    X G ((eq dX i1()) || (eq dX (sub i0() i1())));
+
+    // at the beginning
+    stay && changeDir;
+
+    // at L1
+    X G ((gte x L1) -> stay && changeDir || move && keepDir);
+    
+    // at L2
+    X G ((lte x L2) -> stay && changeDir || move && keepDir);
+
+    // on the way
+    X G (!(gte x L1) && !(lte x L2) -> move && keepDir);
+
+    F (gte x L1); 
+    F (lte x L2); 
+    !(lte x L2) W (gte x L1);
+
+}
+
+

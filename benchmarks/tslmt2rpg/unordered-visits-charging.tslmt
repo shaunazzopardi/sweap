@@ -1,0 +1,57 @@
+var Int x
+var Int dX
+var Int charge
+
+
+SPECIFICATION
+
+L1 = i50();
+L2 = (sub i0() i70());
+START = i0();
+
+MAXCHARGE = i150();
+INITCHARGE = i60();
+
+
+move =  [x <- add x dX] && [charge <- sub charge i1()];
+charging = [x <- x] && [charge <- add charge i1()];
+stay = [x <- x] && [charge <- charge];
+moveUp =  [x <- add x i1()];
+moveDown =  [x <- add x (sub i0() i1())];
+
+
+changeDir =  ([dX <- i1()] || [dX <- sub i0() i1()]);
+keepDir   = [dX <- dX];
+changeDirUp = [dX <- i1()];
+changeDirDown = [dX <- sub i0() i1()];
+
+
+assume {
+    (eq charge INITCHARGE);   
+    (eq x START);
+}
+
+guarantee {
+    
+    X G ((eq dX i1()) || (eq dX (sub i0() i1())));
+
+    // at the beginning
+    stay && changeDir;
+
+    // at L1
+    X G((gte x L1) -> (moveDown && changeDirDown || charging && keepDir));
+    
+    // at L2
+    X G((lte x L2) -> (moveUp && changeDirUp || charging && keepDir));
+ 
+    // on the way
+    X G(!(gte x L1) && !(lte x L2) -> move && keepDir);
+    
+    G ((gte charge i0()) && (lte charge MAXCHARGE));
+
+    F (gte x L1);
+    F (lte x L2);
+
+}
+
+
