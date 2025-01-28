@@ -15,6 +15,7 @@ OUT_LATEX = "table-results.tex"
 LTL_LATEX = "table-ltl.tex"
 REF_LATEX = "table-refinements.tex"
 SUMM_LATEX = "table-summ.tex"
+MACROS_LATEX = "macros-experiments.tex"
 bullet = r"$\bullet$"
 
 timeout = 1200000
@@ -73,14 +74,21 @@ safety_benchs_popl24 = {
     "square": True,
 }
 
+safety_benchs_popl25 = {
+    "g-real": True,
+    "g-unreal-1": False,
+    "g-unreal-2": False,
+    "g-unreal-3": False,
+}
+
 reach_benchs_popl24 = {
+    "heim-double-x": True,
     "robot-cat-real-1d": True,
     "robot-cat-unreal-1d": False,
     "robot-cat-real-2d": True,
     "robot-cat-unreal-2d": False,
     "robot-grid-reach-1d": True,
     "robot-grid-reach-2d": True,
-    "heim-double-x": True,
 }
 
 reach_benchs_novel = {
@@ -88,12 +96,12 @@ reach_benchs_novel = {
 }
 
 buechi_benchs_popl24 = {
+    "heim-buechi": True,
+    "heim-fig7": False,
     "robot-commute-1d": True,
     "robot-commute-2d": True,
     "robot-resource-1d": False,
     "robot-resource-2d": False,
-    "heim-buechi": True,
-    "heim-fig7": False,
 }
 
 buechi_benchs_cav24 = {
@@ -121,26 +129,39 @@ ltl_benchs = {
 }
 
 reach_benchs_popl25 = {
+    "F-G-contradiction-1": False,
+    "F-G-contradiction-2": False,
     "f-real": True,
+    "f-unreal": False,
     "precise-reachability": True,
+    "robot-to-target-charging": True,
     "sort4": True,
     "sort5": True,
+    "thermostat-F": True,
+    "thermostat-F-unreal": False,
+    "unordered-visits-charging": True,
 }
 
 buechi_benchs_popl25 = {
     "buffer-storage": True,
-    "ordered-visits": True,
-    "tasks": True, 
     "gf-real": True,
+    "gf-unreal": False,
+    "GF-G-contradiction": False,
+    "helipad-contradict": False,
+    "ordered-visits": True,
+    "tasks": True,
+    "thermostat-GF": True,
+    "thermostat-GF-unreal": False,
 }
 
 infinite_benchs = {
     **safety_benchs_popl24,
+    **safety_benchs_popl25,
     **reach_benchs_popl24,
+    **reach_benchs_popl25,
     **reach_benchs_novel,
     **buechi_benchs_cav24,
     **buechi_benchs_popl24,
-    **reach_benchs_popl25,
     **buechi_benchs_popl25,
     **ltl_benchs
 }
@@ -316,7 +337,8 @@ with open(OUT_CSV, 'w', newline='') as csv_file:
             row.append(result)
         writer.writerow(row)
 
-print(STATS, file=sys.stderr)
+for k, v in STATS.items():
+    print(k, ":", v, file=sys.stderr)
 
 # Results (latex) #############################################################
 latex_order = (
@@ -366,7 +388,7 @@ def do_latex_body(benchs, source):
         positive_results = {
             tool: results[b][tool]
             for tool in latex_order
-            if tool in syn_tools and results[b][tool] > 2}
+            if tool in syn_tools and results[b].get(tool, 0) > 2}
         if positive_results:
             best = min(positive_results, key=positive_results.get)
             r[best] = f"\\textbf{{{r[best]}}}"
@@ -377,8 +399,10 @@ def do_latex_body(benchs, source):
 
 with open(OUT_LATEX, "w") as latex:
     latex.write(latex_header)
-    latex.write(rf"\multirow{{{len(safety_benchs_popl24)}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Safety}}}}" "\n") 
+    how_many_safety = len(safety_benchs_popl24) + len(safety_benchs_popl25)
+    latex.write(rf"\multirow{{{how_many_safety}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Safety}}}}" "\n") 
     latex.writelines(do_latex_body(safety_benchs_popl24, popl24))
+    latex.writelines(do_latex_body(safety_benchs_popl25, popl25))
     latex.write("\\hline\\hline\n")
     how_many_reach = len(reach_benchs_popl24) + len(reach_benchs_popl25) + len(reach_benchs_novel)
     latex.write(rf"\multirow{{{how_many_reach}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Reachability}}}}" "\n") 
@@ -397,36 +421,22 @@ with open(OUT_LATEX, "w") as latex:
 
 with open(LTL_LATEX, "w") as latex:
     latex.write(dedent(rf"""
-        \begin{{tabular}}{{|c|c|c||c|c|c|c|c|c||c|}}
+        \begin{{tabular}}{{|c|c||c|c|}}
         \hline
-        \multirow{{2}}{{*}}{{Name}} 
-        & \multirow{{2}}{{*}}{{U}}
-        & \multirow{{2}}{{*}}{{acc}} 
-        & \multicolumn{{2}}{{c|}}{{init}}
-        & \multicolumn{{2}}{{c|}}{{ref}}
-        & \multicolumn{{2}}{{c||}}{{add}}
-        & \multirow{{2}}{{*}}{{time}}\\\cline{{4-9}}
-        & & & s & t &sf. &sl. & sp & tp & \\\hline
+        \multirow{{2}}{{*}}{{Name}} & \multirow{{2}}{{*}}{{U}} & \multicolumn{{2}}{{c|}}{{Time (s)}}\\\cline{{3-4}}
+        & & S$_{{\textit{{acc}}}}$ & S\\\hline\hline
         """[1:]))
     for b in ltl_benchs:
         latex.write(dedent(rf"""
-            \hline
-            \multirow{{2}}{{*}}{{{b.replace("_", "-")}}} & \multirow{{2}}{{*}}{{{"" if ltl_benchs[b] else bullet}}} &
-            """[1:]))
+            \textsf{{{b.replace("_", "-")}}} & {{{"" if ltl_benchs[b] else bullet}}}"""[1:]))
         best = min(("sweap", "sweap-noacc"), key=results[b].get)
-        
-        for tool in ("sweap", "sweap-noacc"):
-            init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[b][tool]
-            latex.write(dedent(rf"""
-                {bullet if tool == 'sweap' else '&&'}
-                & {init_st} & {init_tr} & {count_safe_ref} & {count_fair_ref} & {add_st} & {add_tr} & """[1:]))
-            latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
-            latex.write(r"\\\cline{3-10}" if tool == "sweap" else r"\\\hline")
-            latex.write("\n")
 
-    latex.write("\n")
-    latex.write(r"\end{tabular}")
-    latex.write("\n")
+        for tool in ("sweap", "sweap-noacc"):
+            latex.write(" & ")
+            latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
+        latex.write(r"\\\hline" "\n")
+
+    latex.write("\n" r"\end{tabular}")
 
 
 
@@ -439,23 +449,23 @@ with open(REF_LATEX, "w") as latex:
         & \multicolumn{2}{c|}{ref}
         & \multicolumn{2}{c||}{add}\\\hline
         \multicolumn{1}{|c||}{Name} & acc & s & t &sf. &sl. & sp & tp\\\hline\hline""")
-    all_keys = [k for k in sorted(refinements.keys()) if k not in ltl_benchs]
+    all_keys = [k for k in sorted(refinements.keys(), key=lambda x: x.lower())]
     keys_1, keys_2 = all_keys[:len(all_keys)//2], all_keys[len(all_keys)//2:]
     for keys in (keys_1, keys_2):
-        latex.write(begin_tabular)
+        latex.write(begin_tabular[1:])
         for k in keys:
             latex.write(rf"\multirow{{2}}{{*}}[0em]{{{k.replace('_', '-')}}}")
             latex.write("\n")
             for tool in ("sweap", "sweap-noacc"):
-                init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[k][tool]
+                init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[k].get(tool, ["--"] * 6)
                 latex.write(dedent(rf"""
                     & {bullet if tool == 'sweap' else ''}
-                    & {init_st} & {init_tr} & {count_fair_ref} & {count_safe_ref} & {add_st} & {add_tr}"""))
+                    & {init_st} & {init_tr} & {count_safe_ref} & {count_fair_ref} & {add_st} & {add_tr}"""))
                 latex.write(r"\\\cline{2-8}" if tool == "sweap" else r"\\\hline")
         latex.write("\n")
         latex.write(r"\end{tabular}")
 
-# Agregates ###################################################################
+# Aggregates ##################################################################
 syn_best, syn_uniq, r11y_best, r11y_uniq = (Counter() for _ in range(4))
 
 for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11y_uniq, r11y_tools)):
@@ -490,7 +500,7 @@ with open(SUMM_LATEX, "w") as latex:
 
     all_solved = {
         t: sum(
-            int(1 < results[b][t] < timeout)
+            int(1 < results[b].get(t, 0) < timeout)
             for b in results if b not in ltl_benchs)
             for t in tools}
 
@@ -506,16 +516,48 @@ with open(SUMM_LATEX, "w") as latex:
 
 
     latex.write(dedent(rf"""
-    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in range(len(syn_tools)-1))}||c|c|}}\hline
-    Synthesis & {syn_header} \\\hline
+    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in range(len(syn_tools)-2))}||c|c|}}\hline
+    Synthesis (s) & {syn_header} \\\hline
         solved & {fmt_syn_solved}\\
         best & {fmt_syn_best}\\
         unique & {fmt_syn_uniq}\\\hline
     \end{{tabular}}\\
     \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in range(len(r11y_tools)-2))}||c|c|}}\hline
-    Realisability & {r11y_header} \\\hline
+    Realisability (s) & {r11y_header} \\\hline
         solved & {fmt_r11y_solved}\\
         best & {fmt_r11y_best}\\
         unique & {fmt_r11y_uniq}\\\hline
     \end{{tabular}}
     """[1:]))
+
+# times = {
+#     t: [
+#         results[b].get(t, 0)
+#         for b in results 
+#         if b not in ltl_benchs and 1 < results[b].get(t, 0) < timeout]
+#     for t in tools}
+
+# cumul_times = {tool: sum(tm) for tool, tm in times.items()}
+# avg_times = {tool: sum(tm)/len(tm) if len(tm) else 0 for tool, tm in times.items()}
+# median_times = {tool: (sorted(tm, key=lambda x: abs(x-avg_times[tool])) or [0])[0] for tool, tm in times.items()}
+# print(avg_times)
+# print(median_times)
+
+
+## Macros
+with open(MACROS_LATEX, "w") as latex:
+    latex.write(rf"\newcommand*{{\COMPEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)}}}" "\n")
+    latex.write(rf"\newcommand*{{\LITERATUREEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)-len(reach_benchs_novel)}}}" "\n")
+    latex.write(rf"\newcommand*{{\LTLEXPERIMENTS}}{{{len(ltl_benchs)}}}" "\n")
+    best_competitor = sorted([k for k in syn_solved if "sweap" not in k], key=syn_solved.get, reverse=True)
+    latex.write(rf"\newcommand*{{\SWEAPSCORE}}{{{syn_solved['sweap']}}}" "\n")
+    latex.write(rf"\newcommand*{{\SWEAPLAZYSCORE}}{{{syn_solved['sweap-noacc']}}}" "\n")
+    latex.write(rf"\newcommand*{{\SECONDBEST}}{{{best_competitor[0].replace('-syn', '')}}}" "\n")
+    latex.write(rf"\newcommand*{{\SECONDBESTSCORE}}{{{syn_solved[best_competitor[0]]}}}" "\n")
+
+    latex.write(rf"\newcommand*{{\SWEAPTIME}}{{{round(cumul_times['sweap']/1000)}}}" "\n")
+    latex.write(rf"\newcommand*{{\SWEAPAVGTIME}}{{{(cumul_times['sweap']/1000)/syn_solved['sweap']:.2f}}}" "\n")
+    latex.write(rf"\newcommand*{{\SECONDBESTTIME}}{{{round(cumul_times[best_competitor[0]]/1000)}}}" "\n")
+    latex.write(rf"\newcommand*{{\SECONDBESTAVGTIME}}{{{(cumul_times[best_competitor[0]]/1000)/syn_solved[best_competitor[0]]:.2f}}}" "\n")
+
+    
