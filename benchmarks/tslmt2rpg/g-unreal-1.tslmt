@@ -1,0 +1,21 @@
+var Int x
+var Int t
+
+inp Int e
+
+SPECIFICATION
+
+assume{
+    (eq x i0());
+}
+
+
+guarantee {
+
+    [t <- e];
+    X G ([t <- t]); 
+
+    G ([x <- add x i1()]);
+    
+    G (lte x (add t i42()));
+}

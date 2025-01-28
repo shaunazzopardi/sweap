@@ -1,0 +1,28 @@
+type Buechi
+
+output x  Int
+
+loc l0_q1 0 ; Loc 0
+loc l1_q2 0 ; Loc 1
+loc l2_q3 0 ; Loc 2
+loc l3_q4 0 ; Loc 3
+loc l4_q5 0 ; Loc 4
+loc l5_q6 0 ; Loc 5
+loc l6_q7 1 ; Loc 6
+loc l7_q8 1 ; Loc 7
+loc l8_q9 0 ; Loc 8
+loc l9_q10 0 ; Loc 9
+
+init l0_q1
+
+trans l0_q1 if (= x 100) then sys( ((x (- x 1))) l2_q3 ((x (+ x 1))) l2_q3 ((x 100)) l2_q3 () l9_q10 ) else sys( ((x (- x 1))) l1_q2 ((x (+ x 1))) l1_q2 ((x 100)) l1_q2 () l9_q10 )
+trans l1_q2 if (= x 100) then sys( ((x (- x 1))) l4_q5 ((x (+ x 1))) l4_q5 ((x 100)) l4_q5 () l9_q10 ) else sys( ((x (- x 1))) l3_q4 ((x (+ x 1))) l3_q4 ((x 100)) l3_q4 () l9_q10 )
+trans l2_q3 if (>= x 100) then sys( ((x (- x 1))) l4_q5 ((x (+ x 1))) l4_q5 ((x 100)) l4_q5 () l9_q10 ) else sys( () l9_q10 )
+trans l3_q4 if (= x 100) then sys( ((x (- x 1))) l5_q6 ((x (+ x 1))) l5_q6 ((x 100)) l5_q6 () l9_q10 ) else sys( () l9_q10 )
+trans l4_q5 if (= x 100) then sys( ((x (- x 1))) l5_q6 ((x (+ x 1))) l5_q6 ((x 100)) l5_q6 () l9_q10 ) else if (>= x 100) then sys( () l9_q10 ) else sys( () l9_q10 )
+trans l5_q6 if (< x 100) then sys( () l9_q10 ) else sys( () l9_q10 )
+trans l6_q7 if (= x 100) then sys( ((x (- x 1))) l8_q9 ((x (+ x 1))) l8_q9 ((x 100)) l8_q9 () l9_q10 ) else if (>= x 100) then if (>= x 1000) then sys( ((x (- x 1))) l7_q8 ((x (+ x 1))) l7_q8 ((x 100)) l7_q8 () l9_q10 ) else sys( ((x (- x 1))) l8_q9 ((x (+ x 1))) l8_q9 ((x 100)) l8_q9 () l9_q10 ) else sys( () l9_q10 )
+trans l7_q8 if (= x 100) then sys( ((x (- x 1))) l6_q7 ((x (+ x 1))) l6_q7 ((x 100)) l6_q7 () l9_q10 ) else if (>= x 100) then sys( ((x (- x 1))) l7_q8 ((x (+ x 1))) l7_q8 ((x 100)) l7_q8 () l9_q10 ) else sys( () l9_q10 )
+trans l8_q9 if (= x 100) then sys( ((x (- x 1))) l8_q9 ((x (+ x 1))) l8_q9 ((x 100)) l8_q9 () l9_q10 ) else if (>= x 100) then if (>= x 1000) then sys( ((x (- x 1))) l7_q8 ((x (+ x 1))) l7_q8 ((x 100)) l7_q8 () l9_q10 ) else sys( ((x (- x 1))) l8_q9 ((x (+ x 1))) l8_q9 ((x 100)) l8_q9 () l9_q10 ) else sys( () l9_q10 )
+trans l9_q10 sys( () l9_q10 )
+

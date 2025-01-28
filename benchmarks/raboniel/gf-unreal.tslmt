@@ -1,0 +1,10 @@
+//-- State:  x
+
+assume{
+    (eq x i10000());
+}
+
+guarantee {
+    G [x <- add x i1()];    
+    G F (le x i10000());
+}

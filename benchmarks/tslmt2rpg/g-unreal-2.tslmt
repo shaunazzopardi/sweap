@@ -1,0 +1,19 @@
+var Int x
+var Int y
+inp Int e
+
+SPECIFICATION
+
+guarantee {
+
+
+    G ([x <- (add x (add e i1()))] || [x <- (sub x e)] || [x <- i500()]);
+    G ([y <- (add y (add e i1()))] || [y <- (sub y e)] || [y<- i200()] || [y<- i20()]);
+
+    
+    G (gte x i100());
+    G ((gte x i0()) -> X G (gte y i100()));
+    G ((gte y i0()) -> F (gte y i1000()));
+
+    X X X (lt y i50());
+ }

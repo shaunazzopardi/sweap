@@ -1,0 +1,20 @@
+#LIA
+//-- State:  x, y
+//-- Inputs: e
+
+assume{
+    (gt e int0());
+}
+
+guarantee {
+    
+    [x <- int0()];
+    X G ([x <- add x y] || [x <- add x int1()]);    
+
+    [y <- e];
+    X G ([y <- y]);
+    X (gt y int0());
+    
+    F (lte x (sub int0() int10000()));
+
+}

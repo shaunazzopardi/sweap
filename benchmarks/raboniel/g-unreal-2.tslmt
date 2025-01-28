@@ -1,0 +1,16 @@
+//-- State:  x, y
+//-- Inputs: e
+
+guarantee {
+
+
+    G ([x <- (add x (add e i1()))] || [x <- (sub x e)] || [x <- i500()]);
+    G ([y <- (add y (add e i1()))] || [y <- (sub y e)] || [y<- i200()] || [y<- i20()]);
+
+    
+    G (ge x i100());
+    G ((ge x i0()) -> X G (ge y i100()));
+    G ((ge y i0()) -> F (ge y i1000()));
+
+    X X X (lt y i50());
+ }

@@ -1,0 +1,30 @@
+#LIA
+//-- State:  freei, ack, evacTimer
+//-- Inputs: departi, landi, r1i, r2i, emergencyi, evacTime
+
+r1 = eq r1i int1();
+r2 = eq r2i int1();
+emergency = eq emergencyi int1();
+depart = eq departi int1();
+land = eq landi int1();
+free = eq freei int1();
+
+CLEAR = (depart || (lte evacTimer int0() && emergency));
+
+guarantee {
+
+    // Handeling of state
+    G (free && land -> ([freei <- int0()] W CLEAR));
+    G (CLEAR -> ([freei <- int1()] W land));
+
+    // Evacuation on emergency
+    G (!emergency -> [evacTimer <- sub int0() int1()]);
+    G (emergency && gt evacTimer int0() -> [evacTimer <- sub evacTimer int1()]);
+    G (emergency && lte evacTimer int0() -> [evacTimer <- evacTime]);
+    G (emergency -> F lte evacTimer int0());
+
+    // Landing managment
+    G ([ack <- int0()] && r1 && !r2 -> ([ack <- int1()] W (land || emergency)));
+    G ([ack <- int0()] && r2 && !r1 -> ([ack <- int2()] W (land || emergency)));
+    G (emergency -> X [ack <- int0()]); 
+}

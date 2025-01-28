@@ -1,0 +1,11 @@
+#LIA
+//-- State:  x
+
+assume{
+    (eq x int10000());
+}
+
+guarantee {
+    G [x <- add x int1()];    
+    G F (lte x int10000());
+}
