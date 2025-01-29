@@ -147,9 +147,12 @@ buechi_benchs_popl25 = {
     "gf-real": True,
     "gf-unreal": False,
     "GF-G-contradiction": False,
+    "helipad": True,
     "helipad-contradict": False,
     "ordered-visits": True,
+    "package-delivery": True,
     "tasks": True,
+    "tasks-unreal": False,
     "thermostat-GF": True,
     "thermostat-GF-unreal": False,
 }
@@ -393,7 +396,7 @@ def do_latex_body(benchs, source):
             best = min(positive_results, key=positive_results.get)
             r[best] = f"\\textbf{{{r[best]}}}"
         fmt_r = " & ".join(r.values())
-        yield rf"& {b.replace('_', '-')} & {source} & {'' if is_realizable else bullet} & {fmt_r} \\"
+        yield rf"&  \textsf{{{b.replace('_', '-')}}} & {source} & {'' if is_realizable else bullet} & {fmt_r} \\"
         yield '\n'
 
 
