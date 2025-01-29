@@ -12,19 +12,6 @@ FORMAT = "pdf"
 TIMEOUT = 1200000
 
 
-# def export_legend(ax, ncols=10, filename="legend.pdf"):
-#     # https://stackoverflow.com/a/62013436
-#     fig2 = plt.figure()
-#     ax2 = fig2.add_subplot()
-#     ax2.axis('off')
-#     legend = ax2.legend(
-#         *ax.get_legend_handles_labels(), frameon=False, 
-#         loc='lower center', ncol=10)
-#     fig  = legend.figure
-#     fig.canvas.draw()
-#     bbox  = legend.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-#     fig.savefig(filename, dpi="figure", bbox_inches=bbox)
-
 if len(sys.argv) < 2:
     print("Usage: ./cactus.py <file.csv>")
     sys.exit(1)
@@ -44,7 +31,6 @@ legend = {
     "sweap-noacc": "Our tool, lazy (synthesis)",
     "raboniel": "Raboniel (synthesis)",
     "rpgsolve-syn": "Rpgsolve (synthesis)",
-    # "temos": "Temos (synthesis)",
     "rpg-stela": "Rpg-stela (realisability)",
     "rpgsolve": "Rpgsolve (realisability)",
     "tslmt2rpg": "tslmt2rpg (realisability)",
@@ -78,7 +64,6 @@ full_ltl_benchs = (
 
 
 def cum_sum(tool_name: str):
-    # col_name = tool_name
     col_name = legend.get(tool_name, tool_name)
     q = (
         pl.scan_csv(FILENAME)
@@ -108,11 +93,15 @@ for df in dataframes[1:]:
 
 print(joined)
 
+print("Total time (successful instances only)")
+print(*((x.name, x.first()) for x in joined.drop("instances").max()), sep="\n")
+
 ## Easiest 20 instances
-easy_df = joined.limit(20)
+easy_df = joined.limit(21)
 plot_easy = sns.lineplot(
     data=easy_df.drop("instances").to_pandas(),
     **lineplot_config)
+
 
 plot_easy.set_ylim(bottom=0.5E-2)
 
@@ -153,7 +142,7 @@ plot_easy.legend(handles, labels, ncol=3)
 newline = '\n'
 plot_easy.set_title(f"Behaviour on first 20 solved instances{newline + ' (excl. novel LTL instances)' if exclude_full_ltl else ''}")
 plot_easy.set(xlabel="Instances solved")
-plot_easy.set(ylabel="Time (s)")
+plot_easy.set(ylabel="Cumulative time (s)")
 plot_easy.set(yscale='log')
 plot_easy.set(xticks=[1,5,10,15,20])
 
@@ -176,7 +165,7 @@ real_df = (
 plot_real = sns.lineplot(
     data=real_df.drop("instances").to_pandas(),
     **lineplot_config)
-plot_real.set_ylim(top=11_000)
+# plot_real.set(yscale='log')
 
 ## Keep line styles consistent
 handles, labels = plot_real.get_legend_handles_labels()
@@ -192,11 +181,11 @@ for i, tool in enumerate(real_df.drop("instances").columns):
 zipped = sorted(zip(handles, labels), key=lambda x: x[1])
 handles, labels = zip(*zipped)
 
-plot_real.legend(handles, labels, ncols=2)
+plot_real.legend(handles, labels, ncols=1)
 
 plot_real.set_title(f"Realisability{' (excl. novel LTL instances)' if exclude_full_ltl else ''}")
 plot_real.set(xlabel="Instances solved")
-plot_real.set(ylabel="Time (s)")
+plot_real.set(ylabel="Cumulative time (s)")
 
 
 fig = plot_real.get_figure()
@@ -211,7 +200,8 @@ syn_df = (
 
 plot_syn = sns.lineplot(data=syn_df.drop("instances").to_pandas(), **lineplot_config)
 
-
+plot_syn.figure.set_size_inches(4.6, 4.6)
+# plot_syn.set(yscale='log')
 
 # # Keep line styles consistent
 handles, labels = plot_syn.get_legend_handles_labels()
@@ -229,7 +219,7 @@ plot_syn.legend(handles, labels, ncols=2)
 
 plot_syn.set_title(f"Synthesis{' (excl. novel LTL instances)' if exclude_full_ltl else ''}")
 plot_syn.set(xlabel="Instances solved")
-plot_syn.set(ylabel="Time (s)")
+plot_syn.set(ylabel="Cumulative time (s)")
 
 fig = plot_syn.get_figure()
 fig.tight_layout()
