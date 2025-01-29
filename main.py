@@ -32,16 +32,16 @@ def main():
     # Strix workflow
     parser.add_argument('--synth-strix', dest='synth_strix', help="Synthesise with Strix (only for finite-state problems).", type=bool, nargs='?', const=True)
 
-    parser.add_argument('--only_ranking', dest='only_ranking', help="For fairness refinements, only use ranking refinement.", type=bool, nargs='?', const=True)
-    parser.add_argument('--only_structural', dest='only_structural', help="For fairness refinements, only use structural refinement.", type=bool, nargs='?', const=True)
-    parser.add_argument('--eager_fairness', dest='eager_fairness', help="Synthesise ranking refinements for each predicate initially.", type=bool, nargs='?', const=True)
+    # parser.add_argument('--only_ranking', dest='only_ranking', help="For fairness refinements, only use ranking refinement.", type=bool, nargs='?', const=True)
+    # parser.add_argument('--only_structural', dest='only_structural', help="For fairness refinements, only use structural refinement.", type=bool, nargs='?', const=True)
+    # parser.add_argument('--eager_fairness', dest='eager_fairness', help="Synthesise ranking refinements for each predicate initially.", type=bool, nargs='?', const=True)
     parser.add_argument('--verify_controller', dest='verify_controller', help="Verifies controller, if realisable, satisfies given LTL specification against program.", type=bool, nargs='?', const=True)
-    parser.add_argument('--add_all_preds_in_prog', dest='add_all_preds_in_prog', help="Initially each predicate used in the program.", type=bool, nargs='?', const=True)
-    parser.add_argument('--accelerate', dest='accelerate', help="Set eager_fairness and add_all_preds_in_prog to true", type=bool, nargs='?', const=True)
+    # parser.add_argument('--add_all_preds_in_prog', dest='add_all_preds_in_prog', help="Initially each predicate used in the program.", type=bool, nargs='?', const=True)
+    parser.add_argument('--lazy', dest='lazy', help="Lazy approach", type=bool, nargs='?', const=True)
     parser.add_argument('--only_safety', dest='only_safety', help="Do not use fairness refinements.", type=bool, nargs='?', const=True)
 
-    # how to connect to strix (default just assume `strix' is in path)
-    parser.add_argument('--strix_docker', dest='docker', type=str, nargs='?', const=False)
+    ##how to connect to strix (default just assume `strix' is in path)
+    # parser.add_argument('--strix_docker', dest='docker', type=str, nargs='?', const=False)
 
     args = parser.parse_args()
 
@@ -57,23 +57,23 @@ def main():
     if args.program is None and args.tsl is None:
         raise Exception("Program path not specified.")
 
-    if args.only_ranking is not None:
-        if args.only_structural is not None:
-            raise Exception("Cannot use both only_ranking and only_structural.")
-        conf.prefer_ranking = False
-        conf.only_ranking = True
-        conf.only_structural = False
-        conf.only_safety = False
+    # if args.only_ranking is not None:
+    #     if args.only_structural is not None:
+    #         raise Exception("Cannot use both only_ranking and only_structural.")
+    #     conf.prefer_ranking = False
+    #     conf.only_ranking = True
+    #     conf.only_structural = False
+    #     conf.only_safety = False
 
-    if args.only_structural is not None:
-        if args.only_ranking is not None:
-            raise Exception("Cannot use both only_ranking and only_structural.")
-        conf.prefer_ranking = False
-        conf.only_ranking = False
-        conf.only_structural = True
-        conf.only_safety = False
+    # if args.only_structural is not None:
+    #     if args.only_ranking is not None:
+    #         raise Exception("Cannot use both only_ranking and only_structural.")
+    #     conf.prefer_ranking = False
+    #     conf.only_ranking = False
+    #     conf.only_structural = True
+    #     conf.only_safety = False
 
-    if args.eager_fairness or args.accelerate:
+    if not args.lazy and not args.only_safety:
         conf.eager_fairness = True
     else:
         conf.eager_fairness = False
@@ -83,17 +83,14 @@ def main():
     else:
         conf._verify_controller = False
 
-    if args.add_all_preds_in_prog or args.accelerate:
-        conf.add_all_preds_in_prog = True
-    else:
-        conf.add_all_preds_in_prog = False
+    conf.add_all_preds_in_prog = True
 
     if args.only_safety is not None:
-        if args.only_ranking is not None or args.only_structural is not None:
-            raise Exception("Cannot use both only_safety with only_ranking and only_structural.")
-        conf.prefer_ranking = False
-        conf.only_ranking = False
-        conf.only_structural = False
+        # if args.only_ranking is not None or args.only_structural is not None:
+        #     raise Exception("Cannot use both only_safety with only_ranking and only_structural.")
+        # conf.prefer_ranking = False
+        # conf.only_ranking = False
+        # conf.only_structural = False
         conf.only_safety = True
 
     if args.program is not None:
@@ -149,7 +146,7 @@ def main():
         (realiz, mm) = (
             finite_state_synth(program, ltl, args.tlsf)
             if args.synth_strix
-            else synthesize(program, ltl, args.tlsf, args.docker))
+            else synthesize(program, ltl, args.tlsf, False))
         end = time.time()
 
         if realiz:
