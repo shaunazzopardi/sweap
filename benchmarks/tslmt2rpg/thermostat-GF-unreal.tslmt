@@ -1,0 +1,54 @@
+var Int temp
+var Int mode 
+
+inp Int sense
+
+
+SPECIFICATION
+
+// target temp range
+LBOUND = i20();
+UBOUND = i25();
+
+inRangeTemp = ((gte temp LBOUND) && (lte temp UBOUND));
+inRangeSense = ((gte sense LBOUND) && (lte sense UBOUND));
+
+// temp change
+TUNIT = i1();
+
+// modes
+OFF = i0();
+HEAT = i1();
+COOL = (sub i0() i1());
+
+modeOFF = (eq mode OFF);
+modeHEAT = (eq mode HEAT);
+modeCOOL = (eq mode COOL);
+
+
+assume {
+    modeOFF;
+}
+
+guarantee {
+    modeOFF;
+}
+
+always guarantee {
+    modeOFF || modeHEAT || modeCOOL;
+    
+    // mode switching
+    modeCOOL && !inRangeTemp -> [mode <- COOL];
+    modeHEAT && !inRangeTemp -> [mode <- HEAT];
+    (modeCOOL || modeHEAT) && inRangeTemp -> [mode <- OFF];
+    modeOFF  && !inRangeSense -> ([mode <- COOL]);  
+    modeOFF  &&  inRangeSense -> [mode <- OFF];
+
+    // temp control
+    modeOFF  -> [temp <- sense];
+    modeHEAT -> [temp <- add temp TUNIT];
+    modeCOOL -> [temp <- sub temp TUNIT];
+    
+    // infinitely often off
+    F modeOFF;
+}
