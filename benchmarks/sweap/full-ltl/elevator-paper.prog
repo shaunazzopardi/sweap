@@ -28,10 +28,6 @@ program elevator {
     }
 
     SPECIFICATION{
-         ((G F dooropen) && (G F (!dooropen)))
-         ->
-         ((G F ((at_floor == target))) &&
-          (G(dooropen -> (up <-> down)))
-          )
+         ((G F dooropen) & (G F (!dooropen))) -> ((G F ((at_floor == target))) & (G(dooropen -> (up <-> down))))
     }
 }
