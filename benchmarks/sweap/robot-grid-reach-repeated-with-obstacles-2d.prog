@@ -33,6 +33,6 @@ program robot-grid-reach-with-obstacles-2d {
     }
 
     SPECIFICATION {
-        (G F !estay) -> F goal
+        (G F !estay) -> G F goal
     }
 }
