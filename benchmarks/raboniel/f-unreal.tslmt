@@ -1,0 +1,20 @@
+//-- State:  x, a
+//-- Inputs: e
+
+assume{
+    (gt e i0());
+    (eq x i0());
+}
+
+guarantee {
+
+    [a <- e];
+    X G ([a <- a]);
+    X (gt a i0());
+    
+    [x <- i0()];
+    X G [x <- add x a];    
+
+    F (le x (sub i0() i10000()));
+
+}

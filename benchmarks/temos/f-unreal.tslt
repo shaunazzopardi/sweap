@@ -1,0 +1,21 @@
+#LIA
+//-- State:  x, a
+//-- Inputs: e
+
+assume{
+    (gt e int0());
+    (eq x int0());
+}
+
+guarantee {
+
+    [a <- e];
+    X G ([a <- a]);
+    X (gt a int0());
+    
+    [x <- int0()];
+    X G [x <- add x a];    
+
+    F (lte x (sub int0() int10000()));
+
+}
