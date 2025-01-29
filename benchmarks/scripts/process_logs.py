@@ -118,14 +118,21 @@ buechi_benchs_cav24 = {
 
 ltl_benchs = {
     "arbiter": True,
+    "arbiter-unreal": False,
     "arbiter-failure": True,
     "elevator": True,
+    "infinite-race": True,
+    "infinite-race-u": False,
+    "infinite-race-unequal-1": True,
+    "infinite-race-unequal-2": True,
     "reversible-lane-r": True,
     "reversible-lane-u": False,
     "rep-reach-obst-1d": True,
     "rep-reach-obst-2d": True,
+    "rep-reach-obst-6d": True,
     "robot_collect_v4": True,
     "taxi-service": True,
+    "taxi-service-u": False,
 }
 
 reach_benchs_popl25 = {
@@ -172,8 +179,6 @@ infinite_benchs = {
 other_benchs = {
     "repeated-robot-resource-1d": True,
     "heim-normal": True,
-    "infinite-race": True,
-    "arbiter-unreal": False,
 }
 
 finite_benchs = {
@@ -202,6 +207,7 @@ aliases = {
     "heim-fig7": ("heim-buechi-u", "heim-buchi-u" ),
     "rep-reach-obst-1d": ("robot-grid-reach-repeated-with-obstacles-1d", ),
     "rep-reach-obst-2d": ("robot-grid-reach-repeated-with-obstacles-2d", ),
+    "rep-reach-obst-6d": ("robot-grid-reach-repeated-with-obstacles-6d", ),
     "robot_analyze": ("robot_analyze_samples", "robot_analyze_samples_v1", ),
     "robot-commute-1d": ("robot-grid-comute-1d", ),
     "robot-commute-2d": ("robot-grid-comute-2d", ),
@@ -235,7 +241,7 @@ def get_refinements(fname):
             replace(" to predicate abstraction", "").
             split(", "))
         preds = [p for p in preds if p]
-        tr = sum(1 for p in preds if "_prev" in p)
+        tr = sum("_prev" in p for p in preds)
         st = len(preds) - tr
         return st, tr
 
@@ -394,7 +400,7 @@ def do_latex_body(benchs, source):
             if tool in syn_tools and results[b].get(tool, 0) > 2}
         if positive_results:
             best = min(positive_results, key=positive_results.get)
-            r[best] = f"\\textbf{{{r[best]}}}"
+            r[best] = f"\\textbf{{{r[best]}}}" if results[b][best] < timeout else r[best]
         fmt_r = " & ".join(r.values())
         yield rf"&  \textsf{{{b.replace('_', '-')}}} & {source} & {'' if is_realizable else bullet} & {fmt_r} \\"
         yield '\n'
@@ -433,7 +439,8 @@ with open(LTL_LATEX, "w") as latex:
         latex.write(dedent(rf"""
             \textsf{{{b.replace("_", "-")}}} & {{{"" if ltl_benchs[b] else bullet}}}"""[1:]))
         best = min(("sweap", "sweap-noacc"), key=results[b].get)
-
+        if not 1 < results[b].get(best, 0) < timeout:
+            best = None
         for tool in ("sweap", "sweap-noacc"):
             latex.write(" & ")
             latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
@@ -533,19 +540,21 @@ with open(SUMM_LATEX, "w") as latex:
     \end{{tabular}}
     """[1:]))
 
-# times = {
-#     t: [
-#         results[b].get(t, 0)
-#         for b in results 
-#         if b not in ltl_benchs and 1 < results[b].get(t, 0) < timeout]
-#     for t in tools}
+ltl_times = {
+    t: {b: results[b].get(t, 0)
+        for b in results 
+        if b in ltl_benchs and 1 < results[b].get(t, 0) < timeout}
+    for t in tools if "sweap" in t}
 
-# cumul_times = {tool: sum(tm) for tool, tm in times.items()}
-# avg_times = {tool: sum(tm)/len(tm) if len(tm) else 0 for tool, tm in times.items()}
-# median_times = {tool: (sorted(tm, key=lambda x: abs(x-avg_times[tool])) or [0])[0] for tool, tm in times.items()}
-# print(avg_times)
-# print(median_times)
+# In how many benchmarks the lazy approach was the best
+lazy_best = sum(
+    ltl_times["sweap-noacc"][b] < ltl_times["sweap"].get(b, 0)
+    for b in ltl_times["sweap-noacc"])
 
+no_refinements = sum(
+    int(refinements[b]["sweap"][2]) == 0
+    and int(refinements[b]["sweap"][3]) == 0
+    for b in ltl_benchs)
 
 ## Macros
 with open(MACROS_LATEX, "w") as latex:
@@ -557,10 +566,5 @@ with open(MACROS_LATEX, "w") as latex:
     latex.write(rf"\newcommand*{{\SWEAPLAZYSCORE}}{{{syn_solved['sweap-noacc']}}}" "\n")
     latex.write(rf"\newcommand*{{\SECONDBEST}}{{{best_competitor[0].replace('-syn', '')}}}" "\n")
     latex.write(rf"\newcommand*{{\SECONDBESTSCORE}}{{{syn_solved[best_competitor[0]]}}}" "\n")
-
-    # latex.write(rf"\newcommand*{{\SWEAPTIME}}{{{round(cumul_times['sweap']/1000)}}}" "\n")
-    # latex.write(rf"\newcommand*{{\SWEAPAVGTIME}}{{{(cumul_times['sweap']/1000)/syn_solved['sweap']:.2f}}}" "\n")
-    # latex.write(rf"\newcommand*{{\SECONDBESTTIME}}{{{round(cumul_times[best_competitor[0]]/1000)}}}" "\n")
-    # latex.write(rf"\newcommand*{{\SECONDBESTAVGTIME}}{{{(cumul_times[best_competitor[0]]/1000)/syn_solved[best_competitor[0]]:.2f}}}" "\n")
-
-    
+    latex.write(rf"\newcommand*{{\LAZYBEST}}{{{lazy_best}}}" "\n")
+    latex.write(rf"\newcommand*{{\NOREFINEMENTS}}{{{no_refinements}}}" "\n")
