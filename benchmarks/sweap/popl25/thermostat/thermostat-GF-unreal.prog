@@ -43,7 +43,7 @@ program thermostat-GF{
 
             (((mode == 0)) -> (t1 & !t2)) &
             (((mode == 1)) -> (t1 & t2)) &
-            (((mode == 1)) -> (!t1 & t2)) &
+            (((mode == -1)) -> (!t1 & t2)) &
             F mode == 0
         ))))
     }

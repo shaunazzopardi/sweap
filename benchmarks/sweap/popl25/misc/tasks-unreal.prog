@@ -5,7 +5,7 @@ program tasks-unreal {
     ENVIRONMENT EVENTS {
     }
     CONTROLLER EVENTS {
-        changex, decy
+        cx1, cx2, cy1, cy2, cd
     }
     VALUATION {
         x : integer := 10;
@@ -13,16 +13,34 @@ program tasks-unreal {
         done : integer := 0;
     }
     TRANSITIONS {
-        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) && !changex && !decy $ x := x; y := y; done := done],
-        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) && !changex &&  decy $ x := x; y := (y - 1); done := done],
-        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) &&  changex && !decy $ x := (x - 1); y := y; done := done],
-        q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) &&  changex &&  decy $ x := (x - 1); y := (y - 1); done := done],
-        q0 -> q0 [(done == 0) && (x == 0) $ x := x; y := y; done := 1],
-        q0 -> q0 [(done == 0) && (y == 0) $ x := x; y := y; done := 1],
-        q0 -> q0 [(done == 1) && !(y == 0) $ x := x + 1; y := y; done := 1]
+        q0 -> q0 [$ x := x if cx1 & !cx2;
+                    x := x + 1 if cx1 & cx2;
+                    x := x - 1 if !cx1 & cx2;
+                    x := 0 if !cx1 & !cx2;
+                    y := y if cy1;
+                    y := y - 1 if !cy1 & cy2;
+                    y := 0 if !cy1 & !cy2;
+                    done := done if cd;
+                    done := 1 if !cd;]
     }
 
     SPECIFICATION {
-        (F (x == 0 || y == 0)) & (F (!(done == 0) && (x >= 20) || (y >= 20)))
+        F ((x == 0) || (y == 0)) &&
+
+        F (!(done == 0) && ((x >= 20) || (y >= 20))) &&
+
+
+        G ((done == 0) && !(y == 0) -> ((cx1 & !cx2) || (!cx1 && cx2))) &&
+        G ((done == 0) &&  (y == 0) -> (!cx1 & !cx2)) &&
+        G (!(done == 0) && !(x == 0) -> (cx1 & cx2)) &&
+        G (!(done == 0) &&  (x == 0) -> (cx1 & !cx2)) &&
+
+        G ((done == 0) && !(y == 0) -> (cy1 || (!cy1 & cy2))) &&
+        G ((done == 0) &&  (y == 0) -> (!cy1 & !cy2)) &&
+        G (!(done == 0) -> cy1) &&
+
+        G ((done == 0) && ((x == 0) || (y == 0)) -> !cd) &&
+        G ((done == 0) && !((x == 0) || (y == 0)) -> cd) &&
+        G (!(done == 0) -> cd)
     }
 }
