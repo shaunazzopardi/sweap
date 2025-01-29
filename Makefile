@@ -18,6 +18,8 @@ SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/misc/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/robot-missions/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/tasks/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/thermostat/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/full-ltl/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/full-ltl/hard/*.prog))
 RPG_BENCHS :=		$(basename $(wildcard benchmarks/rpgsolve/*.rpg))
 RABONIEL_BENCHS :=	$(basename $(wildcard benchmarks/raboniel/*.tslmt))
 TEMOS_BENCHS := 	$(basename $(wildcard benchmarks/temos/*.tslt))
@@ -36,7 +38,7 @@ TSLMT2RPG_SYN_LOGS :=	$(addsuffix .tslmt2rpg-syn.log,		$(TSLMT2RPG_BENCHS))
 ALL_LOGS := $(SWEAP_LOGS) $(SWEAP_LAZY_LOGS) $(RPG_STELA_LOGS) $(RPG_LOGS) $(RABONIEL_LOGS) $(TEMOS_LOGS) $(TSLMT2RPG_LOGS) $(TSLMT2RPG_SYN_LOGS)
 
 # Tool command-line invocation
-$(SWEAP_LOGS): cmd = 			"/home/shaun-azzopardi/Projects/Playground/sweap/.venv/bin/python3" main.py --synthesise --p
+$(SWEAP_LOGS): cmd = 			python3 main.py --synthesise --p
 $(SWEAP_LAZY_LOGS): cmd =		python3 main.py --synthesise --lazy --p
 $(RPG_STELA_LOGS): cmd = 		rpg-stela solve --enable-no-pruning <
 $(RPG_SYN_LOGS): cmd =			rpgsolve --generate-program --disable-log <
