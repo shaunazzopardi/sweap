@@ -168,11 +168,4 @@ To run the tool on a symbolic synthesis problem, run the following command in th
 PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise
 ```
 
-If you want to run the tool with acceleration (initially identifying relevant ranking refinements from predicates in the problem), add the `--accelerate` flag: 
-
-
-```
-PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise --accelerate
-```
-
 For advanced flags run `main.py` with the `--h` flag.
