@@ -45,14 +45,14 @@ program helipad {
 
     SPECIFICATION {
         (G F(q)) -> G(q -> (
-            ((free && land) -> !f W (depart || (evacTimer <= 0 && emergency))) &&
-            ((depart || (evacTimer <= 0 && emergency)) -> (f W land)) &&
+            ((free && land) -> !f W (q & (depart || (evacTimer <= 0 && emergency)))) &&
+            ((depart || (evacTimer <= 0 && emergency)) -> (f W (q && land))) &&
             (!emergency -> (e1 & e2)) &&
             ((emergency && evacTimer > 0) -> (!e1 & e2)) &&
-            ((emergency && evacTimer <= 0) -> X (setEvacTime U (q && !e1 & !e2)))) &&
+            ((emergency && evacTimer <= 0) -> (!e1 & !e2))) &&
             ((emergency) -> F (evacTimer <= 0)) &&
-            (((a1) && r1 && !r2) -> ((!a1 & a2) W (land || emergency))) &&
-            (((a1) && r2 && !r1) -> ((!a1 & !a2) W (land || emergency))) &&
+            (((a1) && r1 && !r2) -> ((!a1 & a2) W (q & (land || emergency)))) &&
+            (((a1) && r2 && !r1) -> ((!a1 & !a2) W (q & (land || emergency)))) &&
             ((emergency) -> (a1)))
     }
 }
