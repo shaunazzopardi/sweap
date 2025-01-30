@@ -32,10 +32,10 @@ program unordered-visits-charging{
     SPECIFICATION{
        F(q) & (!q U (q &
         cx1 & cx2 && !dx2 &&
-        (X G (dx == 1 || dx == -1) &&
-        (X G((x >= 50) -> ((!cx1 & !cx2 && !dx1 && !dx2)))) &&
+        (X G (dx == 1 || dx == -1)) &&
+        (X G((x >= 50) -> (!cx1 & !cx2 && !dx1 && !dx2))) &&
 
-        (X G((x <= -50) -> ((!cx1 & cx2 && dx1 && !dx2)))) &&
+        (X G((x <= -50) -> (!cx1 & cx2 && dx1 && !dx2))) &&
 
         (X G(!(x >= 50) && !(x <= -50)) -> (cx1 & !cx2 & dx2)) &&
         (F (x >= 50)) &&
