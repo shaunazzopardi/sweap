@@ -76,10 +76,6 @@ class StatePredicate(Predicate):
             next_p = conjunct(next, self.pred)
             if sat(conjunct(now, next_p), symbol_table):
                 new_nexts.append(next_p)
-            else:
-                next_neg_p = conjunct(next, neg(self.pred))
-                new_nexts.append(next_neg_p)
-                continue
 
             next_neg_p = conjunct(next, neg(self.pred))
             if sat(conjunct(now, next_neg_p), symbol_table):
