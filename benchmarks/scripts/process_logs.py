@@ -146,6 +146,7 @@ reach_benchs_popl25 = {
     "thermostat-F": True,
     "thermostat-F-unreal": False,
     "unordered-visits-charging": True,
+    "unordered-visits": True,
 }
 
 buechi_benchs_popl25 = {
