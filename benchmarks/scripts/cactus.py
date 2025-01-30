@@ -5,6 +5,7 @@ import polars as pl
 import seaborn as sns
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from functools import reduce
 
 mpl.rc("font", family="serif", size=11)
 
@@ -49,18 +50,23 @@ linestyles = {
     legend["tslmt2rpg-syn"]: "--"
 }
 
-full_ltl_benchs = (
+full_ltl_benchs = {
     "arbiter",
     "arbiter-failure",
-    "arbiter-unreal",
     "elevator",
+    "infinite-race",
+    "infinite-race-u",
+    "infinite-race-unequal-1",
+    "infinite-race-unequal-2",
     "reversible-lane-r",
     "reversible-lane-u",
     "rep-reach-obst-1d",
     "rep-reach-obst-2d",
+    "rep-reach-obst-6d",
     "robot_collect_v4",
-    "taxi-service"
-) if exclude_full_ltl else tuple()
+    "taxi-service",
+    "taxi-service-u",
+} if exclude_full_ltl else tuple()
 
 
 def cum_sum(tool_name: str):
@@ -72,34 +78,24 @@ def cum_sum(tool_name: str):
         .filter(pl.col("benchmark").is_in(full_ltl_benchs).not_())
         .sort(by=tool_name)
         .with_row_index("instances", 1)
-        .select(instances=pl.col("instances"), **{col_name: pl.cum_sum(tool_name)/1000})
+        .select(instances=pl.col("instances"), **{"time": pl.cum_sum(tool_name)/1000}, tool=pl.lit(col_name))
     )
     df = q.collect()
-    zero = (
-        pl.DataFrame({"instances": [0], col_name: [None]})
-        .cast({"instances": pl.UInt32, col_name: pl.Float64}))
-    return pl.concat([zero, df])
+    return df
 
 dataframes = [cum_sum(x) for x in tools]
-joined = dataframes[0]
-for df in dataframes[1:]:
-    df1, df2 = (
-        (joined, df)
-        if len(df["instances"]) <= len(joined["instances"])
-        else (df, joined))
-    joined = (
-        df1
-        .join(df2, on="instances", how="full").drop("instances_right"))
+for x in dataframes:
+    print(x)
 
-print(joined)
-
-print("Total time (successful instances only)")
-print(*((x.name, x.first()) for x in joined.drop("instances").max()), sep="\n")
+stacked = reduce(lambda x, y: x.vstack(y), dataframes)
+print(stacked)
 
 ## Easiest 20 instances
-easy_df = joined.limit(21)
+dataframes_easy = [x.limit(20) for x in dataframes]
+stacked_easy = reduce(lambda x, y: x.vstack(y), dataframes_easy)
 plot_easy = sns.lineplot(
-    data=easy_df.drop("instances").to_pandas(),
+    data=stacked_easy.sort(pl.col("tool")).to_pandas(), x="instances", y="time",
+    hue="tool", style="tool",
     **lineplot_config)
 
 
@@ -110,7 +106,7 @@ dummy = mpl.lines.Line2D([], [], color="none")
 handles, labels = plot_easy.get_legend_handles_labels()
 
 # Force linestyles
-for i, tool in enumerate(easy_df.drop("instances").columns):
+for i, tool in enumerate(labels):
     for ln in (plot_easy.lines[i], handles[i]):
         ln.set_linestyle(linestyles.get(tool, '-'))
         ln.set_linewidth(1.2)
@@ -153,24 +149,31 @@ fig.savefig(f"cactus-easy.{FORMAT}", dpi=300)
 fig.clear()
 
 
-real_df = (
-    joined
-    .drop(*(
-        name for name in legend.values()
-        if name in joined.columns and 
-        "(realisability)" not in name and
-        "Our tool" not in name)))
+# real_df = (
+#     joined
+#     .drop(*(
+#         name for name in legend.values()
+#         if name in joined.columns and 
+#         "(realisability)" not in name and
+#         "Our tool" not in name)))
 
+stacked_real = (
+    stacked
+    .filter(
+        pl.col("tool").str.contains("realisability") | 
+        pl.col("tool").str.contains("Our tool")))
 
 plot_real = sns.lineplot(
-    data=real_df.drop("instances").to_pandas(),
+    data=stacked_real.to_pandas(),
+    x="instances", y="time",
+    hue="tool", style="tool",
     **lineplot_config)
 # plot_real.set(yscale='log')
 
-## Keep line styles consistent
+# ## Keep line styles consistent
 handles, labels = plot_real.get_legend_handles_labels()
 
-for i, tool in enumerate(real_df.drop("instances").columns):
+for i, tool in enumerate(labels):
     for ln in (plot_real.lines[i], handles[i]):
         ln.set_color(styles[tool].get_color())
         ln.set_linewidth(styles[tool].get_linewidth())
@@ -195,13 +198,19 @@ fig.savefig(f"cactus-real.{FORMAT}", dpi=300)
 ## Synthesis results
 fig.clear()
 
-syn_df = (
-    joined.drop(*(name for name in legend.values() if "(synthesis)" not in name)))
+stacked_syn = (
+    stacked
+    .filter(pl.col("tool").str.contains("synthesis")))
 
-plot_syn = sns.lineplot(data=syn_df.drop("instances").to_pandas(), **lineplot_config)
+plot_syn = sns.lineplot(
+    data=stacked_syn.to_pandas(), 
+    x="instances", y="time",
+    hue="tool", style="tool",
+    **lineplot_config)
 
+# plot_syn.set_ylim(top=5000)
 plot_syn.figure.set_size_inches(4.6, 4.6)
-# plot_syn.set(yscale='log')
+# # plot_syn.set(yscale='log')
 
 # # Keep line styles consistent
 handles, labels = plot_syn.get_legend_handles_labels()

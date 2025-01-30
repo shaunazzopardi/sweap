@@ -118,7 +118,6 @@ buechi_benchs_cav24 = {
 
 ltl_benchs = {
     "arbiter": True,
-    "arbiter-unreal": False,
     "arbiter-failure": True,
     "elevator": True,
     "infinite-race": True,
@@ -147,6 +146,7 @@ reach_benchs_popl25 = {
     "thermostat-F": True,
     "thermostat-F-unreal": False,
     "unordered-visits-charging": True,
+    "unordered-visits": True,
 }
 
 buechi_benchs_popl25 = {
@@ -179,6 +179,7 @@ infinite_benchs = {
 other_benchs = {
     "repeated-robot-resource-1d": True,
     "heim-normal": True,
+    "arbiter-unreal": False,
 }
 
 finite_benchs = {
