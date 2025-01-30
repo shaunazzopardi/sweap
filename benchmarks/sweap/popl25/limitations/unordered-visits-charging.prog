@@ -4,41 +4,45 @@ program unordered-visits-charging{
     }
 
     ENVIRONMENT EVENTS{
-        e1, e2
+        e1
     }
 
     CONTROLLER EVENTS{
-        cx1, cx2, dx1, dx2
+        cx1, cx2, c1, c2, dx1, dx2
     }
 
     VALUATION{
         x: int := 0;
         dx: int := 0;
+        charge: int := 60;
     }
 
     TRANSITIONS{
-        setDx -> setDx [e1 $ dx := dx + 1],
-        setDx -> setDx [e1 & !e2 $ dx := dx - 1],
-        setDx -> q [!e1 & !e2],
+        setDx -> q [e1 $ dx := dx + 1],
+        setDx -> q [!e1 $ dx := dx - 1],
 
         q -> q [$ x := x if cx1 & cx2;
                   x := x + dx if cx1 & !cx2;
                   x := x + 1 if !cx1 & cx2;
                   x := x - 1 if !cx1 & !cx2;
-                  dx := 1 if dx1 && !dx2;
-                  dx := -1 if !dx1 && !dx2;
-                  dx := dx if dx2]
+                  charge := charge - 1 if c1 & c2;
+                  charge := charge + 1 if !c1 & c2;
+                  charge := charge if !c2;
+                  dx := 1 if dx1 & dx2;
+                  dx := -1 if !dx1 & dx2;
+                  dx := dx if !dx2]
     }
 
     SPECIFICATION{
        F(q) & (!q U (q &
-        cx1 & cx2 &&
-        (X G((x >= 50) -> ((!cx1 & !cx2 && !dx1 && !dx2)))) &&
+        cx1 & cx2 & !c2 & dx2 &&
+        (X G((x >= 50) -> ((!cx1 & !cx2 && !dx1 & dx2) || (cx1 & cx2 && !c1 & c2 && !dx2)))) &&
 
-        (X G((x <= -50) -> ((!cx1 & cx2 && dx1 && !dx2)))) &&
+        (X G((x <= -70) -> ((!cx1 & cx2 && dx1 & dx2) || (cx1 & cx2 && !c1 & c2 && !dx2)))) &&
 
-        (X G(!(x >= 50) && !(x <= -50)) -> (cx1 & !cx2 & dx2)) &&
+        (X G(!(x >= 50) && !(x <= -70)) -> (cx1 & !cx2 & c1 & c2 && !dx2)) &&
+        (G ((charge >= 0) && charge <= 50)) &&
         (F (x >= 50)) &&
-        (F (x <= -50))))
+        (F (x <= -70))))
     }
 }
