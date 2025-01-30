@@ -16,12 +16,19 @@ class Config:
     _only_ranking = False
     _only_safety = False
     _eager_fairness = True
+    _no_binary_enc = True
     _verify_controller = True
     _add_all_preds_in_prog = True
     _mc = False
     _debug = False
     _cnf_optimisations = False
     _parallelise_type = "processes"
+
+    def _get_n_b_e(self):
+        return self._no_binary_enc
+
+    def _set_n_b_e(self, value: bool):
+        self._no_binary_enc = value
 
     def _get_e_f(self):
         return self._eager_fairness
@@ -92,6 +99,7 @@ class Config:
     def _do_nothing(self):
         pass
 
+    no_binary_enc = property(_get_n_b_e, _set_n_b_e, _do_nothing, "")
     prefer_ranking = property(_get_p_r, _set_p_r, _do_nothing, "")
     only_structural = property(_get_o_struct, _set_o_struct, _do_nothing, "")
     only_ranking = property(_get_o_r, _set_o_r, _do_nothing, "")
