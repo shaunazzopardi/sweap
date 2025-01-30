@@ -8,7 +8,7 @@ program unordered-visits-charging{
     }
 
     CONTROLLER EVENTS{
-        cx1, cx2, dx1
+        cx1, cx2, dx1, dx2
     }
 
     VALUATION{
