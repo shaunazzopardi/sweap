@@ -27,6 +27,7 @@ TSLMT2RPG_BENCHS :=	$(basename $(wildcard benchmarks/tslmt2rpg/*.tslmt))
 
 SWEAP_LOGS :=			$(addsuffix .sweap.log, 			$(SWEAP_BENCHS))
 SWEAP_LAZY_LOGS :=		$(addsuffix .sweap-noacc.log, 		$(SWEAP_BENCHS))
+SWEAP_NOBIN_LOGS :=		$(addsuffix .sweap-nobin.log, 		$(SWEAP_BENCHS))
 RPG_STELA_LOGS :=		$(addsuffix .rpg-stela.log,			$(RPG_BENCHS))
 RPG_SYN_LOGS :=			$(addsuffix .rpgsolve-syn.log,		$(RPG_BENCHS))
 RPG_LOGS :=				$(addsuffix .rpgsolve.log,			$(RPG_BENCHS))
@@ -40,6 +41,7 @@ ALL_LOGS := $(SWEAP_LOGS) $(SWEAP_LAZY_LOGS) $(RPG_STELA_LOGS) $(RPG_LOGS) $(RAB
 # Tool command-line invocation
 $(SWEAP_LOGS): cmd = 			python3 main.py --synthesise --p
 $(SWEAP_LAZY_LOGS): cmd =		python3 main.py --synthesise --lazy --p
+$(SWEAP_NOBIN_LOGS): cmd =		python3 main.py --synthesise --no_binary_enc --p
 $(RPG_STELA_LOGS): cmd = 		rpg-stela solve --enable-no-pruning <
 $(RPG_SYN_LOGS): cmd =			rpgsolve --generate-program --disable-log <
 $(RPG_LOGS): cmd =				rpgsolve --disable-log <
@@ -52,6 +54,7 @@ $(TSLMT2RPG_SYN_LOGS): cmd =	run-pruned-syn.sh
 path =							binaries
 $(SWEAP_LOGS) : path =			binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_LAZY_LOGS): path =		binaries:binaries/CPAchecker-2.3-unix/scripts
+$(SWEAP_NOBIN_LOGS): path =		binaries:binaries/CPAchecker-2.3-unix/scripts
 $(RPG_SYN_LOGS): path =			binaries/z3-4-8:binaries
 $(TSLMT2RPG_LOGS): path =		binaries/z3-4-8:binaries
 $(TSLMT2RPG_SYN_LOGS): path =	binaries/z3-4-8:binaries
@@ -81,6 +84,7 @@ everything: all temos
 
 sweap:          check-ulimit $(SWEAP_LOGS)
 sweap-noacc:    check-ulimit $(SWEAP_LAZY_LOGS)
+sweap-nobin:    check-ulimit $(SWEAP_NOBIN_LOGS)
 rpg-stela:      check-ulimit $(RPG_STELA_LOGS)
 rpgsolve-syn:   check-ulimit $(RPG_SYN_LOGS)
 rpgsolve:       check-ulimit $(RPG_LOGS)
@@ -102,7 +106,11 @@ $(SWEAP_LOGS): %.sweap.log: %.prog
 $(SWEAP_LAZY_LOGS): %.sweap-noacc.log: %.prog
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
-		
+
+$(SWEAP_NOBIN_LOGS): %.sweap-nobin.log: %.prog
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
+
 $(RPG_STELA_LOGS): %.rpg-stela.log : %.rpg
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
