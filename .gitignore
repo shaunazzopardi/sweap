@@ -175,3 +175,5 @@ benchmarks/raboniel/finite/*.tsl
 benchmarks/raboniel/finite/*.tlsf
 benchmarks/raboniel/finite/*.py
 
+*.csv
+*.tex
