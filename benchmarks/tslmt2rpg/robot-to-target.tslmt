@@ -1,0 +1,43 @@
+var Int x
+var Int dX
+var Int tX
+
+inp Int target
+
+SPECIFICATION
+
+T1 = i1000();
+T2 = (sub i0() i1000());
+
+move =  [x <- add x dX];
+stay = [x <- x];
+ 
+changeDir = ([dX <- i1()] || [dX <- sub i0() i1()]);
+keepDir = [dX <- dX];
+
+assume {
+    (eq target T1) || (eq target T2);
+}
+
+guarantee {
+    
+    // updates to x
+    stay;
+    X G (move);
+
+    // updates to dX
+    X G ((eq dX i1()) || (eq dX (sub i0() i1())));
+    changeDir;
+    X G keepDir;
+    
+    // updates to tX
+    [tX <- target];
+    X G ((eq tX T1) || (eq tX T2));
+
+    // objective
+    F (lte x tX);
+    F (gte x tX);
+
+}
+
+
