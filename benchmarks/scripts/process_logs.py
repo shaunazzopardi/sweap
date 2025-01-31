@@ -22,6 +22,7 @@ timeout = 1200000
 popl24 = r"\cite{10.1145/3632899}"
 cav24 = r"\cite{DBLP:conf/cav/SchmuckHDN24}"
 popl25 = r"\cite{DBLP:journals/pacmpl/HeimD25}"
+isola24 = r"\cite{DBLP:conf/isola/MaderbacherWB24}"
 
 @dataclass
 class ToolInfo:
@@ -139,10 +140,13 @@ reach_benchs_popl25 = {
     "F-G-contradiction-2": False,
     "f-real": True,
     "f-unreal": False,
+    "ordered-visits": True,
+    "ordered-visits-choice": True,
     "precise-reachability": True,
+    "robot-to-target": True,
+    "robot-to-target-unreal": False,
     "robot-to-target-charging": True,
-    "sort4": True,
-    "sort5": True,
+    "robot-to-target-charging-unreal": False,
     "thermostat-F": True,
     "thermostat-F-unreal": False,
     "unordered-visits-charging": True,
@@ -156,12 +160,19 @@ buechi_benchs_popl25 = {
     "GF-G-contradiction": False,
     "helipad": True,
     "helipad-contradict": False,
-    "ordered-visits": True,
     "package-delivery": True,
+    "patrolling": True,
+    "patrolling-alarm": True,
+    "storage-GF-64": True,
     "tasks": True,
     "tasks-unreal": False,
     "thermostat-GF": True,
     "thermostat-GF-unreal": False,
+}
+
+reach_benchs_isola24 = {
+    "sort4": True,
+    "sort5": True,
 }
 
 infinite_benchs = {
@@ -169,6 +180,7 @@ infinite_benchs = {
     **safety_benchs_popl25,
     **reach_benchs_popl24,
     **reach_benchs_popl25,
+    **reach_benchs_isola24,
     **reach_benchs_novel,
     **buechi_benchs_cav24,
     **buechi_benchs_popl24,
@@ -414,9 +426,10 @@ with open(OUT_LATEX, "w") as latex:
     latex.writelines(do_latex_body(safety_benchs_popl24, popl24))
     latex.writelines(do_latex_body(safety_benchs_popl25, popl25))
     latex.write("\\hline\\hline\n")
-    how_many_reach = len(reach_benchs_popl24) + len(reach_benchs_popl25) + len(reach_benchs_novel)
+    how_many_reach = len(reach_benchs_popl24) + len(reach_benchs_popl25) + len(reach_benchs_isola24) + len(reach_benchs_novel)
     latex.write(rf"\multirow{{{how_many_reach}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Reachability}}}}" "\n") 
     latex.writelines(do_latex_body(reach_benchs_popl24, popl24))
+    latex.writelines(do_latex_body(reach_benchs_isola24, isola24))
     latex.writelines(do_latex_body(reach_benchs_popl25, popl25))
     latex.writelines(do_latex_body(reach_benchs_novel, ""))
     latex.write("\\hline\\hline\n")
