@@ -12,25 +12,25 @@ program storage-GF-64{
 
     VALUATION{
         numE: int := 0;
-        process: int := 0;
+        proc: int := 0;
     }
 
     TRANSITIONS{
-        q -> q [numE <= 0 & p $ numE := numE + 1; process := 0],
-        q -> q [numE <= 0 & !p $ numE := numE + 1; process := 1],
-        q -> q [(!(numE <= 0) && process == 0) & p $ numE := numE + 1; process := 0],
-        q -> q [(!(numE <= 0) && process == 0) & !p $ numE := numE + 1; process := 1],
+        q -> q [numE <= 0 & p $ numE := numE + 1; proc := 0],
+        q -> q [numE <= 0 & !p $ numE := numE + 1; proc := 1],
+        q -> q [(!(numE <= 0) && proc == 0) & p $ numE := numE + 1; proc := 0],
+        q -> q [(!(numE <= 0) && proc == 0) & !p $ numE := numE + 1; proc := 1],
 
-        q -> q [(!(numE <= 0) && process != 0 && numE > 64)],
+        q -> q [(!(numE <= 0) && proc != 0 && numE > 64)],
 
-        q -> q [(!(numE <= 0) && process != 0) && numE < 64 $ numE := numE - 1],
+        q -> q [(!(numE <= 0) && proc != 0) && numE < 64 $ numE := numE - 1],
 
-        q -> q [(!(numE <= 0) && process != 0) && numE == 64 $ numE := 0; process := 0]
+        q -> q [(!(numE <= 0) && proc != 0) && numE == 64 $ numE := 0; proc := 0]
     }
 
     SPECIFICATION{
         G (numE >= 0) &&
-        G (process == 0 || process == 1) &&
+        G (proc == 0 || proc == 1) &&
         (G F(numE <= 0))
     }
 }
