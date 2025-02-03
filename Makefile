@@ -10,7 +10,10 @@ ROOT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 # Paths to benchmark files
 SWEAP_BENCHS :=		$(basename $(wildcard benchmarks/sweap/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/drafts/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/tacas16/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/cav24/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/isola24/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl24/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/basic/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/limitations/*.prog))
