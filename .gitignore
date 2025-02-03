@@ -177,3 +177,4 @@ benchmarks/raboniel/finite/*.py
 
 *.csv
 *.tex
+results

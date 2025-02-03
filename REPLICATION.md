@@ -53,39 +53,33 @@ will always work.
 
 ## Step 3. Tabulate the results
 
-Invoke
+Invoke `make tables`.  Internally this calls 
 
 ```sh
-benchmarks/scripts/gen_csv.py benchmarks
+benchmarks/scripts/process_logs.py benchmarks
 ```
 
-The script will tabulate in CSV format all results found in the directory
-passed as its argument (`benchmarks`, in this case). It will report a unique
-id, the name of the benchmark, and a numeric value for each tool.
+The script will tabulate all results found in the directory passed as its
+argument (`benchmarks`, in this case). Results are stored in
+`benchmarks/results` in `.tex` format. For convenience, we also record some
+results into a `results.csv` CSV file.
 
-A value of `0` denotes that the benchmark was not run on that tool. A value of
-`1` indicates that the tool encountered an error (typically OOM, but more
-information may be found in the log files). All other positive values indicate the
-experiment's running time in milliseconds;
-values greater than 1200000 (i.e., 20 minutes) denote a timeout.
-A negative value indicates that the
-tool terminated, but gave an incorrect verdict.
+The CSV file contains a line for each benchmark and a column for each tool.
+Columns have the following semantics. A value of `0` denotes that the benchmark
+was not run on that tool. A value of `1` indicates that the tool encountered an
+error (typically OOM, but more information may be found in the corresponding log
+files). All other positive values indicate the experiment's running time in
+milliseconds; values greater than 1200000 (i.e., 20 minutes) denote a timeout.
+A negative value indicates that the tool terminated with an incorrect verdict.
+In this case, the absolute value of the result indicates the runtime.
 
-For the table in Appendix D3, invoke
+To generate all plots in the paper and appendix, invoke `make plots`.
+Plots will also be stored in `benchmarks/results`
 
-```sh
-benchmarks/scripts/appendix_table.py benchmarks
-```
-
-This will tabulate (again, in CSV format) the number of state and transition
-predicates used in the initial abstraction, the number and kind of refinements
-applied, and the number of (state/transition) predicates in the final
-abstraction (i.e., before either solution or timeout/OOM).
-
-We are aware that the contents of this CSV may differ from those in our
-manuscript, especially for experiments that time out. A faster machine than
-ours may still time out, but perform more refinements and thus add a higher
-number of predicates to the abstraction.
+We are aware that the results may differ from those in our manuscript,
+especially for experiments that time out. A faster machine than ours may still
+time out, but perform more refinements and thus add a higher number of
+predicates to the abstraction.
 
 ## Appendix. System configuration
 

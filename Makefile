@@ -185,4 +185,4 @@ tables: #$(ALL_LOGS)
 
 plots:
 	cd benchmarks/scripts; \
-	./cactus.py ../../results.csv
+	./cactus.py ../results/results.csv
