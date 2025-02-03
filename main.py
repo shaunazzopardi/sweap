@@ -39,6 +39,7 @@ def main():
     # parser.add_argument('--add_all_preds_in_prog', dest='add_all_preds_in_prog', help="Initially each predicate used in the program.", type=bool, nargs='?', const=True)
     parser.add_argument('--lazy', dest='lazy', help="Lazy approach", type=bool, nargs='?', const=True)
     parser.add_argument('--only_safety', dest='only_safety', help="Do not use fairness refinements.", type=bool, nargs='?', const=True)
+    parser.add_argument('--no_binary_enc', dest='no_binary_enc', help="Do not use binary encoding (implies --lazy).", type=bool, nargs='?', const=True)
 
     ##how to connect to strix (default just assume `strix' is in path)
     # parser.add_argument('--strix_docker', dest='docker', type=str, nargs='?', const=False)
@@ -77,6 +78,12 @@ def main():
         conf.eager_fairness = True
     else:
         conf.eager_fairness = False
+
+    if args.no_binary_enc:
+        conf.eager_fairness = False
+        conf.no_binary_enc = True
+    else:
+        conf.no_binary_enc = False
 
     if args.verify_controller:
         conf._verify_controller = True

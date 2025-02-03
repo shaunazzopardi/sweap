@@ -176,8 +176,8 @@ class EffectsAbstraction(PredicateAbstraction):
         logger.info("Tagging abstract transitions with predicates..")
         start = time.time()
 
-        use_chain_preds = True
-        remaining_st_preds = new_state_predicates
+        use_chain_preds = not config.Config.getConfig().no_binary_enc
+        remaining_st_preds = list(new_state_predicates)
 
         new_preds = set()
 
@@ -254,6 +254,13 @@ class EffectsAbstraction(PredicateAbstraction):
                                                      gu), p), self.symbol_table):
                                         self.second_state_abstraction[gu].append(p)
                                         break
+        else:
+            for p in remaining_st_preds:
+                f_p = StatePredicate(p)
+                new_preds.add(f_p)
+                self.state_predicates.add(f_p)
+                self.var_relabellings.update(f_p.boolean_rep())
+            remaining_st_preds = new_preds
 
         self.partitions, self.v_to_p, self.v_to_partition = \
             update_var_partition_mult(new_preds, self.partitions, self.v_to_p, self.v_to_partition)
