@@ -25,7 +25,7 @@ lineplot_config = dict(markers="osdPso^XX", markersize=5)
 tools = [
     name
     for name in pl.scan_csv(FILENAME).columns
-    if name not in ("row-id", "benchmark", "temos")]
+    if name not in ("row-id", "benchmark", "temos", "sweap-nobin")]
 
 legend = {
     "sweap": "Our tool (synthesis)",
@@ -233,3 +233,37 @@ plot_syn.set(ylabel="Cumulative time (s)")
 fig = plot_syn.get_figure()
 fig.tight_layout()
 fig.savefig(f"cactus-syn.{FORMAT}", dpi=300)
+
+
+# Speedup
+withbin = (
+    pl.scan_csv(FILENAME)
+    .select("benchmark", "sweap-noacc", "sweap-nobin")
+    .filter(pl.col("benchmark").is_not_null()))
+
+speedups_lazy = (
+    withbin
+    .filter(pl.col("sweap-noacc") > 1).filter(pl.col("sweap-noacc") < TIMEOUT)
+    .filter(pl.col("sweap-nobin") > 1).filter(pl.col("sweap-nobin") < TIMEOUT)
+    .with_columns(
+        (pl.col("sweap-noacc")/1000).alias("Lazy, with efficient encoding (s)"),
+        (pl.col("sweap-nobin")/1000).alias("Lazy, baseline (s)"),
+        (pl.col("sweap-nobin") / pl.col("sweap-noacc")).alias("speedup"))
+    )
+
+print(speedups_lazy.select("speedup").max().collect())
+print(speedups_lazy.select("speedup").min().collect())
+print(speedups_lazy.select("speedup").mean().collect())
+fig.clear()
+scatter = sns.scatterplot(
+    data=speedups_lazy.collect().to_pandas(),\
+    x="Lazy, with efficient encoding (s)", y="Lazy, baseline (s)")
+xmax=150
+ln = sns.lineplot(x=[1,xmax], y=[1,xmax], ax=scatter)
+ln.lines[0].set_linewidth(1)
+ln.lines[0].set_color('r')
+scatter.set_xbound(lower=1, upper=xmax)
+scatter.set_ybound(lower=1, upper=xmax)
+scatter.set(yscale='log')
+scatter.set(xscale='log')
+scatter.figure.savefig("speedup.pdf", dpi=300)

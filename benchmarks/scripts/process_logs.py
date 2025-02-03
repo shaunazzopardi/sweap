@@ -59,6 +59,7 @@ tools = {
     "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
     "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
+    "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
     "tslmt2rpg": ToolInfo(name="tslmt2rpg", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re),
     "tslmt2rpg-syn": ToolInfo(name="tslmt2rpg-syn", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
@@ -242,7 +243,9 @@ runtime_re = re.compile(r"Runtime: ([0-9]+)ms")
 base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
 
 STATS = {t: defaultdict(int) for t in tools}
-
+GET_TR_PREDS = (
+    """tr '" ()!' '\n' | tr "'" '\n' | """
+    "grep prev | grep pred | sort | uniq | wc -l")
 def get_refinements(fname):
     def shell(cmd):
         return check_output(cmd, shell=True, encoding="utf-8")
@@ -260,7 +263,9 @@ def get_refinements(fname):
 
     init_preds = shell(
         f"""grep -A1 "Starting abstract synthesis loop." {fname} | tail -n1""")
-    init_st, init_tr = handle_predicates_line(init_preds)
+    init_st, _ = handle_predicates_line(init_preds)
+    init_tr = shell(f"sed '/constructing LTL/q' {fname} | {GET_TR_PREDS}")
+    init_tr = int(init_tr)
 
     try:
         all_pred_lines = shell(f"""grep "^adding" {fname}""").split("\n")
@@ -277,6 +282,9 @@ def get_refinements(fname):
             f"""grep "Structural Refinement" {fname} | wc -l""").strip()
         count_safe_ref = shell(
             f"""grep "safety refinement" {fname} | wc -l""").strip()
+
+    all_tr = shell(f"cat {fname} | {GET_TR_PREDS}")
+    add_tr = int(all_tr) - init_tr
     return init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr
 
 
