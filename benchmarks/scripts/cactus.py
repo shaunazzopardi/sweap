@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 import sys
+from pathlib import Path
 
 import polars as pl
 import seaborn as sns
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 from functools import reduce
 
 mpl.rc("font", family="serif", size=11)
@@ -17,6 +17,7 @@ if len(sys.argv) < 2:
     print("Usage: ./cactus.py <file.csv>")
     sys.exit(1)
 FILENAME = sys.argv[1]
+DIR = Path(FILENAME).parent
 
 exclude_full_ltl = True
 lineplot_config = dict(markers="osdPso^XX", markersize=5)
@@ -145,7 +146,7 @@ plot_easy.set(xticks=[1,5,10,15,20])
 
 fig = plot_easy.get_figure()
 fig.tight_layout()
-fig.savefig(f"cactus-easy.{FORMAT}", dpi=300)
+fig.savefig(DIR / f"cactus-easy.{FORMAT}", dpi=300)
 fig.clear()
 
 
@@ -193,7 +194,7 @@ plot_real.set(ylabel="Cumulative time (s)")
 
 fig = plot_real.get_figure()
 fig.tight_layout()
-fig.savefig(f"cactus-real.{FORMAT}", dpi=300)
+fig.savefig(DIR / f"cactus-real.{FORMAT}", dpi=300)
 
 ## Synthesis results
 fig.clear()
@@ -208,9 +209,7 @@ plot_syn = sns.lineplot(
     hue="tool", style="tool",
     **lineplot_config)
 
-# plot_syn.set_ylim(top=5000)
 plot_syn.figure.set_size_inches(4.6, 4.6)
-# # plot_syn.set(yscale='log')
 
 # # Keep line styles consistent
 handles, labels = plot_syn.get_legend_handles_labels()
@@ -232,7 +231,7 @@ plot_syn.set(ylabel="Cumulative time (s)")
 
 fig = plot_syn.get_figure()
 fig.tight_layout()
-fig.savefig(f"cactus-syn.{FORMAT}", dpi=300)
+fig.savefig(DIR / f"cactus-syn.{FORMAT}", dpi=300)
 
 
 # Speedup
@@ -251,9 +250,9 @@ speedups_lazy = (
         (pl.col("sweap-nobin") / pl.col("sweap-noacc")).alias("speedup"))
     )
 
-print(speedups_lazy.select("speedup").max().collect())
-print(speedups_lazy.select("speedup").min().collect())
-print(speedups_lazy.select("speedup").mean().collect())
+print("max speedup", speedups_lazy.select("speedup").max().collect().item())
+print("min speedup", speedups_lazy.select("speedup").min().collect().item())
+print("avg speedup", speedups_lazy.select("speedup").mean().collect().item())
 fig.clear()
 scatter = sns.scatterplot(
     data=speedups_lazy.collect().to_pandas(),\
@@ -266,4 +265,4 @@ scatter.set_xbound(lower=1, upper=xmax)
 scatter.set_ybound(lower=1, upper=xmax)
 scatter.set(yscale='log')
 scatter.set(xscale='log')
-scatter.figure.savefig("speedup.pdf", dpi=300)
+scatter.figure.savefig(DIR / "speedup.pdf", dpi=300)

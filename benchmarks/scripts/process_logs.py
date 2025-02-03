@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import csv
+import os
 import re
 from subprocess import CalledProcessError, check_output
 import sys
@@ -10,6 +11,7 @@ from typing import Optional, Sequence
 from collections import defaultdict, Counter
 from itertools import product
 
+OUT_DIR = "results"
 OUT_CSV = "results.csv"
 OUT_LATEX = "table-results.tex"
 LTL_LATEX = "table-ltl.tex"
@@ -241,6 +243,11 @@ aliases = {
 runtime_re = re.compile(r"Runtime: ([0-9]+)ms")
 
 base_dir = "." if len(sys.argv) == 1 else sys.argv[1]
+out_dir = Path(base_dir) / OUT_DIR
+try:
+    out_dir.mkdir()
+except FileExistsError:
+    pass
 
 STATS = {t: defaultdict(int) for t in tools}
 GET_TR_PREDS = (
@@ -353,7 +360,7 @@ def update_stats(result: int, tool: str, bench: str):
     elif result < 0:
         STATS[tool]["wrong"] += 1
 
-with open(OUT_CSV, 'w', newline='') as csv_file:
+with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
     writer = csv.writer(csv_file, dialect="excel", lineterminator="\n")
     writer.writerow(["row-id", "benchmark", *tools])
     for i, b in enumerate(infinite_benchs, start=2):
@@ -427,7 +434,7 @@ def do_latex_body(benchs, source):
         yield '\n'
 
 
-with open(OUT_LATEX, "w") as latex:
+with open(out_dir / OUT_LATEX, "w") as latex:
     latex.write(latex_header)
     how_many_safety = len(safety_benchs_popl24) + len(safety_benchs_popl25)
     latex.write(rf"\multirow{{{how_many_safety}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Safety}}}}" "\n") 
@@ -450,7 +457,7 @@ with open(OUT_LATEX, "w") as latex:
     latex.write(r"\end{tabular}")
     latex.write("\n")
 
-with open(LTL_LATEX, "w") as latex:
+with open(out_dir / LTL_LATEX, "w") as latex:
     latex.write(dedent(rf"""
         \begin{{tabular}}{{|c|c||c|c|}}
         \hline
@@ -473,7 +480,7 @@ with open(LTL_LATEX, "w") as latex:
 
 
 # Refinements #################################################################
-with open(REF_LATEX, "w") as latex:
+with open(out_dir / REF_LATEX, "w") as latex:
     begin_tabular = dedent(r"""
         \begin{tabular}[t]{|l||c||c|c|c|c|c|c||}
         \hline
@@ -526,7 +533,7 @@ def fmt_summ_data(summ_dict: dict, tools: Sequence[str], real: bool=False):
         for k in tools)
     return fmt_summ_dict
 
-with open(SUMM_LATEX, "w") as latex:
+with open(out_dir / SUMM_LATEX, "w") as latex:
     syn_header = " & ".join(tools[x].latex_name for x in syn_tools)
     r11y_header = " & ".join(tools[x].latex_name for x in r11y_tools)
 
@@ -579,7 +586,7 @@ no_refinements = sum(
     for b in ltl_benchs)
 
 ## Macros
-with open(MACROS_LATEX, "w") as latex:
+with open(out_dir / MACROS_LATEX, "w") as latex:
     latex.write(rf"\newcommand*{{\COMPEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)}}}" "\n")
     latex.write(rf"\newcommand*{{\LITERATUREEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)-len(reach_benchs_novel)}}}" "\n")
     latex.write(rf"\newcommand*{{\LTLEXPERIMENTS}}{{{len(ltl_benchs)}}}" "\n")
