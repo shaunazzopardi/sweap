@@ -291,6 +291,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         if real and not debug:
             logging.info("Realizable")
             if config.Config.getConfig().verify_controller:
+                if config.Config.getConfig().dual:
+                    print("WARNING: Dualising, verify_controller has not been adapted for this yet, but trying anyway.")
                 # TODO actually project
                 print("massaging abstract controller")
                 mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
@@ -302,7 +304,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                 compatibility_checking_con(program, predicate_abstraction, mm, original_ltl_spec)
                 return True, mm
             else:
-                return True, mm_hoa
+                return True, "\n".join(mm_hoa.split("\n")[1:])
 
         start = time.time()
         print("massaging abstract counterstrategy")

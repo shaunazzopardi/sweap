@@ -139,12 +139,12 @@ def main():
             else synthesize(program, ltl, args.tlsf, False))
         end = time.time()
 
-        if realiz:
+        if (realiz and not args.dual) or (not realiz and args.dual):
             print('Realizable.')
-            print(str(mm))
         else:
             print('Unrealizable.')
-            print(str(mm))
+
+        print(str(mm))
 
         print("Synthesis took: ", (end - start) * 10 ** 3, "ms")
 
