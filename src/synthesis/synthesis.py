@@ -19,7 +19,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (true, stringify_formula, atomic_predicates, finite_state_preds, strip_mathexpr,
                             normalise_pred_multiple_vars, normalise_formula, enumerate_finite_state_vars,
-                            conjunct_formula_set, implies)
+                            conjunct_formula_set, implies, massage_ltl_for_dual, neg)
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -140,6 +140,12 @@ def process_specifications(program, ltl, tlsf_path):
         ltl_guarantees = ltl_guarantees_formula.sub_formulas_up_to_associativity()
     else:
         ltl_guarantees = [ltl_guarantees_formula]
+
+    if config.Config.getConfig().dual:
+        ltl_assumptions = [massage_ltl_for_dual(f, program.env_events) for f in ltl_assumptions]
+        ltl_guarantees = [massage_ltl_for_dual(f, program.env_events) for f in ltl_guarantees]
+        ltl_guarantees = [neg(implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees)))]
+        ltl_assumptions = []
 
     in_acts = [e for e in program.env_events]
     out_acts = [e for e in program.con_events]

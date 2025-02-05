@@ -1,4 +1,6 @@
 from graphviz import Digraph
+
+import config
 from config import env, con
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
@@ -110,6 +112,7 @@ class MooreMachine:
         trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
         pred_acts = state_pred_acts + trans_pred_acts
 
+        dualise = config.Config.getConfig().dual
         guards_acts = {}
 
         init_cond = []
@@ -119,13 +122,17 @@ class MooreMachine:
                                                   [Variable(st), st_guard]))
         init_cond = disjunct_formula_set(init_cond)
 
+        f = lambda x: UniOp("next", x) if not dualise or (str(x).startswith("bin_") or x in pred_acts) else x
+
         for src in self.transitions.keys():
             for (con_beh, tgt) in self.transitions.get(src):
                 guard = "(turn = prog) & " + str(src) + " & " + str(con_beh)
                 if guard not in guards_acts.keys():
                     guards_acts[guard] = list()
 
-                act = conjunct_formula_set([UniOp("next", self.out[tgt]),
+                next_state = self.out[tgt].replace(f)
+
+                act = conjunct_formula_set([next_state,
                                             UniOp("next", Variable(tgt)),
                                             UniOp("next", conjunct_formula_set(
                                                 [neg(Variable(s)) for s in self.states if

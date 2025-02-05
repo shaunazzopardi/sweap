@@ -36,6 +36,7 @@ def main():
     parser.add_argument('--lazy', dest='lazy', help="Lazy approach", type=bool, nargs='?', const=True)
     parser.add_argument('--only_safety', dest='only_safety', help="Do not use fairness refinements.", type=bool, nargs='?', const=True)
     parser.add_argument('--no_binary_enc', dest='no_binary_enc', help="Do not use binary encoding (implies --lazy).", type=bool, nargs='?', const=True)
+    parser.add_argument('--dual', dest='dual', help="Tries the dual problem (exchanges environment and controller propositions and objectives).", type=bool, nargs='?', const=True)
 
     args = parser.parse_args()
 
@@ -66,6 +67,11 @@ def main():
         conf._verify_controller = True
     else:
         conf._verify_controller = False
+
+    if args.dual:
+        conf._dual = True
+    else:
+        conf._dual = False
 
     conf.add_all_preds_in_prog = True
 
