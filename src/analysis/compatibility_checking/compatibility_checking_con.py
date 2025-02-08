@@ -22,7 +22,7 @@ def compatibility_checking_con(program: Program,
                            predicate_abstraction: EffectsAbstraction,
                            mealy_machine: MealyMachine,
                            original_ltl_spec):
-    moore_nuxmv = mealy_machine.to_nuXmv_with_turns(predicate_abstraction.get_program().bin_state_vars,
+    moore_nuxmv = mealy_machine.to_nuXmv_with_turns_for_con_verif(predicate_abstraction.get_program().bin_state_vars,
                                                     predicate_abstraction.get_program().out_events,
                                                     predicate_abstraction.get_state_predicates(),
                                                     predicate_abstraction.get_transition_predicates())
@@ -55,6 +55,8 @@ def compatibility_checking_con(program: Program,
             print("Controller correct up to " + str(bound) + " IC3 steps, I do not verify beyond this.")
             return True
         logging.info(out)
+        logging.info(str(mealy_machine))
+        print(str(mealy_machine))
         raise Exception("Controller does not enforce the required LTL property on the program:\n" + str(out))
     else:
         print(out)
@@ -65,22 +67,16 @@ def compatibility_checking_con(program: Program,
 def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_model: NuXmvModel,
                                                   pred_list, chain_preds, include_mismatches_due_to_nondeterminism=False,
                                                   colloborate=False, predicate_mismatch=False, prefer_lassos=False):
-    program_model = program.to_nuXmv_with_turns()
+    program_model = program.to_nuXmv_with_turns_for_con_verif()
     bool_preds = [p.bool_var for p in pred_list if isinstance(p, StatePredicate)]
     bool_preds.extend([t for p in pred_list if isinstance(p, TransitionPredicate) for t in p.bool_rep.values()])
 
     text = "MODULE main\n"
-    strategy_states = sorted([v for v in strategy_model.vars
-                              if v not in program_model.vars and str(v).startswith("st_")])
-    seen_strategy_states_decs = [str(s).replace(" : ", "_seen_once : ") for s in strategy_states]
-    seen_strategy_states_decs += [str(s).replace(" : ", "_seen_more_than_once : ") for s in strategy_states]
 
     vars = sorted(program_model.vars) \
            + sorted([s + ': boolean' for s in program.states]) \
            + sorted([v for v in strategy_model.vars
                      if v not in program_model.vars]) \
-           + seen_strategy_states_decs \
-           + ["mismatch : boolean"] \
            + ["init_state : boolean"]
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
 
@@ -107,14 +103,14 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     prog_state_equality = [BiOp(Variable(s), '=', program.states_binary_map[s])
                           for s in program.states]
 
-    compatible_output = "\tcompatible_outputs := " + "((turn == cs) -> (" + str(
+    compatible_output = "\tcompatible_outputs := " + "((" + str(
         conjunct_formula_set(prog_output_equality)) + "))" + ";\n"
-    compatible_states = "\tcompatible_states := " + "((turn == cs) -> (" + str(
+    compatible_states = "\tcompatible_states := " + "((" + str(
         conjunct_formula_set(prog_state_equality)) + "))" + ";\n"
-    compatible_state_predicates = "\tcompatible_state_predicates := " + "((turn == cs) -> (" + str(
+    compatible_state_predicates = "\tcompatible_state_predicates := " + "((" + str(
         conjunct_formula_set(safety_predicate_truth)) + "))" + ";\n"
     # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
-    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((!init_state && turn == cs) -> (" + str(
+    compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((!init_state) -> (" + str(
         conjunct_formula_set(tran_predicate_truth)) + "))" + ";\n"
     compatible = "\tcompatible := " + (
         "compatible_state_predicates & compatible_tran_predicates & " if predicate_mismatch else "") + "compatible_outputs & compatible_states" + ";\n"
@@ -124,47 +120,15 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     # TODO consider adding checks that state predicates expected by env are true, for debugging predicate abstraction
 
     text += "INIT\n" + "\t(" + ")\n\t& (".join(
-        program_model.init + strategy_model.init + ["turn = cs", "mismatch = FALSE", "init_state = TRUE"] +
-        ((([s.split(" : ")[0] + "_seen_once = FALSE" for s in strategy_states] +
-           [s.split(" : ")[0] + "_seen_more_than_once = FALSE" for s in
-            strategy_states])) if prefer_lassos else [])) + ")\n"
+        program_model.init + strategy_model.init + ["init_state = TRUE"]) + ")\n"
     text += "INVAR\n" + "\t((" + ")\n\t& (".join(program_model.invar + strategy_model.invar) + "))\n"
 
-    turn_logic = ["(turn = prog -> (!next(init_state) && next(turn) = cs))"]
-    turn_logic += ["(turn = cs -> (!next(init_state) && next(turn) = prog))"]
+    turn_logic = ["!next(init_state)"]
 
-    maintain_prog_vars = str(conjunct_formula_set(
-        [BiOp(UniOp("next", Variable("prog_" + str(m))), ' = ', Variable("prog_" + str(m)))
-         for m in (program.out_events)]
-        + [BiOp(UniOp("next", Variable(str(m))), ' = ', Variable(str(m))) for m in
-           program.bin_state_vars + bool_preds]))
-    new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic
+    new_trans = program_model.trans + strategy_model.trans + turn_logic
     normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
 
-    normal_trans += "\t | (!compatible & " + \
-                    " next(mismatch) & identity_" + program_model.name + \
-                    " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_prog_vars + ")"
-    normal_trans = "(!mismatch -> (" + normal_trans + "))"
-
-    deadlock = "(mismatch -> (next(mismatch) & identity_" + program_model.name + " & identity_" + strategy_model.name + " & next(turn) = turn & " + maintain_prog_vars + "))"
-
-    text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
-
-    if prefer_lassos:
-        report_if_state_seen = \
-            "\n\t& ".join(["((((turn == cs) & " + s.split(" : ")[0]
-                           + ") " + " | " + s.split(" : ")[0] + "_seen_once) " +
-                           "<-> next(" + s.split(" : ")[0] + "_seen_once))"
-                           for s in strategy_states])
-
-        report_if_state_seen += "\n\t& " + \
-                                "\n\t& ".join(["(((" + ("(turn == cs)") + " & " + s.split(" : ")[
-                                    0] + " & " + s.split(" : ")[0] + "_seen_once "
-                                               + ") " + " | " + s.split(" : ")[0] + "_seen_more_than_once) " +
-                                               "<-> next(" + s.split(" : ")[0] + "_seen_more_than_once))"
-                                               for s in strategy_states])
-
-        text += "\t&" + report_if_state_seen + "\n"
+    text += "TRANS\n" + normal_trans + "\n"
 
     text = text.replace("%", "mod")
     text = text.replace("&&", "&")
