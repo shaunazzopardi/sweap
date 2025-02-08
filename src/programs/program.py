@@ -379,6 +379,98 @@ class Program:
 
         return NuXmvModel(self.name, vars, define, init, invar, trans)
 
+
+    def to_nuXmv_with_turns_for_con_verif(self):
+        real_acts = []
+        guards = []
+        acts = []
+        for transition in self.transitions:
+            cond = str(transition.condition.to_nuxmv())
+            guard = str(transition.src) + " & " \
+                    + str(cond)
+
+            act = "next(" + str(transition.tgt) + ")" \
+                  + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
+                             self.complete_action_set(transition.action)]) \
+                  + "".join([" & next(" + str(assignment) + ")" for assignment in
+                             transition.output]) \
+                  + "".join([" & !next(" + str(event) + ")" for event in self.out_events
+                             if event not in transition.output]) \
+                  + "".join([" & !next(" + st + ")" for st in self.states
+                             if st != transition.tgt])
+            guards.append(guard)
+            acts.append(act)
+            real_acts.append((transition.action, transition.output, transition.tgt))
+
+        real_acts.append(([], [], None)) # for the stutter transition
+
+        define = []
+        guard_and_act = []
+        guard_ids = []
+
+        i = 0
+        while i < len(guards):
+            define += ["guard_" + str(i) + " := " + guards[i]]
+            define += ["act_" + str(i) + " := " + acts[i]]
+            guard_ids.append("guard_" + str(i))
+            guard_and_act.append("(guard_" + str(i) + " & " + "act_" + str(i) + ")")
+            i += 1
+
+        identity = []
+        for typed_val in self.valuation:
+            identity.append("next(" + str(typed_val.name) + ") = " + str(typed_val.name))
+        for st in self.states:
+            identity.append("next(" + str(st) + ") = " + str(st))
+
+        identity += ["!next(" + str(event) + ")" for event in self.out_events]
+
+        identity_macro_name = "identity_" + self.name
+        define += [identity_macro_name + " := " + " & ".join(identity)]
+
+        # if no guard holds, then keep the same state and output no program events
+        guards.append("!(" + " | ".join(guard_ids) + ")")
+        acts.append(identity_macro_name)
+        define += ["guard_" + str(len(guards) - 1) + " := " + guards[len(guards) - 1]]
+        define += ["act_" + str(len(guards) - 1) + " := " + acts[len(guards) - 1]]
+
+        guard_and_act.append("(guard_" + str(len(guards) - 1) + " & " + "act_" + str(len(guards) - 1) + ")")
+
+        transitions = guard_and_act
+
+        vars = ["turn : {prog, cs}"]
+        vars += [str(st) + " : boolean" for st in self.bin_state_vars]
+
+        prev_logic = []
+
+        for typed_val in self.valuation:
+            if typed_val.type.startswith("bool"):
+                vars.append(str(typed_val.name) + " : " + "boolean")
+                vars.append(str(typed_val.name) + "_prev : " + "boolean")
+            else:
+                vars.append(str(typed_val.name) + " : " + "integer")
+                vars.append(str(typed_val.name) + "_prev : " + "integer")
+
+            prev_logic += ["next(" + str(typed_val.name) + "_prev) = " + str(typed_val.name)]
+
+        vars += [str(var) + " : boolean" for var in self.env_events]
+        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += [str(var) + " : boolean" for var in self.out_events]
+
+        init = [self.initial_state]
+        init += ["!" + st for st in self.states if st != self.initial_state]
+        init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
+        init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
+        init += ["!" + str(event) for event in self.out_events]
+        trans = ["\n\t|\t".join(transitions)]
+        trans += prev_logic
+
+        invar = mutually_exclusive_rules(self.states)
+        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
+        invar += [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
+        invar.extend([str(val.name) + "_prev" + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")])
+
+        return NuXmvModel(self.name, vars, define, init, invar, trans)
+
     def complete_transitions(self):
         complete_trans = []
 

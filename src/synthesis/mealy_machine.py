@@ -332,7 +332,7 @@ class MealyMachine:
         for src in self.env_transitions.keys():
             for (env_beh, env_tgt) in self.env_transitions.get(src):
                 for (con_beh, tgt) in self.con_transitions.get(env_tgt):
-                    guard = "(turn = prog) & " + str(src) + " & " + str(env_beh)+ " & " + str(con_beh)
+                    guard = str(src) + " & " + str(env_beh)+ " & " + str(con_beh)
                     if guard not in guards_acts.keys():
                         guards_acts[guard] = list()
 
@@ -384,6 +384,78 @@ class MealyMachine:
              prog_states + pred_acts]).to_nuxmv()) + "))"
 
         trans = ["(" + identity + " &\n\t\t((turn = prog) -> (" + ")\n\t|\t(".join(transitions) + ")))"]
+        invar = ["TRUE"]
+        # # invar = mutually_exclusive_rules(self.states)
+        # invar = mutually_exclusive_rules(["prog_" + s for s in prog_states])
+        # invar += [str(disjunct_formula_set([Variable(str(s)) for s in self.states]))]
+        # j = 0
+        # while j < len(trans_pred_acts):
+        #     invar += [str(neg(conjunct(trans_pred_acts[j], trans_pred_acts[j + 1])))]
+        #     j += 2
+
+        return NuXmvModel(self.name, set(vars), define, init, invar, trans)
+
+
+    def to_nuXmv_with_turns_for_con_verif(self, prog_states, prog_out_events, state_pred_list, trans_pred_list):
+        state_pred_acts = [p.bool_var for p in state_pred_list]
+        trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
+        pred_acts = state_pred_acts + trans_pred_acts
+
+        guards_acts = {}
+
+        init_cond = (conjunct_formula_set([neg(Variable(stt)) for stt in self.states if stt != self.init_st] +
+                                              [Variable(self.init_st)]))
+        init_cond = conjunct(init_cond, conjunct_formula_set([neg(Variable(t)) for t in trans_pred_acts]))
+
+        for src in self.env_transitions.keys():
+            for (env_beh, env_tgt) in self.env_transitions.get(src):
+                for (con_beh, tgt) in self.con_transitions.get(env_tgt):
+                    guard = str(src) + " & " + str(env_beh)+ " & " + str(con_beh)
+                    if guard not in guards_acts.keys():
+                        guards_acts[guard] = list()
+
+                    act = conjunct_formula_set([UniOp("next", Variable(tgt)),
+                                                UniOp("next", conjunct_formula_set(
+                                                    [neg(Variable(s)) for s in self.states if
+                                                     s != tgt]))]).to_nuxmv()
+
+                    guards_acts[guard].append(act)
+
+        define = []
+        transitions = []
+        guard_ids = []
+        i = 0
+        guard_keys = list(guards_acts.keys())
+        while i < len(guard_keys):
+            define += [self.name + "_guard_" + str(i) + " := " + guard_keys[i]]
+            define += [
+                self.name + "_act_" + str(i) + " := (" + ")\n\t| \t(".join(map(str, guards_acts[guard_keys[i]])) + ")"]
+            transitions.append(self.name + "_guard_" + str(i) + " & " + self.name + "_act_" + str(i))
+            guard_ids.append(self.name + "_guard_" + str(i))
+            i += 1
+
+        identity = []
+        for st in self.states:
+            identity.append("next(" + str(st) + ") = " + str(st))
+
+        identity += ["next(" + str(event) + ") = " + str(event) for event in (self.env_events + self.con_events) if
+                     Variable(str(event)) not in (prog_out_events + prog_states + pred_acts)]
+
+        define += ["identity_" + self.name + " := " + " & ".join(identity)]
+
+        vars = []
+        vars += [str(st) + " : boolean" for st in self.states]
+        vars += [str(var) + " : boolean" for var in self.env_events if
+                 str(var) not in [str(v) for v in (prog_out_events + prog_states + pred_acts)]]
+        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += ["prog_" + str(var) + " : boolean" for var in prog_out_events]
+        vars += [str(var) + " : boolean" for var in prog_states]
+        vars += [str(var) + " : boolean" for var in pred_acts]
+
+        init = [str(init_cond)]
+        transitions = ["((" + ")\n\t|\t(".join(transitions) + "))"]
+
+        trans = ["(" + ")\n\t|\t(".join(transitions) + ")"]
         invar = ["TRUE"]
         # # invar = mutually_exclusive_rules(self.states)
         # invar = mutually_exclusive_rules(["prog_" + s for s in prog_states])
