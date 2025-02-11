@@ -2,6 +2,7 @@ from graphviz import Digraph
 from joblib import Parallel, delayed
 from pysmt.shortcuts import And
 
+import config
 from analysis.abstraction.effects_abstraction.util.effects_util import tran_and_state_preds_after_con_env_step
 from analysis.abstraction.explicit_abstraction.util.abstract_state import AbstractState
 from config import env, con
@@ -578,6 +579,23 @@ class MealyMachine:
 
         return NuXmvModel(self.name, set(vars), define, init, invar, trans)
 
+
+    def to_moore_machine(self):
+        if not config.Config.getConfig().dual:
+            raise Exception("This function is meant to transform a controller into a counterstrategy "
+                            "only when the --dual flag is used.")
+
+        raise NotImplementedError("Not implemented MealyMachine for dual problem to MooreMachine translation yet.")
+        # init_trans = []
+        # for env_beh, tgt in self.env_transitions[self.init_st]:
+        #     # pred_state here becomes associated with init_st
+        #     # env_events ignored
+        #     # con_events become new env_events
+        #     env_act = env_beh
+        #     for con_beh, con_tgt in self.con_transitions[tgt]:
+        #
+        # print()
+        # pass
 
 def handle_transition(src_index,
                       env_cond,

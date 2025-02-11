@@ -384,8 +384,13 @@ class Program:
         real_acts = []
         guards = []
         acts = []
+        dualise = config.Config.getConfig().dual
         for transition in self.transitions:
-            cond = str(transition.condition.to_nuxmv())
+            if dualise:
+                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
+                cond = str(cond.to_nuxmv()).replace("X(", "next(")
+            else:
+                cond = str(transition.condition.to_nuxmv())
             guard = str(transition.src) + " & " \
                     + str(cond)
 

@@ -289,17 +289,19 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         logging.info("ltl synthesis took " + str(time.time() - start))
 
         if real and not debug:
-            logging.info("Realizable")
             if config.Config.getConfig().verify_controller:
-                if config.Config.getConfig().dual:
-                    print("WARNING: Dualising, verify_controller has not been adapted for this yet, but trying anyway.")
-                # TODO actually project
                 print("massaging abstract controller")
                 mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
                                                                  base_abstraction,
                                                                  ltlAbstractionType,
                                                                  abstract_ltl_problem,
                                                                  real)
+                if config.Config.getConfig().dual:
+                    mm = mm.to_moore_machine()
+                    logging.info("Unrealizable")
+                else:
+                    logging.info("Realizable")
+
                 original_ltl_spec = implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees))
                 compatibility_checking_con(program, predicate_abstraction, mm, original_ltl_spec)
                 return True, mm
