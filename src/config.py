@@ -17,12 +17,19 @@ class Config:
     _only_safety = False
     _eager_fairness = True
     _no_binary_enc = True
+    _dual = False
     _verify_controller = True
     _add_all_preds_in_prog = True
     _mc = False
     _debug = False
     _cnf_optimisations = False
     _parallelise_type = "processes"
+
+    def _get_d(self):
+        return self._dual
+
+    def _set_d(self, value: bool):
+        self._dual = value
 
     def _get_n_b_e(self):
         return self._no_binary_enc
@@ -99,6 +106,7 @@ class Config:
     def _do_nothing(self):
         pass
 
+    dual = property(_get_d, _set_d, _do_nothing, "")
     no_binary_enc = property(_get_n_b_e, _set_n_b_e, _do_nothing, "")
     prefer_ranking = property(_get_p_r, _set_p_r, _do_nothing, "")
     only_structural = property(_get_o_struct, _set_o_struct, _do_nothing, "")

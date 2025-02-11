@@ -1,8 +1,10 @@
 import time
+
+import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
 
 from prop_lang.util import atomic_predicates, G, X, conjunct_formula_set, conjunct, \
-    disjunct_formula_set, implies, F, propagate_nexts, disjunct
+    disjunct_formula_set, implies, F, propagate_nexts, disjunct, massage_ltl_for_dual
 from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
@@ -19,9 +21,12 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
     init_state = conjunct(init_explicit_state, conjunct_formula_set(init_preds))
 
     pred_next = set()
+    dualise = config.Config.getConfig().dual
     for gu, post in predicate_abstraction.second_state_abstraction.items():
         for t in predicate_abstraction.gu_to_trans[gu]:
             E_formula = t.condition.replace_formulas(predicate_abstraction.var_relabellings)
+            if dualise:
+                E_formula = massage_ltl_for_dual(E_formula, predicate_abstraction.program.env_events)
             next_preds = [rename_pred(p) for p in post]
 
             pred_next.add(conjunct((conjunct_formula_set([E_formula])),
@@ -32,6 +37,9 @@ def to_ltl_organised_by_pred_effects_guard_updates(predicate_abstraction: Effect
     transition_ltl = {}
     for gu in predicate_abstraction.gu_to_trans.keys():
         cond = predicate_abstraction.gu_to_trans[gu][0].condition.replace_formulas(predicate_abstraction.var_relabellings)
+        if dualise:
+            cond = massage_ltl_for_dual(cond, predicate_abstraction.program.env_events, False)
+
         effect = predicate_abstraction.abstract_effect_ltl[gu]
         for t in predicate_abstraction.gu_to_trans[gu]:
             guard = program.states_binary_map[t.src]

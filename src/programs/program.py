@@ -17,7 +17,7 @@ from prop_lang.util import (disjunct_formula_set, neg, true, \
                             sat, type_constraints_acts, implies, is_tautology, sat_parallel, mutually_exclusive_rules,
                             atomic_predicates,
                             simplify_formula_with_math_wo_type_constraints, conjunct, conjunct_typed_valuation_set,
-                            conjunct_formula_set)
+                            massage_ltl_for_dual)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -32,8 +32,13 @@ class Program:
         self.initial_state = init_st
         self.states: Set = set(sts)
         self.valuation = init_val
-        self.env_events = env_events
-        self.con_events = con_events
+
+        if config.Config.getConfig().dual:
+            self.env_events = con_events
+            self.con_events = env_events
+        else:
+            self.env_events = env_events
+            self.con_events = con_events
         self.out_events = []
         self.symbol_table = symbol_table_from_program(self)
         self.local_vars = [Variable(tv.name) for tv in init_val]
@@ -284,9 +289,15 @@ class Program:
         real_acts = []
         guards = []
         acts = []
+        dualise = config.Config.getConfig().dual
         for transition in self.transitions:
+            if dualise:
+                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
+                cond = str(cond.to_nuxmv()).replace("X(", "next(")
+            else:
+                cond = str(transition.condition.to_nuxmv())
             guard = "turn = cs & " + str(transition.src) + " & " \
-                    + str(transition.condition.to_nuxmv())
+                    + str(cond)
 
             act = "next(" + str(transition.tgt) + ")" \
                   + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
@@ -373,8 +384,13 @@ class Program:
         real_acts = []
         guards = []
         acts = []
+        dualise = config.Config.getConfig().dual
         for transition in self.transitions:
-            cond = str(transition.condition.to_nuxmv())
+            if dualise:
+                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
+                cond = str(cond.to_nuxmv()).replace("X(", "next(")
+            else:
+                cond = str(transition.condition.to_nuxmv())
             guard = str(transition.src) + " & " \
                     + str(cond)
 

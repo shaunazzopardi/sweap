@@ -19,7 +19,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (true, stringify_formula, atomic_predicates, finite_state_preds, strip_mathexpr,
                             normalise_pred_multiple_vars, normalise_formula, enumerate_finite_state_vars,
-                            conjunct_formula_set, implies)
+                            conjunct_formula_set, implies, massage_ltl_for_dual, neg)
 from prop_lang.variable import Variable
 
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
@@ -140,6 +140,12 @@ def process_specifications(program, ltl, tlsf_path):
         ltl_guarantees = ltl_guarantees_formula.sub_formulas_up_to_associativity()
     else:
         ltl_guarantees = [ltl_guarantees_formula]
+
+    if config.Config.getConfig().dual:
+        ltl_assumptions = [massage_ltl_for_dual(f, program.env_events) for f in ltl_assumptions]
+        ltl_guarantees = [massage_ltl_for_dual(f, program.env_events) for f in ltl_guarantees]
+        ltl_guarantees = [neg(implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees)))]
+        ltl_assumptions = []
 
     in_acts = [e for e in program.env_events]
     out_acts = [e for e in program.con_events]
@@ -283,20 +289,24 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         logging.info("ltl synthesis took " + str(time.time() - start))
 
         if real and not debug:
-            logging.info("Realizable")
             if config.Config.getConfig().verify_controller:
-                # TODO actually project
                 print("massaging abstract controller")
                 mm = predicate_abstraction.massage_mealy_machine(mm_hoa,
                                                                  base_abstraction,
                                                                  ltlAbstractionType,
                                                                  abstract_ltl_problem,
                                                                  real)
+                if config.Config.getConfig().dual:
+                    mm = mm.to_moore_machine()
+                    logging.info("Unrealizable")
+                else:
+                    logging.info("Realizable")
+
                 original_ltl_spec = implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees))
                 compatibility_checking_con(program, predicate_abstraction, mm, original_ltl_spec)
                 return True, mm
             else:
-                return True, mm_hoa
+                return True, "\n".join(mm_hoa.split("\n")[1:])
 
         start = time.time()
         print("massaging abstract counterstrategy")

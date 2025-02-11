@@ -1920,3 +1920,24 @@ def update_chain_pred_one(old_pred_rep, new_pred, loc):
             new.append(old_pred_rep[:loc] + [neg(new_pred)] + old_pred_rep[loc:])
 
     return new
+
+
+def massage_ltl_for_dual(formula: Formula, next_events, preds_too=True):
+    if isinstance(formula, Value):
+        return formula
+    elif isinstance(formula, Variable):
+        if formula in next_events:
+            return X(formula)
+        else:
+            return formula
+    elif (isinstance(formula, MathExpr) or should_be_math_expr(formula)):
+        if preds_too:
+            return X(formula)
+        else:
+            return formula
+    elif isinstance(formula, UniOp):
+        return UniOp(formula.op, massage_ltl_for_dual(formula.right, next_events))
+    elif isinstance(formula, BiOp):
+        return BiOp(massage_ltl_for_dual(formula.left, next_events), formula.op, massage_ltl_for_dual(formula.right, next_events))
+    else:
+        return formula

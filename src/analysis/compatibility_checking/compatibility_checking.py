@@ -133,7 +133,7 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
            + sorted([s + ': boolean' for s in program.states]) \
            + sorted([v for v in strategy_model.vars
                      if v not in program_model.vars]) \
-           + seen_strategy_states_decs \
+           + (seen_strategy_states_decs if prefer_lassos else [])\
            + ["mismatch : boolean"] \
            + ["init_state : boolean"]
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"

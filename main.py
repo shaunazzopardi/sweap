@@ -32,17 +32,11 @@ def main():
     # Strix workflow
     parser.add_argument('--synth-strix', dest='synth_strix', help="Synthesise with Strix (only for finite-state problems).", type=bool, nargs='?', const=True)
 
-    # parser.add_argument('--only_ranking', dest='only_ranking', help="For fairness refinements, only use ranking refinement.", type=bool, nargs='?', const=True)
-    # parser.add_argument('--only_structural', dest='only_structural', help="For fairness refinements, only use structural refinement.", type=bool, nargs='?', const=True)
-    # parser.add_argument('--eager_fairness', dest='eager_fairness', help="Synthesise ranking refinements for each predicate initially.", type=bool, nargs='?', const=True)
     parser.add_argument('--verify_controller', dest='verify_controller', help="Verifies controller, if realisable, satisfies given LTL specification against program.", type=bool, nargs='?', const=True)
-    # parser.add_argument('--add_all_preds_in_prog', dest='add_all_preds_in_prog', help="Initially each predicate used in the program.", type=bool, nargs='?', const=True)
     parser.add_argument('--lazy', dest='lazy', help="Lazy approach", type=bool, nargs='?', const=True)
     parser.add_argument('--only_safety', dest='only_safety', help="Do not use fairness refinements.", type=bool, nargs='?', const=True)
     parser.add_argument('--no_binary_enc', dest='no_binary_enc', help="Do not use binary encoding (implies --lazy).", type=bool, nargs='?', const=True)
-
-    ##how to connect to strix (default just assume `strix' is in path)
-    # parser.add_argument('--strix_docker', dest='docker', type=str, nargs='?', const=False)
+    parser.add_argument('--dual', dest='dual', help="Tries the dual problem (exchanges environment and controller propositions and objectives).", type=bool, nargs='?', const=True)
 
     args = parser.parse_args()
 
@@ -57,22 +51,6 @@ def main():
 
     if args.program is None and args.tsl is None:
         raise Exception("Program path not specified.")
-
-    # if args.only_ranking is not None:
-    #     if args.only_structural is not None:
-    #         raise Exception("Cannot use both only_ranking and only_structural.")
-    #     conf.prefer_ranking = False
-    #     conf.only_ranking = True
-    #     conf.only_structural = False
-    #     conf.only_safety = False
-
-    # if args.only_structural is not None:
-    #     if args.only_ranking is not None:
-    #         raise Exception("Cannot use both only_ranking and only_structural.")
-    #     conf.prefer_ranking = False
-    #     conf.only_ranking = False
-    #     conf.only_structural = True
-    #     conf.only_safety = False
 
     if not args.lazy and not args.only_safety:
         conf.eager_fairness = True
@@ -89,6 +67,11 @@ def main():
         conf._verify_controller = True
     else:
         conf._verify_controller = False
+
+    if args.dual:
+        conf._dual = True
+    else:
+        conf._dual = False
 
     conf.add_all_preds_in_prog = True
 
@@ -156,12 +139,12 @@ def main():
             else synthesize(program, ltl, args.tlsf, False))
         end = time.time()
 
-        if realiz:
+        if (realiz and not args.dual) or (not realiz and args.dual):
             print('Realizable.')
-            print(str(mm))
         else:
             print('Unrealizable.')
-            print(str(mm))
+
+        print(str(mm))
 
         print("Synthesis took: ", (end - start) * 10 ** 3, "ms")
 
