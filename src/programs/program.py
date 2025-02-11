@@ -132,7 +132,7 @@ class Program:
                 nat_pred = BiOp(v, ">=", Value("0"))
                 if not is_tautology(implies(conjunct_typed_valuation_set(self.valuation), nat_pred), self.symbol_table):
                     continue
-                symbol_table_with_prevs = {(m + "_prev") : TypedValuation(m + "_preb", tv.type, tv.value) for m, tv in self.symbol_table.items()}
+                symbol_table_with_prevs = {(m + "_prev") : TypedValuation(m + "_prev", tv.type, tv.value) for m, tv in self.symbol_table.items()}
                 exit = False
                 prev_nat = add_prev_suffix(nat_pred)
                 for t in self.transitions:
