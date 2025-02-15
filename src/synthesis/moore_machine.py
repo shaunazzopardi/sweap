@@ -178,7 +178,7 @@ class MooreMachine:
             [BiOp(UniOp("next", Variable("prog_" + e.name)), "=", Variable("prog_" + e.name)) for e in
              prog_out_events] +
             [BiOp(UniOp("next", Variable(str(p))), "=", Variable(str(p))) for p in
-             prog_states + pred_acts]).to_nuxmv()) + "))"
+             prog_states + pred_acts + self.env_events + self.con_events]).to_nuxmv()) + "))"
 
         trans = ["(" + identity + " &\n\t\t((turn = prog) -> (" + ")\n\t|\t(".join(transitions) + ")))"]
         invar = ["TRUE"]

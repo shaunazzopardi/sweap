@@ -316,7 +316,7 @@ def use_liveness_refinement_state_joined(Cs: MooreMachine,
     tran_preds += [p.bool_var for p in predicate_abstraction.get_state_predicates()]
     # TODO do this better later
     inloop_vars = [Variable(k) for k in ce[0].keys() if k.startswith("in_loop")]
-    irrelevant_vars = program.env_events + tran_preds + inloop_vars
+    irrelevant_vars = [v for v, _ in program.env_events] + tran_preds + inloop_vars
 
     symbol_table_with_inloop_vars = symbol_table | {str(l): TypedValuation(str(l), "bool", None) for l in inloop_vars}
 

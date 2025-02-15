@@ -18,11 +18,11 @@ class AbstractLTLSynthesisProblem():
                  assumptions: [Formula],
                  guarantees: [Formula]):
         self.pure_env_props = pure_env_props
+        self.con_props = con_props
         self.program_out_props = program_out_props
         self.program_pred_props = program_pred_props
-        self.con_props = con_props
-        self.ltl_synthesis_problem = LTLSynthesisProblem(pure_env_props + program_out_props + program_pred_props,
-                                                         con_props,
+        self.ltl_synthesis_problem = LTLSynthesisProblem(self.pure_env_props + self.program_out_props + self.program_pred_props,
+                                                         self.con_props,
                                                          assumptions,
                                                          guarantees)
 

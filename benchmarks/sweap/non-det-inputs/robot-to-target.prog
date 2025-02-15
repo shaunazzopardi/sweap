@@ -1,0 +1,39 @@
+program robot-to-target {
+    STATES {
+        setX: init, setTarget, q
+    }
+    ENVIRONMENT EVENTS {
+        set_t: integer;
+        set_x: integer
+    }
+    CONTROLLER EVENTS {
+        d1, d2, move, ct
+    }
+    VALUATION {
+        x : integer := 0;
+        dx : integer := 0;
+        tx : integer := 0;
+    }
+    TRANSITIONS {
+        setX -> q [set_t == 1000 || set_t == -1000 $ x := set_x; tx := set_t],
+
+        q -> q [ $ x := x + dx if move;
+                   dx := 1 if d1;
+                   dx := -1 if !d1 & d2;
+                   dx := dx if !d1 & !d2]
+    }
+
+    SPECIFICATION {
+        (G(setX)) || (!q U (q &&
+            !move &
+            (X G move) &
+            (d1 || (!d1 & d2)) &
+            (X G (!d1 & !d2)) &
+            (X G (tx == 1000 || tx == -1000)) &
+            (F (x <= tx)) &
+            (F (x >= tx))
+            ))
+    }
+}
+
+

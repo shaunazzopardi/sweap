@@ -68,7 +68,10 @@ class UniOp(Formula):
     def to_smt(self, symbol_table) -> (FNode, FNode):
         expr, invar = self.right.to_smt(symbol_table)
         if self.op == "!":
-            return Not(expr), invar
+            try:
+                return Not(expr), invar
+            except:
+                return Not(expr), invar
         elif self.op == "-":
             return Minus(Int(0), expr), invar
         else:

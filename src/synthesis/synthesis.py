@@ -1,4 +1,6 @@
 import logging
+import resource
+
 import config
 import time
 from typing import Tuple
@@ -142,8 +144,8 @@ def process_specifications(program, ltl, tlsf_path):
         ltl_guarantees = [ltl_guarantees_formula]
 
     if config.Config.getConfig().dual:
-        ltl_assumptions = [massage_ltl_for_dual(f, program.env_events) for f in ltl_assumptions]
-        ltl_guarantees = [massage_ltl_for_dual(f, program.env_events) for f in ltl_guarantees]
+        ltl_assumptions = [massage_ltl_for_dual(f, program.inputs, False) for f in ltl_assumptions]
+        ltl_guarantees = [massage_ltl_for_dual(f, program.inputs, False) for f in ltl_guarantees]
         ltl_guarantees = [neg(implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees)))]
         ltl_assumptions = []
 
@@ -175,7 +177,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     #  a solution here may be to use the atomic predicates appearing the in the transition guard as state predicates
 
     add_all_boolean_vars = True
-    env_con_events = set(program.con_events + program.env_events)
+    env_con_events = set(program.bool_in_out)
 
     new_state_preds = set()
     if add_all_boolean_vars:
@@ -185,6 +187,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     for t in program.transitions:
         preds_in_cond = atomic_predicates(t.condition)
         new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
+        in_outs_in_act = {v for v in program.bool_in_out for act in t.action if v in act.variablesin()}
+        new_state_preds.update(in_outs_in_act)
 
     if config.Config.getConfig().only_safety:
         new_state_preds.update({pred
@@ -215,7 +219,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
     prog_state_vars = [Variable(s) for s in program.states]
     new_ltl_assumptions = []
-    ignore_these = set(in_acts + out_acts + prog_state_vars)
+    ignore_these = set(program.bool_in_out + prog_state_vars)
     for ltl in ltl_assumptions:
         ltl = strip_mathexpr(ltl)
         new_ltl, new_preds = normalise_formula(ltl, signatures, symbol_table, ignore_these)
@@ -284,6 +288,8 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
         logging.info("to ltl abstraction took " + str(time.time() - start))
 
         start = time.time()
+        print("Peak memory used so far: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
+
         print("running LTL synthesis")
         (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
         logging.info("ltl synthesis took " + str(time.time() - start))

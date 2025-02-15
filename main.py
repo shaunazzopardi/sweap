@@ -1,5 +1,6 @@
 import argparse
 import os
+import resource
 
 from config import Config
 from analysis.compatibility_checking.compatibility_checking import create_nuxmv_model, \
@@ -147,7 +148,7 @@ def main():
         print(str(mm))
 
         print("Synthesis took: ", (end - start) * 10 ** 3, "ms")
-
+        print("Peak memory: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
     else:
         raise Exception("Specify either --translate or --synthesise.")
 

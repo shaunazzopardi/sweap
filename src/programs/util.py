@@ -21,7 +21,7 @@ from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, conjunct, neg, append_to_variable_name, dnf, disjunct_formula_set, \
     true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_safe, var_to_predicate, fnode_to_formula, \
-    run_with_timeout, simplify_formula_with_math
+    run_with_timeout, simplify_formula_with_math, disjunct
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -30,8 +30,11 @@ def symbol_table_from_program(program):
     symbol_table = dict()
     for state in program.states:
         symbol_table[state] = TypedValuation(str(state), "bool", None)
-    for ev in program.out_events + program.env_events + program.con_events:
-        symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
+    for var, type in program.env_events + program.con_events:
+        symbol_table[var.name] = TypedValuation(var.name, type, None)
+        symbol_table[var.name + "_prev"] = TypedValuation(var.name + "_prev", type, None)
+    for ev in program.out_events:
+        symbol_table[ev.name] = TypedValuation(ev.name, "bool", None)
     for t_val in program.valuation:
         symbol_table[t_val.name] = t_val
         symbol_table[t_val.name + "_prev"] = TypedValuation(t_val.name + "_prev", t_val.type, None)
@@ -122,6 +125,7 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     if len(prefix) == 0:
         raise Exception("Initial state is not compatible with the program.")
 
+    numerical_in_outs = [str(v) for v in program.num_in_out]
     for dic in prefix:
         # monitor only makes decisions at env and mon turns
         if dic["turn"] == "cs":
@@ -131,13 +135,14 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
             for (key, value) in dic.items():
                 if key.split("_prev")[0] in program_alphabet:
                     program_state[key] = value
-                elif key in cs_alphabet or key.startswith("compatible") or key.startswith("pred"):
+                elif key in cs_alphabet or key.startswith("compatible") or key.startswith("pred") or key in numerical_in_outs:
                     cs_state[key] = value
                 elif key.startswith("guard_") and value == "TRUE":
                     if dic[key.replace("guard_", "act_")] == "TRUE":
                         no = key.replace("guard_", "")
                         if no != str(transition_no):
                             transition = no
+
 
             program_states.append(program_state)
             cs_states.append(cs_state)
@@ -501,8 +506,8 @@ def guarded_action_transitions_to_normal_transitions(arg):
         symbol_table[t_val.name] = t_val
         symbol_table[t_val.name + "_next"] = TypedValuation(t_val.name + "_next", t_val.type, t_val.value)
 
-    for ev in env_events + con_events:
-        symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
+    for (ev, t) in env_events + con_events:
+        symbol_table[ev.name] = TypedValuation(str(ev), t, None)
 
     act_guard_sets = set()
     act_guard_sets.add(frozenset({}))
@@ -651,6 +656,25 @@ def binary_rep(vars, label):
             else:
                 bin_formula = conjunct(bin_formula, new_constraint)
         rep[v] = bin_formula
+
+    rest = [rep[v]]
+    while i < 2**bin - 1:
+        i = i + 1
+        bin_rep = base.format(i)
+        bin_formula = None
+        for j, pos in enumerate(bin_rep):
+            if pos == '0':
+                new_constraint = neg(bin_vars[j])
+            else:
+                new_constraint = bin_vars[j]
+
+            if bin_formula is None:
+                bin_formula = new_constraint
+            else:
+                bin_formula = conjunct(bin_formula, new_constraint)
+        rest.append(bin_formula)
+
+    rep[v] = disjunct_formula_set(rest)
 
     for v, f in rep.items():
         if isinstance(v, frozenset):

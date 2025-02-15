@@ -74,6 +74,8 @@ class Variable(Atom):
         if typed_val.type == "int" or typed_val.type == "integer":
             return Symbol(self.name, INT), TRUE()
         elif typed_val.type == "bool" or typed_val.type == "boolean":
+            if self.name == "i_prev":
+                print()
             return Symbol(self.name, BOOL), TRUE()
         elif typed_val.type == "nat" or typed_val.type == "natural":
             return Symbol(self.name, INT), GE(Symbol(self.name, INT), Int(0))

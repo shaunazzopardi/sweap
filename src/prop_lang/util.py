@@ -73,7 +73,14 @@ def conjunct_typed_valuation_set(s: set[TypedValuation]) -> Formula:
     for f in s:
         if isinstance(f.value, NonDeterministic):
             continue
-        ret = conjunct(ret, BiOp(Variable(f.name), "=", Value(f.value)))
+        if f.type.startswith("bool"):
+            v = Value(f.value)
+            if v.is_true():
+                ret = conjunct(ret, Variable(f.name))
+            else:
+                ret = conjunct(ret, neg(Variable(f.name)))
+        else:
+            ret = conjunct(ret, BiOp(Variable(f.name), "==", Value(f.value)))
     return ret
 
 
@@ -1930,14 +1937,14 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=True):
             return X(formula)
         else:
             return formula
-    elif (isinstance(formula, MathExpr) or should_be_math_expr(formula)):
+    elif isinstance(formula, MathExpr) or should_be_math_expr(formula):
         if preds_too:
             return X(formula)
         else:
             return formula
     elif isinstance(formula, UniOp):
-        return UniOp(formula.op, massage_ltl_for_dual(formula.right, next_events))
+        return UniOp(formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too))
     elif isinstance(formula, BiOp):
-        return BiOp(massage_ltl_for_dual(formula.left, next_events), formula.op, massage_ltl_for_dual(formula.right, next_events))
+        return BiOp(massage_ltl_for_dual(formula.left, next_events, preds_too), formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too))
     else:
         return formula

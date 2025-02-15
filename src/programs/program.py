@@ -26,19 +26,36 @@ class Program:
 
     def __init__(self, name, sts, init_st, init_val: [TypedValuation],
                  transitions: [Transition],
-                 env_events: [Variable], con_events: [Variable],
+                 env_events: [(Variable, str)], con_events: [Variable],
                  preprocess=True, is_determ=None):
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
         self.valuation = init_val
 
+        inputs = [v for v, _ in env_events]
+        outputs = [v for v, _ in con_events]
+
+        self.inp_out_puts = inputs + outputs
+        self.num_in_out = [v for v, t in env_events + con_events if not t.startswith("bool")]
+        self.bool_in_out = [v for v in inputs + outputs if v not in self.num_in_out]
+
+        # check that non-boolean events only in env events
+        for ev, t in con_events:
+            if not t.startswith("bool"):
+                raise Exception("Only environment events can have non-boolean typed variables: " + str(ev))
+
         if config.Config.getConfig().dual:
             self.env_events = con_events
             self.con_events = env_events
+            self.inputs = outputs
+            self.outputs = inputs
         else:
             self.env_events = env_events
             self.con_events = con_events
+            self.inputs = inputs
+            self.outputs = outputs
+            
         self.out_events = []
         self.symbol_table = symbol_table_from_program(self)
         self.local_vars = [Variable(tv.name) for tv in init_val]
@@ -127,7 +144,7 @@ class Program:
     def refine_var_types(self):
         new_symbol_table = {}
         for n, tv in self.symbol_table.items():
-            if tv.type.startswith("int"):
+            if tv.type.startswith("int") and n not in self.inputs:
                 v = Variable(tv.name)
                 nat_pred = BiOp(v, ">=", Value("0"))
                 if not is_tautology(implies(conjunct_typed_valuation_set(self.valuation), nat_pred), self.symbol_table):
@@ -292,7 +309,7 @@ class Program:
         dualise = config.Config.getConfig().dual
         for transition in self.transitions:
             if dualise:
-                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
+                cond = massage_ltl_for_dual(transition.condition, self.inputs, False)
                 cond = str(cond.to_nuxmv()).replace("X(", "next(")
             else:
                 cond = str(transition.condition.to_nuxmv())
@@ -357,8 +374,7 @@ class Program:
                 vars.append(str(typed_val.name) + " : " + "integer")
                 vars.append(str(typed_val.name) + "_prev : " + "integer")
 
-        vars += [str(var) + " : boolean" for var in self.env_events]
-        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += [str(v) + " : " + t for (v, t) in self.env_events + self.con_events]
         vars += [str(var) + " : boolean" for var in self.out_events]
 
         init = [self.initial_state]
@@ -387,7 +403,7 @@ class Program:
         dualise = config.Config.getConfig().dual
         for transition in self.transitions:
             if dualise:
-                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
+                cond = massage_ltl_for_dual(transition.condition, self.inputs, False)
                 cond = str(cond.to_nuxmv()).replace("X(", "next(")
             else:
                 cond = str(transition.condition.to_nuxmv())
@@ -457,8 +473,7 @@ class Program:
 
             prev_logic += ["next(" + str(typed_val.name) + "_prev) = " + str(typed_val.name)]
 
-        vars += [str(var) + " : boolean" for var in self.env_events]
-        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += [str(v) + " : " + t for (v, t) in self.env_events + self.con_events]
         vars += [str(var) + " : boolean" for var in self.out_events]
 
         init = [self.initial_state]

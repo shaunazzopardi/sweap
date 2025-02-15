@@ -7,13 +7,15 @@ from prop_lang.util import neg, stringify_pred, conjunct, sat, is_tautology, imp
 
 class TransitionPredicate(Predicate, ABC):
 
-    def __init__(self, tran_preds: [Formula]):
+    def __init__(self, tran_preds: [Formula], is_input):
         self.preds = tran_preds
         self.vars = tran_preds[0].variablesin()
         self.stutter = conjunct_formula_set([neg(t) for t in tran_preds])
         self.options = [conjunct_formula_set([t] + [neg(tt) for tt in tran_preds if t != tt]) for t in tran_preds] + \
                         [self.stutter]
         self.bool_rep = {t: stringify_pred(t) for t in tran_preds}
+        self.is_input = is_input
+        print(str(tran_preds[0]) + "    " + str(is_input))
 
     def __str__(self):
         return ", ".join(map(str, self.preds))
@@ -31,6 +33,8 @@ class TransitionPredicate(Predicate, ABC):
                       gu: Formula,
                       old_effects: [(Formula, [Formula])],
                       symbol_table) -> [(Formula, [Formula])]:
+        if self.is_input:
+            return old_effects
         new_effects = []
         for now, nexts in old_effects:
             new_nexts = self.refine_nexts_with_p(conjunct(gu, now.prev_rep()), nexts, symbol_table)
@@ -41,14 +45,19 @@ class TransitionPredicate(Predicate, ABC):
 
     def refine_nexts_with_p(self, now, nexts, symbol_table):
         new_nexts = []
-        for v_next in nexts:
-            for option in self.options:
-                v_next_p = conjunct(v_next, option)
-                if sat(conjunct(now, v_next_p), symbol_table):
-                    new_nexts.append(v_next_p)
+        if self.is_input:
+            return refine_nexts(now, nexts, symbol_table)
+        else:
+            for v_next in nexts:
+                for option in self.options:
+                    v_next_p = conjunct(v_next, option)
+                    if sat(conjunct(now, v_next_p), symbol_table):
+                        new_nexts.append(v_next_p)
         return new_nexts
 
     def is_post_cond(self, gu: Formula, symbol_table):
+        if self.is_input:
+            return None
         for option in self.options:
             if is_tautology(implies(gu, option), symbol_table):
                 return X(option.replace_formulas(self.bool_rep))
@@ -63,6 +72,8 @@ class TransitionPredicate(Predicate, ABC):
                       gu: Formula,
                       old_effects: [(Formula, [Formula])],
                       symbol_table) -> [(Formula, [Formula])]:
+        if self.is_input:
+            return self.extend_effect_now(gu, old_effects, symbol_table)
         new_effects = []
 
         for now, nexts in old_effects:
@@ -104,6 +115,8 @@ class TransitionPredicate(Predicate, ABC):
                 return option.replace_formulas(self.bool_rep)
 
     def is_invar(self, gu: Formula, symbol_table):
+        if self.is_input:
+            return None
         for option in self.options:
             if is_tautology(implies(gu, iff(option.prev_rep(), option)), symbol_table):
                 return option.replace_formulas(self.bool_rep)

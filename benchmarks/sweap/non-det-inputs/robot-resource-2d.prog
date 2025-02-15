@@ -1,0 +1,35 @@
+program robot-resource-2d {
+    STATES {
+        movetarg : init, incntx, decntx, setntx, goal, unsafe
+    }
+
+    ENVIRONMENT EVENTS {
+        setx: integer, sety: integer
+    }
+
+    CONTROLLER EVENTS {
+        cinc, cdec, cxory
+    }
+
+    VALUATION {
+        x : integer := 0;
+        y : integer := 0;
+        resource : integer := 4;
+    }
+
+    TRANSITIONS {
+        movetarg -> goal [x <= 0 && y <= 0],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && (cinc <-> cdec)],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && !cinc && cdec && cxory $ x := x + 1],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && cinc && !cdec && !cxory $ y := y + 1],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && cinc && !cdec && cxory $ x := x + 1],
+        movetarg -> movetarg [!(x <= 0 && y <= 0) && !cinc && cdec && !cxory $ x := x - 1],
+
+        goal -> unsafe [resource < 0 || resource > 4],
+        goal -> movetarg [resource >= 0 $ resource := resource - 1; x := setx; y := sety]
+    }
+
+    SPECIFICATION {
+        (G F goal)
+    }
+}

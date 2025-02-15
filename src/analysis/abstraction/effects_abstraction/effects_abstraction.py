@@ -98,9 +98,10 @@ class EffectsAbstraction(PredicateAbstraction):
 
         all_trans = [t.with_condition(t.condition.replace_formulas(old_to_new_st_preds)) for t in orig_transitions + stutter]
         self.init_conf = (conjunct_typed_valuation_set(self.program.valuation))
-        self.init_program_trans = {t for t in all_trans if
+        self.init_program_trans_to_orig = {t.with_condition(conjunct(self.init_conf, t.condition)): t for t in all_trans if
                                t.src == self.program.initial_state and sat(conjunct(self.init_conf.prev_rep(), t.formula()),
                                                                            self.program.symbol_table)}
+        self.init_program_trans = set(self.init_program_trans_to_orig.keys())
         for t in self.init_program_trans:
             gu = t.formula()
             if gu in self.gu_to_trans.keys():
@@ -109,6 +110,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.gu_to_trans[gu] = [t]
 
         self.init_program_gus = {t.formula() for t in self.init_program_trans}
+        self.init_program_gus_to_t = {t.formula(): t for t in self.init_program_trans}
 
         self.non_init_program_trans = all_trans
         self.non_init_program_gus = {t.formula() for t in self.non_init_program_trans}
@@ -123,7 +125,7 @@ class EffectsAbstraction(PredicateAbstraction):
         for gu in self.init_program_gus:
             self.second_state_abstraction[gu] = []
 
-        for gu in self.non_init_program_gus:
+        for gu in self.non_init_program_gus | self.init_program_gus:
             self.abstract_effect_ltl[gu] = true()
             self.abstract_effect_invars[gu] = set()
             self.abstract_effect_constant[gu] = set()
@@ -179,6 +181,8 @@ class EffectsAbstraction(PredicateAbstraction):
         use_chain_preds = not config.Config.getConfig().no_binary_enc
         remaining_st_preds = list(new_state_predicates)
 
+        pred_contains_input_vars = lambda x: True if any(v for v in x.variablesin() if v in self.program.inp_out_puts) else False
+
         new_preds = set()
 
         accelerate = config.Config.getConfig().eager_fairness
@@ -193,7 +197,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     else:
                         term_to_p_for_chain[p.left].append(p)
                 else:
-                    f_p = StatePredicate(p)
+                    f_p = StatePredicate(p, pred_contains_input_vars(p))
                     remaining_st_preds.append(f_p)
                     new_preds.add(f_p)
                     self.state_predicates.add(f_p)
@@ -203,7 +207,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.chain_state_predicates.update(preds)
                 new_chain_pred = False
                 if term not in self.v_to_chain_pred.keys():
-                    v_chain_pred = ChainPredicate(term, self.program, accelerate)
+                    v_chain_pred = ChainPredicate(term, self.program, pred_contains_input_vars(term), accelerate)
                     self.v_to_chain_pred[term] = v_chain_pred
                     new_chain_pred = True
                 else:
@@ -212,7 +216,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 v_chain_pred.add_predicate(preds)
 
                 if new_chain_pred and accelerate and len(v_chain_pred.tran_preds) > 0:
-                    gu = TransitionPredicate(v_chain_pred.tran_preds)
+                    gu = TransitionPredicate(v_chain_pred.tran_preds, v_chain_pred.is_input)
                     new_preds.add(gu)
                     self.transition_predicates.add(gu)
                     self.var_relabellings.update(gu.boolean_rep())
@@ -222,18 +226,19 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.var_relabellings.update(v_chain_pred.boolean_rep())
 
                 if new_chain_pred:
-                    for p in v_chain_pred.chain:
-                        # TODO if transition pred need to set neg of every pred
-                        if sat(conjunct(self.init_conf, p), self.symbol_table):
-                            self.init_state_abstraction.append(p)
-                            break
+                    if not v_chain_pred.is_input:
+                        for p in v_chain_pred.chain:
+                            if sat(conjunct(self.init_conf, p), self.symbol_table):
+                                self.init_state_abstraction.append(p)
+                                break
 
                     for gu in self.init_program_gus:
                         for p in v_chain_pred.chain:
-                            if sat(conjunct(conjunct(self.init_conf.prev_rep(),
-                                                     gu), p), self.symbol_table):
-                                self.second_state_abstraction[gu].append(p)
-                                break
+                            if not any(v for v in p.variablesin() if v in self.program.inp_out_puts):
+                                if sat(conjunct(conjunct(self.init_conf.prev_rep(),
+                                                         gu), p), self.symbol_table):
+                                    self.second_state_abstraction[gu].append(p)
+                                    break
                 else:
                     old_to_new = v_chain_pred.old_to_new
                     for old_p in old_to_new.keys():
@@ -256,7 +261,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                         break
         else:
             for p in remaining_st_preds:
-                f_p = StatePredicate(p)
+                f_p = StatePredicate(p, pred_contains_input_vars(p))
                 new_preds.add(f_p)
                 self.state_predicates.add(f_p)
                 self.var_relabellings.update(f_p.boolean_rep())
@@ -288,17 +293,18 @@ class EffectsAbstraction(PredicateAbstraction):
                         self.init_state_abstraction.append(p.pred)
                     else:
                         self.init_state_abstraction.append(neg(p.pred))
-                else:
+                elif not p.is_input:
                     if sat(conjunct(self.init_conf, p.pred), self.symbol_table):
                         self.init_state_abstraction.append(p.pred)
                     else:
                         self.init_state_abstraction.append(neg(p.pred))
 
                 for gu in self.init_program_gus:
-                    if sat(conjunct(conjunct(self.init_conf.prev_rep(), gu), p.pred), self.symbol_table):
-                        self.second_state_abstraction[gu].append(p.pred)
-                    else:
-                        self.second_state_abstraction[gu].append(neg(p.pred))
+                    if not any(v for v in p.variablesin() if v in self.program.inp_out_puts):
+                        if sat(conjunct(conjunct(self.init_conf.prev_rep(), gu), p.pred), self.symbol_table):
+                            self.second_state_abstraction[gu].append(p.pred)
+                        else:
+                            self.second_state_abstraction[gu].append(neg(p.pred))
 
         no_of_workers = config.Config.getConfig().workers if parallelise else 1
 
@@ -325,7 +331,7 @@ class EffectsAbstraction(PredicateAbstraction):
         ignore_in_nexts = []
         relabelling = []
         symbol_tables = []
-        for gu in self.non_init_program_gus:
+        for gu in self.non_init_program_gus | self.init_program_gus:
             gus.append(gu)
             gu_invars.append(self.abstract_effect_invars[gu])
             gu_constants.append(self.abstract_effect_constant[gu])
@@ -744,6 +750,8 @@ def compute_abstract_effect_for_guard_update(arg):
     unused_new_preds = all_preds.difference(all_relevant_next_preds)
     unused_new_preds.difference_update(ignore_in_nexts)
     for p in unused_new_preds:
+        if p.is_input:
+            continue
         if isinstance(p, ChainPredicate):
             if p in invars:
                 # an old version/copy of p may be in invars

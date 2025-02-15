@@ -1,3 +1,4 @@
+import itertools
 import logging
 
 from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
@@ -57,7 +58,7 @@ def compatibility_checking(program: Program,
     logging.info(system)
     contradictory, there_is_mismatch, out = there_is_mismatch_between_program_and_strategy(system,
                                                                                            is_controller,
-                                                                                           mismatch_condition=mismatch_condition)
+                                                                                           len(program.num_in_out) > 0)
 
     if contradictory:
         raise Exception("I have no idea what's gone wrong. Strix thinks the previous mealy machine is a " +
@@ -139,21 +140,35 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
 
     pred_rep_to_val = {}
+    input_pred_rep_to_val = {}
     binned_preds = []
     for ch_p in chain_preds:
+        d = {}
         for p, rep in ch_p.bin_rep.items():
             bool_rep = stringify_pred(p).name
-            pred_rep_to_val[bool_rep] = p
+            d[bool_rep] = p
             binned_preds.append(bool_rep + " := " + str(rep))
+        if ch_p.is_input:
+            input_pred_rep_to_val |= d
+        else:
+            pred_rep_to_val |= d
     text += "DEFINE\n" + "\t" + ";\n\t".join(program_model.define + strategy_model.define + binned_preds) + ";\n"
 
+    input_predicate_truth = [BiOp(p.pred, '<->', p.bool_var)
+                              for p in pred_list if isinstance(p, StatePredicate) and p.is_input]
+    input_predicate_truth += [BiOp(bool_rep, '<->', (p)) for bool_rep, p in input_pred_rep_to_val.items()]
+    input_predicate_truth += [BiOp(pred, '<->', bool_var)
+                            for p in pred_list if isinstance(p, TransitionPredicate) and p.is_input
+                                for pred, bool_var in p.bool_rep.items()]
+
     safety_predicate_truth = [BiOp(p.pred, '<->', p.bool_var)
-                              for p in pred_list if isinstance(p, StatePredicate)]
+                              for p in pred_list if isinstance(p, StatePredicate) if not p.is_input]
 
     safety_predicate_truth += [BiOp(bool_rep, '<->', (p)) for bool_rep, p in pred_rep_to_val.items()]
 
     tran_predicate_truth = [BiOp(pred, '<->', bool_var)
-                            for p in pred_list if isinstance(p, TransitionPredicate) for pred, bool_var in p.bool_rep.items()]
+                            for p in pred_list if isinstance(p, TransitionPredicate) and not p.is_input
+                                for pred, bool_var in p.bool_rep.items()]
 
     prog_output_equality = [BiOp(o, '=', Variable("prog_" + o.name))
                            for o in program.out_events]
@@ -170,15 +185,17 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
     # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
     compatible_tran_predicates = "\tcompatible_tran_predicates := " + "((!init_state && turn == cs) -> (" + str(
         conjunct_formula_set(tran_predicate_truth)) + "))" + ";\n"
+    compatible_input_predicates = "\tcompatible_inputs := " + "((turn == cs) -> (" + str(
+        conjunct_formula_set(input_predicate_truth)) + "))" + ";\n"
     compatible = "\tcompatible := " + (
         "compatible_state_predicates & compatible_tran_predicates & " if predicate_mismatch else "") + "compatible_outputs & compatible_states" + ";\n"
 
-    text += compatible_output + compatible_states + compatible + compatible_state_predicates + compatible_tran_predicates
+    text += compatible + compatible_output + compatible_states + compatible_state_predicates + compatible_tran_predicates + compatible_input_predicates
 
     # TODO consider adding checks that state predicates expected by env are true, for debugging predicate abstraction
 
     text += "INIT\n" + "\t(" + ")\n\t& (".join(
-        program_model.init + strategy_model.init + ["turn = cs", "mismatch = FALSE", "init_state = TRUE"] +
+        program_model.init + strategy_model.init + ["compatible_inputs", "turn = cs", "mismatch = FALSE", "init_state = TRUE"] +
         ((([s.split(" : ")[0] + "_seen_once = FALSE" for s in strategy_states] +
            [s.split(" : ")[0] + "_seen_more_than_once = FALSE" for s in
             strategy_states])) if prefer_lassos else [])) + ")\n"
@@ -191,7 +208,8 @@ def create_nuxmv_model_for_compatibility_checking(program : Program, strategy_mo
         [BiOp(UniOp("next", Variable("prog_" + str(m))), ' = ', Variable("prog_" + str(m)))
          for m in (program.out_events)]
         + [BiOp(UniOp("next", Variable(str(m))), ' = ', Variable(str(m))) for m in
-           program.bin_state_vars + bool_preds]))
+           program.bin_state_vars + bool_preds]
+        + [BiOp(UniOp("next", Variable(str(v))), ' = ', Variable(str(v))) for c in chain_preds for v in c.bin_vars]))
     new_trans = ["compatible", "!next(mismatch)"] + program_model.trans + strategy_model.trans + turn_logic
     normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
 
@@ -251,7 +269,7 @@ def create_nuxmv_model(nuxmvModel):
 
 def there_is_mismatch_between_program_and_strategy(system,
                                                    controller: bool,
-                                                   mismatch_condition=None):
+                                                   rich_in_out):
     model_checker = ModelChecker()
     config = Config.getConfig()
     if config.debug:
@@ -263,13 +281,20 @@ def there_is_mismatch_between_program_and_strategy(system,
             return True, None, out
 
     if not controller:
-        if mismatch_condition is None:
-            there_is_no_mismatch, out = model_checker.invar_check(system, "compatible", None, config.mc)
+        if rich_in_out:
+            there_is_no_mismatch, out = model_checker.invar_check(system, "G(compatible_inputs) -> G(compatible)", None,
+                                                                  True)
         else:
-            there_is_no_mismatch, out = model_checker.invar_check(system,
-                                                                  "!(!compatible" + " & " + mismatch_condition + ")", None, config.mc)
-            if there_is_no_mismatch:
-                there_is_no_mismatch, out = model_checker.invar_check(system, "compatible", None, config.mc)
+            there_is_no_mismatch, out = model_checker.invar_check(system, "compatible", None,
+                                                                  False)
+        #
+        # if mismatch_condition is None:
+        #     there_is_no_mismatch, out = model_checker.invar_check(system, "compatible_inputs -> compatible", None, config.mc)
+        # else:
+        #     there_is_no_mismatch, out = model_checker.invar_check(system,
+        #                                                           "!(!compatible" + " & " + mismatch_condition + ")", None, config.mc)
+        #     if there_is_no_mismatch:
+        #         there_is_no_mismatch, out = model_checker.invar_check(system, "compatible", None, config.mc)
 
         return False, not there_is_no_mismatch, out
     else:

@@ -43,7 +43,7 @@ def recheck_nexts(prev_state, nexts, symbol_table):
 
 
 class ChainPredicate(Predicate):
-    def __init__(self, term: Formula, program, accelerate=False):
+    def __init__(self, term: Formula, program, is_input, accelerate=False):
         # TODO this is class is no longer updating correctly;
         #  if term is over multiple variables, then updates need to be partitioned according to vars appearing in term
         #
@@ -67,7 +67,8 @@ class ChainPredicate(Predicate):
         self.init_now = set()
         self.init_next = set()
 
-        self.accelerate = accelerate
+        self.accelerate = accelerate and not is_input
+        self.is_input = is_input
 
     def __eq__(self, other):
         """Overrides the default implementation"""
@@ -159,6 +160,8 @@ class ChainPredicate(Predicate):
                             [self.bin_rep[p] for p in self.chain[i + 1:]])
 
     def refine_and_rename_nexts(self, gu, prev_state, nexts, symbol_table):
+        if self.is_input:
+            return recheck_nexts(prev_state, nexts, symbol_table)
         new_nexts = []
         for old_next in nexts:
             for next in self.replace_formulas_multiple_but(self.old_to_new, old_next, gu, False):
@@ -184,6 +187,8 @@ class ChainPredicate(Predicate):
                       gu: Formula,
                       old_effects: [(Formula, dict[Variable, [Formula]])],
                       symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+        if self.is_input:
+            return self.extend_effect_now(gu, old_effects, symbol_table)
         new_effects = []
         for old_now, nexts in old_effects:
             new_nows = self.replace_formulas_multiple_but(self.old_to_new, old_now, gu, True)
@@ -223,6 +228,8 @@ class ChainPredicate(Predicate):
                       gu: Formula,
                       old_effects: [(Formula, dict[Variable, [Formula]])],
                       symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+        if self.is_input:
+            return old_effects
         new_effects = []
         for now, nexts in old_effects:
             new_nexts = self.refine_and_rename_nexts(gu, conjunct(gu, now.prev_rep()), nexts, symbol_table)
@@ -245,10 +252,14 @@ class ChainPredicate(Predicate):
         return pre
 
     def is_invar(self, gu: Formula, symbol_table):
+        if self.is_input:
+            return None
         if is_tautology(implies(gu, BiOp(self.term, "=", self.term.prev_rep())), symbol_table):
             return self
 
     def is_post_cond(self, gu: Formula, symbol_table):
+        if self.is_input:
+            return None
         nope = False
         post = None
         for p in self.chain:

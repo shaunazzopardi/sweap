@@ -5,7 +5,7 @@ from prop_lang.variable import Variable
 
 
 class StatePredicate(Predicate):
-    def __init__(self, pred: Formula):
+    def __init__(self, pred: Formula, is_input):
         self.pred = pred
         self.vars = pred.variablesin()
         self.options = [pred, neg(pred)]
@@ -14,6 +14,7 @@ class StatePredicate(Predicate):
         self.bool_rep = {self.pred: self.bool_var, neg(self.pred): self.neg_bool_var}
         self.last_pre = {}
         self.last_post = {}
+        self.is_input = is_input
 
     def __str__(self):
         return str(self.pred)
@@ -64,6 +65,8 @@ class StatePredicate(Predicate):
                       gu: Formula,
                       old_effects: [(Formula, dict[Variable, [Formula]])],
                       symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+        if self.is_input:
+            return old_effects
         new_effects = []
         for now, nexts in old_effects:
             new_nexts = self.refine_nexts_with_p(conjunct(gu, now.prev_rep()), nexts, symbol_table)
@@ -72,20 +75,25 @@ class StatePredicate(Predicate):
 
     def refine_nexts_with_p(self, now, nexts, symbol_table):
         new_nexts = []
-        for next in nexts:
-            next_p = conjunct(next, self.pred)
-            if sat(conjunct(now, next_p), symbol_table):
-                new_nexts.append(next_p)
+        if self.is_input:
+            return refine_nexts(now, nexts, symbol_table)
+        else:
+            for next in nexts:
+                next_p = conjunct(next, self.pred)
+                if sat(conjunct(now, next_p), symbol_table):
+                    new_nexts.append(next_p)
 
-            next_neg_p = conjunct(next, neg(self.pred))
-            if sat(conjunct(now, next_neg_p), symbol_table):
-                new_nexts.append(next_neg_p)
+                next_neg_p = conjunct(next, neg(self.pred))
+                if sat(conjunct(now, next_neg_p), symbol_table):
+                    new_nexts.append(next_neg_p)
         return new_nexts
 
     def extend_effect(self,
                       gu: Formula,
                       old_effects: [(Formula, [Formula])],
                       symbol_table) -> [(Formula, [Formula])]:
+        if self.is_input:
+            return self.extend_effect_now(gu, old_effects, symbol_table)
         new_effects = []
 
         for now, nexts in old_effects:
@@ -116,10 +124,14 @@ class StatePredicate(Predicate):
                 return self.neg_bool_var
 
     def is_invar(self, gu: Formula, symbol_table):
+        if self.is_input:
+            return None
         if is_tautology(implies(gu, iff(self.pred.prev_rep(), self.pred)), symbol_table):
             return self.bool_var
 
     def is_post_cond(self, gu: Formula, symbol_table):
+        if self.is_input:
+            return None
         if is_tautology(implies(gu, self.pred), symbol_table):
             self.last_post[gu] = self.bool_var
             return X(self.bool_var)

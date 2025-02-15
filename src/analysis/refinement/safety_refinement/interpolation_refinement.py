@@ -37,8 +37,9 @@ def safety_refinement_seq_int(program: Program,
                 init_formula = [BiOp(Variable(tv.name), "=", Value(tv.value)) for tv in program.valuation
                                                               if "_prev" not in tv.name]
                 p_0 = conjunct_formula_set(init_formula).replace_vars(ith_vars(0))
-                us_0 = [BiOp(Variable(str(u.left) + "_1"), "=", u.right.replace_vars(ith_vars(0))) for u in tran.action]
-                g = tran.condition.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e in program.env_events + program.con_events])
+                act = [u.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e in program.num_in_out]) for u in tran.action]
+                us_0 = [BiOp(Variable(str(u.left) + "_1"), "=", u.right.replace_vars(ith_vars(0))) for u in act]
+                g = tran.condition.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e, t in program.env_events + program.con_events])
                 g_0 = g.replace_vars(ith_vars(0))
                 u_0 = conjunct_formula_set(us_0)
                 formulas = [conjunct_formula_set([p_0, g_0, u_0])]
@@ -54,10 +55,12 @@ def safety_refinement_seq_int(program: Program,
                         else:
                             ps.append(neg(pred))
                 p_i = conjunct_formula_set(ps).replace_vars(ith_vars(i))
-                g = tran.condition.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e in program.env_events + program.con_events])
+                g = tran.condition.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e, t in program.env_events + program.con_events])
                 g_i = g.replace_vars(ith_vars(i))
-                us_i = [BiOp(Variable(str(u.left) + "_" + str(i + 1)), "=", u.right.replace_vars(ith_vars(i))) for u in tran.action]
+                act = [u.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e in program.inp_out_puts]) for u in tran.action]
+                us_i = [BiOp(Variable(str(u.left) + "_" + str(i + 1)), "=", u.right.replace_vars(ith_vars(i))) for u in act]
                 u_i = conjunct_formula_set(us_i)
+
                 formulas.append(conjunct_formula_set([p_i, g_i, u_i]))
             new_symbol_table.update({key + "_" + str(i): value for key, value in symbol_table.items()})
 
@@ -111,31 +114,46 @@ def safety_refinement_seq_int(program: Program,
         raise Exception("There are somehow less state predicates than previously.")
 
     if len(set(new_all_preds)) == len(set(state_predicates)):
-        raise Exception("Did not find new state predicates.")
-        # new_state_preds = set()
-        # prog_states = [prog_state for _, prog_state, _ in agreed_on_transitions] + [disagreed_on_state[1][1]]
-        # for prog_state in prog_states:
-        #     for v in program.local_vars:
-        #         if str(Value(prog_state[str(v)])).lower() == "true":
-        #             new_state_preds.add(v)
-        #         elif str(Value(prog_state[str(v)])).lower() == "false":
-        #             new_state_preds.add(neg(v))
-        #         else:
-        #             pred = BiOp(v, "=", Value(prog_state[str(v)]))
-        #             sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
-        #             new_state_preds.update(preds)
-        #             signatures.add(sig)
-        # new_all_preds = new_state_preds | state_predicates
-        # new_all_preds = reduce_up_to_iff(state_predicates,
-        #                                  new_all_preds,
-        #                                  symbol_table
-        #                                  | {str(v): TypedValuation(str(v),
-        #                                                            symbol_table[str(v).removesuffix("_prev")].type,
-        #                                                            "true")
-        #                                     for p in new_all_preds
-        #                                     for v in p.variablesin()
-        #                                     if str(v).endswith(
-        #                                          "prev")})  # TODO symbol_table needs to be updated with prevs
+        if len(program.num_in_out) == 0:
+            raise Exception("Did not find new state predicates.")
+
+        new_state_preds = set()
+        ts = [(t, cs_state) for t, _, cs_state in agreed_on_transitions]
+        for t, cs_state in ts:
+            for act in t.action:
+                for v in act.right.variablesin():
+                    to_replace = []
+                    if v in program.num_in_out:
+                        pred = BiOp(v, "=", Value(cs_state[str(v)]))
+                        to_replace.append(pred)
+                        sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+                        new_state_preds.update(preds)
+                        signatures.add(sig)
+
+                    pred = BiOp(act.left, "=", act.right.replace(to_replace))
+                    sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+                    new_state_preds.update(preds)
+                    signatures.add(sig)
+
+
+        # cs_states = [cs_state for _, _, cs_state in agreed_on_transitions] + [disagreed_on_state[1][2]]
+        # for cs_state in cs_states:
+        #     for v in program.num_in_out:
+        #         pred = BiOp(v, "=", Value(cs_state[str(v)]))
+        #         sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+        #         new_state_preds.update(preds)
+        #         signatures.add(sig)
+        new_all_preds = new_state_preds | state_predicates
+        new_all_preds = reduce_up_to_iff(state_predicates,
+                                         new_all_preds,
+                                         symbol_table
+                                         | {str(v): TypedValuation(str(v),
+                                                                   symbol_table[str(v).removesuffix("_prev")].type,
+                                                                   "true")
+                                            for p in new_all_preds
+                                            for v in p.variablesin()
+                                            if str(v).endswith(
+                                                 "prev")})  # TODO symbol_table needs to be updated with prevs
 
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         # raise Exception("Could not find new state predicates..")

@@ -40,19 +40,15 @@ def concretize_transitions(program,
             raise Exception("Program is non-deterministic, we do not handle refinement for it.")
         failed_condition = neg(concretized[-1][0].condition)
         reduced = failed_condition.replace([BiOp(Variable(str(v)), ":=", Value(concretized[-1][2][str(v)]))
-                                            for v in program.env_events + program.con_events])
+                                            for v, _ in program.env_events + program.con_events])
         reduced_simplified = simplify_formula_with_math(reduced, program.symbol_table)
         reduced_normalised = reduced_simplified.replace_formulas(lambda x: normalise_mathexpr(x) if isinstance(x, MathExpr) else None)
 
         return concretized[:-1], ([reduced_normalised], concretized[-1])
-
-        # return process_transition_mismatch(program,
-        #                                    concretized,
-        #                                    incompatible_state)
     else:
         if (incompatible_state[2]["compatible_state_predicates"] == "FALSE" or
                 incompatible_state[2]["compatible_tran_predicates"] == "FALSE"):
-            pred_state = preds_in_state(incompatible_state[2])
+            pred_state = [p for p in preds_in_state(incompatible_state[2]) if not any(v for v in p.variablesin() if v in program.inp_out_puts)]
             predicate_state_before_incompatibility = [add_prev_suffix(p) for p in preds_in_state(concretized[-1][2]) if "_prev" not in str(p)]
             # we check if this incompatible state formula is ever possibly true after the last transition
                 # if it is then the problem is with the predicate state
@@ -60,6 +56,7 @@ def concretize_transitions(program,
                                         [transition_formula(concretized[-1][0])]), program.symbol_table):
                 # reduce predicate mismatch to the actually mismatched predicates
                 for p in pred_state:
+                    # vars_in_prog = [v for v in p.variablesin() if v not in program.inputs]
                     var_state = [BiOp(v, "=", Value(incompatible_state[1][str(v)])) for v in p.variablesin()]
                     if not sat(conjunct_formula_set([p] + var_state),
                            program.symbol_table):

@@ -29,9 +29,9 @@ def program_parser():
     yield string("{") >> spaces()
     (states, initial_state) = yield state_parser
     yield spaces()
-    env = yield string("ENVIRONMENT EVENTS") >> event_parser
+    env = yield string("ENVIRONMENT EVENTS") >> typed_event_parser
     yield spaces()
-    con = yield string("CONTROLLER EVENTS") >> event_parser
+    con = yield string("CONTROLLER EVENTS") >> typed_event_parser
     yield spaces()
     initial_vals = yield initial_val_parser
     initial_vs = [Variable(tv.name) for tv in initial_vals]
@@ -64,6 +64,23 @@ def event_parser():
     yield string("}")
     yield spaces()
     return [Variable(s) for s in events]
+
+
+@generate
+def typed_event_parser():
+    yield spaces() >> string("{") >> spaces()
+    events = yield sepBy(parsec.try_choice(var_num_type_parser, parsec.try_choice(var_bool_type_parser, var_implicit_bool_type_parser)), regex("(,|;)") << spaces())
+    yield parsec.optional(regex("(,|;)"))
+    yield spaces()
+    yield string("}")
+    yield spaces()
+    return [(Variable(var), type) for var, type in events]
+
+
+@generate
+def var_implicit_bool_type_parser():
+    var = yield name << spaces()
+    return var, "boolean"
 
 
 @generate
@@ -105,9 +122,15 @@ def flagging_states_parser():
 
 
 @generate
-def bool_decl_parser():
+def var_bool_type_parser():
     var = yield name << spaces() << string(":") << spaces()
     type = yield regex("bool(ean)?") << spaces()
+    return var, type
+
+
+@generate
+def bool_decl_parser():
+    var, type = yield var_bool_type_parser
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;\}]+") << spaces()
     try:
@@ -118,10 +141,16 @@ def bool_decl_parser():
 
 
 @generate
-def num_decl_parser():
+def var_num_type_parser():
     var = yield name << spaces() << string(":") << spaces()
     type = yield regex(
         "(int(eger)?|nat(ural)?|bool(ean)?|real|(((-)?[0-9]+)|" + name_regex + ")+\.\.(((-)?[0-9]+)|" + name_regex + "))") << spaces()
+    return var, type
+
+
+@generate
+def num_decl_parser():
+    var, type = yield var_num_type_parser
     yield spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;\}]+") << spaces()
