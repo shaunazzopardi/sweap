@@ -12,9 +12,8 @@ program F-G-contradiction-1{
     }
 
     VALUATION{
-        numE: int := 0;
+        x: int := 0;
         bufE: int := 0;
-        uprocessE: int := 0;
     }
 
     TRANSITIONS{
