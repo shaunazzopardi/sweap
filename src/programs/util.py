@@ -45,8 +45,8 @@ def symbol_table_from_program(
     init_var_values = dict()
     for state in program.states:
         symbol_table[state] = BOOLEAN
-    for ev in program.out_events + program.env_events + program.con_events:
-        symbol_table[ev.name] = BOOLEAN
+    for ev, t in program.out_events + program.env_events + program.con_events:
+        symbol_table[ev.name] = t
     for var_name, var_type, var_init_value in init_values:
         init_var_values[var_name] = var_init_value
         symbol_table[var_name] = var_type
@@ -213,6 +213,7 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
             "This most probably indicates a problem with sweap, or with the synthesis backend."
         )
 
+    numerical_in_outs = [str(v) for v in program.num_in_out]
     for dic in prefix:
         # monitor only makes decisions at env and mon turns
         if dic["turn"] == "cs":
@@ -226,6 +227,7 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
                     key in cs_alphabet
                     or key.startswith("compatible")
                     or key.startswith("pred")
+                    or key in numerical_in_outs
                 ):
                     cs_state[key] = value
                 elif key.startswith("guard_") and value == "TRUE":
@@ -702,8 +704,8 @@ def guarded_action_transitions_to_normal_transitions(arg):
         symbol_table[name] = type
         symbol_table[name + "_next"] = type
 
-    for ev in env_events + con_events:
-        symbol_table[ev.name] = BOOLEAN
+    for ev, t in env_events + con_events:
+        symbol_table[ev.name] = t
 
     act_guard_sets = set()
     act_guard_sets.add(frozenset({}))
@@ -897,6 +899,25 @@ def binary_rep(vars, label, printing=True):
                 bin_formula = conjunct(bin_formula, new_constraint)
         rep[v] = bin_formula
 
+    rest = [rep[v]]
+    while i < 2**bin - 1:
+        i = i + 1
+        bin_rep = base.format(i)
+        bin_formula = None
+        for j, pos in enumerate(bin_rep):
+            if pos == "0":
+                new_constraint = neg(bin_vars[j])
+            else:
+                new_constraint = bin_vars[j]
+
+            if bin_formula is None:
+                bin_formula = new_constraint
+            else:
+                bin_formula = conjunct(bin_formula, new_constraint)
+        rest.append(bin_formula)
+
+    rep[v] = disjunct_formula_set(rest)
+
     if printing:
         for v, f in rep.items():
             if isinstance(v, frozenset):
@@ -905,7 +926,6 @@ def binary_rep(vars, label, printing=True):
                 print("state: " + str(v))
             print("binary rep: " + str(f))
 
-    # TODO make last one the negation of the others
     return bin_vars, rep
 
 

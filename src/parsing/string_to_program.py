@@ -71,9 +71,9 @@ def program_parser():
     yield string("{") >> spaces()
     (states, initial_state) = yield state_parser
     yield spaces()
-    env = yield string("ENVIRONMENT EVENTS") >> event_parser
+    env = yield string("ENVIRONMENT EVENTS") >> typed_event_parser
     yield spaces()
-    con = yield string("CONTROLLER EVENTS") >> event_parser
+    con = yield string("CONTROLLER EVENTS") >> typed_event_parser
     yield spaces()
     initial_vals = yield initial_val_parser
     initial_vs = [Variable(v) for v, _, _ in initial_vals]
@@ -127,6 +127,29 @@ def event_parser():
 
 
 @generate
+def typed_event_parser():
+    yield spaces() >> string("{") >> spaces()
+    events = yield sepBy(
+        parsec.try_choice(
+            var_num_type_parser,
+            parsec.try_choice(var_bool_type_parser, var_implicit_bool_type_parser),
+        ),
+        regex("(,|;)") << spaces(),
+    )
+    yield parsec.optional(regex("(,|;)"))
+    yield spaces()
+    yield string("}")
+    yield spaces()
+    return [(Variable(var), type) for var, type in events]
+
+
+@generate
+def var_implicit_bool_type_parser():
+    var = yield name << spaces()
+    return var, BOOLEAN
+
+
+@generate
 def state_parser():
     yield string("STATES") >> spaces() >> string("{") >> spaces()
     tagged_states = yield sepBy(
@@ -175,14 +198,31 @@ def flagging_states_parser():
 
 
 @generate
-def bool_decl_parser():
+def var_bool_type_parser():
     var = yield name << spaces() << string(":") << spaces()
     yield regex(bool_regex) << spaces()
+    return var, BOOLEAN
+
+
+@generate
+def bool_decl_parser():
+    var, type = yield var_bool_type_parser
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;}]+") << spaces()
     try:
         value = string_to_prop(raw_value)
         return var, BOOLEAN, value
+    except Exception as e:
+        yield parsec.fail_with(str(e))
+
+
+@generate
+def var_num_type_parser():
+    var = yield name << spaces() << string(":") << spaces()
+    raw_type = yield regex(number_regex) << spaces()
+    try:
+        type = parse_type(raw_type)
+        return var, type
     except Exception as e:
         yield parsec.fail_with(str(e))
 

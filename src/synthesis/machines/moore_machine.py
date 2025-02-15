@@ -248,7 +248,7 @@ class MooreMachine(Machine):
                         "=",
                         Variable(str(p)),
                     )
-                    for p in prog_states + pred_acts
+                    for p in prog_states + pred_acts + self.env_events + self.con_events
                 ]
             ).to_nuxmv()
             + "))"

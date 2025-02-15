@@ -1,0 +1,50 @@
+program helipad {
+    STATES {
+        q0: init, q
+    }
+    ENVIRONMENT EVENTS {
+        depart: boolean,
+        land: boolean,
+        emergency: boolean,
+        set_free: boolean,
+        set_ack: integer,
+        set_EvacTime: integer;
+        r1: boolean;
+    }
+    CONTROLLER EVENTS {
+        f, e1, e2, a1, a2
+    }
+    VALUATION {
+        free : bool := false;
+        ack : integer := 0;
+        evacTimer : integer := 0;
+    }
+    TRANSITIONS {
+        q0 -> q [$ free := set_free; ack := set_ack; evacTimer := set_EvacTime],
+
+        q -> q [ $
+                            free := true if f;
+                            free := false if !f;
+                            evacTimer := -1 if e1 & e2;
+                            evacTimer := evacTimer - 1 if !e1 & e2;
+                            evacTimer := set_EvacTime if !e1 & !e2;
+                            evacTimer := evacTimer if e1 & !e2;
+                            ack := 0 if a1;
+                            ack := 1 if !a1 & a2;
+                            ack := 2 if !a1 & !a2;
+                            ]
+    }
+
+    SPECIFICATION {
+        (G F(q)) -> G(q -> (
+            ((free && land) -> !f W ((depart || (evacTimer <= 0 && emergency)))) &&
+            ((depart || (evacTimer <= 0 && emergency)) -> (f W (land))) &&
+            (!emergency -> (e1 & e2)) &&
+            ((emergency && evacTimer > 0) -> (!e1 & e2)) &&
+            ((emergency && evacTimer <= 0) -> (!e1 & !e2))) &&
+            ((emergency) -> F (evacTimer <= 0)) &&
+            (((a1) && r1) -> ((!a1 & a2) W ((land || emergency)))) &&
+            (((a1) && !r1) -> ((!a1 & !a2) W ( (land || emergency)))) &&
+            ((emergency) -> (a1)))
+    }
+}

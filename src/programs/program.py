@@ -58,8 +58,8 @@ class Program:
         init_st,
         init_values: list[tuple[str, Type, Atom]],
         transitions: list[Transition],
-        env_events: list[Variable],
-        con_events: list[Variable],
+        env_events: list[tuple[Variable, str]],
+        con_events: list[tuple[Variable, str]],
         preprocess=True,
         is_determ=None,
     ):
@@ -71,12 +71,35 @@ class Program:
         self.states: Set = set(sts)
         self.constants = {}
 
+        inputs = [v for v, _ in env_events]
+        outputs = [v for v, _ in con_events]
+
+        # TODO update to Types not str
+        self.inp_out_puts = inputs + outputs
+        self.num_in_out = [v for v, t in env_events + con_events if not t == BOOLEAN]
+        self.bool_in_out = [v for v in inputs + outputs if v not in self.num_in_out]
+
+        # check that non-boolean events only in env events
+        for ev, t in con_events:
+            if not t == BOOLEAN:
+                raise Exception(
+                    "Only environment events can have non-boolean variables: "
+                    + str(ev)
+                    + ": "
+                    + str(t)
+                )
+
         if config.Config.getConfig().dual:
             self.env_events = con_events
             self.con_events = env_events
+            self.inputs = outputs
+            self.outputs = inputs
         else:
             self.env_events = env_events
             self.con_events = con_events
+            self.inputs = inputs
+            self.outputs = outputs
+
         self.out_events = []
 
         self.symbol_table, self.init_var_values = symbol_table_from_program(
@@ -215,7 +238,12 @@ class Program:
         )
 
         for n, type_obj in self.symbol_table.items():
-            if isinstance(type_obj, Number) and not str(n).endswith("_prev"):
+            if (
+                isinstance(type_obj, Number)
+                and not str(n).endswith("_prev")
+                and n not in self.inputs
+                and n not in self.outputs
+            ):
                 v = Variable(n)
                 if not (
                     isinstance(type_obj, Number)
@@ -439,9 +467,7 @@ class Program:
         dualise = config.Config.getConfig().dual
         for transition in self.transitions:
             if dualise:
-                cond = massage_ltl_for_dual(
-                    transition.condition, self.env_events, False
-                )
+                cond = massage_ltl_for_dual(transition.condition, self.inputs, False)
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
                 cond = transition.condition.to_nuxmv()
@@ -534,8 +560,7 @@ class Program:
             else:
                 raise Exception("Unsupported type for variable: " + str(var_type))
 
-        vars += [str(var) + " : boolean" for var in self.env_events]
-        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += [str(v) + " : " + t for (v, t) in self.env_events + self.con_events]
         vars += [str(var) + " : boolean" for var in self.out_events]
 
         init = [self.initial_state]
@@ -601,9 +626,7 @@ class Program:
         dualise = config.Config.getConfig().dual
         for transition in self.transitions:
             if dualise:
-                cond = massage_ltl_for_dual(
-                    transition.condition, self.env_events, False
-                )
+                cond = massage_ltl_for_dual(transition.condition, self.inputs, False)
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
                 cond = transition.condition.to_nuxmv()
@@ -707,8 +730,7 @@ class Program:
 
             prev_logic += ["next(" + str(var) + "_prev) = " + str(var)]
 
-        vars += [str(var) + " : boolean" for var in self.env_events]
-        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += [str(v) + " : " + t for v, t in self.env_events + self.con_events]
         vars += [str(var) + " : boolean" for var in self.out_events]
 
         init = [self.initial_state]

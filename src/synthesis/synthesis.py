@@ -1,5 +1,7 @@
 import logging
 import os
+import resource
+
 import time
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 import config
@@ -139,10 +141,10 @@ def process_specifications(
 
     if config.Config.getConfig().dual:
         ltl_assumptions = [
-            massage_ltl_for_dual(f, program.env_events, False) for f in ltl_assumptions
+            massage_ltl_for_dual(f, program.inputs, False) for f in ltl_assumptions
         ]
         ltl_guarantees = [
-            massage_ltl_for_dual(f, program.env_events, False) for f in ltl_guarantees
+            massage_ltl_for_dual(f, program.inputs, False) for f in ltl_guarantees
         ]
         ltl_guarantees = [
             neg(
@@ -250,6 +252,7 @@ def abstract_synthesis_loop(
             abstract_ltl_problem, predicate_abstraction.symbol_table
         )
         logging.info("ltl synthesis took " + str(time.time() - start))
+        print("Peak memory used so far: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
 
         if wrapped_hoa.is_controller:
             new_index = "-unreal" if config.Config.getConfig().dual else "-real"
@@ -420,11 +423,14 @@ def extract_init_preds(
             if v_type == BOOLEAN
         )
 
-    env_con_events = set(program.con_events + program.env_events)
+    env_con_events = set(program.bool_in_out)
 
     for t in program.transitions:
         preds_in_cond = atomic_predicates(t.condition)
         new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
+        in_outs_in_act = {v for v in program.bool_in_out for act in t.action if v in act.variablesin()}
+        new_state_preds.update(in_outs_in_act)
+
         for act in t.action:
             if len(act.right.variablesin()) == 0:
                 if program.symbol_table[str(act.left)] == BOOLEAN:
@@ -454,7 +460,7 @@ def extract_init_preds(
 
     prog_state_vars = [Variable(s) for s in program.states]
     new_ltl_assumptions = []
-    ignore_these = set(in_acts + out_acts + prog_state_vars)
+    ignore_these = set(program.bool_in_out + prog_state_vars)
     for ltl in ltl_assumptions:
         ltl = strip_mathexpr(ltl)
         ltl = ltl.replace_vars(

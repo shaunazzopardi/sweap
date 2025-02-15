@@ -4,6 +4,7 @@ import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
+from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     atomic_predicates,
     G,
@@ -36,55 +37,50 @@ def to_ltl_organised_by_pred_effects_guard_updates(
 
     init_preds = [rename_pred(p) for p in predicate_abstraction.init_state_abstraction]
 
-    init_state = conjunct(init_explicit_state, conjunct_formula_set(init_preds))
+    # init_state = conjunct(init_explicit_state, conjunct_formula_set(init_preds))
 
-    pred_next = set()
+    # pred_next = set()
     dualise = config.Config.getConfig().dual
-    # TODO ensure that for each transition, if they have the same transition formula, then join them together
-    #   G(V(qi & X q'i) & guard -> effects)
-    for gu, post in predicate_abstraction.second_state_abstraction.items():
-        for t in predicate_abstraction.gu_to_trans[gu]:
-            E_formula = t.condition.replace_formulas(
-                predicate_abstraction.var_relabellings
-            )
-            if dualise:
-                E_formula = massage_ltl_for_dual(
-                    E_formula, predicate_abstraction.program.env_events, False
-                )
-            next_preds = [rename_pred(p) for p in post]
+    # for gu, post in predicate_abstraction.second_state_abstraction.items():
+    #     for t in predicate_abstraction.gu_to_trans[gu]:
+    #         E_formula = t.condition.replace_formulas(predicate_abstraction.var_relabellings)
+    #         if dualise:
+    #             E_formula = massage_ltl_for_dual(E_formula, predicate_abstraction.program.inputs)
+    #         next_preds = [rename_pred(p) for p in post]
+    #
+    #         pred_next.add(conjunct((conjunct_formula_set([E_formula])),
+    #                                propagate_nexts(X(conjunct_formula_set(next_preds + [program.states_binary_map[t.tgt]])))))
+    #
+    # init_transition_ltl = disjunct_formula_set(pred_next)
 
-            pred_next.add(
-                conjunct(
-                    (conjunct_formula_set([E_formula])),
-                    propagate_nexts(
-                        X(
-                            conjunct_formula_set(
-                                next_preds + [program.states_binary_map[t.tgt]]
-                            )
-                        )
-                    ),
-                )
-            )
+    next_bins = []
+    if dualise:
+        for ch_pred in predicate_abstraction.v_to_chain_pred.values():
+            if ch_pred.is_input:
+                next_bins.extend(ch_pred.bin_rep.values())
 
-    init_transition_ltl = disjunct_formula_set(pred_next)
-
-    # TODO if a transition is only used in the initial state, then don't need to add it here or in EffectsAbstraction
+    init_transition_ltl = []
     transition_ltl = {}
     for gu in predicate_abstraction.gu_to_trans.keys():
-        cond = predicate_abstraction.gu_to_trans[gu][0].condition.replace_formulas(
-            predicate_abstraction.var_relabellings
-        )
+        t = predicate_abstraction.gu_to_trans[gu][0]
+        cond = t.condition
+
         if dualise:
             cond = massage_ltl_for_dual(
-                cond, predicate_abstraction.program.env_events, False
+                cond, predicate_abstraction.program.inputs, False
             )
 
+        cond = cond.replace_formulas(predicate_abstraction.var_relabellings)
         effect = predicate_abstraction.abstract_effect_ltl[gu]
+        if dualise:
+            effect = massage_ltl_for_dual(
+                effect, predicate_abstraction.program.inputs, False
+            )
+
         for t in predicate_abstraction.gu_to_trans[gu]:
             guard = program.states_binary_map[t.src]
-            gu_ltl = conjunct(cond, effect)
 
-            pred_effect_formula = gu_ltl
+            pred_effect_formula = effect
             if len(t.output) > 0:
                 output_formula = conjunct_formula_set([X(o) for o in t.output])
                 effect_formula = conjunct(pred_effect_formula, output_formula)
@@ -94,17 +90,36 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             bin_tgt = program.states_binary_map[t.tgt]
             next = conjunct(effect_formula, propagate_nexts(X(bin_tgt)))
 
-            if guard in transition_ltl.keys():
-                transition_ltl[guard] = disjunct(transition_ltl[guard], next)
-            else:
-                transition_ltl[guard] = next
+            if t in predicate_abstraction.init_program_trans:
+                init_transition_ltl.append(conjunct(cond, next))
+
+            if t in predicate_abstraction.non_init_program_trans:
+                if guard in transition_ltl.keys():
+                    transition_ltl[guard] = disjunct(
+                        transition_ltl[guard], conjunct(cond, next)
+                    )
+                else:
+                    transition_ltl[guard] = conjunct(cond, next)
 
     _transition_ltl = [
         (G(implies(g, transition_ltl[g]))) for g in transition_ltl.keys()
     ]
 
-    # logger.info("LTL formula: " + str(ltl))
-    return [init_state, init_transition_ltl] + _transition_ltl
+    init_transition_ltl = disjunct_formula_set(init_transition_ltl)
+
+    abs = [init_explicit_state] + init_preds + [init_transition_ltl] + _transition_ltl
+    bin_sanity_condition = []
+    # if dualise:
+    #     for ch_pred in predicate_abstraction.v_to_chain_pred.values():
+    #         if ch_pred.is_input:
+    #             cond = disjunct_formula_set(ch_pred.bin_rep.values())
+    #             bin_sanity_condition.append(G(cond))
+    #     if len(bin_sanity_condition) > 0:
+    #         return neg(conjunct_formula_set(bin_sanity_condition)), abs
+    #     else:
+    #         return None, abs
+    # else:
+    return None, abs
 
 
 def abstract_ltl_problem(
@@ -113,26 +128,44 @@ def abstract_ltl_problem(
 ):
     start = time.time()
     # ltl_abstraction = to_ltl_reduced(effects_abstraction)
-    ltl_abstraction = to_ltl_organised_by_pred_effects_guard_updates(
+    _, ltl_abstraction = to_ltl_organised_by_pred_effects_guard_updates(
         effects_abstraction
     )
     print("ltl abstraction took: " + str(time.time() - start))
-    predicate_vars = set()
+    env_predicate_vars = set()
+    con_predicate_vars = set()
+    dualise = config.Config.getConfig().dual
     for p in effects_abstraction.state_predicates:
-        predicate_vars.add(p.bool_var)
+        if dualise:
+            if any(
+                v
+                for v in p.variablesin()
+                if v in effects_abstraction.program.num_in_out
+            ):
+                con_predicate_vars.add(p.bool_var)
+            else:
+                env_predicate_vars.add(p.bool_var)
+        else:
+            env_predicate_vars.add(p.bool_var)
     for p in effects_abstraction.transition_predicates:
-        predicate_vars.update(p.bool_rep.values())
+        env_predicate_vars.update(p.bool_rep.values())
 
-    predicate_vars.update(
-        [
-            x
-            for _, pred in effects_abstraction.v_to_chain_pred.items()
-            for x in pred.bin_vars
-        ]
-    )
+    for _, p in effects_abstraction.v_to_chain_pred.items():
+        if dualise:
+            if any(
+                v
+                for v in p.variablesin()
+                if v in effects_abstraction.program.num_in_out
+            ):
+                con_predicate_vars.update(p.bin_vars)
+            else:
+                env_predicate_vars.update(p.bin_vars)
+        else:
+            env_predicate_vars.update(p.bin_vars)
 
     program = effects_abstraction.get_program()
-    pred_props = program.bin_state_vars + list(predicate_vars)
+    env_pred_props = program.bin_state_vars + list(env_predicate_vars)
+    con_pred_props = con_predicate_vars
 
     states_binary_map = {k: v for k, v in program.states_binary_map.items()}
     dict_to_replace = states_binary_map
@@ -166,8 +199,18 @@ def abstract_ltl_problem(
         all_preds |= atomic_predicates(f)
         loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
-    pred_props.extend(list(set(loop_vars)))
-    pred_props = list(set(pred_props))
+    for p in loop_vars:
+        if dualise:
+            if any(
+                v
+                for v in p.variablesin()
+                if v in effects_abstraction.program.num_in_out
+            ):
+                con_predicate_vars.add(p)
+            else:
+                env_predicate_vars.add(p)
+        else:
+            env_predicate_vars.add(p)
 
     orig_assumptions = []
     for ass in original_LTL_problem.assumptions:
@@ -182,13 +225,23 @@ def abstract_ltl_problem(
     assumptions = loop_constraints + ltl_abstraction + orig_assumptions
     guarantees = orig_guarantees
 
-    pred_props = {str(v) for v in pred_props}
+    env_pred_props = {(v) for v in env_pred_props}
+    con_pred_props = {(v) for v in con_pred_props}
+
+    env_props = []
+    for v in original_LTL_problem.env_props:
+        if isinstance(v, tuple) and v[1] == BOOLEAN:
+            env_props.append(v[0])
+    con_props = []
+    for v in original_LTL_problem.con_props:
+        if isinstance(v, tuple) and v[1] == BOOLEAN:
+            con_props.append(v[0])
 
     ltl_synthesis_problem = AbstractLTLSynthesisProblem(
-        original_LTL_problem.env_props,
+        env_props,
         program.out_events,
-        list(set(pred_props)),
-        original_LTL_problem.con_props,
+        list(env_pred_props),
+        con_props + list(con_pred_props),
         assumptions,
         guarantees,
     )

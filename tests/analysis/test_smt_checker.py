@@ -1,10 +1,14 @@
 from unittest import TestCase
 
-from pysmt.shortcuts import And
+import pysmt
+from pysmt.shortcuts import And, Solver, serialize, to_smtlib, Symbol, Exists, ForAll, Implies
+from pysmt.typing import INT
 
-from analysis.smt_checker import sequence_interpolant, binary_interpolant
+from analysis.smt_checker import sequence_interpolant, binary_interpolant, quantifier_elimination
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.types.types import INTEGER
+from prop_lang.util import neg, conjunct, fnode_to_formula
+from prop_lang.value import Value
 
 
 class Test(TestCase):
@@ -70,3 +74,25 @@ class Test(TestCase):
             set(seq_interpolants)
             == {bin_interpolant1, bin_interpolant2, bin_interpolant3, bin_interpolant4}
         )
+
+
+    def test_qe(self):
+        p0 = string_to_prop("(c_1 = c_0) & (e_1 = set_e) & (c_0 = 0) & (e_0 = 0)")
+        p1 = string_to_prop("!((c_1 + -e_1) < (c_0 + -e_0))")
+
+        symbol_table = {
+                        "e_0" : TypedValuation("e_0", "int", None),
+                        "e_1" : TypedValuation("e_1", "int", None),
+                        "c_0" : TypedValuation("c_0", "int", None),
+                        "c_1" : TypedValuation("c_1", "int", None),
+                        "set_e": TypedValuation("set_e", "int", None)
+        }
+
+        exist_vars = [Symbol("e_0", INT), Symbol("c_0", INT), Symbol("set_e", INT)]
+        forall_vars = [Symbol("c_1", INT), Symbol("e_1", INT)]
+        quant_formula = Exists(exist_vars,
+                               ForAll(forall_vars, Implies(p0.to_smt(symbol_table)[0], p1.to_smt(symbol_table)[0])))
+
+        ret = quantifier_elimination(quant_formula)
+        rett = fnode_to_formula(ret)
+        print()

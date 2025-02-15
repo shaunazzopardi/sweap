@@ -1,0 +1,31 @@
+program heim-buechi-u {
+    STATES {
+        l : init, l01, l02, l11, l12, l21, l22, l31, l32
+    }
+
+    ENVIRONMENT EVENTS {
+         set_x: integer
+    }
+
+    CONTROLLER EVENTS {
+        left, cdec
+    }
+
+    VALUATION {
+        x : integer := 0;
+    }
+
+    TRANSITIONS {
+        l -> l01 [$ x := set_x],
+        l01 -> l11 [],
+        l11 -> l21 [cdec $ x := x - 1],
+        l11 -> l11 [!cdec],
+        l21 -> l01 [x > 0],
+        l21 -> l31 [x <= 0],
+        l31 -> l31 []
+    }
+
+    SPECIFICATION {
+        G F l01 && (true || set_x == 0)
+    }
+}

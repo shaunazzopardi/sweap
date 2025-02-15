@@ -141,7 +141,7 @@ def write_counterexample_state(
             t.condition.variablesin()
             + [v for v in list(state.keys()) if str(v).startswith("mon_")]
             + [v for v in list(state.keys()) if str(v).startswith("pred_")]
-            + [v for v in program.env_events + program.con_events]
+            + [v for v, _ in program.env_events + program.con_events]
         )
 
         logging.info(
