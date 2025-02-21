@@ -125,7 +125,6 @@ csv = (
     pl.scan_csv(FILENAME).filter(pl.col("benchmark").is_not_null())
     .filter(pl.col("benchmark").is_in(full_ltl_benchs).not_())
     .filter(pl.col("sweap") > 1)
-    .filter(pl.col("sweap") < TIMEOUT)
     .with_columns(
         pl.col("benchmark").map_elements(realisable.get, return_dtype=pl.Boolean).alias("realisable"),
         (pl.col("sweap")/1000).alias("sweap (s)")
@@ -135,7 +134,6 @@ csv = (
 tool_times = [(
     csv
     .filter(pl.col(t) > 1)
-    .filter(pl.col(t) < TIMEOUT)
     .select(
         "benchmark", "sweap (s)", "realisable", tool=pl.lit(t), 
         **{"other (s)": pl.col(t)/1000})
@@ -149,13 +147,16 @@ scatter = sns.scatterplot(
     x="sweap (s)", y="other (s)", hue="tool", style="realisable",
     markers="Xo")
 sns.move_legend(scatter, "upper left", bbox_to_anchor=(1, 1))
+xmin=0.7E-1
+xmax=TIMEOUT/1000
+scatter.set_xlim(left=xmin, right=xmax)
+scatter.set_ylim(bottom=xmin, top=xmax)
+scatter.set_clip_on(False)
+mpl.pyplot.setp(scatter.collections, clip_on=False)
+mpl.pyplot.setp(scatter.artists, clip_on=False)
 
-xmin=0.5E-1
-xmax=1200
 ln = sns.lineplot(x=[xmin,xmax], y=[xmin,xmax], ax=scatter)
-scatter.set_xbound(lower=xmin, upper=xmax)
-scatter.set_ybound(lower=xmin, upper=xmax)
+
 scatter.set(yscale='log')
 scatter.set(xscale='log')
-scatter.figure.tight_layout()
 scatter.figure.savefig("scatter.png", dpi=300)
