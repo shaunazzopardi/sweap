@@ -1,7 +1,7 @@
 from multiprocessing import Pool
 
 import parsec
-from parsec import generate, string, sepBy, regex, many, optional, exclude
+from parsec import generate, string, sepBy, regex, many, exclude
 from parsec import spaces as parsec_spaces
 from parsec import any as parsec_any
 
@@ -34,7 +34,7 @@ def comment():
 
 
 def spaces():
-    return (parsec_spaces() >> optional(comment) >> parsec_spaces())
+    return parsec_spaces() >> many(comment >> parsec_spaces())
 
 
 @generate
