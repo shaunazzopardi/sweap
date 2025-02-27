@@ -1,7 +1,9 @@
 from multiprocessing import Pool
 
 import parsec
-from parsec import generate, string, sepBy, spaces, regex
+from parsec import generate, string, sepBy, regex, many, optional, exclude
+from parsec import spaces as parsec_spaces
+from parsec import any as parsec_any
 
 import config
 from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
@@ -23,7 +25,21 @@ state = regex(r'[a-zA-Z0-9@$_-]+')
 
 
 @generate
+def comment():
+    end_comment = string("*/")
+    yield string("/*")
+    yield many(exclude(parsec_any(), end_comment))
+    yield end_comment
+    return None
+
+
+def spaces():
+    return (parsec_spaces() >> optional(comment) >> parsec_spaces())
+
+
+@generate
 def program_parser():
+    yield spaces()
     yield string("program") >> spaces()
     program_name = yield name << spaces()
     yield string("{") >> spaces()
