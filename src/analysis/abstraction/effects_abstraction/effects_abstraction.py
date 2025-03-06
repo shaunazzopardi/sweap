@@ -468,7 +468,7 @@ class EffectsAbstraction(PredicateAbstraction):
 def update_constants_invars_chain_pre(p: ChainPredicate, gu, symbol_table, constants):
     if gu in p.last_pre.keys():
         last_pre = p.last_pre[gu]
-        new_pre, _ = p.refine_old_post_or_pre_cond(last_pre, gu, symbol_table)
+        new_pre, _ = p.refine_old_pre_cond(last_pre, gu, symbol_table)
         if new_pre is None:
             constants.remove(last_pre)
             p.last_pre.pop(gu)
@@ -488,7 +488,7 @@ def update_constants_invars_chain_pre(p: ChainPredicate, gu, symbol_table, const
 def update_constants_invars_chain_post(p: ChainPredicate, gu, symbol_table, constants):
     if gu in p.last_post.keys():
         last_post = p.last_post[gu]
-        new_post, _ = p.refine_old_post_or_pre_cond(last_post, gu, symbol_table)
+        new_post, _ = p.refine_old_post_cond(last_post, gu, symbol_table)
         if new_post is None:
             constants.remove(last_post)
             p.last_post.pop(gu)

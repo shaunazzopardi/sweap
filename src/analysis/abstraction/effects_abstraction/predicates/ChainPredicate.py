@@ -262,22 +262,29 @@ class ChainPredicate(Predicate):
             self.last_post[gu] = post
         return post
 
-    def refine_old_post_or_pre_cond(self, f, gu: Formula, symbol_table):
-        post = False
+    def refine_old_pre_cond(self, f, gu: Formula, symbol_table):
+        p = f
+        # need to check that self.old_to_new is dict because when turning of parallelisation, and a transition with the
+        # same gu could have been processed already
+        if isinstance(self.old_to_new, dict) and p in self.old_to_new.keys():
+            for new_p in self.old_to_new[p]:
+                if is_tautology(implies(gu, new_p.prev_rep()), symbol_table):
+                    return new_p, self
+            return None, self
+        else:
+            return f, self
+
+    def refine_old_post_cond(self, f, gu: Formula, symbol_table):
         if isinstance(f, UniOp) and f.op == "X":
             p = f.right
-            post = True
         else:
-            p = f
+            raise Exception("refine_old_post_cond called with " + str(f))
         # need to check that self.old_to_new is dict because when turning of parallelisation, and a transition with the
         # same gu could have been processed already
         if isinstance(self.old_to_new, dict) and p in self.old_to_new.keys():
             for new_p in self.old_to_new[p]:
                 if is_tautology(implies(gu, new_p), symbol_table):
-                    if post:
-                        return X(new_p), self
-                    else:
-                        return new_p, self
+                    return X(new_p), self
             return None, self
         else:
             return f, self
