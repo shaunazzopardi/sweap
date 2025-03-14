@@ -1395,15 +1395,21 @@ def normalise_formula(f, signatures, symbol_table, ignore_these=None):
     old_to_new = {}
     new_preds = set()
     for pp in preds:
-        result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
-        if isinstance(result, Variable) or len(result) == 1:
-            old_to_new[pp] = result
-            new_preds.add(result)
+        if len(pp.variablesin()) == 0:
+            if is_tautology(pp, {}):
+                old_to_new[pp] = true()
+            else:
+                old_to_new[pp] = false()
         else:
-            sig, new_pred, preds = result
-            old_to_new[pp] = new_pred
-            signatures.add(sig)
-            new_preds.update(result[2])
+            result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
+            if isinstance(result, Variable) or len(result) == 1:
+                old_to_new[pp] = result
+                new_preds.add(result)
+            else:
+                sig, new_pred, preds = result
+                old_to_new[pp] = new_pred
+                signatures.add(sig)
+                new_preds.update(result[2])
 
     return f.replace_formulas(old_to_new), new_preds
 

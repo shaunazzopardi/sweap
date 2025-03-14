@@ -32,6 +32,7 @@ class Program:
         self.initial_state = init_st
         self.states: Set = set(sts)
         self.valuation = init_val
+        self.constants = {}
 
         if config.Config.getConfig().dual:
             self.env_events = con_events
@@ -161,13 +162,14 @@ class Program:
             return
 
         for t in self.transitions:
-            t.action = [a for a in t.action if a.left not in vars_to_project_out.keys()]
+            t.action = [BiOp(a.left, a.op, a.right.replace_vars(lambda x : vars_to_project_out[x] if x in vars_to_project_out.keys() else x)) for a in t.action if a.left not in vars_to_project_out.keys()]
             preds_in_cond = atomic_predicates(t.condition)
             preds_to_replace = {p: simplify_formula_with_math_wo_type_constraints(p.replace_formulas(vars_to_project_out), self.symbol_table)
                                 for p in preds_in_cond if not vars_to_project_out.keys().isdisjoint(p.variablesin())}
             t.condition = t.condition.replace_formulas(preds_to_replace)
 
         for v in vars_to_project_out.keys():
+            self.constants[Variable(v.name)] = self.symbol_table[v.name].value
             del self.symbol_table[v.name]
             del self.symbol_table[v.name + "_prev"]
             del self.symbol_table[v.name + "_prev_prev"]
