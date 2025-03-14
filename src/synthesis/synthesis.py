@@ -185,6 +185,12 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     for t in program.transitions:
         preds_in_cond = atomic_predicates(t.condition)
         new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
+        for act in t.action:
+            if len(act.right.variablesin()) == 0:
+                if program.symbol_table[str(act.left)].type.startswith("bool"):
+                    new_state_preds.add(act.left)
+                else:
+                    new_state_preds.add(BiOp(act.left, "=", act.right))
 
     if config.Config.getConfig().only_safety:
         new_state_preds.update({pred
@@ -218,6 +224,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     ignore_these = set(in_acts + out_acts + prog_state_vars)
     for ltl in ltl_assumptions:
         ltl = strip_mathexpr(ltl)
+        ltl = ltl.replace_vars(lambda x: program.constants[x] if x in program.constants.keys() else x)
         new_ltl, new_preds = normalise_formula(ltl, signatures, symbol_table, ignore_these)
         new_state_preds.update(new_preds)
         new_ltl_assumptions.append(new_ltl)
@@ -225,6 +232,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
     new_ltl_guarantees = []
     for ltl in ltl_guarantees:
         ltl = strip_mathexpr(ltl)
+        ltl = ltl.replace_vars(lambda x: program.constants[x] if x in program.constants.keys() else x)
         new_ltl, new_preds = normalise_formula(ltl, signatures, symbol_table, ignore_these)
         new_state_preds.update(new_preds)
         new_ltl_guarantees.append(new_ltl)
