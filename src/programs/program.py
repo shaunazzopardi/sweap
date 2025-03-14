@@ -143,6 +143,8 @@ class Program:
                 if not exit:
                     print("turned " + n + " into a natural")
                     new_symbol_table[n] = TypedValuation(n, "natural", tv.value)
+                    new_symbol_table[n + "_prev"] = TypedValuation(n + "_prev", "natural", tv.value)
+                    new_symbol_table[n + "_prev_prev"] = TypedValuation(n + "_prev_prev", "natural", tv.value)
 
         self.symbol_table.update(new_symbol_table)
         return len(new_symbol_table) > 0
