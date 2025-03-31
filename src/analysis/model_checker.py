@@ -1,8 +1,27 @@
 import logging
 import os
+from pathlib import Path
 import subprocess
 import shutil
 from tempfile import NamedTemporaryFile
+import tempfile
+from subprocess import check_call
+import urllib.request
+
+
+nuxmv_bin = "nuxmv"
+
+
+def check_nuxmv_exists():
+    global nuxmv_bin
+    if shutil.which(nuxmv_bin) is not None:
+        return
+    tmpdir = Path(tempfile.gettempdir())
+    archive_path = tmpdir / "nuxmv.tar.xz"
+    bin_path = tmpdir / "nuXmv-2.1.0-linux64" / "bin" / "nuXmv"
+    urllib.request.urlretrieve("https://nuxmv.fbk.eu/theme/download.php\?file\=nuXmv-2.1.0-linux64.tar.xz", archive_path)
+    check_call(["tar", "-C", str(tmpdir), "-xf", archive_path])
+    nuxmv_bin = bin_path
 
 
 class ModelChecker:
@@ -30,18 +49,11 @@ class ModelChecker:
             commands.write('quit')
             commands.close()
 
-            # cmd_exists = lambda x: shutil.which(x) is not None
-            # if cmd_exists("nuxmv"):
-            #     nuxmv_command = "nuxmv"
-            # else:
-            #     if cmd_exists("nuXmv"):
-            #         nuxmv_command = "nuXmv"
-            #     else:
-            #         raise Exception("nuxmv is not in PATH")
+            check_nuxmv_exists()
 
             try:
                 out = subprocess.check_output([
-                    "nuxmv", "-source", commands.name, model.name], encoding="utf-8")
+                    nuxmv_bin, "-source", commands.name, model.name], encoding="utf-8")
 
                 if "is true" in out:
                     return True, None
@@ -71,9 +83,10 @@ class ModelChecker:
             commands.write('quit\n')
             commands.close()
 
+            check_nuxmv_exists()
             try:
                 out = subprocess.check_output([
-                    "nuxmv", "-source", commands.name, model.name], encoding="utf-8")
+                    nuxmv_bin, "-source", commands.name, model.name], encoding="utf-8")
                 logging.info(out)
             except subprocess.CalledProcessError as err:
                 self.fail(err.output)
