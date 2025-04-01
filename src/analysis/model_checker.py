@@ -19,7 +19,7 @@ def check_nuxmv_exists():
     tmpdir = Path(tempfile.gettempdir())
     archive_path = tmpdir / "nuxmv.tar.xz"
     bin_path = tmpdir / "nuXmv-2.1.0-linux64" / "bin" / "nuXmv"
-    urllib.request.urlretrieve("https://nuxmv.fbk.eu/theme/download.php\?file\=nuXmv-2.1.0-linux64.tar.xz", archive_path)
+    urllib.request.urlretrieve("https://nuxmv.fbk.eu/theme/download.php?file=nuXmv-2.1.0-linux64.tar.xz", archive_path)
     check_call(["tar", "-C", str(tmpdir), "-xf", archive_path])
     nuxmv_bin = bin_path
 
