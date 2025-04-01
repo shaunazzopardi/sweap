@@ -6,6 +6,7 @@ import shutil
 from tempfile import NamedTemporaryFile
 import tempfile
 from subprocess import check_call
+import time
 import urllib.request
 
 
@@ -16,11 +17,17 @@ def check_nuxmv_exists():
     global nuxmv_bin
     if shutil.which(nuxmv_bin) is not None:
         return
+    print("!!! Warning: NuXmv has not been found and will be downloaded.")
+    print("!!! Make sure you read and agree with the NuXmv license at:")
+    print("https://nuxmv.fbk.eu/downloads/LICENSE.txt")
+    start = time.time()
     tmpdir = Path(tempfile.gettempdir())
     archive_path = tmpdir / "nuxmv.tar.xz"
     bin_path = tmpdir / "nuXmv-2.1.0-linux64" / "bin" / "nuXmv"
     urllib.request.urlretrieve("https://nuxmv.fbk.eu/theme/download.php?file=nuXmv-2.1.0-linux64.tar.xz", archive_path)
     check_call(["tar", "-C", str(tmpdir), "-xf", archive_path])
+    end = time.time()
+    print("Downloading NuXmv took: ", (end - start) * 10 ** 3, "ms")
     nuxmv_bin = bin_path
 
 
