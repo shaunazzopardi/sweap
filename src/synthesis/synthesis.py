@@ -312,7 +312,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
 
                 original_ltl_spec = implies(conjunct_formula_set(ltl_assumptions), conjunct_formula_set(ltl_guarantees))
                 compatibility_checking_con(program, predicate_abstraction, mm, original_ltl_spec)
-                return True, mm
+                return True, "\n".join(mm_hoa.split("\n")[1:])
             else:
                 return True, "\n".join(mm_hoa.split("\n")[1:])
 
@@ -345,7 +345,7 @@ def abstract_synthesis_loop(program: Program, ltl_assumptions: [Formula], ltl_gu
                                                  only_safety)
 
         if compatible:
-            return False, result
+            return False, "\n".join(mm_hoa.split("\n")[1:])
         else:
             (new_state_preds, new_tran_preds), new_ranking_constraints, new_structural_loop_constraints, loop_counter = result
             if not(len(new_state_preds) > 0 or len(new_tran_preds) > 0 or len(new_ranking_constraints) > 0):
