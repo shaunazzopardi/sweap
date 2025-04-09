@@ -1,9 +1,0 @@
-//-- State: i_x, loc
-//-- Inputs: i_i
-guarantee {
-[loc  <- i0()];
-G ([loc  <- i0()] -> (((eq i_i i0()) || ((ge i_x i42()))) -> (X [loc  <- i1()]) ) && ((! ((eq i_i i0()) || ((ge i_x i42()))) ) -> ([i_x <- (add i_x i_i)] && X [loc  <- i0()]) || ([i_x <- (sub i_x i_i)] && X [loc  <- i0()]) ));
-G ([loc  <- i1()] -> (X [loc  <- i1()]) );
-F([loc  <- i1()]);
-}
-
