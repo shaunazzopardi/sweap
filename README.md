@@ -58,7 +58,7 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 
 ## Usage
 
-### Symbolic Synthesis Problems
+### Input: Symbolic Synthesis Problems
 
 The input to the tool is a symbolic reactive synthesis problem that specifies the arena as a symbolic automaton or program, and an LTL objective.
 
@@ -160,6 +160,22 @@ program arbiter {
 }
 ````
 
+### Output Format
+
+The output of the tool is a controller or counterstrategy in Hanoi-Omega Automata (HOA) format v1, see https://adl.github.io/hoaf/ for documentation about this standard format.
+
+Using HOA format allows for interoperability with other tools that rely on this standard, e.g. spot (https://spot.lre.epita.fr/), for further analysis and automata manipulation.
+
+
+### Correctness
+
+To validate the correctness of the tool we took several measures:
+
+  - the output of the tool is model checked against the inputted problem (by default for counterstrategies, and with the `--verify_controller` flag for controllers);
+  - programmatic tests (see `./tests`); and
+  - comparison of realisability results for the given benchmarks with other tools.
+
+
 ### Running the Tool
 
 To run the tool on a symbolic synthesis problem, run the following command in the root directory:
@@ -168,4 +184,8 @@ To run the tool on a symbolic synthesis problem, run the following command in th
 PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise
 ```
 
-For advanced flags run `main.py` with the `--h` flag.
+Other flags may be useful to the interested user:
+
+- ``--verify_controller`` verifies that the controller satisfies the intended LTL specification in the context of the arena.
+- ``--only_safety`` attempts the synthesis problem without any liveness refinements.
+- ``--no_binary_enc`` attempts the synthesis problem without binary encoding of the predicates, instead creating a new proposition for each predicate.
