@@ -172,9 +172,8 @@ Using HOA format allows for interoperability with other tools that rely on this 
 To validate the correctness of the tool we took several measures:
 
   - the output of the tool is model checked against the inputted problem (by default for counterstrategies, and with the `--verify_controller` flag for controllers);
-  - programmatic tests (see `./tests`); and
+  - testing (see `./tests/synthesis/test_synthesis` which checks that some synthesis problems, developed to avoid regression, are given the expected verdict); and
   - comparison of realisability results for the given benchmarks with other tools.
-
 
 ### Running the Tool
 
@@ -188,4 +187,4 @@ Other flags may be useful to the interested user:
 
 - ``--verify_controller`` verifies that the controller satisfies the intended LTL specification in the context of the arena.
 - ``--only_safety`` attempts the synthesis problem without any liveness refinements.
-- ``--no_binary_enc`` attempts the synthesis problem without binary encoding of the predicates, instead creating a new proposition for each predicate.
+- ``--no_binary_enc`` attempts the synthesis problem without binary encoding of the predicates, instead of creating a new proposition for each predicate.
