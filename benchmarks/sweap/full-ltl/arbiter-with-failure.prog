@@ -24,6 +24,6 @@ program arbiter-with-failure {
     }
 
     SPECIFICATION {
-        (G F (success)) -> (G((finished && q1) -> cnt == 0))
+        (G F (success)) -> (G((finished && q1) -> cnt == 0) && G F q0)
     }
 }

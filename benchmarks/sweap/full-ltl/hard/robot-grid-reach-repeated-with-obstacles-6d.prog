@@ -1,58 +1,64 @@
-program robot-grid-reach-repeated-with-obstacles-6d {
+program robot-grid-reach-with-obstacles-2d {
     STATES {
         setvars: init, move, goal
     }
 
     ENVIRONMENT EVENTS {
-        ea, eb, ec, ee, ed, ef, estop
+        e1, e2, e3, e4
     }
 
     CONTROLLER EVENTS {
-        ca, cb, cc, cd, ce, cf, cstop
+        c1, c2, c3, c4
     }
 
     VALUATION {
-        a : integer := 0;
-        b : integer := 0;
-        c : integer := 0;
-        d : integer := 0;
-        e : integer := 0;
-        f : integer := 0;
+        x1 : integer := 0;
+        x2 : integer := 0;
+        x3 : integer := 0;
+        x4 : integer := 0;
+        x5 : integer := 0;
+        x6 : integer := 0;
     }
 
     TRANSITIONS {
-        setvars -> setvars [!estop $ a := a + 1 if ea;
-                              a := a - 1 if !ea;
-                              b := b + 1 if eb;
-                              b := b - 1 if !eb;
-                              c := c + 1 if ec;
-                              c := c - 1 if !ec;
-                              d := d + 1 if ed;
-                              d := d - 1 if !ed;
-                              e := e + 1 if ee;
-                              e := e - 1 if !ee;
-                              f := f + 1 if ef;
-                              f := f - 1 if !ef],
-        setvars -> move [estop],
+        setvars -> setvars [!e1 && !e2 && !e3 && !e4 $ x1 := x1 + 1],
+        setvars -> setvars [!e1 && !e2 && !e3 && e4 $ x1 := x1 - 1],
+        setvars -> setvars [!e1 && !e2 && e3 && !e4 $ x2 := x2 + 1],
+        setvars -> setvars [!e1 && !e2 && e3 && e4 $ x2 := x2 - 1],
+        setvars -> setvars [!e1 && e2 && !e3 && !e4 $ x3 := x3 + 1],
+        setvars -> setvars [!e1 && e2 && !e3 && e4 $ x3 := x3 - 1],
+        setvars -> setvars [!e1 && e2 && e3 && !e4 $ x4 := x4 + 1],
+        setvars -> setvars [!e1 && e2 && e3 && e4 $ x4 := x4 - 1],
+        setvars -> setvars [e1 && !e2 && !e3 && !e4 $ x5 := x5 + 1],
+        setvars -> setvars [e1 && !e2 && !e3 && e4 $ x5 := x5 - 1],
+        setvars -> setvars [e1 && !e2 && e3 && !e4 $ x6 := x6 + 1],
+        setvars -> setvars [e1 && !e2 && e3 && e4 $ x6 := x6 - 1],
+        setvars -> setvars [e1 && e2 && !e3 && !e4 $ x6 := x6 - 1],
+        setvars -> setvars [e1 && e2 && !e3 && e4 $ x6 := x6 - 1],
+        setvars -> setvars [e1 && e2 && e3 && !e4],
+
+        setvars -> move [e1 && e2 && e3 && e4],
 
         goal -> setvars [],
-        move -> goal [!(a == 0 & b == 0 & c == 0 & d == 0 & e == 0 & f == 0)],
-        move -> move [!(a == 0 & b == 0 & c == 0 & d == 0 & e == 0 & f == 0) && !estop
-                            $ a := a + 1 if ca;
-                              a := a - 1 if !ca;
-                              b := b + 1 if cb;
-                              b := b - 1 if !cb;
-                              c := c + 1 if cc;
-                              c := c - 1 if !cc;
-                              d := d + 1 if cd;
-                              d := d - 1 if !cd;
-                              e := e + 1 if ce;
-                              e := e - 1 if !ce;
-                              f := f + 1 if cf;
-                              f := f - 1 if !cf]
+        move -> goal [x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && !c2 && !c3 && !c4 $ x1 := x1 + 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && !c2 && !c3 && c4 $ x1 := x1 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && !c2 && c3 && !c4 $ x2 := x2 + 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && !c2 && c3 && c4 $ x2 := x2 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && c2 && !c3 && !c4 $ x3 := x3 + 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && c2 && !c3 && c4 $ x3 := x3 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && c2 && c3 && !c4 $ x4 := x4 + 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && !c1 && c2 && c3 && c4 $ x4 := x4 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && c1 && !c2 && !c3 && !c4 $ x5 := x5 + 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && c1 && !c2 && !c3 && c4 $ x5 := x5 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && c1 && !c2 && c3 && !c4 $ x6 := x6 + 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && c1 && !c2 && c3 && c4 $ x6 := x6 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && c1 && c2 && !c3 && !c4 $ x6 := x6 - 1],
+        move -> move [!e1 && !(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && c1 && c2 && !c3 && c4 $ x6 := x6 - 1],
+        move -> move [!(x1 == 0 && x2 == 0 && x3 == 0 && x4 == 0 && x5 == 0 && x6 == 0) && (e1 || (c1 && c2 && c3 && !c4))]
     }
 
     SPECIFICATION {
-        (G F !estop) -> G F goal
+        ((G F !(move & e1)) && G F move) -> G F goal
     }
 }
