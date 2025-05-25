@@ -10,9 +10,6 @@ from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
 from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import (
     TransitionPredicate,
 )
-from analysis.abstraction.interface.ltl_abstraction_type import (
-    LTLAbstractionType,
-)
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from analysis.model_checker import ModelChecker
 from config import Config
@@ -30,9 +27,6 @@ def compatibility_checking(
     predicate_abstraction: EffectsAbstraction,
     moore_machine: MooreMachine,
     is_controller: bool,
-    base_abstraction,
-    ltlAbstractionType: LTLAbstractionType,
-    project_on_abstraction: bool,
     prefer_lasso_counterexamples: bool,
 ):
     moore_nuxmv = moore_machine.to_nuXmv_with_turns(

@@ -17,12 +17,9 @@ def refinement_standard(
     predicate_abstraction,
     mm,
     real,
-    base_abstraction,
-    ltlAbstractionType,
     signatures,
     loop_counter,
     # TODO put all the below parameters in a dictionary
-    project_on_abstraction,
     prefer_lasso_counterexamples,
     allow_user_input,
     keep_only_bool_interpolants,
@@ -38,9 +35,6 @@ def refinement_standard(
         predicate_abstraction,
         mm,
         real,
-        base_abstraction,
-        ltlAbstractionType,
-        project_on_abstraction,
         prefer_lasso_counterexamples,
     )
 
