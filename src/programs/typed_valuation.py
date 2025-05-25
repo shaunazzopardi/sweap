@@ -17,3 +17,4 @@ class TypedValuation:
                 return True
             except ValueError:
                 return False
+        return False

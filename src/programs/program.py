@@ -54,7 +54,7 @@ class Program:
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
-        self.valuation = init_val
+        self.valuation: [TypedValuation] = init_val
         self.constants = {}
 
         if config.Config.getConfig().dual:

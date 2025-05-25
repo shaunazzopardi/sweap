@@ -1,9 +1,9 @@
 import logging
 import time
-from typing import Tuple
-
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 import config
+
+from typing import Tuple
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
@@ -38,14 +38,14 @@ from prop_lang.util import (
     neg,
 )
 from prop_lang.variable import Variable
-from synthesis.ltl_synthesis import (
+from ltl_synthesis import (
     ltl_synthesis,
     syfco_ltl,
     syfco_ltl_in,
     syfco_ltl_out,
 )
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from synthesis.machines.mealy_machine import MealyMachine
+from ltl_synthesis_problem import LTLSynthesisProblem
+from machines.mealy_machine import MealyMachine
 
 
 def finite_state_synth(

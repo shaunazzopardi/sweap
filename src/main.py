@@ -2,8 +2,8 @@ import argparse
 import logging
 import os
 import time
-from pathlib import Path
 
+from pathlib import Path
 from analysis.compatibility_checking.compatibility_checking import (
     create_nuxmv_model,
 )

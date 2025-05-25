@@ -1,9 +1,9 @@
 import logging
 import os
 import subprocess
+
 from tempfile import NamedTemporaryFile
 from typing import Tuple
-
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )

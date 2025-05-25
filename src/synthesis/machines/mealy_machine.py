@@ -1,7 +1,7 @@
+import config
+
 from graphviz import Digraph
 from joblib import Parallel, delayed
-
-import config
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )

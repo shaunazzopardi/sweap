@@ -1,14 +1,13 @@
 import logging
 import re
-from multiprocessing import Queue, Process
-
 import sympy
+
+from multiprocessing import Queue, Process
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And, simplify, serialize
 from sympy import Basic
 from sympy.logic.boolalg import to_dnf, to_cnf
-
 from analysis.smt_checker import check, bdd_simplify
 from parsing.string_to_prop_logic import string_to_prop
 from programs.typed_valuation import TypedValuation

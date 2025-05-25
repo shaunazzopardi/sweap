@@ -1,9 +1,8 @@
 import re
-
 import sympy.core.symbol
+
 from pysmt.fnode import FNode
 from pysmt.shortcuts import INT, BOOL, GE, LE, And, Int, TRUE, Symbol
-
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 

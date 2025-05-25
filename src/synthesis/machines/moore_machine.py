@@ -1,6 +1,6 @@
-from graphviz import Digraph
-
 import config
+
+from graphviz import Digraph
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from config import env, con
 from prop_lang.biop import BiOp

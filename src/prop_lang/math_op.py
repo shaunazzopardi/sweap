@@ -1,5 +1,4 @@
 from typing import Any
-
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.value import Value

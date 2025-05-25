@@ -89,48 +89,8 @@ def compatibility_checking(
         logging.info("No mismatch found.")
 
         ## Finished
-        if project_on_abstraction:
-            logging.info(
-                "Computing projection of "
-                + ("strategy" if is_controller else "counterstrategy")
-                + " onto predicate abstraction.."
-            )
-            controller_projected_on_program = (
-                moore_machine.project_controller_on_program(
-                    ("strategy" if is_controller else "counterstrategy"),
-                    program,
-                    predicate_abstraction,
-                    symbol_table,
-                )
-            )
 
-            for t in (
-                controller_projected_on_program.con_transitions
-                + controller_projected_on_program.transitions
-            ):
-                ok = False
-                for tt in (
-                    controller_projected_on_program.con_transitions
-                    + controller_projected_on_program.transitions
-                ):
-                    if t.tgt == tt.src:
-                        ok = True
-                        break
-
-                if not ok:
-                    logging.info(controller_projected_on_program.to_dot())
-
-                    raise Exception(
-                        "Warning: Model checking says counterstrategy is fine, but something has gone wrong with projection "
-                        "onto the predicate abstraction, and I have no idea why. "
-                        "The "
-                        + ("controller" if is_controller else "counterstrategy")
-                        + " has no outgoing transition from this program state: "
-                        + ", ".join([str(p) for p in list(t.tgt)])
-                    )
-            result = controller_projected_on_program.to_dot()
-        else:
-            result = moore_machine.to_dot(all_preds)
+        result = moore_machine.to_dot(all_preds)
 
         if is_controller:
             return True, result

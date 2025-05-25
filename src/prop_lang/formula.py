@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
-
 from pysmt.fnode import FNode
-
 from programs.typed_valuation import TypedValuation
 
 
