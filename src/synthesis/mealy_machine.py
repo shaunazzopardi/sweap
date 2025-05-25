@@ -1,26 +1,12 @@
 from graphviz import Digraph
 from joblib import Parallel, delayed
-from pysmt.shortcuts import And
 
 import config
-from analysis.abstraction.effects_abstraction.util.effects_util import (
-    tran_and_state_preds_after_con_env_step,
-)
-from analysis.abstraction.explicit_abstraction.util.abstract_state import (
-    AbstractState,
-)
-from config import env, con
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from analysis.smt_checker import check
-from programs.program import Program
-from synthesis.abstract_ltl_synthesis_problem import (
-    AbstractLTLSynthesisProblem,
-)
-from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
+from config import env, con
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
@@ -37,8 +23,9 @@ from prop_lang.util import (
     label_pred,
 )
 from prop_lang.variable import Variable
-
-import faulthandler
+from synthesis.abstract_ltl_synthesis_problem import (
+    AbstractLTLSynthesisProblem,
+)
 
 
 class MealyMachine:

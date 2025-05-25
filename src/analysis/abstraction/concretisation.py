@@ -20,9 +20,6 @@ from prop_lang.util import (
     is_predicate_var,
     normalise_mathexpr,
     true,
-    atomic_predicates,
-    is_tautology,
-    is_contradictory,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable

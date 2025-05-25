@@ -1,11 +1,8 @@
 import re
 from collections import defaultdict
-from itertools import combinations, product
-from typing import Any
+from itertools import product
 
-from pysmt.shortcuts import FALSE, TRUE, And, Iff, Not, Symbol
 from tatsu.grammars import Grammar
-from tatsu.objectmodel import Node
 from tatsu.tool import compile
 from tatsu.walkers import NodeWalker
 

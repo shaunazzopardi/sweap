@@ -7,15 +7,14 @@ from pysmt.shortcuts import And
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
-from parsing.string_to_prop_logic import (
-    string_to_prop,
-    string_to_math_expression,
-)
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
 from analysis.ranker import Ranker
 from analysis.smt_checker import check
+from parsing.string_to_prop_logic import (
+    string_to_prop,
+)
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
@@ -40,7 +39,6 @@ from prop_lang.util import (
     F,
     implies,
     iff,
-    stringify_pred,
     normalise_pred_multiple_vars,
     strip_mathexpr,
     var_to_predicate,

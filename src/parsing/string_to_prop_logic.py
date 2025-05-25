@@ -1,4 +1,5 @@
 import re
+import sys
 
 from tatsu.grammars import Grammar
 from tatsu.infos import ParserConfig
@@ -10,7 +11,6 @@ from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-import sys
 
 sys.setrecursionlimit(20000)
 

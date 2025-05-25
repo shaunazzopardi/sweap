@@ -1,3 +1,5 @@
+import analysis.abstraction.effects_abstraction.to_ltl.to_env_con_separate_ltl as to_env_con_separate_ltl
+import analysis.abstraction.explicit_abstraction.to_ltl as explicit_to_ltl
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
@@ -9,10 +11,8 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
     LTLAbstractionTransitionType,
     LTLAbstractionOutputType,
 )
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from prop_lang.formula import Formula
-import analysis.abstraction.explicit_abstraction.to_ltl as explicit_to_ltl
-import analysis.abstraction.effects_abstraction.to_ltl.to_env_con_separate_ltl as to_env_con_separate_ltl
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def to_ltl(

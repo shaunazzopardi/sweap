@@ -1,17 +1,17 @@
 import argparse
-import time
-import os
 import logging
+import os
+import time
+from pathlib import Path
 
-from config import Config
 from analysis.compatibility_checking.compatibility_checking import (
     create_nuxmv_model,
 )
 from analysis.model_checker import ModelChecker
+from config import Config
 from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
 from synthesis.synthesis import finite_state_synth, synthesize
-from pathlib import Path
 
 dirname = os.path.dirname(__file__)
 strix_path = str(os.path.join(dirname, "../binaries"))

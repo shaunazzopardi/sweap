@@ -1,7 +1,5 @@
-import bisect
 import logging
 import re
-from bisect import bisect_left
 from multiprocessing import Queue, Process
 
 import sympy
@@ -11,8 +9,8 @@ from pysmt.shortcuts import And, simplify, serialize
 from sympy import Basic
 from sympy.logic.boolalg import to_dnf, to_cnf
 
-from parsing.string_to_prop_logic import string_to_prop
 from analysis.smt_checker import check, bdd_simplify
+from parsing.string_to_prop_logic import string_to_prop
 from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp

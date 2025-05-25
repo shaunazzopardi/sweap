@@ -1,8 +1,9 @@
 import logging
-import config
 import time
 from typing import Tuple
 
+import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
+import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
@@ -17,17 +18,8 @@ from analysis.compatibility_checking.compatibility_checking_con import (
     compatibility_checking_con,
 )
 from analysis.refinement.refinement import refinement_standard
-
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
-from synthesis.ltl_synthesis import (
-    ltl_synthesis,
-    syfco_ltl,
-    syfco_ltl_in,
-    syfco_ltl_out,
-)
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from synthesis.mealy_machine import MealyMachine
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -46,8 +38,14 @@ from prop_lang.util import (
     neg,
 )
 from prop_lang.variable import Variable
-
-import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
+from synthesis.ltl_synthesis import (
+    ltl_synthesis,
+    syfco_ltl,
+    syfco_ltl_in,
+    syfco_ltl_out,
+)
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.mealy_machine import MealyMachine
 
 
 def finite_state_synth(

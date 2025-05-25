@@ -1,11 +1,8 @@
 from graphviz import Digraph
 
 import config
-from config import env, con
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from synthesis.abstract_ltl_synthesis_problem import (
-    AbstractLTLSynthesisProblem,
-)
+from config import env, con
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
@@ -14,7 +11,6 @@ from prop_lang.util import (
     disjunct_formula_set,
     neg,
     conjunct,
-    dnf_safe,
     propagate_negations,
     simplify_formula_without_math,
     sat,
@@ -24,6 +20,9 @@ from prop_lang.util import (
     iff,
 )
 from prop_lang.variable import Variable
+from synthesis.abstract_ltl_synthesis_problem import (
+    AbstractLTLSynthesisProblem,
+)
 
 
 class MooreMachine:

@@ -17,10 +17,10 @@ from programs.util import (
     guarded_action_transitions_to_normal_transitions,
     symbol_table_from_typed_valuation,
 )
-from prop_lang.formula import Formula
-from prop_lang.nondet import NonDeterministic
 from prop_lang.biop import BiOp
+from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
+from prop_lang.nondet import NonDeterministic
 from prop_lang.util import true, normalize_ltl
 from prop_lang.variable import Variable
 

@@ -11,11 +11,11 @@ from analysis.abstraction.effects_abstraction.predicates import StatePredicate
 from analysis.abstraction.effects_abstraction.predicates.ChainPredicate import (
     ChainPredicate,
 )
-from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
-    StatePredicate,
-)
 from analysis.abstraction.effects_abstraction.predicates.Predicate import (
     Predicate,
+)
+from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
+    StatePredicate,
 )
 from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import (
     TransitionPredicate,
@@ -30,17 +30,11 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
-from prop_lang.biop import BiOp
-from prop_lang.uniop import UniOp
-from prop_lang.variable import Variable
-from synthesis.abstract_ltl_synthesis_problem import (
-    AbstractLTLSynthesisProblem,
-)
-from synthesis.ltl_synthesis import parse_hoa
-from synthesis.mealy_machine import MealyMachine
-from programs.typed_valuation import TypedValuation
 from programs.program import Program
+from programs.typed_valuation import TypedValuation
+from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct,
     neg,
@@ -55,6 +49,12 @@ from prop_lang.util import (
     propagate_nexts,
     is_tautology,
 )
+from prop_lang.variable import Variable
+from synthesis.abstract_ltl_synthesis_problem import (
+    AbstractLTLSynthesisProblem,
+)
+from synthesis.ltl_synthesis import parse_hoa
+from synthesis.mealy_machine import MealyMachine
 
 logger = logging.getLogger(__name__)
 

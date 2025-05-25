@@ -1,5 +1,5 @@
-import time
 import logging
+import time
 
 from analysis.compatibility_checking.compatibility_checking import (
     compatibility_checking,

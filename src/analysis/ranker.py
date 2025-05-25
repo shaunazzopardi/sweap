@@ -3,6 +3,7 @@ import os
 import subprocess
 import time
 from tempfile import NamedTemporaryFile
+
 from parsing.string_to_prop_logic import (
     string_to_prop,
     string_to_math_expression,

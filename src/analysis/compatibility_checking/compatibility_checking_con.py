@@ -9,21 +9,14 @@ from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
 from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import (
     TransitionPredicate,
 )
-from config import Config
-from analysis.abstraction.concretisation import concretize_transitions
-from analysis.abstraction.interface.ltl_abstraction_type import (
-    LTLAbstractionType,
-)
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from analysis.model_checker import ModelChecker
+from config import Config
 from programs.program import Program
-from programs.util import parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
-from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, label_pred, stringify_pred
+from prop_lang.util import conjunct_formula_set, stringify_pred
 from prop_lang.variable import Variable
 from synthesis.mealy_machine import MealyMachine
-from synthesis.moore_machine import MooreMachine
 
 
 def compatibility_checking_con(

@@ -1,19 +1,19 @@
 import logging
+import os
 import subprocess
 from tempfile import NamedTemporaryFile
 from typing import Tuple
 
-from parsing.hoa_parser import hoa_to_transitions
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
+from parsing.hoa_parser import hoa_to_transitions
+from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
 from synthesis.mealy_machine import MealyMachine
-from prop_lang.variable import Variable
 from synthesis.moore_machine import MooreMachine
-import os
 
 dirname = os.path.dirname(__file__)
 strix_path = str(os.path.join(dirname, "../../binaries/strix_tlsf_file.sh"))

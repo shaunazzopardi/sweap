@@ -2,10 +2,6 @@ from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
 from programs.program import Program
-from synthesis.abstract_ltl_synthesis_problem import (
-    AbstractLTLSynthesisProblem,
-)
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from programs.util import add_prev_suffix
 from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
@@ -24,6 +20,10 @@ from prop_lang.util import (
     label_pred,
 )
 from prop_lang.variable import Variable
+from synthesis.abstract_ltl_synthesis_problem import (
+    AbstractLTLSynthesisProblem,
+)
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def explicit_abstraction_to_state_based_ltl_abstraction(

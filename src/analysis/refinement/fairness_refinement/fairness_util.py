@@ -1,8 +1,6 @@
-import itertools
 import logging
 import time
 
-from config import Config
 from pysmt.shortcuts import Implies, And, Exists, Symbol, ForAll
 from pysmt.typing import INT
 
@@ -18,6 +16,7 @@ from analysis.refinement.fairness_refinement.structural_refinement import (
     structural_refinement,
 )
 from analysis.smt_checker import quantifier_elimination
+from config import Config
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars

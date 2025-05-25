@@ -3,8 +3,8 @@ import logging
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
-from parsing.string_to_prop_logic import string_to_prop
 from analysis.smt_checker import sequence_interpolant
+from parsing.string_to_prop_logic import string_to_prop
 from programs.program import Program
 from programs.typed_valuation import TypedValuation
 from programs.util import reduce_up_to_iff

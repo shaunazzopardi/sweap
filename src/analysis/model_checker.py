@@ -1,7 +1,6 @@
 import logging
 import os
 import subprocess
-import shutil
 from tempfile import NamedTemporaryFile
 
 dirname = os.path.dirname(__file__)

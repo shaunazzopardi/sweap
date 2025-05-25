@@ -4,7 +4,6 @@ import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
-
 from prop_lang.util import (
     atomic_predicates,
     G,

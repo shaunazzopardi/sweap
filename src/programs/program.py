@@ -1,7 +1,7 @@
 import logging
 from multiprocessing import Pool
-from typing import Set
 from textwrap import dedent
+from typing import Set
 
 from graphviz import Digraph
 
