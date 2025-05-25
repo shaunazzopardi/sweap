@@ -1,19 +1,17 @@
 import argparse
+import time
 import os
+import logging
 
 from config import Config
 from analysis.compatibility_checking.compatibility_checking import (
     create_nuxmv_model,
-    create_nuxmv_model_for_compatibility_checking,
 )
 from analysis.model_checker import ModelChecker
 from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
 from synthesis.synthesis import finite_state_synth, synthesize
-import logging
 from pathlib import Path
-import time
-import os
 
 dirname = os.path.dirname(__file__)
 strix_path = str(os.path.join(dirname, "../binaries"))
@@ -171,9 +169,15 @@ def main():
         if args.translate.lower() == "dot":
             print("\ndot version of program:\n\n" + str(program.to_dot()))
         elif args.translate.lower() == "nuxmv":
-            print("\nnuxmv version of program:\n\n" + create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif()))
+            print(
+                "\nnuxmv version of program:\n\n"
+                + create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
+            )
         elif args.translate.lower() == "prog":
-            print("\nsymbolic automaton version of program:\n\n" + program.to_prog(ltl_spec))
+            print(
+                "\nsymbolic automaton version of program:\n\n"
+                + program.to_prog(ltl_spec)
+            )
         elif args.translate.lower() == "vmt":
             model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
             model_checker = ModelChecker()
