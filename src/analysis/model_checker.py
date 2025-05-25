@@ -58,7 +58,7 @@ class ModelChecker:
                 os.remove(model.name)
                 os.remove(commands.name)
 
-    def to_vmt(self, nuxmv_script: str, ltl_spec):
+    def to_vmt(self, nuxmv_script: str, ltl_spec, file: str):
         with NamedTemporaryFile(
             "w", suffix=".smv", delete=False
         ) as model, NamedTemporaryFile("w", suffix=".txt", delete=False) as commands:
@@ -68,16 +68,17 @@ class ModelChecker:
             model.close()
 
             commands.write("go_msat\n")
-            commands.write("write_vmt_model -n 0 -o model.vmt\n")
+            commands.write("write_vmt_model -n 0 -o " + file + ".vmt\n")
             commands.write("quit\n")
             commands.close()
 
             try:
                 out = subprocess.check_output(
-                    ["nuxmv", "-source", commands.name, model.name],
+                    [nuxmv_path, "-source", commands.name, model.name],
                     encoding="utf-8",
                 )
                 logging.info(out)
+                return out
             except subprocess.CalledProcessError as err:
                 self.fail(err.output)
             finally:

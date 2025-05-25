@@ -24,23 +24,11 @@ os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 def main():
     parser = argparse.ArgumentParser()
     # input monitor
-    parser.add_argument(
-        "--p",
-        dest="program",
-        help="Path to a .prog file.",
-        type=str
-    )
-    parser.add_argument(
-        "--tsl",
-        dest="tsl",
-        help="Path to a .tsl file.",
-        type=str)
+    parser.add_argument("--p", dest="program", help="Path to a .prog file.", type=str)
+    parser.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
 
     parser.add_argument(
-        "--translate",
-        dest="translate",
-        help="Translation workflow.",
-        type=str
+        "--translate", dest="translate", help="Translation workflow.", type=str
     )
 
     # Synthesis workflow
@@ -124,7 +112,17 @@ def main():
     if args.debug is not None:
         conf.debug = True
 
-    if args.program is None and args.tsl is None:
+    if args.program is not None:
+        prog_file = open(args.program, "r")
+        prog_str = prog_file.read()
+        program, ltl_spec = string_to_program(prog_str)
+    elif args.tsl is not None:
+        ltlmt_formula = open(args.tsl, "r").read()
+        ltlmt = string_to_ltlmt(ltlmt_formula)
+        tp = ToProgram()
+        prog_name = Path(args.tsl).stem + "_tsl"
+        program, ltl_spec = tp.ltlmt2prog(ltlmt, prog_name)
+    else:
         raise Exception("Program path not specified.")
 
     if not args.lazy and not args.only_safety:
@@ -151,23 +149,7 @@ def main():
     conf.add_all_preds_in_prog = True
 
     if args.only_safety is not None:
-        # if args.only_ranking is not None or args.only_structural is not None:
-        #     raise Exception("Cannot use both only_safety with only_ranking and only_structural.")
-        # conf.prefer_ranking = False
-        # conf.only_ranking = False
-        # conf.only_structural = False
         conf.only_safety = True
-
-    if args.program is not None:
-        prog_file = open(args.program, "r")
-        prog_str = prog_file.read()
-        program, ltl_spec = string_to_program(prog_str)
-    elif args.tsl is not None:
-        ltlmt_formula = open(args.tsl, "r").read()
-        ltlmt = string_to_ltlmt(ltlmt_formula)
-        tp = ToProgram()
-        prog_name = Path(args.tsl).stem + "_tsl"
-        program, ltl_spec = tp.ltlmt2prog(ltlmt, prog_name)
 
     logdir = Path(os.getcwd()) / "out" / program.name
 
@@ -187,22 +169,18 @@ def main():
 
     if args.translate is not None:
         if args.translate.lower() == "dot":
-            print(program.to_dot())
+            print("\ndot version of program:\n\n" + str(program.to_dot()))
         elif args.translate.lower() == "nuxmv":
-            print(
-                create_nuxmv_model_for_compatibility_checking(
-                    program.to_nuXmv_with_turns()
-                )
-            )
+            print("\nnuxmv version of program:\n\n" + create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif()))
         elif args.translate.lower() == "prog":
-            print(program.to_prog(ltl_spec))
+            print("\nsymbolic automaton version of program:\n\n" + program.to_prog(ltl_spec))
         elif args.translate.lower() == "vmt":
-            model = create_nuxmv_model(program.to_nuXmv_with_turns())
-            ltl_spec = None
-            if args.ltl != None:
-                ltl_spec = args.ltl
+            model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
             model_checker = ModelChecker()
-            model_checker.to_vmt(model, ltl_spec)
+            model_checker.to_vmt(model, ltl_spec, "model")
+            vmt = open("model.vmt").read()
+            os.remove("model.vmt")
+            print("\nvmt version of program:\n\n" + vmt)
         else:
             print(
                 args.translate
