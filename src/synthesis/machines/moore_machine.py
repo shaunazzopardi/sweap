@@ -23,9 +23,10 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
+from synthesis.machines.machine import Machine
 
 
-class MooreMachine:
+class MooreMachine(Machine):
     def __init__(self, name, init_index: int, env_events, con_events, transitions={}):
         self.name = name
         self.init_index = init_index

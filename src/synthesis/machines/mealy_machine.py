@@ -26,9 +26,10 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
+from synthesis.machines.machine import Machine
 
 
-class MealyMachine:
+class MealyMachine(Machine):
     def __init__(
         self,
         name,

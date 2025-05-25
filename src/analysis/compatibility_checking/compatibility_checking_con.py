@@ -16,7 +16,7 @@ from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.util import conjunct_formula_set, stringify_pred
 from prop_lang.variable import Variable
-from synthesis.mealy_machine import MealyMachine
+from synthesis.machines.mealy_machine import MealyMachine
 
 
 def compatibility_checking_con(

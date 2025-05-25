@@ -12,8 +12,8 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
-from synthesis.mealy_machine import MealyMachine
-from synthesis.moore_machine import MooreMachine
+from synthesis.machines.mealy_machine import MealyMachine
+from synthesis.machines.moore_machine import MooreMachine
 
 dirname = os.path.dirname(__file__)
 strix_path = str(os.path.join(dirname, "../../binaries/strix_tlsf_file.sh"))

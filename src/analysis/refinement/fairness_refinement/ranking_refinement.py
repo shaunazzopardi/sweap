@@ -45,7 +45,7 @@ from prop_lang.util import (
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-from synthesis.moore_machine import MooreMachine
+from synthesis.machines.moore_machine import MooreMachine
 
 seen_loops_cache = {}
 

@@ -45,7 +45,7 @@ from synthesis.ltl_synthesis import (
     syfco_ltl_out,
 )
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from synthesis.mealy_machine import MealyMachine
+from synthesis.machines.mealy_machine import MealyMachine
 
 
 def finite_state_synth(

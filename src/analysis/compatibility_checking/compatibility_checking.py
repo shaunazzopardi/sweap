@@ -22,7 +22,7 @@ from prop_lang.biop import BiOp
 from prop_lang.uniop import UniOp
 from prop_lang.util import conjunct_formula_set, stringify_pred
 from prop_lang.variable import Variable
-from synthesis.moore_machine import MooreMachine
+from synthesis.machines.moore_machine import MooreMachine
 
 
 def compatibility_checking(

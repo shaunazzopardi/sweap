@@ -54,7 +54,7 @@ from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
 from synthesis.ltl_synthesis import parse_hoa
-from synthesis.mealy_machine import MealyMachine
+from synthesis.machines.machine import Machine
 
 logger = logging.getLogger(__name__)
 
@@ -548,7 +548,7 @@ class EffectsAbstraction(PredicateAbstraction):
         ltlAbstractionType: LTLAbstractionType,
         synthesis_problem: AbstractLTLSynthesisProblem,
         controller: bool,
-    ) -> MealyMachine:
+    ) -> Machine:
         if (
             ltlAbstractionType.base_type == LTLAbstractionBaseType.explicit_automaton
             and ltlAbstractionType.transition_type

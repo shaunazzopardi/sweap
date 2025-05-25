@@ -31,7 +31,7 @@ from prop_lang.util import (
     math_exprs_in_formula,
 )
 from prop_lang.variable import Variable
-from synthesis.mealy_machine import MealyMachine
+from synthesis.machines.mealy_machine import MealyMachine
 
 existing_refinements = set()
 
