@@ -13,6 +13,10 @@ from synthesis.abstract_ltl_synthesis_problem import (
 from synthesis.mealy_machine import MealyMachine
 from prop_lang.variable import Variable
 from synthesis.moore_machine import MooreMachine
+import os
+
+dirname = os.path.dirname(__file__)
+strix_path = str(os.path.join(dirname, "../../binaries/strix_tlsf_file.sh"))
 
 
 def ltl_synthesis(
@@ -25,7 +29,7 @@ def ltl_synthesis(
             tmp.write(tlsf_script)
             tmp.close()
 
-            cmd = f"strix_tlsf_file.sh {tmp.name} -m both --onthefly none"
+            cmd = f"{strix_path} {tmp.name} -m both --onthefly none"
 
             try:
                 so = subprocess.getstatusoutput(cmd)

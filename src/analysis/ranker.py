@@ -7,8 +7,9 @@ from parsing.string_to_prop_logic import (
     string_to_prop,
     string_to_math_expression,
 )
-from shutil import which
-from pathlib import Path
+
+dirname = os.path.dirname(__file__)
+cpa_path = str(os.path.join(dirname, "../../binaries/CPAchecker-2.3-unix/scripts/"))
 
 
 class Ranker:
@@ -19,11 +20,9 @@ class Ranker:
 
             try:
                 start = time.time()
-                cpa_path = Path("./binaries/CPAchecker-2.3-unix/scripts/").resolve()
-                # cpa_path = Path(which("cpa.sh")).resolve().parent
                 bench = "-benchmark -heap 1024M " if only_check_for_termination else ""
                 cmd = (
-                    f"./binaries/CPAchecker-2.3-unix/scripts/cpa.sh  -preprocess -terminationAnalysis {bench} "
+                    f"{cpa_path}/cpa.sh  -preprocess -terminationAnalysis {bench} "
                     f"{tmp.name} -spec {cpa_path}/../config/properties/termination.prp"
                 )
 

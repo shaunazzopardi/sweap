@@ -4,6 +4,9 @@ import subprocess
 import shutil
 from tempfile import NamedTemporaryFile
 
+dirname = os.path.dirname(__file__)
+nuxmv_path = str(os.path.join(dirname, "../../binaries/nuxmv"))
+
 
 class ModelChecker:
     def invar_check(self, nuxmv_script: str, ltl_spec, bound, mc):
@@ -31,18 +34,9 @@ class ModelChecker:
             commands.write("quit")
             commands.close()
 
-            # cmd_exists = lambda x: shutil.which(x) is not None
-            # if cmd_exists("nuxmv"):
-            #     nuxmv_command = "nuxmv"
-            # else:
-            #     if cmd_exists("nuXmv"):
-            #         nuxmv_command = "nuXmv"
-            #     else:
-            #         raise Exception("nuxmv is not in PATH")
-
             try:
                 out = subprocess.check_output(
-                    ["nuxmv", "-source", commands.name, model.name],
+                    [nuxmv_path, "-source", commands.name, model.name],
                     encoding="utf-8",
                 )
 

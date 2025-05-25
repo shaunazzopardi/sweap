@@ -13,8 +13,12 @@ from synthesis.synthesis import finite_state_synth, synthesize
 import logging
 from pathlib import Path
 import time
+import os
 
-os.environ["PATH"] = "../binaries:" + os.environ["PATH"]
+dirname = os.path.dirname(__file__)
+strix_path = str(os.path.join(dirname, "../binaries"))
+
+os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
 
 def main():
