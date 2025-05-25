@@ -24,11 +24,23 @@ os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 def main():
     parser = argparse.ArgumentParser()
     # input monitor
-    parser.add_argument("--p", dest="program", help="Path to a .prog file.", type=str)
-    parser.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
+    parser.add_argument(
+        "--p",
+        dest="program",
+        help="Path to a .prog file.",
+        type=str
+    )
+    parser.add_argument(
+        "--tsl",
+        dest="tsl",
+        help="Path to a .tsl file.",
+        type=str)
 
     parser.add_argument(
-        "--translate", dest="translate", help="Translation workflow.", type=str
+        "--translate",
+        dest="translate",
+        help="Translation workflow.",
+        type=str
     )
 
     # Synthesis workflow
