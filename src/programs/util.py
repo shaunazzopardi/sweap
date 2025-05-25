@@ -250,7 +250,7 @@ def get_ce_from_nuxmv_output(out: str):
 
     prefix = ce
 
-    prefix = re.split("[^\n]*\->[^<]*<\-", prefix)
+    prefix = re.split("[^\n]*->[^<]*<-", prefix)
     prefix = [[p.strip() for p in re.split("\n", t) if "=" in p] for t in prefix]
     prefix.remove([])
     prefix = [
