@@ -41,9 +41,9 @@ TSLMT2RPG_LOGS :=		$(addsuffix .tslmt2rpg.log,			$(TSLMT2RPG_BENCHS))
 TSLMT2RPG_SYN_LOGS :=	$(addsuffix .tslmt2rpg-syn.log,		$(TSLMT2RPG_BENCHS))
 
 # Tool command-line invocation
-$(SWEAP_LOGS): cmd = 			python3 main.py --synthesise --p
-$(SWEAP_LAZY_LOGS): cmd =		python3 main.py --synthesise --lazy --p
-$(SWEAP_NOBIN_LOGS): cmd =		python3 main.py --synthesise --no_binary_enc --p
+$(SWEAP_LOGS): cmd = 			python3 src/main.py --synthesise --p
+$(SWEAP_LAZY_LOGS): cmd =		python3 src/main.py --synthesise --lazy --p
+$(SWEAP_NOBIN_LOGS): cmd =		python3 src/main.py --synthesise --no_binary_enc --p
 $(RPG_STELA_LOGS): cmd = 		rpg-stela solve --enable-no-pruning <
 $(RPG_SYN_LOGS): cmd =			rpgsolve --generate-program --disable-log <
 $(RPG_LOGS): cmd =				rpgsolve --disable-log <
