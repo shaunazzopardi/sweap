@@ -56,7 +56,7 @@ class MealyMachine(Machine):
         self.env_prog_state = {}
         self.con_prog_state = {}
 
-    def add_transitions(self, trans_dict: dict):
+    def add_transitions(self, trans_dict: dict, _):
         int_st_index = 0
         interm_states = {}
         for src_index, env_behaviour, tgt_index in trans_dict.keys():
