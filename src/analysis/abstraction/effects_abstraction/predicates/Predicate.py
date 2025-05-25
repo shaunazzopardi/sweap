@@ -6,7 +6,6 @@ from prop_lang.variable import Variable
 
 
 class Predicate(ABC):
-
     @abstractmethod
     def variablesin(self):
         pass
@@ -16,24 +15,30 @@ class Predicate(ABC):
         pass
 
     @abstractmethod
-    def extend_effect_now(self,
-                      gu: Formula,
-                      effect: [(Formula, dict[Variable, [Formula]])],
-                      symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+    def extend_effect_now(
+        self,
+        gu: Formula,
+        effect: [(Formula, dict[Variable, [Formula]])],
+        symbol_table,
+    ) -> [(Formula, dict[Variable, [Formula]])]:
         pass
 
     @abstractmethod
-    def extend_effect_next(self,
-                      gu: Formula,
-                      effect: [(Formula, dict[Variable, [Formula]])],
-                      symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+    def extend_effect_next(
+        self,
+        gu: Formula,
+        effect: [(Formula, dict[Variable, [Formula]])],
+        symbol_table,
+    ) -> [(Formula, dict[Variable, [Formula]])]:
         pass
 
     @abstractmethod
-    def extend_effect(self,
-                      gu: Formula,
-                      effect: [(Formula, dict[Variable, [Formula]])],
-                      symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+    def extend_effect(
+        self,
+        gu: Formula,
+        effect: [(Formula, dict[Variable, [Formula]])],
+        symbol_table,
+    ) -> [(Formula, dict[Variable, [Formula]])]:
         pass
 
     @abstractmethod
@@ -47,6 +52,7 @@ class Predicate(ABC):
     @abstractmethod
     def is_post_cond(self, gu: Formula, symbol_table):
         pass
+
 
 def refine_nexts(now, nexts, symbol_table):
     new_nexts = []

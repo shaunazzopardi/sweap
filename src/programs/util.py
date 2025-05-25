@@ -19,9 +19,25 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, conjunct, neg, append_to_variable_name, dnf, disjunct_formula_set, \
-    true, sat, is_tautology, iff, propagate_negations, type_constraints, cnf_safe, var_to_predicate, fnode_to_formula, \
-    run_with_timeout, simplify_formula_with_math
+from prop_lang.util import (
+    conjunct_formula_set,
+    conjunct,
+    neg,
+    append_to_variable_name,
+    dnf,
+    disjunct_formula_set,
+    true,
+    sat,
+    is_tautology,
+    iff,
+    propagate_negations,
+    type_constraints,
+    cnf_safe,
+    var_to_predicate,
+    fnode_to_formula,
+    run_with_timeout,
+    simplify_formula_with_math,
+)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -34,8 +50,12 @@ def symbol_table_from_program(program):
         symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
     for t_val in program.valuation:
         symbol_table[t_val.name] = t_val
-        symbol_table[t_val.name + "_prev"] = TypedValuation(t_val.name + "_prev", t_val.type, None)
-        symbol_table[t_val.name + "_prev" + "_prev"] = TypedValuation(t_val.name + "_prev" + "_prev", t_val.type, None)
+        symbol_table[t_val.name + "_prev"] = TypedValuation(
+            t_val.name + "_prev", t_val.type, None
+        )
+        symbol_table[t_val.name + "_prev" + "_prev"] = TypedValuation(
+            t_val.name + "_prev" + "_prev", t_val.type, None
+        )
     return symbol_table
 
 
@@ -46,55 +66,124 @@ def symbol_table_from_typed_valuation(tv):
     return symbol_table
 
 
-def ce_state_to_predicate_abstraction_trans(ltl_to_program_transitions, symbol_table, start, middle, end,
-                                            env_events, con_events):
+def ce_state_to_predicate_abstraction_trans(
+    ltl_to_program_transitions,
+    symbol_table,
+    start,
+    middle,
+    end,
+    env_events,
+    con_events,
+):
     # ltl_to_program_transitions is a dict of the form {now: {(con_ev, env_ev) : [(con_trans, env_trans)]}}
-    start = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in start.items() if
-                                  (key.startswith("mon_") or key.startswith("pred_") or Variable(
-                                      key) in env_events + con_events) and value == "TRUE"]
-                                 + [neg(Variable(key.removeprefix("mon_"))) for key, value in start.items() if
-                                    (key.startswith("mon_") or key.startswith("pred_") or Variable(
-                                        key) in env_events + con_events) and value == "FALSE"])
-    middle = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in middle.items() if
-                                   (key.startswith("mon_") or key.startswith("pred_") or Variable(
-                                       key) in env_events + con_events) and value == "TRUE"]
-                                  + [neg(Variable(key.removeprefix("mon_"))) for key, value in middle.items() if
-                                     (key.startswith("mon_") or key.startswith("pred_") or Variable(
-                                         key) in env_events + con_events) and value == "FALSE"])
-    end = conjunct_formula_set([Variable(key.removeprefix("mon_")) for key, value in end.items() if
-                                (key.startswith("mon_") or key.startswith("pred_") or Variable(
-                                    key) in env_events + con_events) and value == "TRUE"]
-                               + [neg(Variable(key.removeprefix("mon_"))) for key, value in end.items() if
-                                  (key.startswith("mon_") or key.startswith("pred_") or Variable(
-                                      key) in env_events + con_events) and value == "FALSE"])
+    start = conjunct_formula_set(
+        [
+            Variable(key.removeprefix("mon_"))
+            for key, value in start.items()
+            if (
+                key.startswith("mon_")
+                or key.startswith("pred_")
+                or Variable(key) in env_events + con_events
+            )
+            and value == "TRUE"
+        ]
+        + [
+            neg(Variable(key.removeprefix("mon_")))
+            for key, value in start.items()
+            if (
+                key.startswith("mon_")
+                or key.startswith("pred_")
+                or Variable(key) in env_events + con_events
+            )
+            and value == "FALSE"
+        ]
+    )
+    middle = conjunct_formula_set(
+        [
+            Variable(key.removeprefix("mon_"))
+            for key, value in middle.items()
+            if (
+                key.startswith("mon_")
+                or key.startswith("pred_")
+                or Variable(key) in env_events + con_events
+            )
+            and value == "TRUE"
+        ]
+        + [
+            neg(Variable(key.removeprefix("mon_")))
+            for key, value in middle.items()
+            if (
+                key.startswith("mon_")
+                or key.startswith("pred_")
+                or Variable(key) in env_events + con_events
+            )
+            and value == "FALSE"
+        ]
+    )
+    end = conjunct_formula_set(
+        [
+            Variable(key.removeprefix("mon_"))
+            for key, value in end.items()
+            if (
+                key.startswith("mon_")
+                or key.startswith("pred_")
+                or Variable(key) in env_events + con_events
+            )
+            and value == "TRUE"
+        ]
+        + [
+            neg(Variable(key.removeprefix("mon_")))
+            for key, value in end.items()
+            if (
+                key.startswith("mon_")
+                or key.startswith("pred_")
+                or Variable(key) in env_events + con_events
+            )
+            and value == "FALSE"
+        ]
+    )
 
     for abs_con_start in ltl_to_program_transitions.keys():
         if abs_con_start == "init":
             continue
         if check(And(*(conjunct(abs_con_start, start).to_smt(symbol_table)))):
-            for (abs_env_start, abs_env_end) in ltl_to_program_transitions[abs_con_start].keys():
+            for abs_env_start, abs_env_end in ltl_to_program_transitions[
+                abs_con_start
+            ].keys():
                 if check(And(*(conjunct(abs_env_start, middle).to_smt(symbol_table)))):
                     if check(And(*(conjunct(abs_env_end, end).to_smt(symbol_table)))):
-                        return ltl_to_program_transitions[abs_con_start][(abs_env_start, abs_env_end)]
+                        return ltl_to_program_transitions[abs_con_start][
+                            (abs_env_start, abs_env_end)
+                        ]
 
     return []
 
 
-def check_for_nondeterminism_last_step(state_before_mismatch, program, raise_exception=False, exception=None):
+def check_for_nondeterminism_last_step(
+    state_before_mismatch, program, raise_exception=False, exception=None
+):
     transitions = program.transitions + program.con_transitions
 
     guards = []
-    for (key, value) in state_before_mismatch.items():
-        if key.startswith("guard_") and value == "TRUE" and len(transitions) != int(key.replace("guard_", "")):
-            guards.append(looping_to_normal(transitions[int(key.replace("guard_", ""))]))
+    for key, value in state_before_mismatch.items():
+        if (
+            key.startswith("guard_")
+            and value == "TRUE"
+            and len(transitions) != int(key.replace("guard_", ""))
+        ):
+            guards.append(
+                looping_to_normal(transitions[int(key.replace("guard_", ""))])
+            )
 
     if len(guards) > 1:
-        message = ("Nondeterminism in last step of counterexample; program has choice between: \n"
-                   + "\n".join([str(t) for t in guards])
-                   + "\nWe do not handle this yet."
-                   + "\nIf you suspect the problem to be realisabile, "
-                   + "give control to the environment of the transitions (e.g., with a new variable).\n"
-                   + "Otherwise, if you suspect unrealisability, give control of the transitions to the controller.")
+        message = (
+            "Nondeterminism in last step of counterexample; program has choice between: \n"
+            + "\n".join([str(t) for t in guards])
+            + "\nWe do not handle this yet."
+            + "\nIf you suspect the problem to be realisabile, "
+            + "give control to the environment of the transitions (e.g., with a new variable).\n"
+            + "Otherwise, if you suspect unrealisability, give control of the transitions to the controller."
+        )
         if raise_exception:
             if exception == None:
                 raise Exception(message)
@@ -107,14 +196,19 @@ def check_for_nondeterminism_last_step(state_before_mismatch, program, raise_exc
 def parse_nuxmv_ce_output_finite(program, out, cs_alphabet):
     prefix, _ = get_ce_from_nuxmv_output(out)
 
-    agreed_on_transitions, incompatible_state = prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet)
+    (
+        agreed_on_transitions,
+        incompatible_state,
+    ) = prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet)
 
     return agreed_on_transitions, incompatible_state
 
 
 def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     transition_no = len(program.transitions)
-    program_alphabet = [str(s) for s in program.states] + [tv.name for tv in program.valuation]
+    program_alphabet = [str(s) for s in program.states] + [
+        tv.name for tv in program.valuation
+    ]
     program_states = []
     program_transitions = []
     cs_states = []
@@ -128,10 +222,14 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
             transition = "-1"
             program_state = {}
             cs_state = {}
-            for (key, value) in dic.items():
+            for key, value in dic.items():
                 if key.split("_prev")[0] in program_alphabet:
                     program_state[key] = value
-                elif key in cs_alphabet or key.startswith("compatible") or key.startswith("pred"):
+                elif (
+                    key in cs_alphabet
+                    or key.startswith("compatible")
+                    or key.startswith("pred")
+                ):
                     cs_state[key] = value
                 elif key.startswith("guard_") and value == "TRUE":
                     if dic[key.replace("guard_", "act_")] == "TRUE":
@@ -143,7 +241,11 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
             cs_states.append(cs_state)
             program_transitions.append(transition)
 
-    return (program_transitions[:-1], program_states[:-1], cs_states[:-1]), (program_transitions[-1], program_states[-1], cs_states[-1])
+    return (program_transitions[:-1], program_states[:-1], cs_states[:-1]), (
+        program_transitions[-1],
+        program_states[-1],
+        cs_states[-1],
+    )
 
 
 def get_ce_from_nuxmv_output(out: str):
@@ -156,7 +258,10 @@ def get_ce_from_nuxmv_output(out: str):
     prefix = re.split("[^\n]*\->[^<]*<\-", prefix)
     prefix = [[p.strip() for p in re.split("\n", t) if "=" in p] for t in prefix]
     prefix.remove([])
-    prefix = [dict([(s.split("=")[0].strip(), s.split("=")[1].strip()) for s in t]) for t in prefix]
+    prefix = [
+        dict([(s.split("=")[0].strip(), s.split("=")[1].strip()) for s in t])
+        for t in prefix
+    ]
 
     loop = []
 
@@ -169,7 +274,10 @@ def get_ce_from_nuxmv_output(out: str):
         else:
             prune_up_to_mismatch += [complete_prefix[i]]  # add mismatching state
             break
-    return prune_up_to_mismatch, complete_prefix[len(prune_up_to_mismatch):] + complete_loop
+    return (
+        prune_up_to_mismatch,
+        complete_prefix[len(prune_up_to_mismatch) :] + complete_loop,
+    )
 
 
 def complete_ce(prefix, loop):
@@ -201,7 +309,11 @@ def only_this_state_next(states, state):
 
 
 def get_differently_value_vars(state1: dict, state2: dict):
-    return [key for key in state1.keys() if key in state2.keys() and state1[key] != state2[key]]
+    return [
+        key
+        for key in state1.keys()
+        if key in state2.keys() and state1[key] != state2[key]
+    ]
 
 
 def _check_os():
@@ -252,10 +364,19 @@ def reduce_up_to_iff(old_preds, new_preds, symbol_table, tautology_check=True):
     remove_these = set()
 
     for p in set(new_preds):
-        if p and neg(p) not in remove_these and \
-            not isinstance(p, Value) and not isinstance(neg(p), Value) and \
-                not has_equiv_pred(p, set(old_preds) | keep_these, symbol_table) and \
-                (not tautology_check or not (is_tautology(p, symbol_table) or is_tautology(neg(p), symbol_table))):
+        if (
+            p
+            and neg(p) not in remove_these
+            and not isinstance(p, Value)
+            and not isinstance(neg(p), Value)
+            and not has_equiv_pred(p, set(old_preds) | keep_these, symbol_table)
+            and (
+                not tautology_check
+                or not (
+                    is_tautology(p, symbol_table) or is_tautology(neg(p), symbol_table)
+                )
+            )
+        ):
             keep_these.add(p)
         else:
             remove_these.add(p)
@@ -270,8 +391,9 @@ def has_equiv_pred(p, preds, symbol_table):
 
     for pp in preds:
         # technically should check if it can be expressed using a set of the existing predicates, but can be expensive
-        if is_tautology(iff(p, pp), symbol_table) or \
-                is_tautology(iff(neg(p), pp), symbol_table):
+        if is_tautology(iff(p, pp), symbol_table) or is_tautology(
+            iff(neg(p), pp), symbol_table
+        ):
             return True
 
     return False
@@ -295,11 +417,25 @@ stutter_transition_cache = {}
 
 def bdd_simplify_guards(program, guard):
     fnode = And(*guard.to_smt(program.symbol_table))
-    order = [v for v in fnode.get_free_variables() if Variable(str(v)) in program.env_events + program.con_events]
+    order = [
+        v
+        for v in fnode.get_free_variables()
+        if Variable(str(v)) in program.env_events + program.con_events
+    ]
     condition_simplified = bdd_simplify(fnode, static_ordering=order)
     if condition_simplified is not None:
         condition_simplified = fnode_to_formula(condition_simplified)
-        print("simplified " + str(guard) + " (len " + str(len(guard)) + ") to " + str(condition_simplified) + " (len " + str(len(condition_simplified)) + ")")
+        print(
+            "simplified "
+            + str(guard)
+            + " (len "
+            + str(len(guard))
+            + ") to "
+            + str(condition_simplified)
+            + " (len "
+            + str(len(condition_simplified))
+            + ")"
+        )
         return condition_simplified
     else:
         return guard
@@ -307,9 +443,10 @@ def bdd_simplify_guards(program, guard):
 
 def stutter_transition(program, state, cnf=False):
     transitions = program.transitions
-    condition = neg(disjunct_formula_set([t.condition
-                                          for t in transitions if t.src == state]))
-    
+    condition = neg(
+        disjunct_formula_set([t.condition for t in transitions if t.src == state])
+    )
+
     if program not in stutter_transition_cache.keys():
         stutter_transition_cache[program] = {}
 
@@ -326,7 +463,9 @@ def stutter_transition(program, state, cnf=False):
             #     condition_simplified = cnf_safe(condition, program.symbol_table, timeout=2)
             # else:
             args = [program, condition]
-            success, condition_simplified = run_with_timeout(bdd_simplify_guards, args, timeout=0.2)
+            success, condition_simplified = run_with_timeout(
+                bdd_simplify_guards, args, timeout=0.2
+            )
             # if condition_simplified != condition:
             #     logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
             #              "With result " + str(condition_simplified))
@@ -334,12 +473,11 @@ def stutter_transition(program, state, cnf=False):
             #     logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
             if success:
                 condition = condition_simplified
-        stutter_t = Transition(state,
-                               condition,
-                               [],
-                               [],
-                               state).complete_outputs(program.out_events) \
+        stutter_t = (
+            Transition(state, condition, [], [], state)
+            .complete_outputs(program.out_events)
             .complete_action_set([Variable(v.name) for v in program.valuation])
+        )
         stutter_transition_cache[program][condition] = stutter_t
         return stutter_t
     else:
@@ -353,43 +491,78 @@ def looping_to_normal(t: Transition):
 
 
 def preds_in_state(ce_state: dict[str, str]):
-    return [var_to_predicate(Variable(p)) for p, v in ce_state.items() if p.startswith("pred_") and v == "TRUE"] \
-        + [neg(var_to_predicate((Variable(p)))) for p, v in ce_state.items() if
-           p.startswith("pred_") and v == "FALSE"]
+    return [
+        var_to_predicate(Variable(p))
+        for p, v in ce_state.items()
+        if p.startswith("pred_") and v == "TRUE"
+    ] + [
+        neg(var_to_predicate((Variable(p))))
+        for p, v in ce_state.items()
+        if p.startswith("pred_") and v == "FALSE"
+    ]
 
 
-def ground_transitions(program, transition_and_state_list, vars_to_ground_on, symbol_table):
+def ground_transitions(
+    program, transition_and_state_list, vars_to_ground_on, symbol_table
+):
     grounded = []
-    for (t, st) in transition_and_state_list:
-        projected_condition = ground_predicate_on_vars(program, t.condition, st, vars_to_ground_on, symbol_table)
-        grounded += [Transition(t.src,
-                                projected_condition,
-                                [a for a in t.action if str(a.left) not in vars_to_ground_on],
-                                t.output,
-                                t.tgt)]
+    for t, st in transition_and_state_list:
+        projected_condition = ground_predicate_on_vars(
+            program, t.condition, st, vars_to_ground_on, symbol_table
+        )
+        grounded += [
+            Transition(
+                t.src,
+                projected_condition,
+                [a for a in t.action if str(a.left) not in vars_to_ground_on],
+                t.output,
+                t.tgt,
+            )
+        ]
     return grounded
 
 
 def ground_predicate_on_vars(program, predicate, ce_state, vars, symbol_table):
-    grounded_state = project_ce_state_onto_ev(ce_state,
-                                              program.env_events + program.con_events + program.out_events
-                                              + [Variable(str(v)) for v in vars])
+    grounded_state = project_ce_state_onto_ev(
+        ce_state,
+        program.env_events
+        + program.con_events
+        + program.out_events
+        + [Variable(str(v)) for v in vars],
+    )
     projected_condition = predicate.replace(
-        [BiOp(Variable(key), ":=", Value(grounded_state[key])) for key in grounded_state.keys()])
+        [
+            BiOp(Variable(key), ":=", Value(grounded_state[key]))
+            for key in grounded_state.keys()
+        ]
+    )
     return projected_condition
 
 
 def keep_bool_preds(formula: Formula, symbol_table):
     if not isinstance(formula, BiOp):
-        return formula if not any(v for v in formula.variablesin() if symbol_table[str(v)].type != "bool") else true()
+        return (
+            formula
+            if not any(
+                v for v in formula.variablesin() if symbol_table[str(v)].type != "bool"
+            )
+            else true()
+        )
     else:
-        preds = {p for p in formula.sub_formulas_up_to_associativity() if
-                 not any(v for v in p.variablesin() if symbol_table[str(v)].type != "bool")}
+        preds = {
+            p
+            for p in formula.sub_formulas_up_to_associativity()
+            if not any(
+                v for v in p.variablesin() if symbol_table[str(v)].type != "bool"
+            )
+        }
         return conjunct_formula_set(preds)
 
 
 def add_prev_suffix(formula):
-    return append_to_variable_name(formula, [str(v) for v in formula.variablesin()], "_prev")
+    return append_to_variable_name(
+        formula, [str(v) for v in formula.variablesin()], "_prev"
+    )
 
 
 def transition_up_to_dnf(transition: Transition, symbol_table):
@@ -398,27 +571,47 @@ def transition_up_to_dnf(transition: Transition, symbol_table):
         return [transition]
     else:
         conds = dnf_condition.sub_formulas_up_to_associativity()
-        return [Transition(transition.src, cond, transition.action, transition.output, transition.tgt) for cond in
-                conds]
+        return [
+            Transition(
+                transition.src,
+                cond,
+                transition.action,
+                transition.output,
+                transition.tgt,
+            )
+            for cond in conds
+        ]
 
 
 def is_deterministic(program):
-    env_state_dict = {s: [t.condition for t in program.transitions if t.src == s] for s in program.states}
+    env_state_dict = {
+        s: [t.condition for t in program.transitions if t.src == s]
+        for s in program.states
+    }
 
     symbol_table = program.symbol_table
 
-    for (s, conds) in env_state_dict.items():
+    for s, conds in env_state_dict.items():
         # Assuming satisfiability already checked
         sat_conds = [cond for cond in conds]
 
         for i, cond in enumerate(sat_conds):
-            for cond2 in sat_conds[i + 1:]:
-                if check(And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))):
-                    logging.info("WARNING: " + str(cond) + " and " + str(
-                        cond2) + " are satisfiable together, see environment transitions from state " + str(s))
+            for cond2 in sat_conds[i + 1 :]:
+                if check(
+                    And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))
+                ):
+                    logging.info(
+                        "WARNING: "
+                        + str(cond)
+                        + " and "
+                        + str(cond2)
+                        + " are satisfiable together, see environment transitions from state "
+                        + str(s)
+                    )
                     return False
 
     return True
+
 
 def safe_update_list_vals(d, k, v_arr):
     if k in d.keys():
@@ -445,7 +638,12 @@ def function_bounded_below_by_0(f: Formula, invars: Formula, symbol_table):
     # TODO, should we conjunct or disjunct invars?
 
     return not check(
-        And(*conjunct(conjunct_formula_set(invars), BiOp(f, "<", Value(0))).to_smt(symbol_table)))
+        And(
+            *conjunct(conjunct_formula_set(invars), BiOp(f, "<", Value(0))).to_smt(
+                symbol_table
+            )
+        )
+    )
 
 
 def resolve_next_references(transition, valuation):
@@ -458,12 +656,25 @@ def resolve_next_references(transition, valuation):
         for v in next_vars:
             vanilla_v = v.split("_next")[0]
             if vanilla_v not in internal_variables:
-                raise Exception("Can only use next suffix with internal variables: " + str(transition))
+                raise Exception(
+                    "Can only use next suffix with internal variables: "
+                    + str(transition)
+                )
             if vanilla_v in modified_vars.keys():
-                condition = condition.replace([BiOp(Variable(v), ":=", modified_vars[vanilla_v])])
+                condition = condition.replace(
+                    [BiOp(Variable(v), ":=", modified_vars[vanilla_v])]
+                )
             else:
-                condition = condition.replace([BiOp(Variable(v), ":=", Variable(vanilla_v))])
-        return Transition(transition.src, condition, transition.action, transition.output, transition.tgt)
+                condition = condition.replace(
+                    [BiOp(Variable(v), ":=", Variable(vanilla_v))]
+                )
+        return Transition(
+            transition.src,
+            condition,
+            transition.action,
+            transition.output,
+            transition.tgt,
+        )
     else:
         return transition
 
@@ -472,14 +683,14 @@ def guarded_action_transitions_to_normal_transitions(arg):
     guarded_transition, valuation, env_events, con_events, symbol_table = arg
     if str(guarded_transition.condition) == "otherwise":
         # check that no guarded actions
-        for (act, guard) in guarded_transition.action:
+        for act, guard in guarded_transition.action:
             if guard is not None or str(guard) != "true":
                 raise Exception("Otherwise transitions cannot have guarded actions")
         return [guarded_transition]
 
     unguarded_acts = []
     guarded_acts = {act: set() for (act, _) in guarded_transition.action}
-    for (act, guard) in guarded_transition.action:
+    for act, guard in guarded_transition.action:
         if isinstance(guard, Value):
             if guard.is_true():
                 unguarded_acts += [act]
@@ -491,15 +702,23 @@ def guarded_action_transitions_to_normal_transitions(arg):
 
     if len(guarded_acts) == 0:
         return [
-            Transition(guarded_transition.src, guarded_transition.condition, unguarded_acts, guarded_transition.output,
-                       guarded_transition.tgt)]
+            Transition(
+                guarded_transition.src,
+                guarded_transition.condition,
+                unguarded_acts,
+                guarded_transition.output,
+                guarded_transition.tgt,
+            )
+        ]
 
     transitions = []
 
     symbol_table = {}
     for t_val in valuation:
         symbol_table[t_val.name] = t_val
-        symbol_table[t_val.name + "_next"] = TypedValuation(t_val.name + "_next", t_val.type, t_val.value)
+        symbol_table[t_val.name + "_next"] = TypedValuation(
+            t_val.name + "_next", t_val.type, t_val.value
+        )
 
     for ev in env_events + con_events:
         symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
@@ -512,34 +731,65 @@ def guarded_action_transitions_to_normal_transitions(arg):
         for guard1 in guarded_acts[act]:
             for guard2 in guarded_acts[act]:
                 if guard1 != guard2 and sat(conjunct(guard1, guard2), symbol_table):
-                    raise Exception("Guarded actions are not mutually exclusive: " + str(guard1) + " and " + str(
-                        guard2) + " in " + str(guarded_transition))
+                    raise Exception(
+                        "Guarded actions are not mutually exclusive: "
+                        + str(guard1)
+                        + " and "
+                        + str(guard2)
+                        + " in "
+                        + str(guarded_transition)
+                    )
             for act_guard_set in act_guard_sets:
                 guard1true = frozenset(act_guard_set | {(act, guard1)})
                 guard1false = frozenset(act_guard_set | {(None, neg(guard1))})
-                if sat(conjunct_formula_set([g for (_, g) in guard1true]), symbol_table):
+                if sat(
+                    conjunct_formula_set([g for (_, g) in guard1true]),
+                    symbol_table,
+                ):
                     new_act_guard_sets.add(guard1true)
-                if sat(conjunct_formula_set([g for (_, g) in guard1false]), symbol_table):
+                if sat(
+                    conjunct_formula_set([g for (_, g) in guard1false]),
+                    symbol_table,
+                ):
                     new_act_guard_sets.add(guard1false)
         act_guard_sets = new_act_guard_sets
 
     for act_guard_set in act_guard_sets:
         action_guards = conjunct_formula_set(
-            sorted(list({guard for (_, guard) in act_guard_set}), key=lambda x: str(x)))
+            sorted(
+                list({guard for (_, guard) in act_guard_set}),
+                key=lambda x: str(x),
+            )
+        )
         new_guard = conjunct(guarded_transition.condition, action_guards)
         if not sat(new_guard, symbol_table):
             continue
 
         actions = [act for (act, _) in act_guard_set if act != None]
 
-        transitions.append(Transition(guarded_transition.src, propagate_negations(new_guard),
-                                      unguarded_acts + actions, guarded_transition.output, guarded_transition.tgt))
+        transitions.append(
+            Transition(
+                guarded_transition.src,
+                propagate_negations(new_guard),
+                unguarded_acts + actions,
+                guarded_transition.output,
+                guarded_transition.tgt,
+            )
+        )
 
     # debug
     collect_guards = []
     for t in transitions:
         collect_guards += [t.condition]
-    if sat((conjunct(guarded_transition.condition, neg(disjunct_formula_set(collect_guards)))), symbol_table):
+    if sat(
+        (
+            conjunct(
+                guarded_transition.condition,
+                neg(disjunct_formula_set(collect_guards)),
+            )
+        ),
+        symbol_table,
+    ):
         raise Exception("Not all transitions are covered by guards")
     return transitions
 
@@ -549,9 +799,12 @@ transition_formulas = {}
 
 def transition_formula(t):
     if t not in transition_formulas.keys():
-        formula = conjunct(add_prev_suffix(t.condition),
-                           conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right)) for act in
-                                                 t.action]))
+        formula = conjunct(
+            add_prev_suffix(t.condition),
+            conjunct_formula_set(
+                [BiOp(act.left, "=", add_prev_suffix(act.right)) for act in t.action]
+            ),
+        )
         transition_formulas[t] = formula
         return formula
     else:
@@ -561,14 +814,18 @@ def transition_formula(t):
 guard_update_formulas = {}
 guard_formulas_unpacked = {}
 
+
 def guard_update_formula(g, u, symbol_table):
-    key = pickle.dumps((g,u))
+    key = pickle.dumps((g, u))
     if key not in transition_formulas.keys():
-        formula = conjunct(add_prev_suffix(g),
-                           conjunct_formula_set([BiOp(act.left, "=", add_prev_suffix(act.right))
-                                                 for act in u]))
+        formula = conjunct(
+            add_prev_suffix(g),
+            conjunct_formula_set(
+                [BiOp(act.left, "=", add_prev_suffix(act.right)) for act in u]
+            ),
+        )
         guard_update_formulas[key] = formula
-        guard_formulas_unpacked[formula] = (g,u)
+        guard_formulas_unpacked[formula] = (g, u)
         return formula
     else:
         return guard_update_formulas[key]
@@ -578,8 +835,11 @@ def guard_update_formula_to_guard_update(gu):
     if gu in guard_formulas_unpacked.keys():
         return guard_formulas_unpacked[gu]
     else:
-        raise Exception("programs.util: " + str(gu) + " not in guard_update_formulasguard_update_formulas")
-
+        raise Exception(
+            "programs.util: "
+            + str(gu)
+            + " not in guard_update_formulasguard_update_formulas"
+        )
 
 
 def powerset_complete(SS: iterable):
@@ -587,9 +847,10 @@ def powerset_complete(SS: iterable):
         S = set(SS)
     else:
         S = SS
-    positive_subsets = chain.from_iterable(combinations(S, r) for r in range(len(S) + 1))
+    positive_subsets = chain.from_iterable(
+        combinations(S, r) for r in range(len(S) + 1)
+    )
     complete_subsets = list()
-
 
     for ps in positive_subsets:
         real_ps = set(ps)
@@ -605,6 +866,7 @@ def complete_powerset(arg):
     real_ps = set(ps)
     negative = {neg(s) for s in S if (s) not in real_ps}
     return frozenset(set(real_ps).union(negative))
+
 
 powersets = {}
 
@@ -635,13 +897,13 @@ def binary_rep(vars, label):
 
     bin_vars = [Variable(label + str(i)) for i in range(0, bin)]
 
-    base = '{0:0' + str(bin) + 'b}'
+    base = "{0:0" + str(bin) + "b}"
     rep = {}
     for i, v in enumerate(vars):
         bin_rep = base.format(i)
         bin_formula = None
         for j, pos in enumerate(bin_rep):
-            if pos == '0':
+            if pos == "0":
                 new_constraint = neg(bin_vars[j])
             else:
                 new_constraint = bin_vars[j]

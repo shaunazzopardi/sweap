@@ -7,10 +7,21 @@ from prop_lang.variable import Variable
 
 
 class MathExpr(Formula):
-
     def __init__(self, f: Formula):
         if isinstance(f, BiOp):
-            if f.op in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "=", "!="]:
+            if f.op in [
+                "+",
+                "-",
+                "*",
+                "/",
+                "<",
+                ">",
+                "<=",
+                ">=",
+                "==",
+                "=",
+                "!=",
+            ]:
                 self.formula = f
             else:
                 raise Exception("Unsupported operator: " + f.op)
@@ -39,7 +50,9 @@ class MathExpr(Formula):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
             if isinstance(self.formula.left, Value) and self.formula.left.name == "1":
                 return MathExpr(self.formula.right)
-            elif isinstance(self.formula.right, Value) and self.formula.right.name == "1":
+            elif (
+                isinstance(self.formula.right, Value) and self.formula.right.name == "1"
+            ):
                 return MathExpr(self.formula.left)
         return self
 
@@ -88,4 +101,6 @@ class MathExpr(Formula):
         if self in context.keys():
             return context[self]
         else:
-            return [MathExpr(f) for f in self.formula.replace_formulas_multiple(context)]
+            return [
+                MathExpr(f) for f in self.formula.replace_formulas_multiple(context)
+            ]

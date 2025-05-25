@@ -7,6 +7,7 @@ from prop_lang.formula import Formula
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
+
 class UniOp(Formula):
     def __init__(self, op: str, right: Formula):
         if not isinstance(right, Formula):
@@ -17,9 +18,12 @@ class UniOp(Formula):
 
     def __str__(self):
         if self.op == "next" and (
-                isinstance(self.right, UniOp) or isinstance(self.right, Value) or isinstance(self.right, Variable)):
+            isinstance(self.right, UniOp)
+            or isinstance(self.right, Value)
+            or isinstance(self.right, Variable)
+        ):
             return self.op + "(" + str(self.right) + ")"
-        if self.op in ["G","F","X"]:
+        if self.op in ["G", "F", "X"]:
             return self.op + "(" + str(self.right) + ")"
         if self.op != "!" and self.op != "-":
             return self.op + " " + str(self.right)
@@ -78,7 +82,9 @@ class UniOp(Formula):
         new_right, dic = self.right.replace_math_exprs(symbol_table, cnt)
         if len(dic) == 0:
             if self.op == "-" or self.op == "+":
-                new_right, dic = Variable("math_" + str(cnt)), {Variable("math_" + str(cnt)): self}
+                new_right, dic = Variable("math_" + str(cnt)), {
+                    Variable("math_" + str(cnt)): self
+                }
         return UniOp(self.op, new_right), dic
 
     def to_sympy(self):
@@ -113,4 +119,6 @@ class UniOp(Formula):
         if self in context.keys():
             return context[self]
         else:
-            return [UniOp(self.op, f) for f in self.right.replace_formulas_multiple(context)]
+            return [
+                UniOp(self.op, f) for f in self.right.replace_formulas_multiple(context)
+            ]

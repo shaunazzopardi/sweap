@@ -7,7 +7,6 @@ from programs.typed_valuation import TypedValuation
 
 
 class Formula(ABC):
-
     @abstractmethod
     def __str__(self):
         pass

@@ -1,6 +1,18 @@
-from analysis.abstraction.effects_abstraction.predicates.Predicate import Predicate, refine_nexts
+from analysis.abstraction.effects_abstraction.predicates.Predicate import (
+    Predicate,
+    refine_nexts,
+)
 from prop_lang.formula import Formula
-from prop_lang.util import neg, conjunct, sat, is_tautology, implies, iff, stringify_pred, X
+from prop_lang.util import (
+    neg,
+    conjunct,
+    sat,
+    is_tautology,
+    implies,
+    iff,
+    stringify_pred,
+    X,
+)
 from prop_lang.variable import Variable
 
 
@@ -11,7 +23,10 @@ class StatePredicate(Predicate):
         self.options = [pred, neg(pred)]
         self.bool_var = stringify_pred(pred)
         self.neg_bool_var = neg(stringify_pred(pred))
-        self.bool_rep = {self.pred: self.bool_var, neg(self.pred): self.neg_bool_var}
+        self.bool_rep = {
+            self.pred: self.bool_var,
+            neg(self.pred): self.neg_bool_var,
+        }
         self.last_pre = {}
         self.last_post = {}
 
@@ -27,10 +42,9 @@ class StatePredicate(Predicate):
     def variablesin(self):
         return self.vars
 
-    def extend_effect_now(self,
-                      gu: Formula,
-                      old_effects: [(Formula, [Formula])],
-                      symbol_table) -> [(Formula, [Formula])]:
+    def extend_effect_now(
+        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+    ) -> [(Formula, [Formula])]:
         new_effects = []
 
         for now, nexts in old_effects:
@@ -39,14 +53,18 @@ class StatePredicate(Predicate):
             if sat(now_p_g, symbol_table):
                 new_nexts = refine_nexts(now_p_g, nexts, symbol_table)
                 if len(new_nexts) == 0:
-                    raise Exception("Is this guard update formula unsatisfiable?\n" + str(gu))
+                    raise Exception(
+                        "Is this guard update formula unsatisfiable?\n" + str(gu)
+                    )
                 new_effects.append((now_p, new_nexts))
             else:
                 now_neg_p = conjunct(now, neg(self.pred))
                 now_neg_p_g = conjunct(gu, now_neg_p.prev_rep())
                 new_nexts = refine_nexts(now_neg_p_g, nexts, symbol_table)
                 if len(new_nexts) == 0:
-                    raise Exception("Is this guard update formula unsatisfiable?\n" + str(gu))
+                    raise Exception(
+                        "Is this guard update formula unsatisfiable?\n" + str(gu)
+                    )
                 new_effects.append((now_neg_p, new_nexts))
                 continue
 
@@ -55,18 +73,26 @@ class StatePredicate(Predicate):
             if sat(now_neg_p_g, symbol_table):
                 new_nexts = refine_nexts(now_neg_p_g, nexts, symbol_table)
                 if len(new_nexts) == 0:
-                    raise Exception("Is this guard update formula unsatisfiable?\n" + str(gu))
-                new_effects.append((now_neg_p, refine_nexts(now_neg_p_g, nexts, symbol_table)))
+                    raise Exception(
+                        "Is this guard update formula unsatisfiable?\n" + str(gu)
+                    )
+                new_effects.append(
+                    (now_neg_p, refine_nexts(now_neg_p_g, nexts, symbol_table))
+                )
 
         return new_effects
 
-    def extend_effect_next(self,
-                      gu: Formula,
-                      old_effects: [(Formula, dict[Variable, [Formula]])],
-                      symbol_table) -> [(Formula, dict[Variable, [Formula]])]:
+    def extend_effect_next(
+        self,
+        gu: Formula,
+        old_effects: [(Formula, dict[Variable, [Formula]])],
+        symbol_table,
+    ) -> [(Formula, dict[Variable, [Formula]])]:
         new_effects = []
         for now, nexts in old_effects:
-            new_nexts = self.refine_nexts_with_p(conjunct(gu, now.prev_rep()), nexts, symbol_table)
+            new_nexts = self.refine_nexts_with_p(
+                conjunct(gu, now.prev_rep()), nexts, symbol_table
+            )
             new_effects.append((now, new_nexts))
         return new_effects
 
@@ -82,27 +108,41 @@ class StatePredicate(Predicate):
                 new_nexts.append(next_neg_p)
         return new_nexts
 
-    def extend_effect(self,
-                      gu: Formula,
-                      old_effects: [(Formula, [Formula])],
-                      symbol_table) -> [(Formula, [Formula])]:
+    def extend_effect(
+        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+    ) -> [(Formula, [Formula])]:
         new_effects = []
 
         for now, nexts in old_effects:
             now_p = conjunct(now, self.pred)
             now_p_g = conjunct(gu, now_p.prev_rep())
             if sat(now_p_g, symbol_table):
-                new_effects.append((now_p, self.refine_nexts_with_p(now_p_g, nexts, symbol_table)))
+                new_effects.append(
+                    (
+                        now_p,
+                        self.refine_nexts_with_p(now_p_g, nexts, symbol_table),
+                    )
+                )
             else:
                 now_neg_p = conjunct(now, neg(self.pred))
                 now_neg_p_g = conjunct(gu, now_neg_p.prev_rep())
-                new_effects.append((now_neg_p, self.refine_nexts_with_p(now_neg_p_g, nexts, symbol_table)))
+                new_effects.append(
+                    (
+                        now_neg_p,
+                        self.refine_nexts_with_p(now_neg_p_g, nexts, symbol_table),
+                    )
+                )
                 continue
 
             now_neg_p = conjunct(now, neg(self.pred))
             now_neg_p_g = conjunct(gu, now_neg_p.prev_rep())
             if sat(now_neg_p_g, symbol_table):
-                new_effects.append((now_neg_p, self.refine_nexts_with_p(now_neg_p_g, nexts, symbol_table)))
+                new_effects.append(
+                    (
+                        now_neg_p,
+                        self.refine_nexts_with_p(now_neg_p_g, nexts, symbol_table),
+                    )
+                )
 
         return new_effects
 
@@ -116,7 +156,9 @@ class StatePredicate(Predicate):
                 return self.neg_bool_var
 
     def is_invar(self, gu: Formula, symbol_table):
-        if is_tautology(implies(gu, iff(self.pred.prev_rep(), self.pred)), symbol_table):
+        if is_tautology(
+            implies(gu, iff(self.pred.prev_rep(), self.pred)), symbol_table
+        ):
             return self.bool_var
 
     def is_post_cond(self, gu: Formula, symbol_table):

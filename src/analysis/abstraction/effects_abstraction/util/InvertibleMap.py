@@ -1,5 +1,4 @@
-class InvertibleMap():
-
+class InvertibleMap:
     def __init__(self):
         self.dic = dict()  # type : K -> {V} where K and V are frozensets
         self.inv_dic = dict()  # type : V -> {K} where K and V are frozensets

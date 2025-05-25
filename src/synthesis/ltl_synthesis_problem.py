@@ -2,17 +2,19 @@ from prop_lang.formula import Formula
 from prop_lang.variable import Variable
 
 
-class LTLSynthesisProblem():
+class LTLSynthesisProblem:
     env_props: [Variable]
     con_props: [Variable]
     assumptions: [Formula]
     guarantees: [Formula]
 
-    def __init__(self,
-                 env_props: [Variable],
-                 con_props: [Variable],
-                 assumptions: [Formula],
-                 guarantees: [Formula]):
+    def __init__(
+        self,
+        env_props: [Variable],
+        con_props: [Variable],
+        assumptions: [Formula],
+        guarantees: [Formula],
+    ):
         self.env_props = env_props
         self.con_props = con_props
         self.assumptions = assumptions
@@ -34,28 +36,38 @@ class LTLSynthesisProblem():
         env_acts_lowered = [str(a) for a in self.env_props]
         con_acts_lowered = [str(a) for a in self.con_props]
 
-        assumptions_tlsf = [str(a).replace("TRUE", "true") \
-                                .replace("True", "true") \
-                                .replace("FALSE", "false") \
-                                .replace("False", "false") \
-                                .replace(" & ", " && ") \
-                                .replace(" | ", " || ") \
-                                .replace("\"", "") for a in self.assumptions]
+        assumptions_tlsf = [
+            str(a)
+            .replace("TRUE", "true")
+            .replace("True", "true")
+            .replace("FALSE", "false")
+            .replace("False", "false")
+            .replace(" & ", " && ")
+            .replace(" | ", " || ")
+            .replace('"', "")
+            for a in self.assumptions
+        ]
 
-        guarantees_tlsf = [str(g).replace("TRUE", "true") \
-                               .replace("True", "true") \
-                               .replace("FALSE", "false") \
-                               .replace("False", "false") \
-                               .replace(" & ", " && ") \
-                               .replace(" | ", " || ") \
-                               .replace("\"", "") for g in self.guarantees]
+        guarantees_tlsf = [
+            str(g)
+            .replace("TRUE", "true")
+            .replace("True", "true")
+            .replace("FALSE", "false")
+            .replace("False", "false")
+            .replace(" & ", " && ")
+            .replace(" | ", " || ")
+            .replace('"', "")
+            for g in self.guarantees
+        ]
 
-        info = "INFO {\n" + \
-               '\tTITLE:       ""\n' + \
-               '\tDESCRIPTION: ""\n' + \
-               "\tSEMANTICS:   Mealy\n" + \
-               "\tTARGET:      Mealy\n" + \
-               "}\n"
+        info = (
+            "INFO {\n"
+            + '\tTITLE:       ""\n'
+            + '\tDESCRIPTION: ""\n'
+            + "\tSEMANTICS:   Mealy\n"
+            + "\tTARGET:      Mealy\n"
+            + "}\n"
+        )
 
         main = "MAIN {\n"
         main += "\tINPUTS { \n\t\t"
@@ -73,4 +85,3 @@ class LTLSynthesisProblem():
         main += "}"
 
         return info + main
-

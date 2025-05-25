@@ -6,16 +6,17 @@ from prop_lang.formula import Formula
 
 
 class PredicateAbstraction(ABC):
-
     @abstractmethod
     def __init__(self, program: Program):
         pass
 
     @abstractmethod
-    def add_predicates(self,
-                       new_interpolants: [Formula],
-                       new_ranking_and_invars: dict[Formula, [Formula]],
-                       structural_loop_env):
+    def add_predicates(
+        self,
+        new_interpolants: [Formula],
+        new_ranking_and_invars: dict[Formula, [Formula]],
+        structural_loop_env,
+    ):
         pass
 
     @abstractmethod
@@ -33,12 +34,14 @@ class PredicateAbstraction(ABC):
     #     pass
 
     @abstractmethod
-    def massage_mealy_machine(self,
-                              mealymachine,
-                              base_abstraction,
-                              ltlAbstractionType,
-                              synthesis_problem,
-                              controller: bool):
+    def massage_mealy_machine(
+        self,
+        mealymachine,
+        base_abstraction,
+        ltlAbstractionType,
+        synthesis_problem,
+        controller: bool,
+    ):
         pass
 
     @abstractmethod

@@ -1,18 +1,32 @@
 from abc import ABC
 
-from analysis.abstraction.effects_abstraction.predicates.Predicate import Predicate, refine_nexts
+from analysis.abstraction.effects_abstraction.predicates.Predicate import (
+    Predicate,
+    refine_nexts,
+)
 from prop_lang.formula import Formula
-from prop_lang.util import neg, stringify_pred, conjunct, sat, is_tautology, implies, X, conjunct_formula_set, iff
+from prop_lang.util import (
+    neg,
+    stringify_pred,
+    conjunct,
+    sat,
+    is_tautology,
+    implies,
+    X,
+    conjunct_formula_set,
+    iff,
+)
 
 
 class TransitionPredicate(Predicate, ABC):
-
     def __init__(self, tran_preds: [Formula]):
         self.preds = tran_preds
         self.vars = tran_preds[0].variablesin()
         self.stutter = conjunct_formula_set([neg(t) for t in tran_preds])
-        self.options = [conjunct_formula_set([t] + [neg(tt) for tt in tran_preds if t != tt]) for t in tran_preds] + \
-                        [self.stutter]
+        self.options = [
+            conjunct_formula_set([t] + [neg(tt) for tt in tran_preds if t != tt])
+            for t in tran_preds
+        ] + [self.stutter]
         self.bool_rep = {t: stringify_pred(t) for t in tran_preds}
 
     def __str__(self):
@@ -27,15 +41,18 @@ class TransitionPredicate(Predicate, ABC):
     def variablesin(self):
         return self.vars
 
-    def extend_effect_next(self,
-                      gu: Formula,
-                      old_effects: [(Formula, [Formula])],
-                      symbol_table) -> [(Formula, [Formula])]:
+    def extend_effect_next(
+        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+    ) -> [(Formula, [Formula])]:
         new_effects = []
         for now, nexts in old_effects:
-            new_nexts = self.refine_nexts_with_p(conjunct(gu, now.prev_rep()), nexts, symbol_table)
+            new_nexts = self.refine_nexts_with_p(
+                conjunct(gu, now.prev_rep()), nexts, symbol_table
+            )
             if len(new_nexts) == 0:
-                raise Exception("Is this guard update formula unsatisfiable?\n" + str(gu))
+                raise Exception(
+                    "Is this guard update formula unsatisfiable?\n" + str(gu)
+                )
             new_effects.append((now, new_nexts))
         return new_effects
 
@@ -59,10 +76,9 @@ class TransitionPredicate(Predicate, ABC):
     def to_smt(self, symbol_table):
         return self.pred.to_smt(symbol_table)
 
-    def extend_effect(self,
-                      gu: Formula,
-                      old_effects: [(Formula, [Formula])],
-                      symbol_table) -> [(Formula, [Formula])]:
+    def extend_effect(
+        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+    ) -> [(Formula, [Formula])]:
         new_effects = []
 
         for now, nexts in old_effects:
@@ -72,17 +88,17 @@ class TransitionPredicate(Predicate, ABC):
                 if sat(now_p_g, symbol_table):
                     new_nexts = self.refine_nexts_with_p(now_p_g, nexts, symbol_table)
                     if len(new_nexts) == 0:
-                        raise Exception("Is this guard update formula unsatisfiable?\n" + str(gu))
+                        raise Exception(
+                            "Is this guard update formula unsatisfiable?\n" + str(gu)
+                        )
 
                     new_effects.append((now_p, new_nexts))
 
-
         return new_effects
 
-    def extend_effect_now(self,
-                          gu: Formula,
-                          old_effects: [(Formula, [Formula])],
-                          symbol_table) -> [(Formula, [Formula])]:
+    def extend_effect_now(
+        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+    ) -> [(Formula, [Formula])]:
         new_effects = []
 
         for now, nexts in old_effects:
@@ -92,7 +108,9 @@ class TransitionPredicate(Predicate, ABC):
                 if sat(now_p_g, symbol_table):
                     new_nexts = refine_nexts(now_p_g, nexts, symbol_table)
                     if len(new_nexts) == 0:
-                        raise Exception("Is this guard update formula unsatisfiable?\n" + str(gu))
+                        raise Exception(
+                            "Is this guard update formula unsatisfiable?\n" + str(gu)
+                        )
 
                     new_effects.append((now_p, new_nexts))
 

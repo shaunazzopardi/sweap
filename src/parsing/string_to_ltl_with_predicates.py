@@ -10,7 +10,7 @@ from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-GRAMMAR = '''
+GRAMMAR = """
     @@grammar::LTL
 
 
@@ -96,7 +96,7 @@ GRAMMAR = '''
 
     atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
     number = /(\d+|\d+\.\d+)/;
-'''
+"""
 
 
 def tuple_to_formula(node) -> Formula:
@@ -110,8 +110,8 @@ def tuple_to_formula(node) -> Formula:
     elif len(node) == 2:
         return UniOp(node[0], (node[1]))
     elif len(node) == 3:
-        v0 = ((node[0]))
-        v2 = ((node[2]))
+        v0 = node[0]
+        v2 = node[2]
         if v0 == None or v2 == None:
             print("None")
         if node[1] in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "!="]:

@@ -7,7 +7,6 @@ from prop_lang.variable import Variable
 
 
 class MathOp(Formula):
-
     def __init__(self, f: Formula):
         self.formula = f
 
@@ -33,7 +32,9 @@ class MathOp(Formula):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
             if isinstance(self.formula.left, Value) and self.formula.left.name == "1":
                 return MathOp(self.formula.right)
-            elif isinstance(self.formula.right, Value) and self.formula.right.name == "1":
+            elif (
+                isinstance(self.formula.right, Value) and self.formula.right.name == "1"
+            ):
                 return MathOp(self.formula.left)
         return self
 

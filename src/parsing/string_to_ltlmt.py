@@ -17,11 +17,16 @@ from prop_lang.formula import Formula
 from prop_lang.math_op import MathOp
 from prop_lang.mathexpr import MathExpr
 from prop_lang.uniop import UniOp
-from prop_lang.util import conjunct_formula_set, disjunct_formula_set, normalize_ltl, stringify_pred
+from prop_lang.util import (
+    conjunct_formula_set,
+    disjunct_formula_set,
+    normalize_ltl,
+    stringify_pred,
+)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-GRAMMAR = '''
+GRAMMAR = """
     @@grammar::LTL
 
 
@@ -116,7 +121,7 @@ GRAMMAR = '''
 
     atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
     number = /(\d+|\d+\.\d+)/;
-'''
+"""
 
 
 def tuple_to_formula(node) -> Formula:
@@ -133,7 +138,7 @@ def tuple_to_formula(node) -> Formula:
             op = "=" if node[1] == "==" else node[1]
             return MathExpr(BiOp((node[0]), op, (node[2])))
         elif re.match("(!=)", node[1]):
-                return UniOp("!", MathExpr(BiOp((node[0]), "=", (node[2]))))
+            return UniOp("!", MathExpr(BiOp((node[0]), "=", (node[2]))))
         else:
             return BiOp((node[0]), node[1], (node[2]))
     elif len(node) == 5:
@@ -197,9 +202,9 @@ class ToProgram(NodeWalker):
     def walk_MathOp(self, node: MathOp):
         if node.formula in self.substitutions:
             node.formula = self.substitutions[node.formula]
-        elif (node.formula.op == ":="):
+        elif node.formula.op == ":=":
             # always add a chance to stutter
-            stutter = BiOp(node.formula.left, ':=', node.formula.left)
+            stutter = BiOp(node.formula.left, ":=", node.formula.left)
             self.updates[node.formula.left.name].add(stutter)
             # add actual update
             self.updates[node.formula.left.name].add(node.formula)
@@ -208,19 +213,20 @@ class ToProgram(NodeWalker):
         # First pass to collect stuff
         self.walk(orig_formula)
         enum_updates = {
-            var: set((stringify_pred(x).name.replace("pred__", "upd__"), x) for i, x in enumerate(ups))
-            for var, ups in self.updates.items()}
+            var: set(
+                (stringify_pred(x).name.replace("pred__", "upd__"), x)
+                for i, x in enumerate(ups)
+            )
+            for var, ups in self.updates.items()
+        }
 
         self.substitutions = self.checks | {
-            u[1]: Variable(u[0])
-            for var, ups in enum_updates.items()
-            for u in ups}
+            u[1]: Variable(u[0]) for var, ups in enum_updates.items() for u in ups
+        }
         self.scan = False
         self.walk(orig_formula)
 
-        con_events = [
-            Variable(u[0])
-            for ups in enum_updates.values() for u in ups]
+        con_events = [Variable(u[0]) for ups in enum_updates.values() for u in ups]
         con_t = []
 
         # TODO how do we initialize?
@@ -228,21 +234,33 @@ class ToProgram(NodeWalker):
 
         def mk_cond(names, determinize=True):
             if not determinize:
-                return conjunct_formula_set(
-                    x for x in con_events
-                    if x.name in names)
-            return conjunct_formula_set((
-                x if x.name in names else UniOp("!", x)
-                for x in con_events))
+                return conjunct_formula_set(x for x in con_events if x.name in names)
+            return conjunct_formula_set(
+                (x if x.name in names else UniOp("!", x) for x in con_events)
+            )
 
         for ups in product(*enum_updates.values()):
-            con_t.append(Transition(
-                'c0', mk_cond([u[0] for u in ups]),
-                [u[1] for u in ups], [], 'c0'))
+            con_t.append(
+                Transition(
+                    "c0",
+                    mk_cond([u[0] for u in ups]),
+                    [u[1] for u in ups],
+                    [],
+                    "c0",
+                )
+            )
 
         prog = Program(
-            name, ['c0'], 'c0', init_values, con_t,
-            list(self.env_events), con_events, [], preprocess=False)
+            name,
+            ["c0"],
+            "c0",
+            init_values,
+            con_t,
+            list(self.env_events),
+            con_events,
+            [],
+            preprocess=False,
+        )
 
         formula = normalize_ltl(orig_formula)
 
@@ -252,13 +270,19 @@ class ToProgram(NodeWalker):
             up_vars.sort(key=lambda x: x.name)
             at_least_one = disjunct_formula_set(up_vars)
             card_constraint.extend(
-                BiOp(a, "->", UniOp("!", disjunct_formula_set([
-                    b for b in up_vars if a != b])))
-                for a in up_vars)
+                BiOp(
+                    a,
+                    "->",
+                    UniOp(
+                        "!",
+                        disjunct_formula_set([b for b in up_vars if a != b]),
+                    ),
+                )
+                for a in up_vars
+            )
             card_constraint.append(at_least_one)
 
-        card_constraint = conjunct_formula_set(
-            UniOp("G", c) for c in card_constraint)
+        card_constraint = conjunct_formula_set(UniOp("G", c) for c in card_constraint)
 
         if isinstance(formula, BiOp) and formula.op == "->":
             formula.right = BiOp(formula.right, "&&", card_constraint)

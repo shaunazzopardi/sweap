@@ -12,6 +12,8 @@ logdir = Path(os.getcwd()) / "logs"
 if not os.path.exists(logdir):
     os.makedirs(logdir)
 
+os.environ['PATH'] = "../binaries:" + os.environ['PATH']
+
 logging.basicConfig(filename=str(logdir) + "/tests" + str(time.time()) + ".log",
                     encoding='utf-8',
                     level=logging.INFO,

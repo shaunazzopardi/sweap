@@ -11,9 +11,10 @@ from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 import sys
+
 sys.setrecursionlimit(20000)
 
-GRAMMAR = '''
+GRAMMAR = """
     @@grammar::PROPLOGIC
 
 
@@ -98,11 +99,11 @@ GRAMMAR = '''
 
     atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
     number = /(\d+|\d+\.\d+)/;
-'''
+"""
 
 parser: Grammar = compile(GRAMMAR)
-math_config = ParserConfig(start='math_expression_eof')
-negated_atom_config = ParserConfig(start='negated_atom')
+math_config = ParserConfig(start="math_expression_eof")
+negated_atom_config = ParserConfig(start="negated_atom")
 
 
 def tuple_to_formula(node, hoa_flag) -> Formula:
@@ -117,10 +118,10 @@ def tuple_to_formula(node, hoa_flag) -> Formula:
         return UniOp(node[0], (node[1]))
     elif len(node) == 3:
         if node[0] == "(":
-            return (node[1])
+            return node[1]
         else:
-            v0 = ((node[0]))
-            v2 = ((node[2]))
+            v0 = node[0]
+            v2 = node[2]
             if v0 == None or v2 == None:
                 print("None")
             if node[1] in ["+", "-", "<", ">", "<=", ">=", "==", "=", "!="]:

@@ -5,7 +5,9 @@ from prop_lang.variable import Variable
 
 
 class Transition:
-    def __init__(self, src, condition: Formula, action: [BiOp], output: [Variable], tgt):
+    def __init__(
+        self, src, condition: Formula, action: [BiOp], output: [Variable], tgt
+    ):
         self.src = src
         self.condition = true() if condition is None else condition
         self.action = [] if action is None else action
@@ -14,30 +16,61 @@ class Transition:
         self.f = None
 
     def __str__(self) -> str:
-        to_str = lambda x: str(x) if type(x) != tuple or type(x[1]) != frozenset else str(x[0]) + ", " + ', '.join(
-            map(to_str, list(x[1])))
+        to_str = lambda x: (
+            str(x)
+            if type(x) != tuple or type(x[1]) != frozenset
+            else str(x[0]) + ", " + ", ".join(map(to_str, list(x[1])))
+        )
 
-        return to_str(self.src) + " -> " + to_str(self.tgt) + " {" + str(self.condition) + " $ " + "; ".join(
-            [str(x) for x in self.action]) + " >> " + "[" + ", ".join([str(x) for x in self.output]) + "]" + "}"
+        return (
+            to_str(self.src)
+            + " -> "
+            + to_str(self.tgt)
+            + " {"
+            + str(self.condition)
+            + " $ "
+            + "; ".join([str(x) for x in self.action])
+            + " >> "
+            + "["
+            + ", ".join([str(x) for x in self.output])
+            + "]"
+            + "}"
+        )
 
     def __eq__(self, other):
         """Overrides the default implementation"""
         if isinstance(other, Transition):
-            return self.src == other.src and \
-                   self.tgt == other.tgt and \
-                   self.condition == other.condition and \
-                   frozenset(self.action) == frozenset(other.action) and \
-                   frozenset(self.output) == frozenset(other.output)
+            return (
+                self.src == other.src
+                and self.tgt == other.tgt
+                and self.condition == other.condition
+                and frozenset(self.action) == frozenset(other.action)
+                and frozenset(self.output) == frozenset(other.output)
+            )
         return NotImplemented
 
     def __hash__(self):
-        return hash((self.src, self.condition, frozenset(self.action), frozenset(self.output), self.tgt))
+        return hash(
+            (
+                self.src,
+                self.condition,
+                frozenset(self.action),
+                frozenset(self.output),
+                self.tgt,
+            )
+        )
 
     def with_condition(self, new_condition):
         return Transition(self.src, new_condition, self.action, self.output, self.tgt)
 
     def add_condition(self, new_condition):
-        return Transition(self.src, conjunct(self.condition, new_condition), self.action, self.output, self.tgt)
+        return Transition(
+            self.src,
+            conjunct(self.condition, new_condition),
+            self.action,
+            self.output,
+            self.tgt,
+        )
 
     def complete_outputs(self, all_outputs):
         for o in all_outputs:
@@ -58,5 +91,8 @@ class Transition:
 
     def formula(self):
         if self.f is None:
-            self.f = conjunct_formula_set([self.condition.prev_rep()] + [BiOp(a.left, "=", a.right.prev_rep()) for a in self.action])
+            self.f = conjunct_formula_set(
+                [self.condition.prev_rep()]
+                + [BiOp(a.left, "=", a.right.prev_rep()) for a in self.action]
+            )
         return self.f

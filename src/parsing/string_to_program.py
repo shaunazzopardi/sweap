@@ -5,11 +5,18 @@ from parsec import generate, string, sepBy, spaces, regex
 
 import config
 from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
-from parsing.string_to_prop_logic import string_to_math_expression, string_to_prop, string_to_negated_atom
+from parsing.string_to_prop_logic import (
+    string_to_math_expression,
+    string_to_prop,
+    string_to_negated_atom,
+)
 from programs.program import Program
 from programs.transition import Transition
 from programs.typed_valuation import TypedValuation
-from programs.util import guarded_action_transitions_to_normal_transitions, symbol_table_from_typed_valuation
+from programs.util import (
+    guarded_action_transitions_to_normal_transitions,
+    symbol_table_from_typed_valuation,
+)
 from prop_lang.formula import Formula
 from prop_lang.nondet import NonDeterministic
 from prop_lang.biop import BiOp
@@ -17,9 +24,9 @@ from prop_lang.mathexpr import MathExpr
 from prop_lang.util import true, normalize_ltl
 from prop_lang.variable import Variable
 
-name_regex = r'[_a-zA-Z][_a-zA-Z0-9$@\_\-]*'
+name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
-state = regex(r'[a-zA-Z0-9@$_-]+')
+state = regex(r"[a-zA-Z0-9@$_-]+")
 
 
 @generate
@@ -36,7 +43,16 @@ def program_parser():
     initial_vals = yield initial_val_parser
     initial_vs = [Variable(tv.name) for tv in initial_vals]
     if len(set(env + con + states + initial_vs)) < len(env + con + states + initial_vs):
-        raise Exception("Duplicate var names: " + ", ".join([str(v) for v in env + con + states + initial_vs if (env + con + states + initial_vs).count(v) > 1]))
+        raise Exception(
+            "Duplicate var names: "
+            + ", ".join(
+                [
+                    str(v)
+                    for v in env + con + states + initial_vs
+                    if (env + con + states + initial_vs).count(v) > 1
+                ]
+            )
+        )
     yield spaces()
     _, transitions = yield transitions_parser
     yield spaces()
@@ -51,7 +67,15 @@ def program_parser():
         results = pool.map(guarded_action_transitions_to_normal_transitions, arg)
         new_transitions = [t for tt in results for t in tt]
 
-    program = Program(program_name, states, initial_state, initial_vals, new_transitions, env, con)
+    program = Program(
+        program_name,
+        states,
+        initial_state,
+        initial_vals,
+        new_transitions,
+        env,
+        con,
+    )
     return program, ltl_spec
 
 
@@ -69,7 +93,9 @@ def event_parser():
 @generate
 def state_parser():
     yield string("STATES") >> spaces() >> string("{") >> spaces()
-    tagged_states = yield sepBy(tagged_state_parser << spaces(), regex("(,|;)") << spaces())
+    tagged_states = yield sepBy(
+        tagged_state_parser << spaces(), regex("(,|;)") << spaces()
+    )
     yield parsec.optional(regex("(,|;)"))
     yield spaces()
     yield string("}")
@@ -84,7 +110,9 @@ def state_parser():
 @generate
 def tagged_state_parser():
     state_name = yield state << spaces()
-    state_label = yield parsec.optional(string(":") >> spaces() >> regex("(init|flag)"), "")
+    state_label = yield parsec.optional(
+        string(":") >> spaces() >> regex("(init|flag)"), ""
+    )
     return state_name, state_label
 
 
@@ -120,8 +148,16 @@ def bool_decl_parser():
 @generate
 def num_decl_parser():
     var = yield name << spaces() << string(":") << spaces()
-    type = yield regex(
-        "(int(eger)?|nat(ural)?|bool(ean)?|real|(((-)?[0-9]+)|" + name_regex + ")+\.\.(((-)?[0-9]+)|" + name_regex + "))") << spaces()
+    type = (
+        yield regex(
+            "(int(eger)?|nat(ural)?|bool(ean)?|real|(((-)?[0-9]+)|"
+            + name_regex
+            + ")+\.\.(((-)?[0-9]+)|"
+            + name_regex
+            + "))"
+        )
+        << spaces()
+    )
     yield spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;\}]+") << spaces()
@@ -174,7 +210,10 @@ def num_decl_parser_untyped():
 
 @generate
 def assignment_parser_with_action_guard():
-    assignment = yield parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped) << spaces()
+    assignment = (
+        yield parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped)
+        << spaces()
+    )
     guard = yield action_guard << spaces()
     return (assignment, guard)
 
@@ -193,7 +232,10 @@ def action_guard():
 @generate
 def initial_val_parser():
     yield string("VALUATION") >> spaces() >> string("{") >> spaces()
-    vals = yield sepBy(parsec.try_choice(bool_decl_parser, num_decl_parser), regex("(,|;)") << spaces())
+    vals = yield sepBy(
+        parsec.try_choice(bool_decl_parser, num_decl_parser),
+        regex("(,|;)") << spaces(),
+    )
     yield spaces()
     yield parsec.optional(regex("(,|;)"))
     yield spaces() >> string("}")
@@ -212,13 +254,15 @@ def transition_parser():
     raw_cond = yield parsec.optional(spaces() >> regex("[^$#\]]+"), "true")
     cond = string_to_prop(raw_cond)
     yield spaces()
-    act = yield parsec.optional(string("$")
-                                >> spaces()
-                                >> assignments
-                                << spaces()
-                                << parsec.optional(regex("(,|;)") >> spaces())
-                                << parsec.lookahead(regex("(#|\])")),
-                                [])
+    act = yield parsec.optional(
+        string("$")
+        >> spaces()
+        >> assignments
+        << spaces()
+        << parsec.optional(regex("(,|;)") >> spaces())
+        << parsec.lookahead(regex("(#|\])")),
+        [],
+    )
     yield spaces()
     raw_events = yield parsec.optional(outputs, [])
     events = [string_to_negated_atom(e) for e in raw_events]
@@ -231,21 +275,29 @@ def transition_parser():
 
 @generate
 def outputs():
-    outputs = yield string("#") \
-                       >> spaces() \
-                       >> sepBy(parsec.try_choice(bool_decl_parser_untyped, regex("[^\],;]+"))
-                                << spaces(), regex("(,|;)")
-                                >> spaces())
+    outputs = (
+        yield string("#")
+        >> spaces()
+        >> sepBy(
+            parsec.try_choice(bool_decl_parser_untyped, regex("[^\],;]+")) << spaces(),
+            regex("(,|;)") >> spaces(),
+        )
+    )
 
-    if len({str(v.left) for v in outputs if isinstance(v, BiOp)} | {str(v) for v in outputs if not isinstance(v, BiOp)}) < len(outputs):
+    if len(
+        {str(v.left) for v in outputs if isinstance(v, BiOp)}
+        | {str(v) for v in outputs if not isinstance(v, BiOp)}
+    ) < len(outputs):
         raise Exception("Output variables can only be assigned once by a transition.")
     return outputs
 
 
 @generate
 def assignments():
-    asss = yield sepBy(parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped),
-                       regex("(,|;)") >> spaces()) << parsec.optional(regex("(,|;)") >> spaces())
+    asss = yield sepBy(
+        parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped),
+        regex("(,|;)") >> spaces(),
+    ) << parsec.optional(regex("(,|;)") >> spaces())
     # if len(set([v[0].left for v in asss])) < len(asss):
     #     raise Exception("Variables can only be assigned once by a transition.")
     return asss
@@ -262,7 +314,19 @@ def assignments():
 def transitions_parser():
     yield string("TRANSITIONS") >> spaces()
     options = "by\-order"
-    semantics = yield parsec.optional(string("[") >> spaces() >> string("semantics") >> spaces() >> string("=") >> spaces() >> regex(options) << spaces() << string("]") << spaces(), "")
+    semantics = yield parsec.optional(
+        string("[")
+        >> spaces()
+        >> string("semantics")
+        >> spaces()
+        >> string("=")
+        >> spaces()
+        >> regex(options)
+        << spaces()
+        << string("]")
+        << spaces(),
+        "",
+    )
     yield string("{") >> spaces()
     transitions = yield sepBy(transition_parser, spaces() >> regex("(,|;)") >> spaces())
     yield spaces() >> string("}")

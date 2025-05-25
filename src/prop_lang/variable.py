@@ -44,17 +44,23 @@ class Variable(Atom):
     def replace_vars(self, context):
         if isinstance(context, list):
             for val in context:
-                if (val.op == "=" or val.op == ":=") and (str(val.left.name) == self.name):
+                if (val.op == "=" or val.op == ":=") and (
+                    str(val.left.name) == self.name
+                ):
                     return val.right
-        elif hasattr(context, '__call__'):
+        elif hasattr(context, "__call__"):
             return context(self)
         else:
             try:
                 val = context
-                if (val.op == "=" or val.op == ":=") and (str(val.left.name) == self.name):
+                if (val.op == "=" or val.op == ":=") and (
+                    str(val.left.name) == self.name
+                ):
                     return val.right
             except:
-                raise Exception("Variable.replace: context is not a list of assignments, an assignment, or a mapping function.")
+                raise Exception(
+                    "Variable.replace: context is not a list of assignments, an assignment, or a mapping function."
+                )
         return self
 
     def to_nuxmv(self):
@@ -69,7 +75,9 @@ class Variable(Atom):
         elif self.name.split("_prev")[0] in symbol_table.keys():
             typed_val = symbol_table[self.name.split("_prev")[0]]
         else:
-            raise Exception("Variable.to_smt: variable " + self.name + " not in symbol table.")
+            raise Exception(
+                "Variable.to_smt: variable " + self.name + " not in symbol table."
+            )
 
         if typed_val.type == "int" or typed_val.type == "integer":
             return Symbol(self.name, INT), TRUE()
@@ -81,8 +89,10 @@ class Variable(Atom):
             split = re.split("\\.\\.+", typed_val.type)
             lower = int(split[0])
             upper = int(split[1])
-            return Symbol(self.name, INT), And(GE(Symbol(self.name, INT), Int((lower))),
-                                               LE(Symbol(self.name, INT), Int((upper))))
+            return Symbol(self.name, INT), And(
+                GE(Symbol(self.name, INT), Int((lower))),
+                LE(Symbol(self.name, INT), Int((upper))),
+            )
         else:
             raise NotImplementedError(f"Type {typed_val.type} unsupported.")
 

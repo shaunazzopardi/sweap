@@ -34,10 +34,10 @@ def check(smt: FNode):
 
 def bdd_simplify(f: FNode, static_ordering=None, bool_abstraction=True):
     try:
-        s = BddSimplifier(static_ordering=static_ordering, bool_abstraction=bool_abstraction)
+        s = BddSimplifier(
+            static_ordering=static_ordering, bool_abstraction=bool_abstraction
+        )
         fprime = s.simplify(f)
         return fprime
     except Exception as e:
         print(e)
-
-

@@ -118,7 +118,9 @@ class Config:
     mc = property(_get_mc, _set_mc, _do_nothing, "")
     debug = property(_get_debug, _set_debug, _do_nothing, "")
     cnf_optimisations = property(_get_cnf_opt, _set_cnf_opt, _do_nothing, "")
-    parallelise_type = property(_get_parallelise_type, _set_parallelise_type, _do_nothing, "")
+    parallelise_type = property(
+        _get_parallelise_type, _set_parallelise_type, _do_nothing, ""
+    )
     workers = multiprocessing.cpu_count()
 
     def __init__(self):

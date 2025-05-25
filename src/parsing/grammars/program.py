@@ -1,4 +1,4 @@
-program_grammar = '''
+program_grammar = """
     program
         = 'program' @:var '{'
                            @:states
@@ -64,4 +64,4 @@ program_grammar = '''
 
     state_label = /[a-zA-Z0-9@\_\-]*/;
     var = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
-'''
+"""

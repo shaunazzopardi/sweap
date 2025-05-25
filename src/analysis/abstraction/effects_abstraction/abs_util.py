@@ -1,4 +1,6 @@
-from analysis.abstraction.effects_abstraction.predicates.Predicate import Predicate
+from analysis.abstraction.effects_abstraction.predicates.Predicate import (
+    Predicate,
+)
 from prop_lang.util import atomic_predicates
 
 
@@ -51,7 +53,7 @@ def partition_preds(preds, all_vars):
         curr_preds = [p for p in curr_preds if p not in part]
         partitions.append(part)
 
-    return {i:p for i, p in enumerate(partitions)}, v_to_p, v_to_partition
+    return {i: p for i, p in enumerate(partitions)}, v_to_p, v_to_partition
 
 
 def update_pred_partition(pred, partitions, v_to_p, v_to_partition):
@@ -101,9 +103,12 @@ def update_pred_partition(pred, partitions, v_to_p, v_to_partition):
 
     return partitions, v_to_p, v_to_partition, new_part, parts_to_merge
 
+
 def update_var_partition_mult(preds, partitions, v_to_p, v_to_partition):
     for p in preds:
-        partitions, v_to_p, v_to_partition, _, _ = update_var_partition(p, partitions, v_to_p, v_to_partition)
+        partitions, v_to_p, v_to_partition, _, _ = update_var_partition(
+            p, partitions, v_to_p, v_to_partition
+        )
     return partitions, v_to_p, v_to_partition
 
 
@@ -162,7 +167,9 @@ def update_var_partition(pred: Predicate, partitions, v_to_p, v_to_partition):
 
 def relevant_preds_guard(vars_g, partitions, v_to_partition):
     parts = [i for v in vars_g for i in v_to_partition[v]]
-    return {i: partitions[i] for i in parts} # in the abstraction, all of these can be computed separately
+    return {
+        i: partitions[i] for i in parts
+    }  # in the abstraction, all of these can be computed separately
 
 
 def relevant_preds_update(vars_u_now, vars_u_next, partitions, v_to_p, v_to_partition):

@@ -9,7 +9,7 @@ from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-GRAMMAR = '''
+GRAMMAR = """
     @@grammar::LTL
 
 
@@ -65,7 +65,7 @@ GRAMMAR = '''
         ;
 
     atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
-'''
+"""
 
 
 def tuple_to_formula(node) -> Formula:

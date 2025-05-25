@@ -64,7 +64,7 @@ def hoa_to_transitions(hoa, parallelise=True):
     else:
         for cond, src_tgts in cond_to_src_tgt.items():
             _, env, con = parse_raw_cond(to_replace, cond)
-            for (src, tgt) in src_tgts:
+            for src, tgt in src_tgts:
                 key = (src, env, tgt)
                 if key in transitions.keys():
                     transitions[key].append(con)
@@ -76,7 +76,9 @@ def hoa_to_transitions(hoa, parallelise=True):
 
 def parse_state_trans(to_replace, raw_tran):
     result = re.search(
-        r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)( |\n)+)+)", raw_tran)
+        r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)( |\n)+)+)",
+        raw_tran,
+    )
     # if result == None:
     #     raise Exception("Could not parse HOA:\n" + hoa)
     # else:
@@ -99,6 +101,7 @@ def parse_state_trans(to_replace, raw_tran):
                 new_trans[key] = []
             new_trans[key].append(con_cond)
     return new_trans
+
 
 def parse_line(to_replace, src, line: str):
     search = re.search(r" *\[(?P<cond>[^\[\]]+)\] (?P<tgt>[0-9]+)", line)

@@ -1,5 +1,4 @@
 class NuXmvModel:
-
     def __init__(self, name, vars, define, init, invar, trans):
         self.name = name
         self.vars = vars
