@@ -196,7 +196,6 @@ def create_nuxmv_model_for_compatibility_checking(
 
     vars = (
         sorted(program_model.vars)
-        + sorted([s + ": boolean" for s in program.states])
         + sorted([v for v in strategy_model.vars if v not in program_model.vars])
         + (seen_strategy_states_decs if prefer_lassos else [])
         + ["mismatch : boolean"]
@@ -423,22 +422,18 @@ def create_nuxmv_model_for_compatibility_checking(
 
 
 def create_nuxmv_model(nuxmvModel):
-    from warnings import warn
-
-    warn("This method is deprecated.", DeprecationWarning, stacklevel=2)
-
     text = "MODULE main\n"
-    text += "VAR\n" + "\t" + ";\n\t".join(nuxmvModel.vars) + ";\n"
+    text += (
+        "VAR\n"
+        + "\t"
+        + ";\n\t".join([v for v in nuxmvModel.vars if not v.startswith("turn :")])
+        + ";\n"
+    )
     text += "DEFINE\n" + "\t" + ";\n\t".join(nuxmvModel.define) + ";\n"
-    text += "INIT\n" + "\t(" + ")\n\t& (".join(nuxmvModel.init + ["turn = env"]) + ")\n"
+    text += "INIT\n" + "\t(" + ")\n\t& (".join(nuxmvModel.init) + ")\n"
     text += "INVAR\n" + "\t(" + ")\n\t& (".join(nuxmvModel.invar) + ")\n"
 
-    turn_logic = ["(turn = con -> next(turn) = prog_con)"]
-    turn_logic += ["(turn = env -> next(turn) = prog_env)"]
-    turn_logic += ["(turn = prog_env -> next(turn) = con)"]
-    turn_logic += ["(turn = prog_con -> next(turn) = env)"]
-
-    text += "TRANS\n" + "\t(" + ")\n\t& (".join(nuxmvModel.trans + turn_logic) + ")\n"
+    text += "TRANS\n" + "\t(" + ")\n\t& (".join(nuxmvModel.trans) + ")\n"
     text = text.replace("%", "mod")
     text = text.replace("&&", "&")
     text = text.replace("||", "|")

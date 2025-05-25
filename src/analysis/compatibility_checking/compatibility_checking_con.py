@@ -118,7 +118,6 @@ def create_nuxmv_model_for_compatibility_checking(
 
     vars = (
         sorted(program_model.vars)
-        + sorted([s + ": boolean" for s in program.states])
         + sorted([v for v in strategy_model.vars if v not in program_model.vars])
         + ["init_state : boolean"]
     )
