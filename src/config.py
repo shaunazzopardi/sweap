@@ -10,6 +10,7 @@ init_state = Variable("init_state")
 
 class Config:
     _instance = None
+    _finite_synthesis = False
     _prefer_ranking = False
     _only_structural = False
     _only_ranking = False
@@ -23,6 +24,12 @@ class Config:
     _debug = False
     _cnf_optimisations = False
     _parallelise_type = "processes"
+
+    def _get_f_s(self):
+        return self._finite_synthesis
+
+    def _set_f_s(self, value: bool):
+        self._finite_synthesis = value
 
     def _get_d(self):
         return self._dual
@@ -105,6 +112,7 @@ class Config:
     def _do_nothing(self):
         pass
 
+    finite_synthesis = property(_get_f_s, _set_f_s, _do_nothing, "")
     dual = property(_get_d, _set_d, _do_nothing, "")
     no_binary_enc = property(_get_n_b_e, _set_n_b_e, _do_nothing, "")
     prefer_ranking = property(_get_p_r, _set_p_r, _do_nothing, "")

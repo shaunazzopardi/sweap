@@ -11,7 +11,7 @@ from analysis.model_checker import ModelChecker
 from config import Config
 from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
-from synthesis.synthesis import finite_state_synth, synthesize
+from synthesis.synthesis import synthesize
 
 dirname = os.path.dirname(__file__)
 strix_path = str(os.path.join(dirname, "../binaries"))
@@ -46,18 +46,15 @@ def main():
         nargs="?",
         const=True,
     )
-    parser.add_argument("--tlsf", dest="tlsf", help="Path to a .tlsf file.", type=str)
-
-    # Strix workflow
     parser.add_argument(
-        "--synth-strix",
-        dest="synth_strix",
-        help="Synthesise with Strix (only for finite-state problems).",
+        "--finite-synthesise",
+        dest="finite_synthesise",
+        help="Finite synthesis workflow (only works with finite programs).",
         type=bool,
         nargs="?",
         const=True,
     )
-
+    parser.add_argument("--tlsf", dest="tlsf", help="Path to a .tlsf file.", type=str)
     parser.add_argument(
         "--verify_controller",
         dest="verify_controller",
@@ -149,6 +146,9 @@ def main():
     if args.only_safety is not None:
         conf.only_safety = True
 
+    if args.finite_synthesise is not None:
+        conf.finite_synthesis = True
+
     logdir = Path(os.getcwd()) / "out" / program.name
 
     if not os.path.exists(logdir):
@@ -190,7 +190,7 @@ def main():
                 args.translate
                 + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'prog' or 'vmt'."
             )
-    elif args.synthesise or args.synth_strix:
+    elif args.synthesise or args.finite_synthesise:
         ltl = ltl_spec
         if ltl is None:
             if args.tlsf is None:
@@ -199,11 +199,7 @@ def main():
             print("Spec in both program and as TLSF given, will use the TLSF.")
 
         start = time.time()
-        (realiz, mm) = (
-            finite_state_synth(program, ltl, args.tlsf)
-            if args.synth_strix
-            else synthesize(program, ltl, args.tlsf, False)
-        )
+        (realiz, mm) = synthesize(program, ltl, args.tlsf, False)
         end = time.time()
 
         if (realiz and not args.dual) or (not realiz and args.dual):

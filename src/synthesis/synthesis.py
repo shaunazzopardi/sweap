@@ -48,66 +48,6 @@ from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from synthesis.machines.mealy_machine import MealyMachine
 
 
-def finite_state_synth(
-    program: Program, ltl: Formula, tlsf_path: str
-) -> Tuple[bool, MealyMachine]:
-    if not program.is_finite_state():
-        raise Exception("Cannot use strix, problem is not finite-state.")
-
-    print("constructing initial abstraction")
-    start = time.time()
-    preds = [pred for val in program.valuation for pred in finite_state_preds(val)]
-
-    abstr = EffectsAbstraction(program)
-    (
-        ltl_assumptions,
-        ltl_guarantees,
-        in_acts,
-        out_acts,
-    ) = process_specifications(program, ltl, tlsf_path)
-    new_ltl_assumptions = []
-    for ltl in ltl_assumptions:
-        new_ltl, new_preds = stringify_formula(ltl, in_acts + out_acts)
-        preds += new_preds
-        new_ltl_assumptions.append(new_ltl)
-
-    new_ltl_guarantees = []
-    for ltl in ltl_guarantees:
-        new_ltl, new_preds = stringify_formula(ltl, in_acts + out_acts)
-        preds += new_preds
-        new_ltl_guarantees.append(new_ltl)
-
-    ltl_assumptions = new_ltl_assumptions
-    ltl_guarantees = new_ltl_guarantees
-
-    abstr.add_predicates(preds, {}, {})
-    logging.info(f"initial abstraction took {time.time() - start}")
-
-    start = time.time()
-    print("constructing LTL abstraction")
-    original_LTL_problem = LTLSynthesisProblem(
-        in_acts, out_acts, ltl_assumptions, ltl_guarantees
-    )
-
-    ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
-        LTLAbstractionBaseType.effects_representation,
-        LTLAbstractionTransitionType.one_trans,
-        LTLAbstractionStructureType.control_state,
-        LTLAbstractionOutputType.no_output,
-    )
-
-    _, abstract_ltl_problem = effects_to_ltl.to_ltl(
-        abstr, original_LTL_problem, ltlAbstractionType
-    )
-    logging.info(f"to ltl abstraction took {time.time() - start}")
-
-    print("running LTL synthesis")
-    start = time.time()
-    (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
-    logging.info("synthesis took " + str(time.time() - start))
-    return (real, mm_hoa)
-
-
 def synthesize(
     program: Program,
     ltl: Formula,
@@ -240,12 +180,18 @@ def abstract_synthesis_loop(
     env_con_events = set(program.con_events + program.env_events)
 
     new_state_preds = set()
-    if add_all_boolean_vars:
+
+    if config.Config.getConfig().finite_synthesis:
         new_state_preds.update(
-            Variable(b.name)
-            for b in program.valuation
-            if b.type.lower().startswith("bool")
+            {pred for val in program.valuation for pred in finite_state_preds(val)}
         )
+    else:
+        if add_all_boolean_vars:
+            new_state_preds.update(
+                Variable(b.name)
+                for b in program.valuation
+                if b.type.lower().startswith("bool")
+            )
 
     # if config.Config.getConfig().add_all_preds_in_prog:
     for t in program.transitions:
@@ -427,6 +373,8 @@ def abstract_synthesis_loop(
                 return True, "\n".join(mm_hoa.split("\n")[1:])
             else:
                 return True, "\n".join(mm_hoa.split("\n")[1:])
+        elif not real and config.Config.getConfig().finite_synthesis:
+            return False, "\n".join(mm_hoa.split("\n")[1:])
 
         start = time.time()
         print("massaging abstract counterstrategy")
