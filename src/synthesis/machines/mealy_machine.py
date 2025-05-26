@@ -106,7 +106,7 @@ class MealyMachine(Machine):
                     self.con_transitions[new_intermed] |= {(cond, new_tgt)}
 
             self.states.add(new_intermed)
-            self.counter = self.counter - 1
+            self.counter -= 1
             self.states.add(new_src)
             self.states.add(new_tgt)
 
@@ -152,7 +152,6 @@ class MealyMachine(Machine):
                         con_conds,
                         tgt_index,
                         abstract_ltl_synthesis_problem,
-                        parallelise=False,
                     )
                 )
 
