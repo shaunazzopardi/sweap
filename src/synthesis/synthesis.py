@@ -38,14 +38,14 @@ from prop_lang.util import (
     neg,
 )
 from prop_lang.variable import Variable
-from ltl_synthesis import (
+from synthesis.ltl_synthesis import (
     ltl_synthesis,
     syfco_ltl,
     syfco_ltl_in,
     syfco_ltl_out,
 )
-from ltl_synthesis_problem import LTLSynthesisProblem
-from machines.mealy_machine import MealyMachine
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.machines.mealy_machine import MealyMachine
 
 
 def finite_state_synth(
