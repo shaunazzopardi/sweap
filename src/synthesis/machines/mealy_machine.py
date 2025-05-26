@@ -36,8 +36,8 @@ class MealyMachine(Machine):
         init_index: int,
         env_events,
         con_events,
-        env_transitions={},
-        con_transitions={},
+        env_transitions=None,
+        con_transitions=None,
     ):
         self.name = name
         self.init_index = init_index
@@ -47,8 +47,17 @@ class MealyMachine(Machine):
         }
         self.env_events = env_events
         self.con_events = con_events
-        self.env_transitions = env_transitions
-        self.con_transitions = con_transitions
+
+        if env_transitions is None:
+            self.env_transitions = {}
+        else:
+            self.env_transitions = env_transitions
+
+        if con_transitions is None:
+            self.con_transitions = {}
+        else:
+            self.con_transitions = con_transitions
+
         self.prog_state = {}
         self.counter = -1
         self.env_transition_tgt = {}
