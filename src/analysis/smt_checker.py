@@ -42,7 +42,6 @@ def bdd_simplify(f: FNode, static_ordering=None, bool_abstraction=True):
     except Exception as e:
         if "not available" in str(e):
             print("BDD solver not installed in pysmt. BDD simplification disabled.")
-            return f
         else:
             print(e)
-            return f
+        return None
