@@ -30,7 +30,6 @@ class BiOp(Formula):
             raise Exception("BiOp: left is None")
         if right is None:
             raise Exception("BiOp: right is None")
-        assert (isinstance(left, Formula), "left is not a formula")
         if op == "-":
             self.op = "+"
             self.right = UniOp("-", right)
