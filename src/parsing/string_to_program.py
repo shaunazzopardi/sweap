@@ -137,7 +137,7 @@ def bool_decl_parser():
     var = yield name << spaces() << string(":") << spaces()
     type = yield regex("bool(ean)?") << spaces()
     yield string(":=") << spaces()
-    raw_value = yield regex("[^,;\}]+") << spaces()
+    raw_value = yield regex("[^,;}]+") << spaces()
     try:
         value = string_to_prop(raw_value)
     except Exception as e:
@@ -152,7 +152,7 @@ def num_decl_parser():
         yield regex(
             "(int(eger)?|nat(ural)?|bool(ean)?|real|(((-)?[0-9]+)|"
             + name_regex
-            + ")+\.\.(((-)?[0-9]+)|"
+            + r")+\.\.(((-)?[0-9]+)|"
             + name_regex
             + "))"
         )
@@ -160,7 +160,7 @@ def num_decl_parser():
     )
     yield spaces()
     yield string(":=") << spaces()
-    raw_value = yield regex("[^,;\}]+") << spaces()
+    raw_value = yield regex("[^,;}]+") << spaces()
     try:
         value = string_to_math_expression(raw_value)
     except Exception as e:
@@ -175,7 +175,7 @@ def num_decl_parser():
 def bool_decl_parser_untyped():
     var = yield name << spaces() << spaces()
     yield string(":=") << spaces()
-    raw_value = yield regex("[^,;\]\#]+") << spaces()
+    raw_value = yield regex(r"[^,;\]#]+") << spaces()
     action_and_guard = raw_value.split(" if ")
     try:
         if len(action_and_guard) == 1:
@@ -193,7 +193,7 @@ def bool_decl_parser_untyped():
 def num_decl_parser_untyped():
     var = yield name << spaces() << spaces()
     yield string(":=") << spaces()
-    raw_value = yield regex("[^,;\]\#]+") << spaces()
+    raw_value = yield regex(r"[^,;\]#]+") << spaces()
     action_and_guard = raw_value.split(" if ")
     try:
         if len(action_and_guard) == 1:
@@ -221,7 +221,7 @@ def assignment_parser_with_action_guard():
 @generate
 def action_guard():
     yield string("if") << spaces() << spaces()
-    raw_value = yield regex("[^,;\]\#]+") << spaces()
+    raw_value = yield regex(r"[^,;\]#]+") << spaces()
     try:
         value = string_to_prop(raw_value)
     except Exception as e:
@@ -251,7 +251,7 @@ def transition_parser():
     yield regex("-+>") >> spaces()
     dest = yield state << spaces()
     yield string("[") >> spaces()
-    raw_cond = yield parsec.optional(spaces() >> regex("[^$#\]]+"), "true")
+    raw_cond = yield parsec.optional(spaces() >> regex(r"[^$#\]]+"), "true")
     cond = string_to_prop(raw_cond)
     yield spaces()
     act = yield parsec.optional(
@@ -260,7 +260,7 @@ def transition_parser():
         >> assignments
         << spaces()
         << parsec.optional(regex("(,|;)") >> spaces())
-        << parsec.lookahead(regex("(#|\])")),
+        << parsec.lookahead(regex(r"(#|\])")),
         [],
     )
     yield spaces()
@@ -279,7 +279,7 @@ def outputs():
         yield string("#")
         >> spaces()
         >> sepBy(
-            parsec.try_choice(bool_decl_parser_untyped, regex("[^\],;]+")) << spaces(),
+            parsec.try_choice(bool_decl_parser_untyped, regex(r"[^\],;]+")) << spaces(),
             regex("(,|;)") >> spaces(),
         )
     )
@@ -313,7 +313,7 @@ def assignments():
 @generate
 def transitions_parser():
     yield string("TRANSITIONS") >> spaces()
-    options = "by\-order"
+    options = "by-order"
     semantics = yield parsec.optional(
         string("[")
         >> spaces()

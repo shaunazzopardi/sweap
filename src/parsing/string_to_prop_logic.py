@@ -14,7 +14,7 @@ from prop_lang.variable import Variable
 
 sys.setrecursionlimit(20000)
 
-GRAMMAR = """
+GRAMMAR = r"""
     @@grammar::PROPLOGIC
 
 
@@ -97,8 +97,8 @@ GRAMMAR = """
         | atom $
         ;
 
-    atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
-    number = /(\d+|\d+\.\d+)/;
+    atom = /_?[a-zA-Z][a-zA-Z0-9_-]*/;
+    number = /([0-9]+|[0-9]+\.[0-9]+)/;
 """
 
 parser: Grammar = compile(GRAMMAR)
@@ -110,7 +110,7 @@ def tuple_to_formula(node, hoa_flag) -> Formula:
     if isinstance(node, str):
         if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF)", node):
             return Value(node)
-        elif not hoa_flag and re.match("[0-9]+(\.[0-9]+)?", node):
+        elif not hoa_flag and re.match("[0-9]+(\\.[0-9]+)?", node):
             return Value(node)
         else:
             return Variable(node)

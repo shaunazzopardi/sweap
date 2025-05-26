@@ -64,7 +64,7 @@ GRAMMAR = """
         | atom
         ;
 
-    atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
+    atom = /_?[a-zA-Z][a-zA-Z0-9_-]*/;
 """
 
 

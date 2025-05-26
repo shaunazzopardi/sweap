@@ -148,18 +148,18 @@ def nnf(prop: Formula) -> Formula:
             elif isinstance(prop.right, UniOp) and prop.right.op == "!":
                 return nnf(prop.right)
     elif isinstance(prop, BiOp):
-        if re.match("<(-|=)>", prop.op):
+        if re.match("<([-=])>", prop.op):
             return nnf(
                 conjunct(
                     implies(prop.left, prop.right),
                     implies(prop.right, prop.left),
                 )
             )
-        elif re.match("(-|=)>", prop.op):
+        elif re.match("([-=])>", prop.op):
             return nnf(disjunct(neg(prop.left), prop.right))
-        elif re.match("&&*", prop.op):
+        elif re.match("&+", prop.op):
             return conjunct(nnf(prop.left), nnf(prop.right))
-        elif re.match("\|\|?", prop.op):
+        elif re.match(r"\|\|?", prop.op):
             return disjunct(nnf(prop.left), nnf(prop.right))
         else:  # math expression
             return prop

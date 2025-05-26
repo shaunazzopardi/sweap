@@ -10,7 +10,7 @@ from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-GRAMMAR = """
+GRAMMAR = r"""
     @@grammar::LTL
 
 
@@ -94,8 +94,8 @@ GRAMMAR = """
         | atom
         ;
 
-    atom = /\_?[a-zA-Z][a-zA-Z0-9\_\-]*/;
-    number = /(\d+|\d+\.\d+)/;
+    atom = /_?[a-zA-Z][a-zA-Z0-9_-]*/;
+    number = /([0-9]+|[0-9]+\.[0-9]+)/;
 """
 
 
@@ -103,7 +103,7 @@ def tuple_to_formula(node) -> Formula:
     if isinstance(node, str):
         if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF)", node):
             return Value(node)
-        elif re.match("[0-9]+(\.[0-9]+)?", node):
+        elif re.match(r"[0-9]+(\.[0-9]+)?", node):
             return Value(node)
         else:
             return Variable(node)
