@@ -26,9 +26,9 @@ from prop_lang.variable import Variable
 
 class BiOp(Formula):
     def __init__(self, left: Formula, op: str, right: Formula):
-        if left == None:
+        if left is None:
             raise Exception("BiOp: left is None")
-        if right == None:
+        if right is None:
             raise Exception("BiOp: right is None")
         assert (isinstance(left, Formula), "left is not a formula")
         if op == "-":
