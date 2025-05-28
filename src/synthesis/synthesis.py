@@ -31,7 +31,6 @@ from prop_lang.util import (
     strip_mathexpr,
     normalise_pred_multiple_vars,
     normalise_formula,
-    enumerate_finite_state_vars,
     conjunct_formula_set,
     implies,
     massage_ltl_for_dual,
@@ -170,7 +169,6 @@ def abstract_synthesis_loop(
     allow_user_input = False
     conservative_with_state_predicates = False
     prefer_lasso_counterexamples = False
-    only_safety = False
 
     # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
     #  by the program since some information about why the environment chose the wrong predicates is hidden there
@@ -203,15 +201,6 @@ def abstract_synthesis_loop(
                     new_state_preds.add(act.left)
                 else:
                     new_state_preds.add(BiOp(act.left, "=", act.right))
-
-    if config.Config.getConfig().only_safety:
-        new_state_preds.update(
-            {
-                pred
-                for val in program.valuation
-                for pred in enumerate_finite_state_vars(val)
-            }
-        )
 
     # TODO don't normalise here; normalise inside of effectsabstraction
     # rankings should also be added inside of abstraction, based on normalised preds?
@@ -402,7 +391,6 @@ def abstract_synthesis_loop(
             keep_only_bool_interpolants,
             conservative_with_state_predicates,
             eager,
-            only_safety,
         )
 
         if compatible:

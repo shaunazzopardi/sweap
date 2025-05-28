@@ -49,20 +49,19 @@ def refinement_standard(
         agreed_on_execution, disagreed_on_state = result
 
     # write_counterexample_state(program, agreed_on_transitions, disagreed_on_state)
-    if not only_safety:
-        ## try fairness refinement
-        start = time.time()
-        print("trying fairness refinement")
-        success, result = try_liveness_refinement(
-            mm,
-            program,
-            predicate_abstraction,
-            agreed_on_execution,
-            disagreed_on_state,
-            signatures,
-            loop_counter,
-            allow_user_input,
-        )
+    ## try fairness refinement
+    start = time.time()
+    print("trying fairness refinement")
+    success, result = try_liveness_refinement(
+        mm,
+        program,
+        predicate_abstraction,
+        agreed_on_execution,
+        disagreed_on_state,
+        signatures,
+        loop_counter,
+        allow_user_input,
+    )
 
         logging.info("liveness refinement took " + str(time.time() - start))
     else:
