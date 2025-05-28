@@ -22,10 +22,6 @@ def refinement_standard(
     # TODO put all the below parameters in a dictionary
     prefer_lasso_counterexamples,
     allow_user_input,
-    keep_only_bool_interpolants,
-    conservative_with_state_predicates,
-    eager,
-    only_safety,
 ):
     start = time.time()
 
@@ -63,10 +59,7 @@ def refinement_standard(
         allow_user_input,
     )
 
-        logging.info("liveness refinement took " + str(time.time() - start))
-    else:
-        success = False
-        result = None
+    logging.info("liveness refinement took " + str(time.time() - start))
 
     if success:
         loop_counter = loop_counter + 1
@@ -87,7 +80,7 @@ def refinement_standard(
         new_ltl_constraints = set()
         new_structural_loop_constraints = set()
 
-    if eager or not success:
+    if not success:
         ## do safety refinement
         start = time.time()
         print("trying safety refinement")
@@ -98,8 +91,6 @@ def refinement_standard(
             disagreed_on_state,
             signatures,
             allow_user_input,
-            keep_only_bool_interpolants,
-            conservative_with_state_predicates,
         )
 
         logging.info("safety refinement took " + str(time.time() - start))

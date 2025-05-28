@@ -159,17 +159,13 @@ def abstract_synthesis_loop(
     in_acts: [Variable],
     out_acts: [Variable],
 ) -> Tuple[bool, MealyMachine]:
-    eager = False
-    keep_only_bool_interpolants = False
     allow_user_input = False
-    conservative_with_state_predicates = False
     prefer_lasso_counterexamples = False
 
     # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
     #  by the program since some information about why the environment chose the wrong predicates is hidden there
     #  a solution here may be to use the atomic predicates appearing the in the transition guard as state predicates
 
-    add_all_boolean_vars = True
     env_con_events = set(program.con_events + program.env_events)
 
     new_state_preds = set()
@@ -179,12 +175,11 @@ def abstract_synthesis_loop(
             {pred for val in program.valuation for pred in finite_state_preds(val)}
         )
     else:
-        if add_all_boolean_vars:
-            new_state_preds.update(
-                Variable(b.name)
-                for b in program.valuation
-                if b.type.lower().startswith("bool")
-            )
+        new_state_preds.update(
+            Variable(b.name)
+            for b in program.valuation
+            if b.type.lower().startswith("bool")
+        )
 
     # if config.Config.getConfig().add_all_preds_in_prog:
     for t in program.transitions:
@@ -383,9 +378,6 @@ def abstract_synthesis_loop(
             loop_counter,
             prefer_lasso_counterexamples,
             allow_user_input,
-            keep_only_bool_interpolants,
-            conservative_with_state_predicates,
-            eager,
         )
 
         if compatible:

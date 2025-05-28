@@ -30,9 +30,6 @@ def safety_refinement_seq_int(
     disagreed_on_state,
     signatures,
     allow_user_input: bool,
-    keep_only_bool_interpolants: bool,
-    conservative_with_state_predicates: bool,
-    enable_equality_to_le: bool = False,
 ):
     symbol_table = predicate_abstraction.get_symbol_table()
     new_symbol_table = {}
@@ -214,47 +211,6 @@ def safety_refinement_seq_int(
 
         # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
         # raise Exception("Could not find new state predicates..")
-
-    if keep_only_bool_interpolants:
-        bool_interpolants = [
-            p
-            for p in new_state_preds
-            if p not in state_predicates
-            and p in new_all_preds
-            and 0
-            == len(
-                [
-                    v
-                    for v in p.variablesin()
-                    if symbol_table[str(v)].type != "bool"
-                    and symbol_table[str(v)].type != "boolean"
-                ]
-            )
-        ]
-        if len(bool_interpolants) > 0:
-            new_all_preds = [
-                p
-                for p in new_all_preds
-                if p in bool_interpolants or p in state_predicates
-            ]
-    if conservative_with_state_predicates:
-        # TODO some heuristics to choose state preds
-        new_state_preds = [p for p in new_all_preds if p not in state_predicates]
-        if len(new_state_preds) == 0:
-            raise Exception("No new state predicates identified.")
-        # get the number of variables associated with each predicates
-        ordered_according_to_no_of_vars_used = [
-            [p for p in new_state_preds if len(p.variablesin()) == n]
-            for n in range(1, len(program.valuation) + 1)
-        ]
-        ordered_according_to_no_of_vars_used = [
-            ps for ps in ordered_according_to_no_of_vars_used if len(ps) > 0
-        ]
-        new_all_preds = state_predicates + (
-            ordered_according_to_no_of_vars_used[0]
-            if len(ordered_according_to_no_of_vars_used) > 0
-            else []
-        )
 
     logging.info(
         "Using: "
