@@ -79,8 +79,6 @@ def synthesize(
         ltl_guarantees,
         in_acts,
         out_acts,
-        docker,
-        project_on_abstraction=project_on_abstraction,
     )
     logging.info("synthesis took " + str(time.time() - start))
     return result
@@ -160,9 +158,6 @@ def abstract_synthesis_loop(
     ltl_guarantees: [Formula],
     in_acts: [Variable],
     out_acts: [Variable],
-    docker: bool,
-    project_on_abstraction=False,
-    debug=False,
 ) -> Tuple[bool, MealyMachine]:
     eager = False
     keep_only_bool_interpolants = False
