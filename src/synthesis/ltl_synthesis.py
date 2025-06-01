@@ -20,9 +20,8 @@ strix_path = str(os.path.join(dirname, "../../binaries/strix_tlsf_file.sh"))
 
 
 def ltl_synthesis(
-    synthesis_problem: AbstractLTLSynthesisProblem,
+    tlsf_script: str,
 ) -> Tuple[bool, str]:
-    tlsf_script = synthesis_problem.to_tlsf()
     logging.info(tlsf_script)
     try:
         with NamedTemporaryFile("w", suffix=".tlsf", delete=False) as tmp:

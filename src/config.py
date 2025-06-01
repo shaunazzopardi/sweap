@@ -24,6 +24,20 @@ class Config:
     _debug = False
     _cnf_optimisations = False
     _parallelise_type = "processes"
+    _name = None
+    _log = None
+
+    def _get_n(self):
+        return self._name
+
+    def _set_n(self, value: bool):
+        self._name = value
+
+    def _get_l(self):
+        return self._log
+
+    def _set_l(self, value: str):
+        self._log = value
 
     def _get_f_s(self):
         return self._finite_synthesis
@@ -112,6 +126,8 @@ class Config:
     def _do_nothing(self):
         pass
 
+    name = property(_get_n, _set_n, _do_nothing, "")
+    log = property(_get_l, _set_l, _do_nothing, "")
     finite_synthesis = property(_get_f_s, _set_f_s, _do_nothing, "")
     dual = property(_get_d, _set_d, _do_nothing, "")
     no_binary_enc = property(_get_n_b_e, _set_n_b_e, _do_nothing, "")

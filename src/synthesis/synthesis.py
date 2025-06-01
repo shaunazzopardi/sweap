@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 import config
@@ -45,6 +46,7 @@ from synthesis.ltl_synthesis import (
 )
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from synthesis.machines.mealy_machine import MealyMachine
+from pathlib import Path
 
 
 def synthesize(
@@ -162,92 +164,13 @@ def abstract_synthesis_loop(
     allow_user_input = False
     prefer_lasso_counterexamples = False
 
-    # TODO when we have a predicate mismatch we also need some information about the guard of the transition being taken
-    #  by the program since some information about why the environment chose the wrong predicates is hidden there
-    #  a solution here may be to use the atomic predicates appearing the in the transition guard as state predicates
-
-    env_con_events = set(program.con_events + program.env_events)
-
-    new_state_preds = set()
-
-    if config.Config.getConfig().finite_synthesis:
-        new_state_preds.update(
-            {pred for val in program.valuation for pred in finite_state_preds(val)}
-        )
-    else:
-        new_state_preds.update(
-            Variable(b.name)
-            for b in program.valuation
-            if b.type.lower().startswith("bool")
-        )
-
-    # if config.Config.getConfig().add_all_preds_in_prog:
-    for t in program.transitions:
-        preds_in_cond = atomic_predicates(t.condition)
-        new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
-        for act in t.action:
-            if len(act.right.variablesin()) == 0:
-                if program.symbol_table[str(act.left)].type.startswith("bool"):
-                    new_state_preds.add(act.left)
-                else:
-                    new_state_preds.add(BiOp(act.left, "=", act.right))
-
-    # TODO don't normalise here; normalise inside of effectsabstraction
-    # rankings should also be added inside of abstraction, based on normalised preds?
-    old_to_new_st_preds = {}
-    symbol_table = program.symbol_table
-    signatures = set()
-    normalised_state_preds = set()
-    for p in new_state_preds:
-        if isinstance(p, Variable):
-            normalised_state_preds.add(p)
-            continue
-        result = normalise_pred_multiple_vars(p, signatures, symbol_table)
-        if len(result) == 1:
-            normalised_state_preds.add(result)
-        else:
-            sig, new_p, preds = result
-            old_to_new_st_preds[p] = new_p
-            signatures.add(sig)
-            normalised_state_preds.update(preds)
-    new_state_preds = normalised_state_preds
-
-    # new_state_preds = set(itertools.chain.from_iterable(map(lambda x: x[1], map(normalise_predicate, set(new_state_preds)))))
-
-    prog_state_vars = [Variable(s) for s in program.states]
-    new_ltl_assumptions = []
-    ignore_these = set(in_acts + out_acts + prog_state_vars)
-    for ltl in ltl_assumptions:
-        ltl = strip_mathexpr(ltl)
-        ltl = ltl.replace_vars(
-            lambda x: program.constants[x] if x in program.constants.keys() else x
-        )
-        new_ltl, new_preds = normalise_formula(
-            ltl, signatures, symbol_table, ignore_these
-        )
-        new_state_preds.update(new_preds)
-        new_ltl_assumptions.append(new_ltl)
-
-    new_ltl_guarantees = []
-    for ltl in ltl_guarantees:
-        ltl = strip_mathexpr(ltl)
-        ltl = ltl.replace_vars(
-            lambda x: program.constants[x] if x in program.constants.keys() else x
-        )
-        new_ltl, new_preds = normalise_formula(
-            ltl, signatures, symbol_table, ignore_these
-        )
-        new_state_preds.update(new_preds)
-        new_ltl_guarantees.append(new_ltl)
-
-    ltl_assumptions = new_ltl_assumptions
-    ltl_guarantees = new_ltl_guarantees
-
-    new_tran_preds = set()
-    new_ranking_constraints = []
-    new_structural_loop_constraints = []
-
-    loop_counter = 0
+    (
+        new_state_preds,
+        ltl_assumptions,
+        ltl_guarantees,
+        signatures,
+        old_to_new_st_preds,
+    ) = extract_init_preds(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts)
 
     ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
         LTLAbstractionBaseType.effects_representation,
@@ -256,16 +179,22 @@ def abstract_synthesis_loop(
         LTLAbstractionOutputType.no_output,
     )
 
-    predicate_abstraction = EffectsAbstraction(program, old_to_new_st_preds)
-
     original_LTL_problem = LTLSynthesisProblem(
         in_acts, out_acts, ltl_assumptions, ltl_guarantees
     )
 
-    print("Starting abstract synthesis loop.")
+    predicate_abstraction = EffectsAbstraction(program, old_to_new_st_preds)
 
-    print(str(len(new_state_preds)) + ": " + ", ".join(map(str, new_state_preds)))
+    new_tran_preds = set()
+    new_ranking_constraints = []
+    new_structural_loop_constraints = []
+
+    file_name_template = generate_tlsf_file_name_template()
+    loop_counter = -1
+
+    print("Starting abstract synthesis loop.")
     while True:
+        loop_counter += 1
         new_state_preds = {strip_mathexpr(p) for p in new_state_preds}
         new_state_preds = {
             p
@@ -281,52 +210,29 @@ def abstract_synthesis_loop(
 
         ## update predicate abstraction
         start = time.time()
-        print(
-            str(len(new_state_preds | new_tran_preds))
-            + ": "
-            + ", ".join(map(str, new_state_preds | new_tran_preds))
+        (base_abstraction, abstract_ltl_problem) = refining_abs_and_log(
+            predicate_abstraction,
+            new_state_preds,
+            new_tran_preds,
+            new_ranking_constraints,
+            new_structural_loop_constraints,
+            original_LTL_problem,
+            ltlAbstractionType,
         )
-        print(
-            "adding "
-            + ", ".join(map(str, new_state_preds | new_tran_preds))
-            + " to predicate abstraction"
-        )
-        predicate_abstraction.add_predicates(
-            new_state_preds | new_tran_preds, set(), True
-        )
-        logging.info(
-            "adding "
-            + ", ".join(map(str, new_state_preds | new_tran_preds))
-            + " to predicate abstraction"
-            + " took "
-            + str(time.time() - start)
-        )
-
-        predicate_abstraction.add_ranking_constraints(new_ranking_constraints)
-        predicate_abstraction.add_structural_loop_constraints(
-            new_structural_loop_constraints
-        )
-
-        new_state_preds.clear()
-        new_tran_preds.clear()
-        new_ranking_constraints.clear()
-        new_structural_loop_constraints.clear()
-
-        ## LTL abstraction
-        start = time.time()
-        print("constructing LTL abstraction")
-        base_abstraction, abstract_ltl_problem = effects_to_ltl.to_ltl(
-            predicate_abstraction, original_LTL_problem, ltlAbstractionType
-        )
-
-        logging.info("to ltl abstraction took " + str(time.time() - start))
+        logging.info("refining predicate abstraction took " + str(time.time() - start))
 
         start = time.time()
         print("running LTL synthesis")
-        (real, mm_hoa) = ltl_synthesis(abstract_ltl_problem)
+        tlsf_script = abstract_ltl_problem.to_tlsf()
+
+        safe_overwrite_if_logging(file_name_template, str(loop_counter), tlsf_script)
+
+        (real, mm_hoa) = ltl_synthesis(tlsf_script)
         logging.info("ltl synthesis took " + str(time.time() - start))
 
-        if real and not debug:
+        if real:
+            safe_rename_logging(file_name_template, str(loop_counter), "real")
+
             if config.Config.getConfig().verify_controller:
                 print("massaging abstract controller")
                 mm = predicate_abstraction.massage_mealy_machine(
@@ -381,6 +287,7 @@ def abstract_synthesis_loop(
         )
 
         if compatible:
+            safe_rename_logging(file_name_template, str(loop_counter), "-unreal")
             return False, "\n".join(mm_hoa.split("\n")[1:])
         else:
             (
@@ -398,6 +305,159 @@ def abstract_synthesis_loop(
                     "No new predicates or constraints found, but not compatible. Error in tool, "
                     "or program is non-deterministic."
                 )
+
+
+def generate_tlsf_file_name_template() -> str | None:
+    if config.Config.getConfig().log:
+        tlsf_files_path = str(
+            os.path.join(
+                config.Config.getConfig().log,
+                "tlsf_files/",
+            )
+        )
+        Path(tlsf_files_path).mkdir(parents=True, exist_ok=True)
+
+        return str(os.path.join(tlsf_files_path, config.Config.getConfig().name + "-"))
+
+    return None
+
+
+def safe_overwrite_if_logging(file_name_template, counter, text):
+    if not config.Config.getConfig().log:
+        return
+    file_name = file_name_template + counter
+    try:
+        os.remove(file_name)
+    except OSError:
+        pass
+    with open(file_name, "w") as f:
+        f.write(text)
+
+
+def safe_rename_logging(file_name_template, counter, new_index):
+    if not config.Config.getConfig().log:
+        return
+    os.rename(file_name_template + counter, file_name_template + new_index)
+
+
+def refining_abs_and_log(
+    predicate_abstraction,
+    new_state_preds,
+    new_tran_preds,
+    new_ranking_constraints,
+    new_structural_loop_constraints,
+    original_LTL_problem,
+    ltlAbstractionType,
+):
+    print(
+        "adding "
+        + ", ".join(map(str, new_state_preds | new_tran_preds))
+        + " to predicate abstraction"
+    )
+
+    predicate_abstraction.add_predicates(new_state_preds | new_tran_preds, set(), True)
+    predicate_abstraction.add_ranking_constraints(new_ranking_constraints)
+    predicate_abstraction.add_structural_loop_constraints(
+        new_structural_loop_constraints
+    )
+
+    new_state_preds.clear()
+    new_tran_preds.clear()
+    new_ranking_constraints.clear()
+    new_structural_loop_constraints.clear()
+
+    base_abstraction, abstract_ltl_problem = effects_to_ltl.to_ltl(
+        predicate_abstraction, original_LTL_problem, ltlAbstractionType
+    )
+
+    return base_abstraction, abstract_ltl_problem
+
+
+def extract_init_preds(
+    program: Program,
+    ltl_assumptions: [Formula],
+    ltl_guarantees: [Formula],
+    in_acts: [Variable],
+    out_acts: [Variable],
+):
+    new_state_preds = set()
+
+    if config.Config.getConfig().finite_synthesis:
+        new_state_preds.update(
+            {pred for val in program.valuation for pred in finite_state_preds(val)}
+        )
+    else:
+        new_state_preds.update(
+            Variable(b.name)
+            for b in program.valuation
+            if b.type.lower().startswith("bool")
+        )
+
+    env_con_events = set(program.con_events + program.env_events)
+
+    for t in program.transitions:
+        preds_in_cond = atomic_predicates(t.condition)
+        new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
+        for act in t.action:
+            if len(act.right.variablesin()) == 0:
+                if program.symbol_table[str(act.left)].type.startswith("bool"):
+                    new_state_preds.add(act.left)
+                else:
+                    new_state_preds.add(BiOp(act.left, "=", act.right))
+
+    # TODO don't normalise here; normalise inside of effectsabstraction
+    # rankings should also be added inside of abstraction, based on normalised preds?
+    old_to_new_st_preds = {}
+    symbol_table = program.symbol_table
+    signatures = set()
+    normalised_state_preds = set()
+    for p in new_state_preds:
+        if isinstance(p, Variable):
+            normalised_state_preds.add(p)
+            continue
+        result = normalise_pred_multiple_vars(p, signatures, symbol_table)
+        if len(result) == 1:
+            normalised_state_preds.add(result)
+        else:
+            sig, new_p, preds = result
+            old_to_new_st_preds[p] = new_p
+            signatures.add(sig)
+            normalised_state_preds.update(preds)
+    new_state_preds = normalised_state_preds
+
+    prog_state_vars = [Variable(s) for s in program.states]
+    new_ltl_assumptions = []
+    ignore_these = set(in_acts + out_acts + prog_state_vars)
+    for ltl in ltl_assumptions:
+        ltl = strip_mathexpr(ltl)
+        ltl = ltl.replace_vars(
+            lambda x: program.constants[x] if x in program.constants.keys() else x
+        )
+        new_ltl, new_preds = normalise_formula(
+            ltl, signatures, symbol_table, ignore_these
+        )
+        new_state_preds.update(new_preds)
+        new_ltl_assumptions.append(new_ltl)
+
+    new_ltl_guarantees = []
+    for ltl in ltl_guarantees:
+        ltl = strip_mathexpr(ltl)
+        ltl = ltl.replace_vars(
+            lambda x: program.constants[x] if x in program.constants.keys() else x
+        )
+        new_ltl, new_preds = normalise_formula(
+            ltl, signatures, symbol_table, ignore_these
+        )
+        new_state_preds.update(new_preds)
+        new_ltl_guarantees.append(new_ltl)
+
+    return (
+        new_state_preds,
+        new_ltl_assumptions,
+        new_ltl_guarantees,
+        signatures,
+        old_to_new_st_preds,
+    )
 
 
 def write_counterexample(

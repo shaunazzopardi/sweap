@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import time
+from argparse import ArgumentParser, Namespace
 
 from pathlib import Path
 from analysis.compatibility_checking.compatibility_checking import (
@@ -11,6 +12,8 @@ from analysis.model_checker import ModelChecker
 from config import Config
 from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
+from programs.program import Program
+from prop_lang.formula import Formula
 from synthesis.synthesis import synthesize
 
 dirname = os.path.dirname(__file__)
@@ -19,7 +22,7 @@ strix_path = str(os.path.join(dirname, "../binaries"))
 os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
 
-def main():
+def setup_argument_parser() -> ArgumentParser:
     parser = argparse.ArgumentParser()
     # input monitor
     parser.add_argument("--p", dest="program", help="Path to a .prog file.", type=str)
@@ -50,6 +53,14 @@ def main():
         "--finite-synthesise",
         dest="finite_synthesise",
         help="Finite synthesis workflow (only works with finite programs).",
+        type=bool,
+        nargs="?",
+        const=True,
+    )
+    parser.add_argument(
+        "--log",
+        dest="log",
+        help="Enable logging (output in working-directory/logs/<program-name>)",
         type=bool,
         nargs="?",
         const=True,
@@ -96,29 +107,13 @@ def main():
         const=True,
     )
 
-    args = parser.parse_args()
+    return parser
 
-    if args.program is None and args.tsl is None:
-        raise Exception("No input given! (Specify either --p or --tsl.)")
-    if args.program is not None and args.tsl is not None:
-        raise Exception("Cannot use both --p and --tsl.")
 
+def process_args(args: Namespace) -> (Program, Formula):
     conf = Config.getConfig()
     if args.debug is not None:
         conf.debug = True
-
-    if args.program is not None:
-        prog_file = open(args.program, "r")
-        prog_str = prog_file.read()
-        program, ltl_spec = string_to_program(prog_str)
-    elif args.tsl is not None:
-        ltlmt_formula = open(args.tsl, "r").read()
-        ltlmt = string_to_ltlmt(ltlmt_formula)
-        tp = ToProgram()
-        prog_name = Path(args.tsl).stem + "_tsl"
-        program, ltl_spec = tp.ltlmt2prog(ltlmt, prog_name)
-    else:
-        raise Exception("Program path not specified.")
 
     if not args.lazy and not args.only_safety:
         conf.eager_fairness = True
@@ -149,47 +144,82 @@ def main():
     if args.finite_synthesise is not None:
         conf.finite_synthesis = True
 
-    logdir = Path(os.getcwd()) / "out" / program.name
+    if args.program is not None:
+        name = ".".join(os.path.basename(args.program).split(".")[0:-1])
+        conf.name = name
+        with open(args.program) as prog_file:
+            prog_str = prog_file.read()
+        return string_to_program(prog_str)
+    elif args.tsl is not None:
+        with open(args.tsl).read() as ltlmt_formula:
+            ltlmt = string_to_ltlmt(ltlmt_formula)
+            tp = ToProgram()
+            prog_name = Path(args.tsl).stem + "_tsl"
+            return tp.ltlmt2prog(ltlmt, prog_name)
+    else:
+        raise Exception("Program path not specified.")
 
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
 
-    logging.basicConfig(
-        filename=(str(logdir / (str(time.time()) + ".log"))),
-        encoding="utf-8",
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)-8s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        force=True,
-    )
+def handle_translation(target, program, ltl_spec):
+    if target.lower() == "dot":
+        print("\ndot version of program:\n\n" + str(program.to_dot()))
+    elif target.lower() == "nuxmv":
+        print(
+            "\nnuxmv version of program:\n\n"
+            + create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
+        )
+    elif target.lower() == "prog":
+        print(
+            "\nsymbolic automaton version of program:\n\n" + program.to_prog(ltl_spec)
+        )
+    elif target.lower() == "vmt":
+        model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
+        model_checker = ModelChecker()
+        model_checker.to_vmt(model, ltl_spec, "model")
+        vmt = open("model.vmt").read()
+        os.remove("model.vmt")
+        print("\nvmt version of program:\n\n" + vmt)
+    else:
+        print(
+            target
+            + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'prog' or 'vmt'."
+        )
 
-    logging.info(program.to_dot())
+
+def main():
+    parser: ArgumentParser = setup_argument_parser()
+
+    args: Namespace = parser.parse_args()
+
+    if args.program is None and args.tsl is None:
+        raise Exception("No input given! (Specify either --p or --tsl.)")
+    if args.program is not None and args.tsl is not None:
+        raise Exception("Cannot use both --p and --tsl.")
+
+    program, ltl_spec = process_args(args)
+
+    if args.log:
+        logdir = os.getcwd() + "/logs/" + program.name + "/" + (str(time.time()))
+        Config.getConfig()._log = logdir
+
+        if not os.path.exists(logdir):
+            os.makedirs(logdir)
+
+        logging.basicConfig(
+            filename=(str(logdir + "/.log")),
+            encoding="utf-8",
+            level=logging.INFO,
+            format="%(asctime)s %(levelname)-8s %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            force=True,
+        )
+
+        logging.info(program.to_dot())
+    else:
+        logging.disable(logging.CRITICAL)
 
     if args.translate is not None:
-        if args.translate.lower() == "dot":
-            print("\ndot version of program:\n\n" + str(program.to_dot()))
-        elif args.translate.lower() == "nuxmv":
-            print(
-                "\nnuxmv version of program:\n\n"
-                + create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
-            )
-        elif args.translate.lower() == "prog":
-            print(
-                "\nsymbolic automaton version of program:\n\n"
-                + program.to_prog(ltl_spec)
-            )
-        elif args.translate.lower() == "vmt":
-            model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
-            model_checker = ModelChecker()
-            model_checker.to_vmt(model, ltl_spec, "model")
-            vmt = open("model.vmt").read()
-            os.remove("model.vmt")
-            print("\nvmt version of program:\n\n" + vmt)
-        else:
-            print(
-                args.translate
-                + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'prog' or 'vmt'."
-            )
+        handle_translation(args.translate, program, ltl_spec)
     elif args.synthesise or args.finite_synthesise:
         ltl = ltl_spec
         if ltl is None:
