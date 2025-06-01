@@ -53,8 +53,6 @@ def synthesize(
     program: Program,
     ltl: Formula,
     tlsf_path: str,
-    docker: bool,
-    project_on_abstraction=False,
 ) -> Tuple[bool, MealyMachine]:
     if not program.deterministic:
         print("Program is non-deterministic; refinement may fail.")

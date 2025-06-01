@@ -229,7 +229,7 @@ def main():
             print("Spec in both program and as TLSF given, will use the TLSF.")
 
         start = time.time()
-        (realiz, mm) = synthesize(program, ltl, args.tlsf, False)
+        (realiz, mm) = synthesize(program, ltl, args.tlsf)
         end = time.time()
 
         if (realiz and not args.dual) or (not realiz and args.dual):
