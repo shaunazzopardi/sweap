@@ -56,8 +56,8 @@ def synthesize(
     docker: bool,
     project_on_abstraction=False,
 ) -> Tuple[bool, MealyMachine]:
-    # if not program.deterministic:
-    #     raise Exception("We do not handle non-deterministic programs yet.")
+    if not program.deterministic:
+        print("Program is non-deterministic; refinement may fail.")
 
     start = time.time()
     (
