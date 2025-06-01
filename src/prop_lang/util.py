@@ -494,18 +494,20 @@ def bdd_simplify_ltl_formula(formula, symbol_table=None):
             symbol_table[v].name + "_next", symbol_table[v].type, None
         )
 
-    simplified = string_to_prop(
-        serialize(bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0]))
-    )
+    simplified_ltl = bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])
+    if simplified_ltl is not None:
+        simplified = string_to_prop(serialize(simplified_ltl))
 
-    simplified_ltl = simplified.replace(
-        [
-            BiOp(Variable(str(v)), ":=", X(Variable(str(v).split("_next")[0])))
-            for v in simplified.variablesin()
-            if str(v).endswith("_next")
-        ]
-    )
-    return simplified_ltl
+        simplified_ltl = simplified.replace(
+            [
+                BiOp(Variable(str(v)), ":=", X(Variable(str(v).split("_next")[0])))
+                for v in simplified.variablesin()
+                if str(v).endswith("_next")
+            ]
+        )
+        return simplified_ltl
+    else:
+        return formula
 
 
 def simplify_ltl_formula(formula, symbol_table=None):
