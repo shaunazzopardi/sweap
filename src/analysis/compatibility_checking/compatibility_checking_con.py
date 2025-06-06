@@ -54,7 +54,10 @@ def compatibility_checking_con(
         there_is_mismatch,
         out,
     ) = there_is_mismatch_between_program_and_controller(
-        system, original_ltl_spec, bound
+        system,
+        original_ltl_spec,
+        predicate_abstraction.structural_loop_constraints,
+        bound,
     )
 
     if contradictory:
@@ -293,7 +296,9 @@ def there_is_mismatch_between_program_and_strategy(
         return False, False, None
 
 
-def there_is_mismatch_between_program_and_controller(system, ltlspec, bound):
+def there_is_mismatch_between_program_and_controller(
+    system, ltlspec, loop_constraints, bound
+):
     model_checker = ModelChecker()
     config = Config.getConfig()
     logging.info(system)
@@ -305,7 +310,11 @@ def there_is_mismatch_between_program_and_controller(system, ltlspec, bound):
 
     there_is_no_mismatch, out = model_checker.invar_check(
         system,
-        "(G(compatible)) -> (" + str(ltlspec.to_nuxmv()) + ")",
+        "(G(compatible & ("
+        + ") & (".join(map(str, loop_constraints))
+        + "))) -> ("
+        + str(ltlspec.to_nuxmv())
+        + ")",
         10,
         True,
     )
