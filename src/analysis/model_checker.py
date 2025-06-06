@@ -40,7 +40,7 @@ class ModelChecker:
                 )
 
                 if "is true" in out:
-                    return True, None
+                    return True, out
                 elif "is false" in out:
                     return False, out
                 elif "Maximum bound reached" in out:

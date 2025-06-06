@@ -34,17 +34,6 @@ class PredicateAbstraction(ABC):
     #     pass
 
     @abstractmethod
-    def massage_mealy_machine(
-        self,
-        mealymachine,
-        base_abstraction,
-        ltlAbstractionType,
-        synthesis_problem,
-        controller: bool,
-    ):
-        pass
-
-    @abstractmethod
     def get_state_predicates(self) -> [Formula]:
         pass
 

@@ -9,6 +9,7 @@ class AbstractLTLSynthesisProblem:
     program_pred_props: [Variable]
     con_props: [Variable]
     ltl_synthesis_problem: LTLSynthesisProblem
+    tlsf: str
 
     def __init__(
         self,
@@ -29,6 +30,7 @@ class AbstractLTLSynthesisProblem:
             assumptions,
             guarantees,
         )
+        self.tlsf = self.ltl_synthesis_problem.tlsf
 
     def get_env_props(self):
         return self.pure_env_props
@@ -47,6 +49,3 @@ class AbstractLTLSynthesisProblem:
 
     def get_guarantees(self):
         return self.ltl_synthesis_problem.get_guarantees()
-
-    def to_tlsf(self):
-        return self.ltl_synthesis_problem.to_tlsf()

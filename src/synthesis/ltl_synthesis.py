@@ -3,7 +3,6 @@ import os
 import subprocess
 
 from tempfile import NamedTemporaryFile
-from typing import Tuple
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
@@ -12,20 +11,19 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
+from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from synthesis.machines.mealy_machine import MealyMachine
 from synthesis.machines.moore_machine import MooreMachine
+from synthesis.machines.wrapped_hoa import WrappedHOA
 
 dirname = os.path.dirname(__file__)
 strix_path = str(os.path.join(dirname, "../../binaries/strix_tlsf_file.sh"))
 
 
-def ltl_synthesis(
-    tlsf_script: str,
-) -> Tuple[bool, str]:
-    logging.info(tlsf_script)
+def ltl_synthesis(synthesis_problem: LTLSynthesisProblem, symbol_table) -> WrappedHOA:
     try:
         with NamedTemporaryFile("w", suffix=".tlsf", delete=False) as tmp:
-            tmp.write(tlsf_script)
+            tmp.write(synthesis_problem.tlsf)
             tmp.close()
 
             cmd = f"{strix_path} {tmp.name} -m both --onthefly none"
@@ -34,6 +32,10 @@ def ltl_synthesis(
                 so = subprocess.getstatusoutput(cmd)
                 output: str = so[1]
                 logging.info(output)
+
+                out_lines = output.split("\n")
+                real = out_lines[0]
+                hoa = "\n".join(out_lines[1:])
             except Exception as err:
                 logging.info(err)
                 if "Killed" in str(err):
@@ -43,19 +45,16 @@ def ltl_synthesis(
                 else:
                     raise err
 
-            if "UNREALIZABLE" in output:
+            if "UNREALIZABLE" in real:
                 logging.info(
                     "\nINFO: Strix thinks the current abstract problem is unrealisable! I will check..\n"
                 )
-                return False, output
-            elif "REALIZABLE" in output:
+                return WrappedHOA(hoa, False, synthesis_problem, symbol_table)
+            elif "REALIZABLE" in real:
                 logging.info(
                     "\nINFO: Strix determines the current abstract problem realisable!\n"
                 )
-                try:
-                    return True, output
-                except Exception as err:
-                    raise err
+                return WrappedHOA(hoa, True, synthesis_problem, symbol_table)
             else:
                 raise Exception(
                     "Strix not returning appropriate value.\n\n"
@@ -63,13 +62,13 @@ def ltl_synthesis(
                     + "\n\n"
                     + output
                     + "\n\n"
-                    + tlsf_script
+                    + synthesis_problem.tlsf
                 )
     except Exception as err:
         raise err
-    pass
 
 
+# TODO see if anything is uneeded here, and remove comments
 def parse_hoa(
     synthesis_problem: AbstractLTLSynthesisProblem,
     output: object,
@@ -110,7 +109,7 @@ def parse_hoa(
             {},
             {},
         )
-        mon.add_transitions(trans)
+        mon.add_transitions(trans, None)
     else:
         mon = MealyMachine(
             "counterstrategy" if counterstrategy else "controller",

@@ -14,6 +14,8 @@ from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
 from programs.program import Program
 from prop_lang.formula import Formula
+from synthesis.machines.machine import Machine
+from synthesis.machines.wrapped_hoa import WrappedHOA
 from synthesis.synthesis import synthesize
 
 dirname = os.path.dirname(__file__)
@@ -45,6 +47,14 @@ def setup_argument_parser() -> ArgumentParser:
         "--synthesise",
         dest="synthesise",
         help="Synthesis workflow.",
+        type=bool,
+        nargs="?",
+        const=True,
+    )
+    parser.add_argument(
+        "--out_dot",
+        dest="out_dot",
+        help="Parses HOA mealy/moore machine into DOT.",
         type=bool,
         nargs="?",
         const=True,
@@ -229,16 +239,18 @@ def main():
             print("Spec in both program and as TLSF given, will use the TLSF.")
 
         start = time.time()
-        (realiz, mm) = synthesize(program, ltl, args.tlsf)
+
+        realizable: bool
+        mm: Machine
+        mm_hoa: str
+        mm: WrappedHOA = synthesize(program, ltl, args.tlsf)
         end = time.time()
 
-        if (realiz and not args.dual) or (not realiz and args.dual):
-            print("Realizable.")
-        else:
-            print("Unrealizable.")
+        print(mm.hoa)
+        if args.out_dot:
+            print(mm.machine.to_dot())
 
-        print(str(mm))
-
+        print("Realisable" if mm.is_controller else "Unrealisable")
         print("Synthesis took: ", (end - start) * 10**3, "ms")
 
     else:

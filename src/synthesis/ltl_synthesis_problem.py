@@ -19,6 +19,7 @@ class LTLSynthesisProblem:
         self.con_props = con_props
         self.assumptions = assumptions
         self.guarantees = guarantees
+        self.tlsf = self.__to_tlsf()
 
     def get_env_props(self):
         return self.env_props
@@ -32,7 +33,7 @@ class LTLSynthesisProblem:
     def get_guarantees(self):
         return self.guarantees
 
-    def to_tlsf(self):
+    def __to_tlsf(self):
         env_acts_lowered = [str(a) for a in self.env_props]
         con_acts_lowered = [str(a) for a in self.con_props]
 

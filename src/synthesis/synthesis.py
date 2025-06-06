@@ -45,15 +45,18 @@ from synthesis.ltl_synthesis import (
     syfco_ltl_out,
 )
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from synthesis.machines.mealy_machine import MealyMachine
+from synthesis.machines.machine import Machine
 from pathlib import Path
+
+from synthesis.machines.mealy_machine import MealyMachine
+from synthesis.machines.wrapped_hoa import WrappedHOA
 
 
 def synthesize(
     program: Program,
-    ltl: Formula,
-    tlsf_path: str,
-) -> Tuple[bool, MealyMachine]:
+    ltl: Formula | None,
+    tlsf_path: str | None,
+) -> WrappedHOA:
     if not program.deterministic:
         print("Program is non-deterministic; refinement may fail.")
 
@@ -73,7 +76,7 @@ def synthesize(
     print(msg)
     logging.info(msg)
 
-    result = abstract_synthesis_loop(
+    wrapped_hoa: WrappedHOA = abstract_synthesis_loop(
         program,
         ltl_assumptions,
         ltl_guarantees,
@@ -81,7 +84,7 @@ def synthesize(
         out_acts,
     )
     logging.info("synthesis took " + str(time.time() - start))
-    return result
+    return wrapped_hoa
 
 
 def process_specifications(program, ltl, tlsf_path):
@@ -221,63 +224,44 @@ def abstract_synthesis_loop(
 
         start = time.time()
         print("running LTL synthesis")
-        tlsf_script = abstract_ltl_problem.to_tlsf()
 
-        safe_overwrite_if_logging(file_name_template, str(loop_counter), tlsf_script)
+        safe_overwrite_if_logging(
+            file_name_template, str(loop_counter), abstract_ltl_problem.tlsf
+        )
 
-        (real, mm_hoa) = ltl_synthesis(tlsf_script)
+        wrapped_hoa: WrappedHOA = ltl_synthesis(
+            abstract_ltl_problem, predicate_abstraction.symbol_table
+        )
         logging.info("ltl synthesis took " + str(time.time() - start))
 
-        if real:
-            safe_rename_logging(file_name_template, str(loop_counter), "real")
+        if wrapped_hoa.is_controller:
+            new_index = "-unreal" if config.Config.getConfig().dual else "-real"
+            safe_rename_logging(file_name_template, str(loop_counter), new_index)
 
             if config.Config.getConfig().verify_controller:
-                print("massaging abstract controller")
-                mm = predicate_abstraction.massage_mealy_machine(
-                    mm_hoa,
-                    base_abstraction,
-                    ltlAbstractionType,
-                    abstract_ltl_problem,
-                    real,
-                )
-                if config.Config.getConfig().dual:
-                    mm = mm.to_moore_machine()
-                    logging.info("Unrealizable")
-                else:
-                    logging.info("Realizable")
-
                 original_ltl_spec = implies(
                     conjunct_formula_set(ltl_assumptions),
                     conjunct_formula_set(ltl_guarantees),
                 )
+                assert isinstance(wrapped_hoa.machine, MealyMachine)
                 compatibility_checking_con(
-                    program, predicate_abstraction, mm, original_ltl_spec
+                    program,
+                    predicate_abstraction,
+                    wrapped_hoa.machine,
+                    original_ltl_spec,
                 )
-                return True, "\n".join(mm_hoa.split("\n")[1:])
-            else:
-                return True, "\n".join(mm_hoa.split("\n")[1:])
-        elif not real and config.Config.getConfig().finite_synthesis:
-            return False, "\n".join(mm_hoa.split("\n")[1:])
 
-        start = time.time()
-        print("massaging abstract counterstrategy")
-        mm = predicate_abstraction.massage_mealy_machine(
-            mm_hoa,
-            base_abstraction,
-            ltlAbstractionType,
-            abstract_ltl_problem,
-            real,
-        )
+            return wrapped_hoa
 
-        logging.info(mm)
-        logging.info("massaging mealy machine took " + str(time.time() - start))
+        if config.Config.getConfig().finite_synthesis:
+            return wrapped_hoa
 
         ## compatibility checking
         compatible, result = refinement_standard(
             program,
             predicate_abstraction,
-            mm,
-            real,
+            wrapped_hoa.machine,
+            wrapped_hoa.is_controller,
             signatures,
             loop_counter,
             prefer_lasso_counterexamples,
@@ -285,8 +269,15 @@ def abstract_synthesis_loop(
         )
 
         if compatible:
-            safe_rename_logging(file_name_template, str(loop_counter), "-unreal")
-            return False, "\n".join(mm_hoa.split("\n")[1:])
+            if config.Config.getConfig().dual:
+                new_index = "-real"
+                wrapped_hoa.is_controller = True
+                if config.Config.getConfig().verify_controller:
+                    print("Controller enforces the required LTL property!")
+            else:
+                new_index = "-unreal"
+            safe_rename_logging(file_name_template, str(loop_counter), new_index)
+            return wrapped_hoa
         else:
             (
                 (new_state_preds, new_tran_preds),

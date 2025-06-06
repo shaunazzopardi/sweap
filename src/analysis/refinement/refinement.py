@@ -25,7 +25,7 @@ def refinement_standard(
 ):
     start = time.time()
 
-    print("checking for compatibility of counterstrategy with program")
+    print("checking for compatibility with program")
     determination, result = compatibility_checking(
         program,
         predicate_abstraction,
