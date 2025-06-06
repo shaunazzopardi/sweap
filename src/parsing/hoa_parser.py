@@ -1,8 +1,7 @@
 import re
-from multiprocessing import Pool
-
 import config
-from parsing.hoa_util import parse_raw_cond
+
+from multiprocessing import Pool
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
 from prop_lang.variable import Variable
@@ -75,7 +74,7 @@ def hoa_to_transitions(hoa, parallelise=True):
 
 def parse_state_trans(to_replace, raw_tran):
     result = re.search(
-        r"(\n| )*(?P<src>[0-9]+) +\"[^\"]*\"( |\n)*(?P<trans>(\[[^\[\]]+\] (?P<tgt>[0-9]+)( |\n)+)+)",
+        r"([\n ])*(?P<src>[0-9]+) +\"[^\"]*\"([ \n])*(?P<trans>(\[[^\[\]]+] (?P<tgt>[0-9]+)([\n ])+)+)",
         raw_tran,
     )
     # if result == None:
@@ -86,7 +85,7 @@ def parse_state_trans(to_replace, raw_tran):
     new_trans = {}
     for line in trans.splitlines():
         if line.strip("") != "":
-            search = re.search(r" *\[(?P<cond>[^\[\]]+)\] (?P<tgt>[0-9]+)", line)
+            search = re.search(r" *\[(?P<cond>[^\[\]]+)] (?P<tgt>[0-9]+)", line)
             tgt = search.group("tgt")
             raw_cond = search.group("cond")
             raw_cond = raw_cond.replace("t", "true")
@@ -102,15 +101,12 @@ def parse_state_trans(to_replace, raw_tran):
     return new_trans
 
 
-def parse_line(to_replace, src, line: str):
-    search = re.search(r" *\[(?P<cond>[^\[\]]+)\] (?P<tgt>[0-9]+)", line)
-    tgt = search.group("tgt")
-    raw_cond = search.group("cond")
-    raw_cond = raw_cond.replace("t", "true")
+def parse_raw_cond(arg):
+    to_replace, orig_cond = arg
+    raw_cond = orig_cond.replace("t", "true")
     raw_cond = raw_cond.replace("f", "false")  # probably we don't need this
     cond = string_to_prop(raw_cond, True)
     cond = cond.replace_vars(to_replace)
     env_cond = cond.left
     con_cond = cond.right
-    to_return = src, env_cond, tgt, con_cond
-    return to_return
+    return orig_cond, env_cond, con_cond
