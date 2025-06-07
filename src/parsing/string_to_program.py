@@ -1,3 +1,4 @@
+import re
 from multiprocessing import Pool
 
 import parsec
@@ -27,6 +28,40 @@ from prop_lang.variable import Variable
 name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
 state = regex(r"[a-zA-Z0-9@$_-]+")
+
+regex_keywords = list(
+    map(
+        re.compile,
+        [
+            r"turn",
+            r"in_loop[0-9]+_[0-9]+",
+            r"prog",
+            r"cs",
+            r"pred_.*",
+            r"bin_.*",
+            r"mismatch",
+            r"compatible_.*",
+            r"guard_.*",
+            r"act_.*",
+            r"identity_.*",
+            r"counterstrategy_guard_.*",
+            r"counterstrategy_act_.*",
+        ],
+    )
+)
+
+
+def not_a_keyword(s: str):
+    for k in list(regex_keywords):
+        if k.match(s):
+            raise Exception(
+                "'"
+                + s
+                + "'"
+                + " matches a reserved keyword/pattern "
+                + str(k).replace("re.compile", "")
+                + ", rename."
+            )
 
 
 @generate
@@ -87,6 +122,7 @@ def event_parser():
     yield spaces()
     yield string("}")
     yield spaces()
+    list(map(not_a_keyword, events))
     return [Variable(s) for s in events]
 
 
@@ -100,11 +136,17 @@ def state_parser():
     yield spaces()
     yield string("}")
     yield spaces()
-    initial_state = [s for (s, tag) in tagged_states if tag == "init"]
-    if len(initial_state) != 1:
-        yield parsec.none_of(parsec.spaces())
+    initial_states = []
+    for s, tag in tagged_states:
+        not_a_keyword(s)
+        if tag == "init":
+            initial_states.append(s)
+        elif tag != "":
+            raise Exception("State tag " + tag + " is unknown.")
+    if len(initial_states) != 1:
+        raise Exception("Only one initial state allowed.")
     states = [s for (s, _) in tagged_states]
-    return states, initial_state[0]
+    return states, initial_states[0]
 
 
 @generate
