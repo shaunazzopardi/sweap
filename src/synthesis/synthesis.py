@@ -4,7 +4,6 @@ import time
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 import config
 
-from typing import Tuple
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
@@ -15,18 +14,17 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
     LTLAbstractionType,
     LTLAbstractionOutputType,
 )
+from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.compatibility_checking.compatibility_checking_con import (
     compatibility_checking_con,
 )
 from analysis.refinement.refinement import refinement_standard
 from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
-from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.util import (
     true,
-    stringify_formula,
     atomic_predicates,
     finite_state_preds,
     strip_mathexpr,
@@ -45,7 +43,6 @@ from synthesis.ltl_synthesis import (
     syfco_ltl_out,
 )
 from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
-from synthesis.machines.machine import Machine
 from pathlib import Path
 
 from synthesis.machines.mealy_machine import MealyMachine
@@ -87,7 +84,9 @@ def synthesize(
     return wrapped_hoa
 
 
-def process_specifications(program, ltl, tlsf_path):
+def process_specifications(
+    program: Program, ltl: Formula | None, tlsf_path: str | None
+):
     if tlsf_path is not None:
         ltl_text = syfco_ltl(tlsf_path)
         if ' Error"' in ltl_text:
@@ -157,13 +156,13 @@ def process_specifications(program, ltl, tlsf_path):
 
 def abstract_synthesis_loop(
     program: Program,
-    ltl_assumptions: [Formula],
-    ltl_guarantees: [Formula],
-    in_acts: [Variable],
-    out_acts: [Variable],
-) -> Tuple[bool, MealyMachine]:
-    allow_user_input = False
-    prefer_lasso_counterexamples = False
+    ltl_assumptions: list[Formula],
+    ltl_guarantees: list[Formula],
+    in_acts: list[Variable],
+    out_acts: list[Variable],
+) -> WrappedHOA:
+    allow_user_input: bool = False
+    prefer_lasso_counterexamples: bool = False
 
     (
         new_state_preds,
@@ -173,7 +172,7 @@ def abstract_synthesis_loop(
         old_to_new_st_preds,
     ) = extract_init_preds(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts)
 
-    ltlAbstractionType: LTLAbstractionType = LTLAbstractionType(
+    ltl_abstraction_type: LTLAbstractionType = LTLAbstractionType(
         LTLAbstractionBaseType.effects_representation,
         LTLAbstractionTransitionType.one_trans,
         LTLAbstractionStructureType.control_state,
@@ -186,12 +185,12 @@ def abstract_synthesis_loop(
 
     predicate_abstraction = EffectsAbstraction(program, old_to_new_st_preds)
 
-    new_tran_preds = set()
-    new_ranking_constraints = []
-    new_structural_loop_constraints = []
+    new_tran_preds: set[Formula] = set()
+    new_ranking_constraints: list[Formula] = []
+    new_structural_loop_constraints: list[Formula] = []
 
-    file_name_template = generate_tlsf_file_name_template()
-    loop_counter = -1
+    file_name_template: str = generate_tlsf_file_name_template()
+    loop_counter: int = -1
 
     print("Starting abstract synthesis loop.")
     while True:
@@ -218,7 +217,7 @@ def abstract_synthesis_loop(
             new_ranking_constraints,
             new_structural_loop_constraints,
             original_LTL_problem,
-            ltlAbstractionType,
+            ltl_abstraction_type,
         )
         logging.info("refining predicate abstraction took " + str(time.time() - start))
 
@@ -312,31 +311,29 @@ def generate_tlsf_file_name_template() -> str | None:
 
 
 def safe_overwrite_if_logging(file_name_template, counter, text):
-    if not config.Config.getConfig().log:
-        return
-    file_name = file_name_template + counter
-    try:
-        os.remove(file_name)
-    except OSError:
-        pass
-    with open(file_name, "w") as f:
-        f.write(text)
+    if config.Config.getConfig().log:
+        file_name = file_name_template + counter
+        try:
+            os.remove(file_name)
+        except OSError:
+            pass
+        with open(file_name, "w") as f:
+            f.write(text)
 
 
 def safe_rename_logging(file_name_template, counter, new_index):
-    if not config.Config.getConfig().log:
-        return
-    os.rename(file_name_template + counter, file_name_template + new_index)
+    if config.Config.getConfig().log:
+        os.rename(file_name_template + counter, file_name_template + new_index)
 
 
 def refining_abs_and_log(
-    predicate_abstraction,
-    new_state_preds,
-    new_tran_preds,
-    new_ranking_constraints,
-    new_structural_loop_constraints,
-    original_LTL_problem,
-    ltlAbstractionType,
+    predicate_abstraction: EffectsAbstraction,
+    new_state_preds: set[Formula],
+    new_tran_preds: set[Formula],
+    new_ranking_constraints: list[Formula],
+    new_structural_loop_constraints: list[Formula],
+    original_LTL_problem: LTLSynthesisProblem,
+    ltl_abstraction_type: LTLAbstractionType,
 ):
     print(
         "adding "
@@ -356,7 +353,7 @@ def refining_abs_and_log(
     new_structural_loop_constraints.clear()
 
     base_abstraction, abstract_ltl_problem = effects_to_ltl.to_ltl(
-        predicate_abstraction, original_LTL_problem, ltlAbstractionType
+        predicate_abstraction, original_LTL_problem, ltl_abstraction_type
     )
 
     return base_abstraction, abstract_ltl_problem
@@ -364,10 +361,10 @@ def refining_abs_and_log(
 
 def extract_init_preds(
     program: Program,
-    ltl_assumptions: [Formula],
-    ltl_guarantees: [Formula],
-    in_acts: [Variable],
-    out_acts: [Variable],
+    ltl_assumptions: list[Formula],
+    ltl_guarantees: list[Formula],
+    in_acts: list[Variable],
+    out_acts: list[Variable],
 ):
     new_state_preds = set()
 
