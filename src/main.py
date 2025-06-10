@@ -68,6 +68,14 @@ def setup_argument_parser() -> ArgumentParser:
         const=True,
     )
     parser.add_argument(
+        "--model-check",
+        dest="model_check",
+        help="Model checking workflow (directly attempts IC3 model checking on the problem).",
+        type=bool,
+        nargs="?",
+        const=True,
+    )
+    parser.add_argument(
         "--log",
         dest="log",
         help="Enable logging (output in working-directory/logs/<program-name>)",
@@ -170,27 +178,22 @@ def process_args(args: Namespace) -> (Program, Formula):
         raise Exception("Program path not specified.")
 
 
-def handle_translation(target, program, ltl_spec):
+def handle_translation(target, program, ltl_spec) -> str:
     if target.lower() == "dot":
-        print("\ndot version of program:\n\n" + str(program.to_dot()))
+        return str(program.to_dot())
     elif target.lower() == "nuxmv":
-        print(
-            "\nnuxmv version of program:\n\n"
-            + create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
-        )
+        return create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
     elif target.lower() == "prog":
-        print(
-            "\nsymbolic automaton version of program:\n\n" + program.to_prog(ltl_spec)
-        )
+        return program.to_prog(ltl_spec)
     elif target.lower() == "vmt":
         model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
         model_checker = ModelChecker()
         model_checker.to_vmt(model, ltl_spec, "model")
         vmt = open("model.vmt").read()
         os.remove("model.vmt")
-        print("\nvmt version of program:\n\n" + vmt)
+        return vmt
     else:
-        print(
+        raise Exception(
             target
             + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'prog' or 'vmt'."
         )
@@ -228,8 +231,15 @@ def main():
     else:
         logging.disable(logging.CRITICAL)
 
-    if args.translate is not None:
-        handle_translation(args.translate, program, ltl_spec)
+    if args.translate:
+        out = handle_translation(args.translate, program, ltl_spec)
+        print("\n\n" + str(args.translate) + " version of the program:\n\n" + out)
+    elif args.model_check:
+        nuxmv_script = handle_translation("nuxmv", program, ltl_spec)
+        _, out = ModelChecker().invar_check(
+            nuxmv_script, ltl_spec.to_nuxmv(), None, True
+        )
+        print(out)
     elif args.synthesise or args.finite_synthesise:
         ltl = ltl_spec
         if ltl is None:
