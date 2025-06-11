@@ -242,7 +242,16 @@ def abstract_synthesis_loop(
                     conjunct_formula_set(ltl_assumptions),
                     conjunct_formula_set(ltl_guarantees),
                 )
-                assert isinstance(wrapped_hoa.machine, MealyMachine)
+                print(str(original_ltl_spec))
+                print(
+                    "Verifying whether "
+                    + (
+                        "controller"
+                        if config.Config.getConfig().dual
+                        else "counterstrategy"
+                    )
+                    + " enforces required LTL specification on program.."
+                )
                 compatibility_checking_con(
                     program,
                     predicate_abstraction,
@@ -270,7 +279,6 @@ def abstract_synthesis_loop(
         if compatible:
             if config.Config.getConfig().dual:
                 new_index = "-real"
-                wrapped_hoa.is_controller = True
                 if config.Config.getConfig().verify_controller:
                     print("Controller enforces the required LTL property!")
             else:

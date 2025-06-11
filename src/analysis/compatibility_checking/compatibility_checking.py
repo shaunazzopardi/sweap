@@ -92,11 +92,7 @@ def compatibility_checking(
 
         result = moore_machine.to_dot(all_preds)
 
-        if is_controller:
-            return True, result
-        else:
-            # then the problem is unrealisable (i.e., the counterstrategy is a real counterstrategy)
-            return False, result
+        return True, result
 
     logging.info(out)
     ## Compute mismatch trace

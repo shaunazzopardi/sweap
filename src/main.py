@@ -215,7 +215,7 @@ def main():
         logdir = (
             os.getcwd()
             + "/logs/"
-            + config.Config.getConfig().name
+            + Config.getConfig().name
             + "/"
             + (str(time.time()))
         )
@@ -266,7 +266,12 @@ def main():
         if args.out_dot:
             print(mm.machine.to_dot())
 
-        print("Realisable" if mm.is_controller else "Unrealisable")
+        print(
+            "Realisable"
+            if (args.dual and not mm.is_controller)
+            or (not args.dual and mm.is_controller)
+            else "Unrealisable"
+        )
         print("Synthesis took: ", (end - start) * 10**3, "ms")
 
     else:

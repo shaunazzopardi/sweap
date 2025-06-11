@@ -44,12 +44,14 @@ class WrappedHOA:
 
         con_props = synthesis_problem.get_con_props()
 
+        dual = config.Config.getConfig().dual
+        name = "counterstrategy" if dual and self.is_controller else "controller"
         if not self.is_controller:
-            mm = MooreMachine("counterstrategy", init_st, env_props, con_props, {})
+            mm = MooreMachine(name, init_st, env_props, con_props, {})
             mm.add_transitions(trans, symbol_table)
         else:
             mm = MealyMachine(
-                "controller",
+                name,
                 init_st,
                 env_props,
                 con_props,
@@ -59,8 +61,6 @@ class WrappedHOA:
             mm.add_transitions(trans)
 
             if config.Config.getConfig().dual:
-                # mm = mm.to_moore_machine()
-                self.is_controller = False
                 logging.info("Unrealizable")
             else:
                 logging.info("Realizable")

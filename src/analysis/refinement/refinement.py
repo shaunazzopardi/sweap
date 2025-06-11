@@ -1,6 +1,7 @@
 import logging
 import time
 
+import config
 from analysis.compatibility_checking.compatibility_checking import (
     compatibility_checking,
 )
@@ -35,12 +36,13 @@ def refinement_standard(
     )
 
     logging.info("compatibility checking took " + str(time.time() - start))
-
-    if determination == False:
-        logging.info("Problem is unrealisable.")
+    dual = config.Config.getConfig().dual
+    if determination == True:
+        if dual:
+            logging.info("Problem is realisable.")
+        else:
+            logging.info("Problem is unrealisable.")
         return True, mm
-    elif determination == True:
-        raise Exception("error")
     else:
         agreed_on_execution, disagreed_on_state = result
 

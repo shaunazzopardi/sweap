@@ -45,9 +45,6 @@ def compatibility_checking_con(
         prefer_lassos=False,
     )
     logging.info(system)
-    print(
-        "Verifying whether controller enforces required LTL specification on program.."
-    )
     bound = 50
     (
         contradictory,
