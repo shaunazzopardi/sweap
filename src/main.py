@@ -212,7 +212,13 @@ def main():
     program, ltl_spec = process_args(args)
 
     if args.log:
-        logdir = os.getcwd() + "/logs/" + program.name + "/" + (str(time.time()))
+        logdir = (
+            os.getcwd()
+            + "/logs/"
+            + config.Config.getConfig().name
+            + "/"
+            + (str(time.time()))
+        )
         Config.getConfig()._log = logdir
 
         if not os.path.exists(logdir):
