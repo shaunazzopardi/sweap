@@ -504,25 +504,27 @@ class Program:
         ]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
-        update_prevs = (
-            "(turn = cs)"
-            + " & "
+        update_prevs = "(turn = cs)" + (
+            " & "
             + " & ".join(
                 [
                     "next(" + str(var.name) + "_prev) = " + str(var.name)
                     for var in self.valuation
                 ]
             )
+            if len(self.valuation) > 0
+            else ""
         )
-        maintain_prevs = (
-            "!(turn = cs)"
-            + " & "
+        maintain_prevs = "!(turn = cs)" + (
+            " & "
             + " & ".join(
                 [
                     "next(" + str(var.name) + "_prev) = " + str(var.name) + "_prev"
                     for var in self.valuation
                 ]
             )
+            if len(self.valuation) > 0
+            else ""
         )
         prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
         trans += [prev_logic]
