@@ -315,7 +315,7 @@ def there_is_mismatch_between_program_and_controller(
         + "))) -> ("
         + str(ltlspec.to_nuxmv())
         + ")",
-        10,
+        bound,
         True,
     )
     return False, not there_is_no_mismatch, out
