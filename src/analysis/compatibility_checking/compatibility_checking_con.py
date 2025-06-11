@@ -305,11 +305,16 @@ def there_is_mismatch_between_program_and_controller(
         logging.info("Are you sure the controller given is complete?")
         return True, False, None
 
+    if len(loop_constraints) > 0:
+        loop_constraints_str = "& (" + ") & (".join(map(str, loop_constraints)) + ")"
+    else:
+        loop_constraints_str = ""
+
     there_is_no_mismatch, out = model_checker.invar_check(
         system,
-        "(G(compatible & ("
-        + ") & (".join(map(str, loop_constraints))
-        + "))) -> ("
+        "(G(compatible"
+        + loop_constraints_str
+        + ")) -> ("
         + str(ltlspec.to_nuxmv())
         + ")",
         bound,
