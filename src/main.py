@@ -26,31 +26,44 @@ os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
 def setup_argument_parser() -> ArgumentParser:
     parser = argparse.ArgumentParser()
-    # input monitor
-    parser.add_argument("--p", dest="program", help="Path to a .prog file.", type=str)
-    parser.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
 
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group()
+
+    input_group.add_argument(
+        "--p", dest="program", help="Path to a .prog file.", type=str
+    )
+    input_group.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
+
+    action_group = parser.add_mutually_exclusive_group()
+
+    action_group.add_argument(
         "--translate", dest="translate", help="Translation workflow.", type=str
     )
-
-    # Synthesis workflow
-    parser.add_argument(
-        "--debug",
-        dest="debug",
-        help="Debugging mode (sanity checks enabled).",
-        type=bool,
-        nargs="?",
-        const=True,
-    )
-    parser.add_argument(
+    action_group.add_argument(
         "--synthesise",
         dest="synthesise",
         help="Synthesis workflow.",
+        type=str,
+        nargs="?",
+        const=True,
+    )
+    action_group.add_argument(
+        "--finite-synthesise",
+        dest="finite_synthesise",
+        help="Finite synthesis workflow (only works with finite programs).",
+        type=str,
+        nargs="?",
+        const=True,
+    )
+    action_group.add_argument(
+        "--model-check",
+        dest="model_check",
+        help="Model checking workflow (directly attempts IC3 model checking on the problem).",
         type=bool,
         nargs="?",
         const=True,
     )
+
     parser.add_argument(
         "--out_dot",
         dest="out_dot",
@@ -60,17 +73,9 @@ def setup_argument_parser() -> ArgumentParser:
         const=True,
     )
     parser.add_argument(
-        "--finite-synthesise",
-        dest="finite_synthesise",
-        help="Finite synthesis workflow (only works with finite programs).",
-        type=bool,
-        nargs="?",
-        const=True,
-    )
-    parser.add_argument(
-        "--model-check",
-        dest="model_check",
-        help="Model checking workflow (directly attempts IC3 model checking on the problem).",
+        "--debug",
+        dest="debug",
+        help="Debugging mode (sanity checks enabled).",
         type=bool,
         nargs="?",
         const=True,
@@ -84,6 +89,7 @@ def setup_argument_parser() -> ArgumentParser:
         const=True,
     )
     parser.add_argument("--tlsf", dest="tlsf", help="Path to a .tlsf file.", type=str)
+
     parser.add_argument(
         "--verify_controller",
         dest="verify_controller",
@@ -130,12 +136,15 @@ def setup_argument_parser() -> ArgumentParser:
 
 def process_args(args: Namespace) -> (Program, Formula):
     conf = Config.getConfig()
-    if args.debug is not None:
-        conf.debug = True
+    conf.debug = args.debug
 
     if not args.lazy and not args.only_safety:
         conf.eager_fairness = True
     else:
+        if args.finite_synthesise:
+            raise Exception(
+                "--lazy and --only_safety cannot be used with finite_synthesise flag."
+            )
         conf.eager_fairness = False
 
     if args.no_binary_enc:
@@ -156,11 +165,8 @@ def process_args(args: Namespace) -> (Program, Formula):
 
     conf.add_all_preds_in_prog = True
 
-    if args.only_safety is not None:
-        conf.only_safety = True
-
-    if args.finite_synthesise is not None:
-        conf.finite_synthesis = True
+    conf.only_safety = True
+    conf.finite_synthesis = args.finite_synthesise
 
     if args.program is not None:
         name = ".".join(os.path.basename(args.program).split(".")[0:-1])
@@ -168,14 +174,12 @@ def process_args(args: Namespace) -> (Program, Formula):
         with open(args.program) as prog_file:
             prog_str = prog_file.read()
         return string_to_program(prog_str)
-    elif args.tsl is not None:
+    else:
         with open(args.tsl).read() as ltlmt_formula:
             ltlmt = string_to_ltlmt(ltlmt_formula)
             tp = ToProgram()
             prog_name = Path(args.tsl).stem + "_tsl"
             return tp.ltlmt2prog(ltlmt, prog_name)
-    else:
-        raise Exception("Program path not specified.")
 
 
 def handle_translation(target, program, ltl_spec) -> str:
@@ -213,11 +217,7 @@ def main():
 
     if args.log:
         logdir = (
-            os.getcwd()
-            + "/logs/"
-            + Config.getConfig().name
-            + "/"
-            + (str(time.time()))
+            os.getcwd() + "/logs/" + Config.getConfig().name + "/" + (str(time.time()))
         )
         Config.getConfig()._log = logdir
 
