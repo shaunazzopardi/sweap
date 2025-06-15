@@ -141,11 +141,11 @@ def process_args(args: Namespace) -> (Program, Formula):
     if not args.lazy and not args.only_safety:
         conf.eager_fairness = True
     else:
-        if args.finite_synthesise:
-            raise Exception(
-                "--lazy and --only_safety cannot be used with finite_synthesise flag."
-            )
         conf.eager_fairness = False
+
+    conf.only_safety = args.only_safety
+    if args.finite_synthesise and args.lazy:
+        raise Exception("--lazy cannot be used with finite_synthesise flag.")
 
     if args.no_binary_enc:
         conf.eager_fairness = False
@@ -159,13 +159,12 @@ def process_args(args: Namespace) -> (Program, Formula):
         conf._verify_controller = False
 
     if args.dual:
-        conf._dual = True
+        conf.dual = True
     else:
-        conf._dual = False
+        conf.dual = False
 
     conf.add_all_preds_in_prog = True
 
-    conf.only_safety = True
     conf.finite_synthesis = args.finite_synthesise
 
     if args.program is not None:
