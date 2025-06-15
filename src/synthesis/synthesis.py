@@ -190,11 +190,12 @@ def abstract_synthesis_loop(
     new_structural_loop_constraints: list[Formula] = []
 
     file_name_template: str = generate_tlsf_file_name_template()
-    loop_counter: int = -1
+    cegar_loop_counter: int = -1
+    loop_counter: int = 0
 
     print("Starting abstract synthesis loop.")
     while True:
-        loop_counter += 1
+        cegar_loop_counter += 1
         new_state_preds = {strip_mathexpr(p) for p in new_state_preds}
         new_state_preds = {
             p
@@ -225,7 +226,7 @@ def abstract_synthesis_loop(
         print("running LTL synthesis")
 
         safe_overwrite_if_logging(
-            file_name_template, str(loop_counter), abstract_ltl_problem.tlsf
+            file_name_template, str(cegar_loop_counter), abstract_ltl_problem.tlsf
         )
 
         wrapped_hoa: WrappedHOA = ltl_synthesis(
@@ -235,7 +236,7 @@ def abstract_synthesis_loop(
 
         if wrapped_hoa.is_controller:
             new_index = "-unreal" if config.Config.getConfig().dual else "-real"
-            safe_rename_logging(file_name_template, str(loop_counter), new_index)
+            safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
 
             if config.Config.getConfig().verify_controller:
                 original_ltl_spec = implies(
@@ -283,7 +284,7 @@ def abstract_synthesis_loop(
                     print("Controller enforces the required LTL property!")
             else:
                 new_index = "-unreal"
-            safe_rename_logging(file_name_template, str(loop_counter), new_index)
+            safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
             return wrapped_hoa
         else:
             (
