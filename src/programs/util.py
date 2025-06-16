@@ -896,11 +896,12 @@ def binary_rep(vars, label):
     if bin == 0:
         bin = 1
 
+    sorted_vars = sorted(vars, key=lambda x: str(x))
     bin_vars = [Variable(label + str(i)) for i in range(0, bin)]
 
     base = "{0:0" + str(bin) + "b}"
     rep = {}
-    for i, v in enumerate(vars):
+    for i, v in enumerate(sorted_vars):
         bin_rep = base.format(i)
         bin_formula = None
         for j, pos in enumerate(bin_rep):
