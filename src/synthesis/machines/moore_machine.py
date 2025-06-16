@@ -59,6 +59,9 @@ class MooreMachine(Machine):
                     new_src = new_new_src
                     self.transitions[new_src] = []
                     self.out[new_src] = env_cond
+                    if new_src not in intermed_trans.keys():
+                        print()
+                    intermed_trans[new_src] = []
 
             con_behaviour = disjunct_formula_set(
                 trans_dict[(src_index, env_behaviour, tgt_index)]
