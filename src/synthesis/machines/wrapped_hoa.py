@@ -34,7 +34,7 @@ class WrappedHOA:
     ):
         start = time.time()
 
-        init_st, trans = hoa_to_transitions(self.hoa)
+        init_st, trans = hoa_to_transitions(self.hoa, self.is_controller)
 
         env_props = (
             synthesis_problem.get_env_props()

@@ -36,13 +36,11 @@ from prop_lang.util import (
     neg,
 )
 from prop_lang.variable import Variable
-from synthesis.ltl_synthesis import (
+from synthesis.ltl_synthesis.ltl_synthesis import (
     ltl_synthesis,
-    syfco_ltl,
-    syfco_ltl_in,
-    syfco_ltl_out,
 )
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl_synthesis.syfco_adapter import syfco_ltl, syfco_ltl_in, syfco_ltl_out
+from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from pathlib import Path
 
 from synthesis.machines.mealy_machine import MealyMachine

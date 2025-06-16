@@ -12,7 +12,7 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
     LTLAbstractionOutputType,
 )
 from prop_lang.formula import Formula
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def to_ltl(

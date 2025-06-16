@@ -7,9 +7,14 @@ env = Variable("env_turn")
 con = neg(env)
 init_state = Variable("init_state")
 
+strix = "strix"
+semml = "semml"
+synthesis_backends = [semml, strix]
+
 
 class Config:
     _instance = None
+    _backend = "semml"
     _finite_synthesis = False
     _prefer_ranking = False
     _only_structural = False
@@ -26,6 +31,12 @@ class Config:
     _parallelise_type = "processes"
     _name = None
     _log = None
+
+    def _get_b(self):
+        return self._backend
+
+    def _set_b(self, value):
+        self._backend = value
 
     def _get_n(self):
         return self._name
@@ -127,6 +138,7 @@ class Config:
         pass
 
     name = property(_get_n, _set_n, _do_nothing, "")
+    backend = property(_get_b, _set_b, _do_nothing, "")
     log = property(_get_l, _set_l, _do_nothing, "")
     finite_synthesis = property(_get_f_s, _set_f_s, _do_nothing, "")
     dual = property(_get_d, _set_d, _do_nothing, "")

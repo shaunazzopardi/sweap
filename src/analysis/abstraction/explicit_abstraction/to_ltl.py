@@ -23,7 +23,7 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def explicit_abstraction_to_state_based_ltl_abstraction(

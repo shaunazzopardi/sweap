@@ -21,7 +21,7 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def to_ltl_organised_by_pred_effects_guard_updates(

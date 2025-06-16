@@ -2,12 +2,14 @@ import re
 import config
 
 from multiprocessing import Pool
+
+from config import strix, semml
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
 from prop_lang.variable import Variable
 
 
-def hoa_to_transitions(hoa, parallelise=True):
+def hoa_to_transitions(hoa, realisable, parallelise=True):
     preamble_body = hoa.strip().split("--BODY--")
 
     hoa_preamble = preamble_body[0]
@@ -44,13 +46,17 @@ def hoa_to_transitions(hoa, parallelise=True):
     if parallelise:
         arg1 = []
         arg2 = []
+        arg3 = []
+        arg4 = []
         for cond in cond_to_src_tgt.keys():
             if "END--" in cond:
                 break
             arg1.append(to_replace)
             arg2.append(cond)
+            arg3.append(realisable)
+            arg4.append(config.Config.getConfig().backend)
         with Pool(config.Config.getConfig().workers) as pool:
-            results = pool.map(parse_raw_cond, zip(arg1, arg2))
+            results = pool.map(parse_raw_cond, zip(arg1, arg2, arg3, arg4))
 
         for cond, env, con in results:
             for src, tgt in cond_to_src_tgt[cond]:
@@ -61,7 +67,9 @@ def hoa_to_transitions(hoa, parallelise=True):
                     transitions[key] = [con]
     else:
         for cond, src_tgts in cond_to_src_tgt.items():
-            _, env, con = parse_raw_cond(to_replace, cond)
+            _, env, con = parse_raw_cond(
+                (to_replace, cond, realisable, config.Config.getConfig().backend)
+            )
             for src, tgt in src_tgts:
                 key = (src, env, tgt)
                 if key in transitions.keys():
@@ -102,11 +110,17 @@ def parse_state_trans(to_replace, raw_tran):
 
 
 def parse_raw_cond(arg):
-    to_replace, orig_cond = arg
+    to_replace, orig_cond, realisable, backend = arg
     raw_cond = orig_cond.replace("t", "true")
     raw_cond = raw_cond.replace("f", "false")  # probably we don't need this
     cond = string_to_prop(raw_cond, True)
     cond = cond.replace_vars(to_replace)
-    env_cond = cond.left
-    con_cond = cond.right
+    if backend == strix or realisable:
+        env_cond = cond.left
+        con_cond = cond.right
+    elif backend == semml and not realisable:
+        env_cond = cond.right
+        con_cond = cond.left
+    else:
+        raise Exception("Unknown backend while parse_raw_cond: " + str(backend))
     return orig_cond, env_cond, con_cond

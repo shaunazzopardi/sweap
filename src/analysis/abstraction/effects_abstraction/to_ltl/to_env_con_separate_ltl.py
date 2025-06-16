@@ -30,7 +30,7 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def empty_abstraction(predicate_abstraction: EffectsAbstraction):

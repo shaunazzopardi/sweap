@@ -2,8 +2,9 @@ import argparse
 import logging
 import os
 import time
-from argparse import ArgumentParser, Namespace
+import config
 
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from analysis.compatibility_checking.compatibility_checking import (
     create_nuxmv_model,
@@ -58,7 +59,7 @@ def setup_argument_parser() -> ArgumentParser:
     action_group.add_argument(
         "--model-check",
         dest="model_check",
-        help="Model checking workflow (directly attempts IC3 model checking on the problem).",
+        help="Model checking workflow (directly attempts infinite-state IC3 model checking on the problem).",
         type=bool,
         nargs="?",
         const=True,
@@ -90,6 +91,14 @@ def setup_argument_parser() -> ArgumentParser:
     )
     parser.add_argument("--tlsf", dest="tlsf", help="Path to a .tlsf file.", type=str)
 
+    parser.add_argument(
+        "--synthesis_backend",
+        dest="synthesis_backend",
+        help="Choice of synthesis backend, options: strix or semml (default).",
+        type=str,
+        nargs="?",
+        default="semml",
+    )
     parser.add_argument(
         "--verify_controller",
         dest="verify_controller",
@@ -166,6 +175,11 @@ def process_args(args: Namespace) -> (Program, Formula):
     conf.add_all_preds_in_prog = True
 
     conf.finite_synthesis = args.finite_synthesise
+
+    if args.synthesis_backend not in config.synthesis_backends:
+        raise Exception(args.synthesis_backend + " is not a valid synthesis backend.")
+    else:
+        conf.backend = args.synthesis_backend
 
     if args.program is not None:
         name = ".".join(os.path.basename(args.program).split(".")[0:-1])
