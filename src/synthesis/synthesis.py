@@ -14,7 +14,6 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
     LTLAbstractionType,
     LTLAbstractionOutputType,
 )
-from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
 from analysis.compatibility_checking.compatibility_checking_con import (
     compatibility_checking_con,
 )
@@ -43,7 +42,6 @@ from synthesis.ltl_synthesis.syfco_adapter import syfco_ltl, syfco_ltl_in, syfco
 from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from pathlib import Path
 
-from synthesis.machines.mealy_machine import MealyMachine
 from synthesis.machines.wrapped_hoa import WrappedHOA
 
 

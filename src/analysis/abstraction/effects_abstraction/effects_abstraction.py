@@ -20,13 +20,6 @@ from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
 from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import (
     TransitionPredicate,
 )
-from analysis.abstraction.interface.ltl_abstraction_type import (
-    LTLAbstractionTransitionType,
-    LTLAbstractionBaseType,
-    LTLAbstractionStructureType,
-    LTLAbstractionType,
-    LTLAbstractionOutputType,
-)
 from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
@@ -50,11 +43,6 @@ from prop_lang.util import (
     is_tautology,
 )
 from prop_lang.variable import Variable
-from synthesis.abstract_ltl_synthesis_problem import (
-    AbstractLTLSynthesisProblem,
-)
-from synthesis.ltl_synthesis import parse_hoa
-from synthesis.machines.machine import Machine
 
 logger = logging.getLogger(__name__)
 
