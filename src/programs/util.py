@@ -209,7 +209,13 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     cs_states = []
 
     if len(prefix) == 0:
-        raise Exception("Initial state is not compatible with the program.")
+        raise Exception("Counterexample has no state.")
+
+    if prefix[0]["compatible"] == "FALSE":
+        raise Exception(
+            "Initial state is not compatible with the program. "
+            "This most probably indicates a problem with sweap, or with the synthesis backend."
+        )
 
     for dic in prefix:
         # monitor only makes decisions at env and mon turns
