@@ -188,8 +188,8 @@ def process_args(args: Namespace) -> (Program, Formula):
             prog_str = prog_file.read()
         return string_to_program(prog_str)
     else:
-        with open(args.tsl).read() as ltlmt_formula:
-            ltlmt = string_to_ltlmt(ltlmt_formula)
+        with open(args.tsl) as ltlmt_formula:
+            ltlmt = string_to_ltlmt(ltlmt_formula.read())
             tp = ToProgram()
             prog_name = Path(args.tsl).stem + "_tsl"
             return tp.ltlmt2prog(ltlmt, prog_name)
