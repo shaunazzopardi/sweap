@@ -80,9 +80,7 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
         ):
             pred_state = preds_in_state(incompatible_state[2])
             predicate_state_before_incompatibility = [
-                add_prev_suffix(p)
-                for p in preds_in_state(concretized[-1][2])
-                if "_prev" not in str(p)
+                add_prev_suffix(p) for p in preds_in_state(concretized[-1][2])
             ]
             # we check if this incompatible state formula is ever possibly true after the last transition
             # if it is then the problem is with the predicate state
