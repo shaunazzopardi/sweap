@@ -53,6 +53,9 @@ def safety_refinement_seq_int(
             if "_prev" in v
         ]
 
+        if len(agreed_on_transitions) == 0:
+            raise Exception("No agreed on transitions found in the counterexample.")
+
         for i, (tran, prog_state, cs_state) in enumerate(agreed_on_transitions):
             if i == 0:
                 init_formula = [
