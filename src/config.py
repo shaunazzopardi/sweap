@@ -21,9 +21,9 @@ class Config:
     _only_ranking = False
     _only_safety = False
     _eager_fairness = True
-    _no_binary_enc = True
+    _no_binary_enc = False
     _dual = False
-    _verify_controller = True
+    _verify_controller = False
     _add_all_preds_in_prog = True
     _mc = False
     _debug = False
