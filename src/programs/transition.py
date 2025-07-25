@@ -63,6 +63,12 @@ class Transition:
     def with_condition(self, new_condition):
         return Transition(self.src, new_condition, self.action, self.output, self.tgt)
 
+    def from_to(self, new_src, new_tgt):
+        return Transition(new_src, self.condition, self.action, self.output, new_tgt)
+
+    def to(self, new_tgt):
+        return Transition(self.src, self.condition, self.action, self.output, new_tgt)
+
     def add_condition(self, new_condition):
         return Transition(
             self.src,
