@@ -44,17 +44,17 @@ class Program:
         name,
         sts,
         init_st,
-        init_val: [TypedValuation],
-        transitions: [Transition],
-        env_events: [Variable],
-        con_events: [Variable],
+        init_val: list[TypedValuation],
+        transitions: list[Transition],
+        env_events: list[Variable],
+        con_events: list[Variable],
         preprocess=True,
         is_determ=None,
     ):
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
-        self.valuation: [TypedValuation] = init_val
+        self.valuation: list[TypedValuation] = init_val
         self.constants = {}
 
         if config.Config.getConfig().dual:
