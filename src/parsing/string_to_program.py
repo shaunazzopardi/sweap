@@ -33,19 +33,20 @@ regex_keywords = list(
     map(
         re.compile,
         [
-            r"turn",
+            r"turn$",
             r"in_loop[0-9]+_[0-9]+",
-            r"prog",
-            r"cs",
+            r"prog$",
+            r"cs$",
             r"pred_.*",
             r"bin_.*",
-            r"mismatch",
+            r"mismatch$",
             r"compatible_.*",
             r"guard_.*",
             r"act_.*",
             r"identity_.*",
             r"counterstrategy_guard_.*",
             r"counterstrategy_act_.*",
+            r"floor$",
         ],
     )
 )
@@ -281,6 +282,7 @@ def initial_val_parser():
     yield spaces()
     yield parsec.optional(regex("(,|;)"))
     yield spaces() >> string("}")
+    list(map(not_a_keyword, [v.name for v in vals]))
     if len(set([v.name for v in vals])) < len(vals):
         raise Exception("Variables with same name in VALUATION.")
     return vals
