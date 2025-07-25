@@ -140,21 +140,20 @@ class Program:
                 self.state_to_trans[t.src] = [t]
 
         self.deterministic = None
-        if preprocess:
-            if is_determ is None:
-                self.deterministic = is_deterministic(self)
-            else:
-                self._det = None
+        if is_determ is None:
+            self.deterministic = is_deterministic(self)
+        else:
+            self._det = None
 
-                def lazy_det(slf):
-                    if slf._det is None:
-                        slf._det = is_deterministic(slf)
-                    return slf._det
+            def lazy_det(slf):
+                if slf._det is None:
+                    slf._det = is_deterministic(slf)
+                return slf._det
 
-                def skip(_):
-                    pass
+            def skip(_):
+                pass
 
-                self.deterministic = property(lazy_det, skip, skip, "")
+            self.deterministic = property(lazy_det, skip, skip, "")
 
         self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
         self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
