@@ -323,9 +323,6 @@ class Program:
             CONTROLLER EVENTS {{
                 {', '.join(str(e) for e in self.con_events)}
             }}
-            PROGRAM EVENTS {{
-                {', '.join(str(e) for e in self.out_events)}
-            }}
             VALUATION {{
                 {SN.join(valuations)}{';' if valuations else ''}
             }}
