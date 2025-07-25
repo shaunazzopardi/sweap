@@ -479,7 +479,7 @@ class Program:
         transitions = guard_and_act
 
         vars = ["turn : {prog, cs}"]
-        vars += sorted([s + ": boolean" for s in self.states])
+        vars += sorted([s + " : boolean" for s in self.states])
 
         for typed_val in self.valuation:
             if typed_val.type.startswith("bool"):
@@ -644,7 +644,7 @@ class Program:
         transitions = guard_and_act
 
         vars = ["turn : {prog, cs}"]
-        vars += sorted([s + ": boolean" for s in self.states])
+        vars += sorted([s + " : boolean" for s in self.states])
 
         prev_logic = []
 
