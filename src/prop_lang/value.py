@@ -107,3 +107,13 @@ class Value(Atom):
 
     def replace_formulas_multiple(self, context: dict):
         return [self]
+
+    def type(self):
+        if self.is_true() or self.is_false():
+            return "boolean"
+        elif re.match("[0-9]+", self.name):
+            return "integer"
+        else:
+            raise Exception(
+                "Value.type: Value is not a boolean or integer: " + self.name
+            )
