@@ -72,14 +72,14 @@ class Program:
         if len(self.transitions) == 0:
             self.transitions = [Transition(s, true(), [], [], s) for s in self.states]
 
-        logging.info("Processing program.")
-        print("Processing program.")
+        all_vars = self.local_vars
+        self.transitions = [
+            t.complete_outputs(self.out_events).complete_action_set(all_vars)
+            for t in self.transitions
+        ]
         if preprocess:
-            all_vars = self.local_vars
-            self.transitions = [
-                t.complete_outputs(self.out_events).complete_action_set(all_vars)
-                for t in self.transitions
-            ]
+            logging.info("Processing program.")
+            print("Processing program.")
             unsat_trans = []
             with Pool(config.Config.getConfig().workers) as pool:
                 arg1 = []
