@@ -49,6 +49,7 @@ def synthesize(
     program: Program,
     ltl: Formula | None,
     tlsf_path: str | None,
+    bound: int,
 ) -> WrappedHOA:
     if not program.deterministic:
         print("Program is non-deterministic; refinement may fail.")
@@ -75,6 +76,7 @@ def synthesize(
         ltl_guarantees,
         in_acts,
         out_acts,
+        bound,
     )
     logging.info("synthesis took " + str(time.time() - start))
     return wrapped_hoa
@@ -156,6 +158,7 @@ def abstract_synthesis_loop(
     ltl_guarantees: list[Formula],
     in_acts: list[Variable],
     out_acts: list[Variable],
+    bound: int,
 ) -> WrappedHOA:
     allow_user_input: bool = False
     prefer_lasso_counterexamples: bool = False
@@ -190,7 +193,8 @@ def abstract_synthesis_loop(
     loop_counter: int = 0
 
     print("Starting abstract synthesis loop.")
-    while True:
+    while bound != 0:
+        bound -= 1
         cegar_loop_counter += 1
         new_state_preds = {strip_mathexpr(p) for p in new_state_preds}
         new_state_preds = {
@@ -298,6 +302,10 @@ def abstract_synthesis_loop(
                     "No new predicates or constraints found, but not compatible. Error in tool, "
                     "or program is non-deterministic."
                 )
+
+    raise Exception(
+        f"Could not find a controller or counterstrategy with {cegar_loop_counter + 1} iterations."
+    )
 
 
 def generate_tlsf_file_name_template() -> str | None:

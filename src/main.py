@@ -44,17 +44,17 @@ def setup_argument_parser() -> ArgumentParser:
         "--synthesise",
         dest="synthesise",
         help="Synthesis workflow.",
-        type=str,
+        type=int,
         nargs="?",
-        const=True,
+        const=-1,
     )
     action_group.add_argument(
         "--finite-synthesise",
         dest="finite_synthesise",
         help="Finite synthesis workflow (only works with finite programs).",
-        type=str,
+        type=int,
         nargs="?",
-        const=True,
+        const=-1,
     )
     action_group.add_argument(
         "--model-check",
@@ -269,10 +269,13 @@ def main():
 
         start = time.time()
 
+        bound = (
+            args.synthesise if args.synthesise is not None else args.finite_synthesise
+        )
         realizable: bool
         mm: Machine
         mm_hoa: str
-        mm: WrappedHOA = synthesize(program, ltl, args.tlsf)
+        mm: WrappedHOA = synthesize(program, ltl, args.tlsf, bound)
         end = time.time()
 
         print(mm.hoa)
