@@ -38,10 +38,14 @@ def setup_argument_parser() -> ArgumentParser:
     action_group = parser.add_mutually_exclusive_group()
 
     action_group.add_argument(
-        "--translate", dest="translate", help="Translation workflow.", type=str
+        "--translate",
+        dest="translate",
+        help="Options for target language: `prog', `dot', `nuxmv', or `'vmt'. Assumes input through `--p', `--tsl', or `--rpg'.",
+        type=str,
     )
     action_group.add_argument(
         "--synthesise",
+        "--synthesis",
         dest="synthesise",
         help="Synthesis workflow.",
         type=int,
@@ -57,7 +61,7 @@ def setup_argument_parser() -> ArgumentParser:
         const=-1,
     )
     action_group.add_argument(
-        "--model-check",
+        "--model_check",
         dest="model_check",
         help="Model checking workflow (directly attempts infinite-state IC3 model checking on the problem).",
         type=bool,
