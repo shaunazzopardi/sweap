@@ -155,11 +155,18 @@ class Program:
 
             self.deterministic = property(lazy_det, skip, skip, "")
 
-        self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
-        self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
-        self.states_binary_map |= {
-            Variable(st): bin_st for st, bin_st in self.states_binary_map.items()
-        }
+        if not config.Config.getConfig().no_binary_enc:
+            self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
+            self.bin_to_orig_state_map = {
+                st: k for k, st in self.states_binary_map.items()
+            }
+            self.states_binary_map |= {
+                Variable(st): bin_st for st, bin_st in self.states_binary_map.items()
+            }
+        else:
+            self.bin_state_vars = list(self.states)
+            self.bin_to_orig_state_map = {st: st for st in self.states}
+            self.states_binary_map = {(st): Variable(st) for st in self.states}
 
         self.project_out_constants()
         while self.refine_var_types():
