@@ -17,7 +17,6 @@ from pysmt.shortcuts import (
     NotEquals,
 )
 
-from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
@@ -98,9 +97,6 @@ class BiOp(Formula):
         vars_unique = [v for (i, v) in enumerate(vars) if v not in vars[:i]]
         self.vars = vars_unique
         return vars_unique
-
-    def ground(self, context: [TypedValuation]):
-        return BiOp(self.left.ground(context), self.op, self.right.ground(context))
 
     def simplify(self):
         left = self.left.simplify()

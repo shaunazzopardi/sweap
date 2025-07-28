@@ -3,7 +3,6 @@ import sympy.core.symbol
 
 from pysmt.fnode import FNode
 from pysmt.shortcuts import INT, BOOL, GE, LE, And, Int, TRUE, Symbol
-from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 
 
@@ -26,13 +25,6 @@ class Variable(Atom):
 
     def variablesin(self):
         return [self]
-
-    def ground(self, context: [TypedValuation]):
-        for val in context:
-            if val.name == self.name:
-                return val.value
-
-        return self
 
     def simplify(self):
         return self

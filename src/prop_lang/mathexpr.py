@@ -42,9 +42,6 @@ class MathExpr(Formula):
     def variablesin(self):
         return self.formula.variablesin()
 
-    def ground(self, context):
-        return MathExpr(self.formula.ground(context))
-
     def simplify(self):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
             if isinstance(self.formula.left, Value) and self.formula.left.name == "1":

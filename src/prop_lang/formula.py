@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
 from pysmt.fnode import FNode
-from programs.typed_valuation import TypedValuation
 
 
 class Formula(ABC):
@@ -14,10 +13,6 @@ class Formula(ABC):
 
     @abstractmethod
     def variablesin(self):
-        pass
-
-    @abstractmethod
-    def ground(self, context: [TypedValuation]):
         pass
 
     @abstractmethod

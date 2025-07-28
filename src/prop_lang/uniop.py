@@ -1,7 +1,6 @@
 import sympy.core.logic
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Not, Minus, Int
-from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -41,9 +40,6 @@ class UniOp(Formula):
 
     def variablesin(self) -> [Variable]:
         return self.right.variablesin()
-
-    def ground(self, context: [TypedValuation]):
-        return UniOp(self.op, self.right.ground(context))
 
     def simplify(self):
         right = self.right.simplify()

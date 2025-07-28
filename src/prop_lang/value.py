@@ -3,7 +3,6 @@ import sympy
 
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Int, TRUE, FALSE
-from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.variable import Variable
 
@@ -36,9 +35,6 @@ class Value(Atom):
 
     def variablesin(self) -> [Variable]:
         return []
-
-    def ground(self, context: [TypedValuation]):
-        return self
 
     def simplify(self):
         return self

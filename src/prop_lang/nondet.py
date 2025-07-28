@@ -24,9 +24,6 @@ class NonDeterministic(Atom):
     def ops_used(self):
         return []
 
-    def ground(self):
-        raise NotImplementedError("NonDeterministic.ground")
-
     def replace_formulas(self):
         raise NotImplementedError("NonDeterministic.replace_formulas")
 
