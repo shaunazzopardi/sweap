@@ -250,14 +250,15 @@ class ChainPredicate(Predicate):
     def extend_effect(
         self,
         gu: Formula,
-        old_effects: [(Formula, dict[Variable, [Formula]])],
+        old_effects: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         new_effects = []
         for old_now, nexts in old_effects:
             new_nows = self.replace_formulas_multiple_but(
                 self.old_to_new, old_now, gu, True
             )
+            at_least_one = False
             for new_now in new_nows:
                 prev_state = conjunct(gu, new_now.prev_rep())
                 if sat(prev_state, symbol_table):
@@ -266,10 +267,9 @@ class ChainPredicate(Predicate):
                     )
                     if len(new_nexts) > 0:
                         new_effects.append((new_now, new_nexts))
-                    else:
-                        raise Exception(
-                            "Is this guard update formula unsatisfiable?\n" + str(gu)
-                        )
+                        at_least_one = True
+            if not at_least_one:
+                raise Exception("Is gu unsatisfiable? " + str(gu))
 
         return new_effects
 
