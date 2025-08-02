@@ -106,6 +106,14 @@ class ChainPredicate(Predicate):
     def __hash__(self):
         return hash(self.term)
 
+    def __str__(self):
+        return (
+            "ChainPredicate("
+            + stringify_term(self.term)
+            + "): "
+            + ", ".join(map(str, self.chain))
+        )
+
     def variablesin(self):
         return self.vars
 
