@@ -70,9 +70,6 @@ def recheck_nexts(prev_state, nexts, symbol_table):
 
 class ChainPredicate(Predicate):
     def __init__(self, term: Formula, program, accelerate=False):
-        # TODO this is class is no longer updating correctly;
-        #  if term is over multiple variables, then updates need to be partitioned according to vars appearing in term
-        #
         self.program = program
         self.raw_state_preds = []
         self.tran_preds = []
