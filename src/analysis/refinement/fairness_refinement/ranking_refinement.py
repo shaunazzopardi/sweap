@@ -17,7 +17,6 @@ from parsing.string_to_prop_logic import (
 )
 from programs.program import Program
 from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
 from programs.util import (
     get_differently_value_vars,
     ground_predicate_on_vars,
@@ -25,11 +24,11 @@ from programs.util import (
 )
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.types import INTEGER, BOOLEAN, NATURAL, Number
 from prop_lang.util import (
     conjunct,
     conjunct_formula_set,
     neg,
-    is_boolean,
     type_constraints,
     is_tautology,
     sat,
@@ -56,9 +55,7 @@ def already_an_equivalent_ranking(prev_decs, new_dec):
             return True
         else:
             equiv = iff(prev_dec, new_dec)
-            symbol_table = {
-                str(v): TypedValuation(str(v), "int", None) for v in equiv.variablesin()
-            }
+            symbol_table = {str(v): INTEGER for v in equiv.variablesin()}
             if is_tautology(equiv, symbol_table):
                 return True
     return False
@@ -237,39 +234,42 @@ def loop_to_c(
         )
     }
     local_vars = []
-    for v in {v.name for v in program.valuation} | set(entry_condition.variablesin()):
-        if is_boolean(v, program.valuation):
+    for v in {v.name for v in program.local_vars} | set(entry_condition.variablesin()):
+        if symbol_table[v] == BOOLEAN:
             continue
 
         if v not in relevant_vars:
             continue
 
-        type = symbol_table[str(v)].type
-        if type in ["natural", "nat"]:
+        type = symbol_table[str(v)]
+        if type == NATURAL:
             params.append("int " + str(v))
             local_vars.append("int " + str(v) + "_prev;")
             type_constraints_str.append(str(v) + " >= 0 ")
-        elif type in ["int", "integer"]:
+        elif type == INTEGER:
             params.append("int " + str(v))
             local_vars.append("int " + str(v) + "_prev;")
-        elif re.match(r"-?[0-9]+\.\.-?[0-9]+", type):
+        elif isinstance(type, Number) and type.interval:
             params.append("int " + str(v))
             local_vars.append("int " + str(v) + "_prev;")
-            lower, upper = type.split("..")[0:2]
-            type_constraints_str.append(str(v) + " >= " + lower)
-            type_constraints_str.append(str(v) + " <= " + upper)
+            if type.interval.lower:
+                type_constraints_str.append(
+                    str(v)
+                    + (" >= " if type.interval.lower_inclusive else " > ")
+                    + type.interval.lower
+                )
+            if type.interval.upper:
+                type_constraints_str.append(
+                    str(v)
+                    + (" <= " if type.interval.upper_inclusive else " < ")
+                    + type.interval.upper
+                )
         else:
             params.append(type + " " + str(v))
             local_vars.append(type + " " + str(v) + "_prev;")
 
     param_list = ", ".join(params)
 
-    natural_conditions = [
-        v.split(" ")[1] + " >= 0 "
-        for v in params
-        if not v.endswith("_prev")
-        and symbol_table[v.split(" ")[1]].type in ["natural", "nat"]
-    ]
     if add_natural_conditions:
         init = [
             (
@@ -300,7 +300,7 @@ def loop_to_c(
                 [
                     str(act.left) + " = " + str(act.right) + ";"
                     for act in t.action
-                    if not is_boolean(act.left, program.valuation)
+                    if symbol_table[str(act.left)] != BOOLEAN
                     if act.left != act.right
                 ]
             )
@@ -309,7 +309,7 @@ def loop_to_c(
                 [
                     str(act.left) + "_prev = " + str(act.left) + ";"
                     for act in t.action
-                    if not is_boolean(act.left, program.valuation)
+                    if symbol_table[str(act.left)] != BOOLEAN
                     if act.left != act.right
                 ]
             )
@@ -320,7 +320,7 @@ def loop_to_c(
                     [
                         str(act.left) + " = " + str(act.right.prev_rep()) + ";"
                         for act in t.action
-                        if not is_boolean(act.left, program.valuation)
+                        if symbol_table[str(act.left)] != BOOLEAN
                         if act.left != act.right
                     ]
                 )
@@ -430,8 +430,7 @@ def use_liveness_refinement_state(
                 for vs in any_var_differences
             ]
             any_var_differences = [
-                []
-                != [v for v in vs if not re.match("(bool(ean)?)", symbol_table[v].type)]
+                [] != [v for v in vs if symbol_table[v] != BOOLEAN]
                 for vs in
                 # the below only identifies loops when there are changes in infinite-domain variables in the loop
                 # re.match("(int(eger)?|nat(ural)?|real|rational)", symbol_table[v].type)] for vs in
@@ -476,7 +475,7 @@ def use_liveness_refinement_state_joined(
     irrelevant_vars = program.env_events + tran_preds + inloop_vars
 
     symbol_table_with_inloop_vars = symbol_table | {
-        str(l): TypedValuation(str(l), "bool", None) for l in inloop_vars
+        str(l): BOOLEAN for l in inloop_vars
     }
 
     last_props_state_dict = {
@@ -556,20 +555,12 @@ def use_liveness_refinement_state_joined(
                 [re.sub("_[0-9]+$", "", v) for v in vs] for vs in any_var_differences
             ]
             any_var_differences = [
-                [
-                    v
-                    for v in vs
-                    if v in symbol_table.keys() and not str(v).endswith("_prev")
-                ]
+                [v for v in vs if v in symbol_table.keys() and not v.endswith("_prev")]
                 for vs in any_var_differences
             ]
             any_var_differences = [
-                []
-                != [v for v in vs if not re.match("(bool(ean)?)", symbol_table[v].type)]
-                for vs in
-                # the below only identifies loops when there are changes in infinite-domain variables in the loop
-                # re.match("(int(eger)?|nat(ural)?|real|rational)", symbol_table[v].type)] for vs in
-                any_var_differences
+                [] != [v for v in vs if symbol_table[v] != BOOLEAN]
+                for vs in any_var_differences
             ]
             if True in any_var_differences:
                 var_differences += [True]
@@ -648,7 +639,7 @@ def use_liveness_refinement_trans(ce: [dict], symbol_table):
                 x
                 for xs in var_differences
                 for x in xs
-                if re.match("(int(eger)?|nat(ural)?|real)", symbol_table[x].type)
+                if isinstance(symbol_table[x], Number)
             ]
         ):
 
@@ -700,7 +691,7 @@ def use_fairness_refinement(
         for a in t.action
         if not isinstance(a.right, Value)
         and a.left != a.right
-        and not symbol_table[str(a.left)] == "bool"
+        and not symbol_table[str(a.left)] == BOOLEAN
     ):
         return False, None, None, None, None
 
@@ -745,9 +736,8 @@ def use_fairness_refinement(
         entry_valuation = conjunct_formula_set(
             [
                 BiOp(Variable(key), "=", Value(value))
-                for tv in program.valuation
                 for key, value in ce_prog_loop_tran_concretised[0][1].items()
-                if key == tv.name
+                if key in program.init_var_values.keys()
             ]
         )
 

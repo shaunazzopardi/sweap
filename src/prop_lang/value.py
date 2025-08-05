@@ -4,6 +4,7 @@ import sympy
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Int, TRUE, FALSE
 from prop_lang.atom import Atom
+from prop_lang.types.types import BOOLEAN, INTEGER
 from prop_lang.variable import Variable
 
 
@@ -106,9 +107,9 @@ class Value(Atom):
 
     def type(self):
         if self.is_true() or self.is_false():
-            return "boolean"
+            return BOOLEAN
         elif re.match("[0-9]+", self.name):
-            return "integer"
+            return INTEGER
         else:
             raise Exception(
                 "Value.type: Value is not a boolean or integer: " + self.name

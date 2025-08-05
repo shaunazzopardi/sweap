@@ -11,7 +11,7 @@ program bloem-elevator-simple-5 {
     }
 
     VALUATION {
-        at_floor : 0..4 := 1;
+        at_floor : [0..4] := 1;
     }
 
     TRANSITIONS {

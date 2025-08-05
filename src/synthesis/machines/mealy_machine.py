@@ -217,8 +217,8 @@ class MealyMachine(Machine):
         else:
             init_prog_pred_state = conjunct_formula_set(
                 [
-                    BiOp(Variable(tv.name), "=", tv.value)
-                    for tv in abstraction.get_program().valuation
+                    BiOp(Variable(v), "=", value)
+                    for v, _, value in abstraction.get_program().init_var_values
                 ]
             )
             found_init_state = False

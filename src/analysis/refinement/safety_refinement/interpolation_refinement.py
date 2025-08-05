@@ -6,7 +6,6 @@ from analysis.abstraction.effects_abstraction.effects_abstraction import (
 from analysis.smt_checker import sequence_interpolant
 from parsing.string_to_prop_logic import string_to_prop
 from programs.program import Program
-from programs.typed_valuation import TypedValuation
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
 from prop_lang.util import (
@@ -59,9 +58,8 @@ def safety_refinement_seq_int(
         for i, (tran, prog_state, cs_state) in enumerate(agreed_on_transitions):
             if i == 0:
                 init_formula = [
-                    BiOp(Variable(tv.name), "=", Value(tv.value))
-                    for tv in program.valuation
-                    if "_prev" not in tv.name
+                    BiOp(Variable(v), "=", Value(val))
+                    for v, val in program.init_var_values.items()
                 ]
                 p_0 = conjunct_formula_set(init_formula).replace_vars(ith_vars(0))
                 us_0 = [
@@ -171,16 +169,8 @@ def safety_refinement_seq_int(
     new_all_preds = reduce_up_to_iff(
         state_predicates,
         list(new_all_preds),
-        symbol_table
-        | {
-            str(v): TypedValuation(
-                str(v), symbol_table[str(v).removesuffix("_prev")].type, "true"
-            )
-            for p in new_all_preds
-            for v in p.variablesin()
-            if str(v).endswith("prev")
-        },
-    )  # TODO symbol_table needs to be updated with prevs
+        symbol_table,
+    )
 
     if len(new_all_preds) < len(set(state_predicates)):
         raise Exception("There are somehow less state predicates than previously.")

@@ -10,12 +10,19 @@ from sympy import Basic
 from sympy.logic.boolalg import to_dnf, to_cnf
 from analysis.smt_checker import check, bdd_simplify
 from parsing.string_to_prop_logic import string_to_prop
-from programs.typed_valuation import TypedValuation
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
-from prop_lang.nondet import NonDeterministic
+from prop_lang.types.types import (
+    Type,
+    BOOLEAN,
+    is_finite,
+    Number,
+    NATURAL,
+    INTEGER,
+    interval_range,
+)
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -68,12 +75,10 @@ def conjunct_formula_set(s, sort=False) -> Formula:
     return ret
 
 
-def conjunct_typed_valuation_set(s: set[TypedValuation]) -> Formula:
+def conjunct_typed_valuation_set(s: dict[str, Value]) -> Formula:
     ret = true()
-    for f in s:
-        if isinstance(f.value, NonDeterministic):
-            continue
-        ret = conjunct(ret, BiOp(Variable(f.name), "=", Value(f.value)))
+    for name, value in s.items():
+        ret = conjunct(ret, BiOp(Variable(name), "=", value))
     return ret
 
 
@@ -199,33 +204,17 @@ def sat(
 
 
 def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None) -> bool:
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in formula1.variablesin()
-        }
-        symbol_table |= {
-            str(v): TypedValuation(str(v), "bool", None) for v in formula2.variablesin()
-        }
     return not check(And(*neg(iff(formula1, formula2)).to_smt(symbol_table)))
 
 
 def is_tautology(formula: Formula, symbol_table: dict = None) -> bool:
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()
-        }
-    else:
-        for v in formula.variablesin():
-            if str(v) not in symbol_table.keys():
-                symbol_table[str(v)] = TypedValuation(str(v), "bool", None)
+    for v in formula.variablesin():
+        if str(v) not in symbol_table.keys():
+            symbol_table[str(v)] = BOOLEAN
     return not check(And(*neg(formula).to_smt(symbol_table)))
 
 
 def is_contradictory(formula: Formula, symbol_table: dict = None) -> bool:
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()
-        }
     return not check(And(*formula.to_smt(symbol_table)))
 
 
@@ -434,11 +423,8 @@ def simplify_sum(formula, symbol_table):
 
 def simplify_formula_without_math(formula, symbol_table=None):
     with Environment() as environ:
-        if symbol_table == None:
-            symbol_table = {
-                str(v): TypedValuation(str(v), "bool", None)
-                for v in formula.variablesin()
-            }
+        if not symbol_table:
+            symbol_table = {str(v): BOOLEAN for v in formula.variablesin()}
 
         simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
         to_formula = fnode_to_formula(simplified)
@@ -453,11 +439,8 @@ def formula_with_next_to_without(formula):
 
 def simplify_formula_with_next(formula, symbol_table=None):
     with Environment() as environ:
-        if symbol_table == None:
-            symbol_table = {
-                str(v): TypedValuation(str(v), "bool", None)
-                for v in formula.variablesin()
-            }
+        if not symbol_table:
+            symbol_table = {str(v): BOOLEAN for v in formula.variablesin()}
 
         formula_with_no_nexts = formula_with_next_to_without(formula)
 
@@ -468,9 +451,7 @@ def simplify_formula_with_next(formula, symbol_table=None):
         replacings.append(BiOp(Variable("next_true"), ":=", X(Value("true"))))
         replacings.append(BiOp(Variable("next_false"), ":=", X(Value("false"))))
 
-        symbol_table |= {
-            str(r.left): TypedValuation(str(r.left), "bool", None) for r in replacings
-        }
+        symbol_table |= {str(r.left): BOOLEAN for r in replacings}
 
         simplified = environ.simplifier.simplify(
             And(*formula_with_no_nexts.to_smt(symbol_table))
@@ -482,17 +463,10 @@ def simplify_formula_with_next(formula, symbol_table=None):
 
 def bdd_simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = propagate_nexts_and_atomize(formula)
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None)
-            for v in ltl_to_prop.variablesin()
-        }
 
     keys = list(symbol_table.keys())
     for v in keys:
-        symbol_table[str(v) + "_next"] = TypedValuation(
-            symbol_table[v].name + "_next", symbol_table[v].type, None
-        )
+        symbol_table[str(v) + "_next"] = BOOLEAN
 
     simplified_ltl = bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])
     if simplified_ltl is not None:
@@ -512,11 +486,6 @@ def bdd_simplify_ltl_formula(formula, symbol_table=None):
 
 def simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = ltl_to_propositional(formula)
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None)
-            for v in ltl_to_prop.variablesin()
-        }
 
     simplified = string_to_prop(
         serialize(simplify(And(*ltl_to_prop.to_smt(symbol_table))))
@@ -578,10 +547,8 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()
-        }
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
     try:
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f)
@@ -631,10 +598,8 @@ def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeo
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()
-        }
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
 
     success, ret = run_with_timeout(dnf, [f, symbol_table, simplify], timeout=timeout)
 
@@ -649,10 +614,8 @@ def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeo
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()
-        }
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
 
     success, ret = run_with_timeout(cnf, [f, symbol_table], timeout=timeout)
     if success:
@@ -680,10 +643,8 @@ cnf_cache = {}
 
 
 def cnf(f: Formula, symbol_table: dict = None):
-    if symbol_table == None:
-        symbol_table = {
-            str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()
-        }
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
     try:
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f).simplify()
@@ -734,21 +695,6 @@ def mutually_exclusive_rules(states):
     ]
 
 
-def is_boolean(var, tvs):
-    return any(
-        tv for tv in tvs if tv.name == str(var) and re.match("bool(ean)?", str(tv.type))
-    )
-
-
-def infinite_type(var, tvs):
-    return any(
-        tv
-        for tv in tvs
-        if tv.name == str(var)
-        and re.match("(nat(ural)?|int(eger)?|real|rat(ional)?)", str(tv.type))
-    )
-
-
 def related_to(v, F: Formula):
     related_to = set()
     done = set()
@@ -788,26 +734,35 @@ def type_constraints_acts(transition, symbol_table):
 def type_constraint(variable, symbol_table):
     if str(variable) not in symbol_table.keys():
         raise Exception(f"{str(variable)} not in symbol table.")
-    typed_val = symbol_table[str(variable)]
+    type = symbol_table[str(variable)]
 
     if isinstance(variable, Variable):
-        if typed_val.type == "int" or typed_val.type == "integer":
+        if type == INTEGER:
             return Value("TRUE")
-        elif typed_val.type == "bool" or typed_val.type == "boolean":
+        elif type == BOOLEAN:
             return Value("TRUE")
-        elif typed_val.type == "nat" or typed_val.type == "natural":
+        elif type == NATURAL:
             return MathExpr(BiOp(variable, ">=", Value("0")))
-        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
-            split = re.split(r"\.\.", typed_val.type)
-            lower = split[0]
-            upper = split[1]
+        elif type.interval:
             return BiOp(
-                MathExpr(BiOp(variable, ">=", Value(lower))),
+                MathExpr(
+                    BiOp(
+                        variable,
+                        (">=" if type.interval.lower_inclusive else ">"),
+                        Value(type.interval.lower),
+                    )
+                ),
                 "&&",
-                MathExpr(BiOp(variable, "<=", Value(upper))),
+                MathExpr(
+                    BiOp(
+                        variable,
+                        ("<=" if type.interval.lower_inclusive else "<"),
+                        Value(type.interval.upper),
+                    )
+                ),
             )
         else:
-            raise NotImplementedError(f"Type {typed_val.type} unsupported.")
+            raise NotImplementedError(f"Type {type} unsupported.")
     else:
         raise Exception(f"{str(variable)} not a variable.")
 
@@ -1612,15 +1567,17 @@ def stringify_formula(f, env_con_props):
         return f, []
 
 
-def finite_state_preds(valuation: TypedValuation):
-    variable = Variable(valuation.name)
-    if not valuation.is_finite_state():
-        raise ValueError(f"Variable '{valuation.name}' is not finite-state")
-    if "bool" in valuation.type:
+def finite_state_preds(valuation: tuple[str, Type, Value]):
+    variable = Variable(valuation[0])
+    type = valuation[1]
+    if not is_finite(type):
+        raise ValueError(f"Variable '{valuation[0]}' is not finite-state")
+    if type == BOOLEAN:
         yield variable
-    else:
-        lo, hi = valuation.type.split("..")
-        lo, hi = int(lo), int(hi)
+    elif isinstance(type, Number) and (
+        type.number_type == INTEGER or type.number_type == NATURAL
+    ):
+        lo, hi = interval_range(type)
         for x in range(lo, hi + 1):
             yield MathExpr(BiOp(variable, "=", Value(str(x))))
 
@@ -1658,7 +1615,6 @@ def normalise_mathexpr(mathexpr):
 
     rewrite_lte = lambda x, y: MathExpr(BiOp(x, "<=", y))
 
-    zero = Value("0")
     if isinstance(f, BiOp):
         if f.op == "<=":
             return rewrite_lte(f.left, f.right)

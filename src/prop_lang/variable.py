@@ -1,15 +1,16 @@
-import re
 import sympy.core.symbol
 
 from pysmt.fnode import FNode
-from pysmt.shortcuts import INT, BOOL, GE, LE, And, Int, TRUE, Symbol
+
 from prop_lang.atom import Atom
+from prop_lang.types.types import typed_var_to_pysmt_type
 
 
 class Variable(Atom):
     def __init__(self, name: str):
         self.name = name
         self.prev_representation = None
+        self.smt_representation = None
 
     def __str__(self):
         return str(self.name)
@@ -61,31 +62,19 @@ class Variable(Atom):
         return self
 
     def to_smt(self, symbol_table) -> (FNode, FNode):
+        if self.smt_representation:
+            return self.smt_representation
         if self.name in symbol_table.keys():
-            typed_val = symbol_table[self.name]
+            type = symbol_table[self.name]
         elif self.name.split("_prev")[0] in symbol_table.keys():
-            typed_val = symbol_table[self.name.split("_prev")[0]]
+            type = symbol_table[self.name.split("_prev")[0]]
         else:
             raise Exception(
                 "Variable.to_smt: variable " + self.name + " not in symbol table."
             )
 
-        if typed_val.type == "int" or typed_val.type == "integer":
-            return Symbol(self.name, INT), TRUE()
-        elif typed_val.type == "bool" or typed_val.type == "boolean":
-            return Symbol(self.name, BOOL), TRUE()
-        elif typed_val.type == "nat" or typed_val.type == "natural":
-            return Symbol(self.name, INT), GE(Symbol(self.name, INT), Int(0))
-        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
-            split = re.split("\\.\\.+", typed_val.type)
-            lower = int(split[0])
-            upper = int(split[1])
-            return Symbol(self.name, INT), And(
-                GE(Symbol(self.name, INT), Int((lower))),
-                LE(Symbol(self.name, INT), Int((upper))),
-            )
-        else:
-            raise NotImplementedError(f"Type {typed_val.type} unsupported.")
+        self.smt_representation = typed_var_to_pysmt_type(self.name, type)
+        return self.smt_representation
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         return self, {}

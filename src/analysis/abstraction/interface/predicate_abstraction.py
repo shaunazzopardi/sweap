@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 from programs.program import Program
-from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
+from prop_lang.types.types import Type
 
 
 class PredicateAbstraction(ABC):
@@ -57,5 +57,5 @@ class PredicateAbstraction(ABC):
         pass
 
     @abstractmethod
-    def get_symbol_table(self) -> dict[str, TypedValuation]:
+    def get_symbol_table(self) -> dict[str, Type]:
         pass

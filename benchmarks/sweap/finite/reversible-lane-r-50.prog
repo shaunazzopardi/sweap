@@ -17,8 +17,8 @@ program reversible-lane-r-50 {
     }
 
     VALUATION {
-        cl : 0..50 := 0;
-        cr : 0..50 := 0;
+        cl : [0..50] := 0;
+        cr : [0..50] := 0;
     }
 
     TRANSITIONS {

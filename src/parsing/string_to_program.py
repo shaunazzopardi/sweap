@@ -3,6 +3,7 @@ from multiprocessing import Pool
 
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
+from pysmt.environment import Environment
 
 import config
 from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
@@ -13,17 +14,15 @@ from parsing.string_to_prop_logic import (
 )
 from programs.program import Program
 from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
-from programs.util import (
-    guarded_action_transitions_to_normal_transitions,
-    symbol_table_from_typed_valuation,
-)
+from programs.util import guarded_action_transitions_to_normal_transitions
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.nondet import NonDeterministic
-from prop_lang.util import true, normalize_ltl
+from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex
+from prop_lang.util import true, normalize_ltl, run_with_timeout_and_memory_limit
 from prop_lang.variable import Variable
+from synthesis.synthesis import synthesize
 
 name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
@@ -77,7 +76,7 @@ def program_parser():
     con = yield string("CONTROLLER EVENTS") >> event_parser
     yield spaces()
     initial_vals = yield initial_val_parser
-    initial_vs = [Variable(tv.name) for tv in initial_vals]
+    initial_vs = [Variable(v) for v, _, _ in initial_vals]
     if len(set(env + con + states + initial_vs)) < len(env + con + states + initial_vs):
         raise Exception(
             "Duplicate var names: "
@@ -95,7 +94,7 @@ def program_parser():
     ltl_spec = yield parsec.optional(specification_parser)
     yield spaces() >> string("}") >> spaces()
 
-    symbol_table = symbol_table_from_typed_valuation(initial_vals)
+    symbol_table = {v: t for v, t, _ in initial_vals}
     arg = []
     for t in transitions:
         arg.append((t, initial_vals, env, con, symbol_table))
@@ -178,40 +177,32 @@ def flagging_states_parser():
 @generate
 def bool_decl_parser():
     var = yield name << spaces() << string(":") << spaces()
-    type = yield regex("bool(ean)?") << spaces()
+    yield regex(bool_regex) << spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;}]+") << spaces()
     try:
         value = string_to_prop(raw_value)
+        return var, BOOLEAN, value
     except Exception as e:
         yield parsec.fail_with(str(e))
-    return TypedValuation(var, type, value)
 
 
 @generate
 def num_decl_parser():
     var = yield name << spaces() << string(":") << spaces()
-    type = (
-        yield regex(
-            "(int(eger)?|nat(ural)?|bool(ean)?|real|(((-)?[0-9]+)|"
-            + name_regex
-            + r")+\.\.(((-)?[0-9]+)|"
-            + name_regex
-            + "))"
-        )
-        << spaces()
-    )
+    raw_type = yield regex(number_regex) << spaces()
+    type = parse_type(raw_type)
     yield spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;}]+") << spaces()
-    try:
-        value = string_to_math_expression(raw_value)
-    except Exception as e:
-        if raw_value == "*":
-            value = NonDeterministic()
-        else:
+    if raw_value == "*":
+        return var, type, NonDeterministic()
+    else:
+        try:
+            value = string_to_math_expression(raw_value)
+            return var, type, value
+        except Exception as e:
             yield parsec.fail_with(str(e))
-    return TypedValuation(var, type, value)
 
 
 @generate
@@ -227,9 +218,9 @@ def bool_decl_parser_untyped():
         else:
             value = string_to_prop(action_and_guard[0])
             guard = string_to_prop(action_and_guard[1])
+        return BiOp(Variable(var), ":=", value), guard
     except Exception as e:
         yield parsec.fail_with(str(e))
-    return (BiOp(Variable(var), ":=", value), guard)
 
 
 @generate
@@ -242,13 +233,13 @@ def num_decl_parser_untyped():
         if len(action_and_guard) == 1:
             value = string_to_math_expression(action_and_guard[0])
             guard = true()
+            return BiOp(Variable(var), ":=", MathExpr(value)), guard
         else:
             value = string_to_math_expression(action_and_guard[0])
             guard = string_to_prop(action_and_guard[1])
+            return BiOp(Variable(var), ":=", MathExpr(value)), guard
     except Exception as e:
-        print(str(e))
         yield parsec.fail_with(str(e))
-    return (BiOp(Variable(var), ":=", MathExpr(value)), guard)
 
 
 @generate
@@ -282,8 +273,8 @@ def initial_val_parser():
     yield spaces()
     yield parsec.optional(regex("(,|;)"))
     yield spaces() >> string("}")
-    list(map(not_a_keyword, [v.name for v in vals]))
-    if len(set([v.name for v in vals])) < len(vals):
+    list(map(not_a_keyword, [v for v, _, _ in vals]))
+    if len(set([v for v, _, _ in vals])) < len(vals):
         raise Exception("Variables with same name in VALUATION.")
     return vals
 

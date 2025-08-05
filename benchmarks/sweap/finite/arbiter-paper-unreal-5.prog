@@ -12,7 +12,7 @@ program arbiter-paper-unreal-5 {
     }
 
     VALUATION {
-        cnt : 0..5 := 0;
+        cnt : [0..5] := 0;
         roomA : bool := true;
     }
 

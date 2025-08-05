@@ -22,6 +22,7 @@ from parsing.string_to_ltl import string_to_ltl
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     true,
     atomic_predicates,
@@ -383,13 +384,17 @@ def extract_init_preds(
 
     if config.Config.getConfig().finite_synthesis:
         new_state_preds.update(
-            {pred for val in program.valuation for pred in finite_state_preds(val)}
+            {
+                pred
+                for val in program.init_var_values
+                for pred in finite_state_preds(val)
+            }
         )
     else:
         new_state_preds.update(
-            Variable(b.name)
-            for b in program.valuation
-            if b.type.lower().startswith("bool")
+            Variable(v)
+            for v, v_type in program.init_var_values.items()
+            if v_type == BOOLEAN
         )
 
     env_con_events = set(program.con_events + program.env_events)
@@ -399,7 +404,7 @@ def extract_init_preds(
         new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
         for act in t.action:
             if len(act.right.variablesin()) == 0:
-                if program.symbol_table[str(act.left)].type.startswith("bool"):
+                if program.symbol_table[str(act.left)] == BOOLEAN:
                     new_state_preds.add(act.left)
                 else:
                     new_state_preds.add(BiOp(act.left, "=", act.right))

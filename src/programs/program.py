@@ -8,7 +8,6 @@ from graphviz import Digraph
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
 from programs.util import (
     stutter_transition,
     symbol_table_from_program,
@@ -16,8 +15,18 @@ from programs.util import (
     binary_rep_states,
     add_prev_suffix,
 )
+from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
+from prop_lang.types.types import (
+    Type,
+    Number,
+    is_finite,
+    BaseNumberTypes,
+    BOOLEAN,
+    countable_number_types,
+    NATURAL,
+)
 from prop_lang.util import (
     disjunct_formula_set,
     neg,
@@ -31,8 +40,8 @@ from prop_lang.util import (
     atomic_predicates,
     simplify_formula_with_math_wo_type_constraints,
     conjunct,
-    conjunct_typed_valuation_set,
     massage_ltl_for_dual,
+    conjunct_formula_set,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -44,7 +53,7 @@ class Program:
         name,
         sts,
         init_st,
-        init_val: list[TypedValuation],
+        init_values: list[tuple[str, Type, Atom]],
         transitions: list[Transition],
         env_events: list[Variable],
         con_events: list[Variable],
@@ -54,7 +63,6 @@ class Program:
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
-        self.valuation: list[TypedValuation] = init_val
         self.constants = {}
 
         if config.Config.getConfig().dual:
@@ -64,8 +72,11 @@ class Program:
             self.env_events = env_events
             self.con_events = con_events
         self.out_events = []
-        self.symbol_table = symbol_table_from_program(self)
-        self.local_vars = [Variable(tv.name) for tv in init_val]
+
+        self.symbol_table, self.init_var_values = symbol_table_from_program(
+            self, init_values
+        )
+        self.local_vars = [Variable(n) for n, _, _ in init_values]
 
         self.transitions = transitions
 
@@ -173,22 +184,42 @@ class Program:
             pass
 
     def refine_var_types(self):
+        from prop_lang.types.types import NATURAL
+
         new_symbol_table = {}
-        for n, tv in self.symbol_table.items():
-            if tv.type.startswith("int"):
-                v = Variable(tv.name)
+        for n, type_obj in self.symbol_table.items():
+            if isinstance(type_obj, Number):
+                v = Variable(n)
+                if not (
+                    isinstance(type_obj, Number)
+                    and type_obj.number_type == BaseNumberTypes.integer
+                ):
+                    continue
                 nat_pred = BiOp(v, ">=", Value("0"))
+
+                # Create valuation from init_var_values
+                current_vals = [
+                    BiOp(Variable(name), "=", val)
+                    for name, val in self.init_var_values.items()
+                ]
+                current_valuation = (
+                    conjunct_formula_set(current_vals) if current_vals else true()
+                )
+
                 if not is_tautology(
-                    implies(conjunct_typed_valuation_set(self.valuation), nat_pred),
+                    implies(current_valuation, nat_pred),
                     self.symbol_table,
                 ):
                     continue
+
                 symbol_table_with_prevs = {
-                    (m + "_prev"): TypedValuation(m + "_prev", tv.type, tv.value)
-                    for m, tv in self.symbol_table.items()
+                    (m + "_prev"): prev_type
+                    for m, prev_type in self.symbol_table.items()
                 }
+
                 exit = False
                 prev_nat = add_prev_suffix(nat_pred)
+
                 for t in self.transitions:
                     if not is_tautology(
                         implies(conjunct(prev_nat, t.formula()), nat_pred),
@@ -196,70 +227,77 @@ class Program:
                     ):
                         exit = True
                         break
+
                 if not exit:
                     print("turned " + n + " into a natural")
-                    new_symbol_table[n] = TypedValuation(n, "natural", tv.value)
-                    new_symbol_table[n + "_prev"] = TypedValuation(
-                        n + "_prev", "natural", tv.value
-                    )
-                    new_symbol_table[n + "_prev_prev"] = TypedValuation(
-                        n + "_prev_prev", "natural", tv.value
-                    )
+                    new_symbol_table[n] = NATURAL
+                    new_symbol_table[n + "_prev"] = NATURAL
+                    new_symbol_table[n + "_prev_prev"] = NATURAL
 
         self.symbol_table.update(new_symbol_table)
         return len(new_symbol_table) > 0
 
     def project_out_constants(self):
-        vars_to_project_out = {}
-        stutter_acts = []
-        new_valuation = []
-        for tv in self.valuation:
-            if all(
-                BiOp(Variable(tv.name), ":=", Variable(tv.name)) in t.action
-                for t in self.transitions
-            ):
-                vars_to_project_out[Variable(tv.name)] = Value(tv.value)
-                stutter_acts.append(BiOp(Variable(tv.name), ":=", Variable(tv.name)))
-            else:
-                new_valuation.append(tv)
+        # Early check to see if any variables are constant
+        constant_vars = set()
+        for var_name in self.init_var_values.keys():
+            var_obj = Variable(var_name)
+            identity_action = BiOp(var_obj, ":=", var_obj)
+            if all(identity_action in t.action for t in self.transitions):
+                constant_vars.add(var_name)
 
-        if len(vars_to_project_out.keys()) == 0:
+        if not constant_vars:
             return
 
+        # Build projection mapping and new valuation
+        vars_to_project_out = {}
+        new_init_var_values = {}
+
+        for var_name, var_value in self.init_var_values.items():
+            if var_name in constant_vars:
+                vars_to_project_out[Variable(var_name)] = var_value
+            else:
+                new_init_var_values[var_name] = var_value
+
+        # Process transitions
         for t in self.transitions:
+            # Filter actions and replace variables
             t.action = [
                 BiOp(
                     a.left,
                     a.op,
-                    a.right.replace_vars(
-                        lambda x: (
-                            vars_to_project_out[x]
-                            if x in vars_to_project_out.keys()
-                            else x
-                        )
-                    ),
+                    a.right.replace_vars(lambda x: vars_to_project_out.get(x, x)),
                 )
                 for a in t.action
-                if a.left not in vars_to_project_out.keys()
+                if a.left not in vars_to_project_out
             ]
+
+            # Only process condition if it contains variables to project out
             preds_in_cond = atomic_predicates(t.condition)
-            preds_to_replace = {
-                p: simplify_formula_with_math_wo_type_constraints(
-                    p.replace_formulas(vars_to_project_out), self.symbol_table
-                )
-                for p in preds_in_cond
-                if not vars_to_project_out.keys().isdisjoint(p.variablesin())
-            }
-            t.condition = t.condition.replace_formulas(preds_to_replace)
+            preds_to_replace = {}
 
-        for v in vars_to_project_out.keys():
-            self.constants[Variable(v.name)] = self.symbol_table[v.name].value
-            del self.symbol_table[v.name]
-            del self.symbol_table[v.name + "_prev"]
-            del self.symbol_table[v.name + "_prev_prev"]
+            for p in preds_in_cond:
+                pred_vars = p.variablesin()
+                if not vars_to_project_out.keys().isdisjoint(pred_vars):
+                    preds_to_replace[p] = (
+                        simplify_formula_with_math_wo_type_constraints(
+                            p.replace_formulas(vars_to_project_out), self.symbol_table
+                        )
+                    )
 
-        self.valuation = new_valuation
-        self.local_vars = [Variable(tv.name) for tv in new_valuation]
+            if preds_to_replace:
+                t.condition = t.condition.replace_formulas(preds_to_replace)
+
+        # Update symbol table and data structures
+        var_names_to_delete = [v.name for v in vars_to_project_out.keys()]
+        for var_name in var_names_to_delete:
+            self.constants[Variable(var_name)] = self.init_var_values[var_name]
+            del self.symbol_table[var_name]
+            del self.symbol_table[var_name + "_prev"]
+            del self.symbol_table[var_name + "_prev_prev"]
+
+        self.init_var_values = new_init_var_values
+        self.local_vars = [Variable(name) for name in new_init_var_values.keys()]
 
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()
@@ -271,22 +309,16 @@ class Program:
             return transition
 
     def is_finite_state(self):
-        return all(val.is_finite_state() for val in self.symbol_table.values())
+        return all(is_finite(type_obj) for type_obj in self.symbol_table.values())
 
     def to_prog(self, spec=None):
         def state_to_str(x):
             if not isinstance(x, str) and hasattr(x, "__iter__"):
-                return ", ".join(str[v] for v in list(x))
+                return ", ".join(str(v) for v in list(x))
             return str(x)
 
-        def fmt_valuation(v: TypedValuation):
-            typ = {
-                "int": "integer",
-                "nat": "integer",
-                "natural": "integer",
-                "bool": "boolean",
-            }.get(str(v.type), str(v.type))
-            return f"{v.name} : {typ} := {str(v.value).lower()}"
+        def fmt_valuation(name, value, var_type):
+            return f"{name} : {var_type} := {str(value).lower()}"
 
         def tr_to_str(t, is_env):
             def remove_paren(s):
@@ -301,7 +333,12 @@ class Program:
                 result += " # " + ", ".join(map(remove_paren, t.output))
             return result + "]"
 
-        valuations = [fmt_valuation(v) for v in self.valuation]
+        # Create valuations from init_var_values and symbol_table
+        valuations = [
+            fmt_valuation(name, value, self.symbol_table[name])
+            for name, value in self.init_var_values.items()
+        ]
+
         other_states = ", ".join(
             [state_to_str(s) for s in self.states if s != self.initial_state]
         )
@@ -450,10 +487,8 @@ class Program:
             i += 1
 
         identity = []
-        for typed_val in self.valuation:
-            identity.append(
-                "next(" + str(typed_val.name) + ") = " + str(typed_val.name)
-            )
+        for var in self.init_var_values.keys():
+            identity.append("next(" + str(var) + ") = " + str(var))
         for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
 
@@ -481,13 +516,19 @@ class Program:
         vars = ["turn : {prog, cs}"]
         vars += sorted([s + " : boolean" for s in self.states])
 
-        for typed_val in self.valuation:
-            if typed_val.type.startswith("bool"):
-                vars.append(str(typed_val.name) + " : " + "boolean")
-                vars.append(str(typed_val.name) + "_prev : " + "boolean")
+        for var, _ in self.init_var_values.items():
+            var_type = self.symbol_table[var]
+            if var_type == BOOLEAN:
+                vars.append(var + " : " + "boolean")
+                vars.append(var + "_prev : " + "boolean")
+            elif (
+                isinstance(var_type, Number)
+                and var_type.number_type in countable_number_types
+            ):
+                vars.append(var + " : " + "integer")
+                vars.append(var + "_prev : " + "integer")
             else:
-                vars.append(str(typed_val.name) + " : " + "integer")
-                vars.append(str(typed_val.name) + "_prev : " + "integer")
+                raise Exception("Unsupported type for variable: " + str(var_type))
 
         vars += [str(var) + " : boolean" for var in self.env_events]
         vars += [str(var) + " : boolean" for var in self.con_events]
@@ -496,14 +537,14 @@ class Program:
         init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
         init += [
-            str(val.name) + " = " + str(val.value.to_nuxmv())
-            for val in self.valuation
-            if not isinstance(val.value, NonDeterministic)
+            str(var) + " = " + str(value.to_nuxmv())
+            for var, value in self.init_var_values.items()
+            if not isinstance(value, NonDeterministic)
         ]
         init += [
-            str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv())
-            for val in self.valuation
-            if not isinstance(val.value, NonDeterministic)
+            str(var) + "_prev" + " = " + str(value.to_nuxmv())
+            for var, value in self.init_var_values.items()
+            if not isinstance(value, NonDeterministic)
         ]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
@@ -511,22 +552,22 @@ class Program:
             " & "
             + " & ".join(
                 [
-                    "next(" + str(var.name) + "_prev) = " + str(var.name)
-                    for var in self.valuation
+                    "next(" + str(var) + "_prev) = " + str(var)
+                    for var in self.init_var_values.keys()
                 ]
             )
-            if len(self.valuation) > 0
+            if len(self.init_var_values) > 0
             else ""
         )
         maintain_prevs = "!(turn = cs)" + (
             " & "
             + " & ".join(
                 [
-                    "next(" + str(var.name) + "_prev) = " + str(var.name) + "_prev"
-                    for var in self.valuation
+                    "next(" + str(var) + "_prev) = " + str(var) + "_prev"
+                    for var in self.init_var_values.keys()
                 ]
             )
-            if len(self.valuation) > 0
+            if len(self.init_var_values) > 0
             else ""
         )
         prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
@@ -535,15 +576,15 @@ class Program:
         invar = mutually_exclusive_rules(self.states)
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
         invar += [
-            str(val.name) + " >= 0"
-            for val in self.valuation
-            if (val.type == "nat" or val.type == "natural")
+            str(var) + " >= 0"
+            for var in self.init_var_values.keys()
+            if self.symbol_table[var] == NATURAL
         ]
         invar.extend(
             [
-                str(val.name) + "_prev" + " >= 0"
-                for val in self.valuation
-                if (val.type == "nat" or val.type == "natural")
+                str(var) + "_prev" + " >= 0"
+                for var in self.init_var_values.keys()
+                if self.symbol_table[var] == NATURAL
             ]
         )
 
@@ -614,10 +655,8 @@ class Program:
             i += 1
 
         identity = []
-        for typed_val in self.valuation:
-            identity.append(
-                "next(" + str(typed_val.name) + ") = " + str(typed_val.name)
-            )
+        for var in self.init_var_values.keys():
+            identity.append("next(" + str(var) + ") = " + str(var))
         for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
 
@@ -648,17 +687,21 @@ class Program:
 
         prev_logic = []
 
-        for typed_val in self.valuation:
-            if typed_val.type.startswith("bool"):
-                vars.append(str(typed_val.name) + " : " + "boolean")
-                vars.append(str(typed_val.name) + "_prev : " + "boolean")
+        for var, _ in self.init_var_values.items():
+            var_type = self.symbol_table[var]
+            if var_type == BOOLEAN:
+                vars.append(var + " : " + "boolean")
+                vars.append(var + "_prev : " + "boolean")
+            elif (
+                isinstance(var_type, Number)
+                and var_type.number_type in countable_number_types
+            ):
+                vars.append(var + " : " + "integer")
+                vars.append(var + "_prev : " + "integer")
             else:
-                vars.append(str(typed_val.name) + " : " + "integer")
-                vars.append(str(typed_val.name) + "_prev : " + "integer")
+                raise Exception("Unsupported type for variable: " + str(var_type))
 
-            prev_logic += [
-                "next(" + str(typed_val.name) + "_prev) = " + str(typed_val.name)
-            ]
+            prev_logic += ["next(" + str(var) + "_prev) = " + str(var)]
 
         vars += [str(var) + " : boolean" for var in self.env_events]
         vars += [str(var) + " : boolean" for var in self.con_events]
@@ -667,14 +710,14 @@ class Program:
         init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
         init += [
-            str(val.name) + " = " + str(val.value.to_nuxmv())
-            for val in self.valuation
-            if not isinstance(val.value, NonDeterministic)
+            var + " = " + str(value.to_nuxmv())
+            for var, value in self.init_var_values.items()
+            if not isinstance(value, NonDeterministic)
         ]
         init += [
-            str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv())
-            for val in self.valuation
-            if not isinstance(val.value, NonDeterministic)
+            var + "_prev" + " = " + str(value.to_nuxmv())
+            for var, value in self.init_var_values.items()
+            if not isinstance(value, NonDeterministic)
         ]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
@@ -683,15 +726,15 @@ class Program:
         invar = mutually_exclusive_rules(self.states)
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
         invar += [
-            str(val.name) + " >= 0"
-            for val in self.valuation
-            if (val.type == "nat" or val.type == "natural")
+            str(var) + " >= 0"
+            for var in self.init_var_values.keys()
+            if self.symbol_table[var] == NATURAL
         ]
         invar.extend(
             [
-                str(val.name) + "_prev" + " >= 0"
-                for val in self.valuation
-                if (val.type == "nat" or val.type == "natural")
+                str(var) + "_prev" + " >= 0"
+                for var in self.init_var_values.keys()
+                if self.symbol_table[var] == NATURAL
             ]
         )
 
@@ -752,9 +795,9 @@ class Program:
 
     def complete_action_set(self, actions: [BiOp]):
         non_updated_vars = [
-            tv.name
-            for tv in self.valuation
-            if tv.name not in [str(act.left) for act in actions]
+            var_name
+            for var_name in self.init_var_values.keys()
+            if var_name not in [str(act.left) for act in actions]
         ]
         return actions + [
             BiOp(Variable(var), ":=", Variable(var)) for var in non_updated_vars

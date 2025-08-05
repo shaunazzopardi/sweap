@@ -18,6 +18,7 @@ from pysmt.shortcuts import (
 )
 
 from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -283,9 +284,9 @@ class BiOp(Formula):
             or isinstance(self.right, Value)
             and self.right.is_math_value()
             or isinstance(self.left, Variable)
-            and not symbol_table[str(self.left)].type.lower().startswith("bool")
+            and not symbol_table[str(self.left)] == BOOLEAN
             or isinstance(self.right, Variable)
-            and not symbol_table[str(self.right)].type.lower().startswith("bool")
+            and not symbol_table[str(self.right)] == BOOLEAN
         )
 
     def replace_formulas(self, context):

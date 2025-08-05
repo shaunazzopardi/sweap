@@ -24,9 +24,9 @@ from analysis.abstraction.interface.predicate_abstraction import (
     PredicateAbstraction,
 )
 from programs.program import Program
-from programs.typed_valuation import TypedValuation
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct,
@@ -110,7 +110,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.abstract_program_transitions(old_to_new_st_preds)
 
-        self.symbol_table = {v: tv for v, tv in program.symbol_table.items()}
+        self.symbol_table = {v: t for v, t in program.symbol_table.items()}
 
     def abstract_program_transitions(self, old_to_new_st_preds):
         orig_transitions, stutter = (
@@ -124,7 +124,7 @@ class EffectsAbstraction(PredicateAbstraction):
             t.with_condition(t.condition.replace_formulas(old_to_new_st_preds))
             for t in orig_transitions + stutter
         ]
-        self.init_conf = conjunct_typed_valuation_set(self.program.valuation)
+        self.init_conf = conjunct_typed_valuation_set(self.program.init_var_values)
         self.init_program_trans = {
             t
             for t in all_trans
@@ -327,10 +327,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
             if isinstance(p, TransitionPredicate):
                 self.symbol_table.update(
-                    {
-                        str(bool_var): TypedValuation(str(bool_var), "bool", true())
-                        for bool_var in p.bool_rep.values()
-                    }
+                    {str(bool_var): BOOLEAN for bool_var in p.bool_rep.values()}
                 )
 
                 self.init_state_abstraction.append(p.stutter)
@@ -343,9 +340,7 @@ class EffectsAbstraction(PredicateAbstraction):
                             self.second_state_abstraction[gu].append(option)
                             break
             else:
-                self.symbol_table.update(
-                    {str(p.bool_var): TypedValuation(str(p.bool_var), "bool", true())}
-                )
+                self.symbol_table.update({str(p.bool_var): BOOLEAN})
                 if "_prev" in str(p):
                     if sat(
                         conjunct(

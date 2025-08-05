@@ -21,6 +21,7 @@ from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars
 from prop_lang.biop import BiOp
+from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     neg,
     conjunct_formula_set,
@@ -208,13 +209,7 @@ def liveness_step(
     irrelevant_vars += program.env_events
     irrelevant_vars += program.con_events
     irrelevant_vars += [
-        v
-        for v in program.local_vars
-        if any(
-            tv
-            for tv in program.valuation
-            if str(v) == tv.name and tv.type.lower().startswith("bool")
-        )
+        v for v in program.local_vars if symbol_table[str(v)] == BOOLEAN
     ]
 
     init_valuation = concrete_body[0][1] | concrete_body[0][2]

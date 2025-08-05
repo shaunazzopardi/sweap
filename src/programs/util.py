@@ -13,9 +13,9 @@ from sympy.utilities.iterables import iterable
 
 from analysis.smt_checker import check, bdd_simplify
 from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN, Type
 from prop_lang.util import (
     conjunct_formula_set,
     conjunct,
@@ -37,28 +37,22 @@ from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
-def symbol_table_from_program(program):
+def symbol_table_from_program(
+    program, init_values
+) -> tuple[dict[str, Type], dict[str, Value]]:
     symbol_table = dict()
+    init_var_values = dict()
     for state in program.states:
-        symbol_table[state] = TypedValuation(str(state), "bool", None)
+        symbol_table[state] = BOOLEAN
     for ev in program.out_events + program.env_events + program.con_events:
-        symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
-    for t_val in program.valuation:
-        symbol_table[t_val.name] = t_val
-        symbol_table[t_val.name + "_prev"] = TypedValuation(
-            t_val.name + "_prev", t_val.type, None
-        )
-        symbol_table[t_val.name + "_prev" + "_prev"] = TypedValuation(
-            t_val.name + "_prev" + "_prev", t_val.type, None
-        )
-    return symbol_table
+        symbol_table[ev.name] = BOOLEAN
+    for var_name, var_type, var_init_value in init_values:
+        init_var_values[var_name] = var_init_value
+        symbol_table[var_name] = var_type
+        symbol_table[var_name + "_prev"] = var_type
+        symbol_table[var_name + "_prev" + "_prev"] = var_type
 
-
-def symbol_table_from_typed_valuation(tv):
-    symbol_table = dict()
-    for t_val in tv:
-        symbol_table[t_val.name] = t_val
-    return symbol_table
+    return symbol_table, init_var_values
 
 
 def ce_state_to_predicate_abstraction_trans(
@@ -201,9 +195,10 @@ def parse_nuxmv_ce_output_finite(program, out, cs_alphabet):
 
 def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     transition_no = len(program.transitions)
-    program_alphabet = [str(s) for s in program.states] + [
-        tv.name for tv in program.valuation
-    ]
+    program_alphabet = [str(s) for s in program.states] + list(
+        program.init_var_values.keys()
+    )
+
     program_states = []
     program_transitions = []
     cs_states = []
@@ -467,17 +462,14 @@ def stutter_transition(program, state, cnf=False):
             success, condition_simplified = run_with_timeout(
                 bdd_simplify_guards, args, timeout=0.2
             )
-            # if condition_simplified != condition:
-            #     logging.info("CNFing stutter transition " + str(condition) + " took " + str(time.time() - start) + " seconds.\n" +
-            #              "With result " + str(condition_simplified))
-            # else:
-            #     logging.info("Took too long to CNF stutter transition " + str(condition) + ", took" + str(time.time() - start) + " seconds.")
             if success:
                 condition = condition_simplified
         stutter_t = (
             Transition(state, condition, [], [], state)
             .complete_outputs(program.out_events)
-            .complete_action_set([Variable(v.name) for v in program.valuation])
+            .complete_action_set(
+                [Variable(v_name) for v_name in program.init_var_values.keys()]
+            )
         )
         stutter_transition_cache[program][condition] = stutter_t
         return stutter_t
@@ -545,7 +537,7 @@ def keep_bool_preds(formula: Formula, symbol_table):
         return (
             formula
             if not any(
-                v for v in formula.variablesin() if symbol_table[str(v)].type != "bool"
+                v for v in formula.variablesin() if symbol_table[str(v)] != BOOLEAN
             )
             else true()
         )
@@ -553,9 +545,7 @@ def keep_bool_preds(formula: Formula, symbol_table):
         preds = {
             p
             for p in formula.sub_formulas_up_to_associativity()
-            if not any(
-                v for v in p.variablesin() if symbol_table[str(v)].type != "bool"
-            )
+            if not any(v for v in p.variablesin() if symbol_table[str(v)] != BOOLEAN)
         }
         return conjunct_formula_set(preds)
 
@@ -715,14 +705,12 @@ def guarded_action_transitions_to_normal_transitions(arg):
     transitions = []
 
     symbol_table = {}
-    for t_val in valuation:
-        symbol_table[t_val.name] = t_val
-        symbol_table[t_val.name + "_next"] = TypedValuation(
-            t_val.name + "_next", t_val.type, t_val.value
-        )
+    for name, type, _ in valuation:
+        symbol_table[name] = type
+        symbol_table[name + "_next"] = type
 
     for ev in env_events + con_events:
-        symbol_table[ev.name] = TypedValuation(str(ev), "bool", None)
+        symbol_table[ev.name] = BOOLEAN
 
     act_guard_sets = set()
     act_guard_sets.add(frozenset({}))

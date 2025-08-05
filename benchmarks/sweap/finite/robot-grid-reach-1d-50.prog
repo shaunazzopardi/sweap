@@ -12,7 +12,7 @@ program robot-cat-real-1d {
     }
 
     VALUATION {
-        x : 0..50 := 0;
+        x : [0..50] := 0;
     }
 
     TRANSITIONS {
