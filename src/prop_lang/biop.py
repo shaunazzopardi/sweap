@@ -30,12 +30,8 @@ class BiOp(Formula):
             raise Exception("BiOp: left is None")
         if right is None:
             raise Exception("BiOp: right is None")
-        if op == "-":
-            self.op = "+"
-            self.right = UniOp("-", right)
-        else:
-            self.op = op
-            self.right = right
+        self.op = op
+        self.right = right
 
         self.left = left
         self.vars = None
