@@ -85,7 +85,9 @@ class Program:
 
         all_vars = self.local_vars
         self.transitions = [
-            t.complete_outputs(self.out_events).complete_action_set(all_vars)
+            self.add_type_constraints_to_guards(
+                t.complete_outputs(self.out_events).complete_action_set(all_vars)
+            )
             for t in self.transitions
         ]
         if preprocess:
