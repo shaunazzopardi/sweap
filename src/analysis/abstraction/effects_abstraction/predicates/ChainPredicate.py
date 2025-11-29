@@ -263,7 +263,6 @@ class ChainPredicate(Predicate):
             new_nows = self.replace_formulas_multiple_but(
                 self.old_to_new, old_now, gu, True
             )
-            at_least_one = False
             for new_now in new_nows:
                 prev_state = conjunct(gu, new_now.prev_rep())
                 if sat(prev_state, symbol_table):
@@ -272,10 +271,8 @@ class ChainPredicate(Predicate):
                     )
                     if len(new_nexts) > 0:
                         new_effects.append((new_now, new_nexts))
-                        at_least_one = True
-            if not at_least_one:
-                raise Exception("Is gu unsatisfiable? " + str(gu))
-
+        if len(new_effects) == 0:
+            raise Exception("Is gu unsatisfiable? " + str(gu))
         return new_effects
 
     def extend_effect_now(
