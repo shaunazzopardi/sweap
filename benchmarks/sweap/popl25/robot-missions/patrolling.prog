@@ -28,8 +28,8 @@ program patrolling {
         G (((pos == 0) && !(timer >= 60) -> p1)) &&
         G (((pos == 0) && timer >= 60) -> (!p1)) &&
 
-        G (timer > 0) &&
-        G ( (pos == 0) -> t) &&
+        G (timer >= 0) &&
+        G ((pos == 0) -> t) &&
         G (!(pos == 0) -> !t) &&
 
         G F ((pos > 0))
