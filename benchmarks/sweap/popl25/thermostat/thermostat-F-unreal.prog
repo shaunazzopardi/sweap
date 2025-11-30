@@ -18,8 +18,9 @@ program thermostat-F-unreal{
     }
 
     TRANSITIONS{
-        setMode -> setSense [e1 $ mode := true;],
-        setMode -> setSense [!e1 $ mode := false;],
+        setMode -> setSense [e1 $ mode := 1;],
+        setMode -> setSense [!e1 & e2 $ mode := 0;],
+        setMode -> setSense [!e1 & !e2 $ mode := -1;],
         setSense -> setSense [e1 $ sense := sense + 1],
         setSense -> setSense [!e1 & e2 $ sense := sense - 1],
         setSense -> q [!e1 & !e2],
