@@ -35,13 +35,18 @@ def refinement_standard(
         prefer_lasso_counterexamples,
     )
 
-    logging.info("compatibility checking took " + str(time.time() - start))
+    logging.info(
+        "compatibility checking ("
+        + str(determination)
+        + ") took "
+        + str(time.time() - start)
+    )
     dual = config.Config.getConfig().dual
-    if determination == True:
+    if determination:
         if dual:
-            logging.info("Problem is realisable.")
+            logging.info("Problem confirmed realisable.")
         else:
-            logging.info("Problem is unrealisable.")
+            logging.info("Problem confirmed unrealisable.")
         return True, mm
     else:
         agreed_on_execution, disagreed_on_state = result
@@ -69,10 +74,12 @@ def refinement_standard(
             (
                 new_state_preds,
                 new_tran_preds,
+                in_loop_vars,
             ), new_structural_loop_constraints = result[1]
             new_ltl_constraints = set()
         elif result[1] is None:
             (new_state_preds, new_tran_preds), new_ltl_constraints = result[0]
+            in_loop_vars = []
             new_structural_loop_constraints = set()
         else:
             raise Exception("Expected success to be true")
@@ -81,6 +88,7 @@ def refinement_standard(
         new_tran_preds = set()
         new_ltl_constraints = set()
         new_structural_loop_constraints = set()
+        in_loop_vars = []
 
     if not success:
         ## do safety refinement
@@ -100,10 +108,7 @@ def refinement_standard(
             result = [
                 p
                 for p in result
-                if not (
-                    p in predicate_abstraction.state_predicates
-                    or p in predicate_abstraction.chain_state_predicates
-                )
+                if not (p in predicate_abstraction.get_raw_state_predicates())
             ]
             # TODO why is there sometimes a predicate we already know? is abstraction not presice enough?
             if len(result) == 0:
@@ -118,6 +123,7 @@ def refinement_standard(
         (new_state_preds, new_tran_preds),
         new_ltl_constraints,
         new_structural_loop_constraints,
+        in_loop_vars,
         loop_counter,
     )
 

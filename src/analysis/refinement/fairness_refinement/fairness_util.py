@@ -21,6 +21,7 @@ from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars
 from prop_lang.biop import BiOp
+from prop_lang.types.ops_and_rels import MathRels
 from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     neg,
@@ -110,7 +111,7 @@ def function_has_well_ordered_range(f, invars, symbol_table):
     if invars is None:
         invars = []
     ff = add_prev_suffix(f)
-    formula = BiOp(ff, "<", f)
+    formula = BiOp(ff, MathRels.LT, f)
     fnode, _ = formula.to_smt(symbol_table)
     _, type_conds_fnode = f.to_smt(symbol_table)
     invar_fnode, invar_cond_fnode = conjunct_formula_set(invars).to_smt(symbol_table)
@@ -122,7 +123,7 @@ def function_has_well_ordered_range(f, invars, symbol_table):
     forall_vars = [Symbol(str(vv), INT) for vv in f.variablesin()]
     quant_formula = Exists(exis_vars, ForAll(forall_vars, formula))
     qe = quantifier_elimination(quant_formula)
-    return str(qe).lower() == "true"
+    return qe.is_true()
 
 
 def function_decreases_in_loop_body(f, invars, body: [[BiOp]], symbol_table):
@@ -131,9 +132,9 @@ def function_decreases_in_loop_body(f, invars, body: [[BiOp]], symbol_table):
     for acts in body:
         # for act in acts:
         act_pred = conjunct_formula_set(
-            [BiOp(act.left, "=", add_prev_suffix(act.right)) for act in acts]
+            [BiOp(act.left, MathRels.EQ, add_prev_suffix(act.right)) for act in acts]
         )
-        formulas = [act_pred] + invars + [BiOp(add_prev_suffix(f), "<", f)]
+        formulas = [act_pred] + invars + [BiOp(add_prev_suffix(f), MathRels.LT, f)]
 
         if sat(conjunct_formula_set(formulas), symbol_table):
             return False
@@ -223,7 +224,7 @@ def liveness_step(
     exit_cond = ground_predicate_on_vars(
         program, exit_cond, init_valuation, irrelevant_vars, symbol_table
     ).simplify()
-    exit_cond = resolve_implications(exit_cond).simplify().to_nuxmv()
+    exit_cond = resolve_implications(exit_cond).simplify()
 
     # this checks that there are increments and decrements in body of loop
     # if there are just assignments then loop refinement gives nothing informative
@@ -245,27 +246,25 @@ def liveness_step(
     # 1. try TRUE
     conditions.append(true())
     # 2. try pre_cond (i.e. conjunction of preds and neg preds true before entry)
-    cond = pre_cond.to_nuxmv()
+    cond = pre_cond
     if cond not in conditions:
         conditions.append(cond)
     # 3. try entry guard (grounded on E and C)
-    entry_guard = (
-        ground_predicate_on_vars(
-            program,
-            concrete_body[0][0].condition,
-            init_valuation,
-            irrelevant_vars,
-            symbol_table,
-        ).simplify()
-    ).to_nuxmv()
+    entry_guard = ground_predicate_on_vars(
+        program,
+        concrete_body[0][0].condition,
+        init_valuation,
+        irrelevant_vars,
+        symbol_table,
+    ).simplify()
     if entry_guard not in conditions:
         conditions.append(entry_guard)
     # 4. try pre_cond & entry_guard
-    cond = conjunct(pre_cond, entry_guard).to_nuxmv()
+    cond = conjunct(pre_cond, entry_guard)
     if cond not in conditions:
         conditions.append(cond)
     # 5. actual initial valuation
-    if entry_valuation.to_nuxmv() not in conditions:
+    if entry_valuation not in conditions:
         conditions.append(entry_valuation)
 
     # 4. if the above all don t terminate, then failed to weaken loop

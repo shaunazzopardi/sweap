@@ -8,6 +8,7 @@ from parsing.string_to_prop_logic import string_to_prop
 from programs.program import Program
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
+from prop_lang.types.ops_and_rels import MathRels
 from prop_lang.util import (
     neg,
     conjunct_formula_set,
@@ -38,19 +39,15 @@ def safety_refinement_seq_int(
     if allow_user_input:
         new_state_preds = interactive_state_predicates()
     else:
-        ith_vars = lambda i: [
-            BiOp(Variable(v), ":=", Variable(v + "_" + str(i)))
+        ith_vars = lambda i: {
+            Variable(v): Variable(v + "_" + str(i))
             for v in symbol_table.keys()
             if "_prev" not in v
-        ] + [
-            BiOp(
-                Variable(v),
-                ":=",
-                Variable(v.removesuffix("_prev") + "_" + str(i - 1)),
-            )
+        } | {
+            Variable(v): Variable(v.removesuffix("_prev") + "_" + str(i - 1))
             for v in symbol_table.keys()
             if "_prev" in v
-        ]
+        }
 
         if len(agreed_on_transitions) == 0:
             raise Exception("No agreed on transitions found in the counterexample.")
@@ -58,23 +55,23 @@ def safety_refinement_seq_int(
         for i, (tran, prog_state, cs_state) in enumerate(agreed_on_transitions):
             if i == 0:
                 init_formula = [
-                    BiOp(Variable(v), "=", Value(val))
+                    BiOp(Variable(v), MathRels.EQ, val)
                     for v, val in program.init_var_values.items()
                 ]
                 p_0 = conjunct_formula_set(init_formula).replace_vars(ith_vars(0))
                 us_0 = [
                     BiOp(
                         Variable(str(u.left) + "_1"),
-                        "=",
+                        MathRels.EQ,
                         u.right.replace_vars(ith_vars(0)),
                     )
                     for u in tran.action
                 ]
                 g = tran.condition.replace_vars(
-                    [
-                        BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)]))
+                    {
+                        Variable(str(e)): Value(cs_state[str(e)])
                         for e in program.env_events + program.con_events
-                    ]
+                    }
                 )
                 g_0 = g.replace_vars(ith_vars(0))
                 u_0 = conjunct_formula_set(us_0)
@@ -92,16 +89,16 @@ def safety_refinement_seq_int(
                             ps.append(neg(pred))
                 p_i = conjunct_formula_set(ps).replace_vars(ith_vars(i))
                 g = tran.condition.replace_vars(
-                    [
-                        BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)]))
+                    {
+                        Variable(str(e)): Value(cs_state[str(e)])
                         for e in program.env_events + program.con_events
-                    ]
+                    }
                 )
                 g_i = g.replace_vars(ith_vars(i))
                 us_i = [
                     BiOp(
                         Variable(str(u.left) + "_" + str(i + 1)),
-                        "=",
+                        MathRels.EQ,
                         u.right.replace_vars(ith_vars(i)),
                     )
                     for u in tran.action
@@ -128,11 +125,11 @@ def safety_refinement_seq_int(
             raise Exception(
                 "Bug: Counterexample does not contain a sequence interpolant."
             )
-        reset_vars = [
-            BiOp(Variable(v + "_" + str(i)), ":=", Variable(v))
+        reset_vars = {
+            Variable(v + "_" + str(i)): Variable(v)
             for v in program.symbol_table.keys()
             for i in range(0, len(agreed_on_transitions) + 1)
-        ]
+        }
 
         new_state_preds = [
             fnode_to_formula(f).replace_vars(reset_vars) for f in new_state_preds_fnode

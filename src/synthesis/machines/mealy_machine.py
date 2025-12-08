@@ -65,22 +65,22 @@ class MealyMachine(Machine):
         self.env_prog_state = {}
         self.con_prog_state = {}
 
-    def add_transitions(self, trans_dict: dict, _=None):
+    def add_transitions(self, trans_dict: dict, symbol_table=None):
         int_st_index = 0
         interm_states = {}
         for src_index, env_behaviour, tgt_index in trans_dict.keys():
             new_src = "st_" + str(src_index)
 
-            env_cond = (env_behaviour.simplify()).to_nuxmv()
+            env_cond = env_behaviour.simplify()
             env_cond = propagate_negations(env_cond)
 
             con_behaviour = disjunct_formula_set(
                 trans_dict[(src_index, env_behaviour, tgt_index)]
             )
-            con_cond = (con_behaviour.simplify()).to_nuxmv()
+            con_cond = con_behaviour.simplify()
             con_cond = propagate_negations(con_cond)
             con_cond_dnf = dnf_safe(con_cond, simplify=False)
-            if isinstance(con_cond_dnf, BiOp) and con_cond_dnf.op[0] == "|":
+            if isinstance(con_cond_dnf, BiOp) and con_cond_dnf.op == "|":
                 con_conds = con_cond_dnf.sub_formulas_up_to_associativity()
             else:
                 con_conds = [con_cond_dnf]
@@ -343,11 +343,11 @@ class MealyMachine(Machine):
         return str(self.to_dot())
 
     def to_dot(self, pred_list: [Formula] = None):
-        to_replace = []
+        to_replace = {}
         if pred_list is not None:
             for pred in pred_list:
                 pred_var = label_pred(pred, pred_list)
-                to_replace += [BiOp(pred_var, ":=", pred)]
+                to_replace[pred_var] = pred
 
         dot = Digraph(
             name="MealyMachine",
@@ -627,9 +627,9 @@ class MealyMachine(Machine):
 
         mon_events = mon_out_events + [Variable(s) for s in mon_states]
 
-        new_mon_events = [
-            BiOp(m, ":=", Variable("mon_" + m.name)) for m in mon_events
-        ] + [BiOp(m, ":=", Variable(m.name)) for m in pred_acts]
+        new_mon_events = {m: Variable("mon_" + m.name) for m in mon_events} | {
+            m: Variable(m.name) for m in pred_acts
+        }
 
         guards_acts = {}
 
@@ -651,7 +651,7 @@ class MealyMachine(Machine):
                     guards_acts[guard] = list()
                 act = (
                     "next("
-                    + str(con_behaviour.replace(new_mon_events).to_nuxmv())
+                    + con_behaviour.replace(new_mon_events).to_nuxmv()
                     + " & "
                     + str(con_tgt)
                     + " & "
@@ -667,11 +667,9 @@ class MealyMachine(Machine):
                 else:
                     act += (
                         "& next("
-                        + str(
-                            self.prog_state[con_tgt]
-                            .replace_vars(new_mon_events)
-                            .to_nuxmv()
-                        )
+                        + self.prog_state[con_tgt]
+                        .replace_vars(new_mon_events)
+                        .to_nuxmv()
                         + ")"
                     )
                 guards_acts[guard].append(act)
@@ -691,7 +689,7 @@ class MealyMachine(Machine):
                 if len(self.prog_state.keys()) == 0:
                     act = (
                         "next("
-                        + str(env_beh.replace(new_mon_events).to_nuxmv())
+                        + env_beh.replace(new_mon_events).to_nuxmv()
                         + " & "
                         + str(env_tgt)
                         + " & "
@@ -850,7 +848,7 @@ def handle_transition(
     prog_out = abstract_problem.get_program_out_props()
     prog_preds = abstract_problem.get_program_pred_props()
 
-    env_cond = (env_cond.simplify()).to_nuxmv()
+    env_cond = env_cond.simplify()
     env_cond = propagate_negations(env_cond)
 
     env_turn = sat(conjunct(env, env_cond))
@@ -890,7 +888,7 @@ def handle_transition(
 
         new_con_conds = []
         for con_cond_orig in con_conds:
-            con_cond = (con_cond_orig.simplify()).to_nuxmv()
+            con_cond = con_cond_orig.simplify()
             new_con_conds.append(con_cond)
         new_con_cond = simplify_formula_without_math(
             disjunct_formula_set(new_con_conds)

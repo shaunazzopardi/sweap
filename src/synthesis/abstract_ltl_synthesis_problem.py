@@ -1,6 +1,6 @@
 from prop_lang.formula import Formula
 from prop_lang.variable import Variable
-from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 class AbstractLTLSynthesisProblem:

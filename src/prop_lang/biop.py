@@ -1,4 +1,5 @@
 import functools
+from typing import Union, Callable
 
 import sympy
 from pysmt.fnode import FNode
@@ -6,9 +7,6 @@ from pysmt.shortcuts import And, Or, Implies
 from pysmt.shortcuts import (
     Plus,
     Minus,
-    Times,
-    Div,
-    BVSRem,
     EqualsOrIff,
     LE,
     LT,
@@ -16,47 +14,62 @@ from pysmt.shortcuts import (
     GE,
     NotEquals,
 )
+from sympy import Basic
 
+import config
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import (
+    Bi_ops_rels,
+    BoolBiOps,
+    MathOps,
+    BoolUniOps,
+    MathRels,
+    bi_ops_rels_parser,
+)
 from prop_lang.types.types import BOOLEAN
+from prop_lang.types.values import BoolAtoms
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
 class BiOp(Formula):
-    def __init__(self, left: Formula, op: str, right: Formula):
-        if left is None:
-            raise Exception("BiOp: left is None")
-        if right is None:
-            raise Exception("BiOp: right is None")
-        self.op = op
-        self.right = right
+    def __init__(self, left: Formula, op: Union[str, Bi_ops_rels], right: Formula):
+        self.op = bi_ops_rels_parser(op) if isinstance(op, str) else op
+        if self.op == MathOps.SUB:
+            self.op = MathOps.ADD
+            self.left = left
+            if isinstance(right, UniOp) and right.op == MathOps.SUB:
+                self.right = right.right
+            else:
+                self.right = UniOp(MathOps.SUB, right)
+        else:
+            self.left = left
+            self.right = right
 
-        self.left = left
         self.vars = None
 
         self.prev_representation = None
+        self.smt_representation = None
 
+    @functools.lru_cache()
     def __str__(self):
         if len(self.sub_formulas_up_to_associativity()) == 1:
-            return "(" + str(self.left) + " " + self.op + " " + str(self.right) + ")"
+            return (
+                "(" + str(self.left) + " " + str(self.op) + " " + str(self.right) + ")"
+            )
         else:
             return (
                 "("
-                + (" " + self.op + " ").join(
+                + (" " + str(self.op) + " ").join(
                     [str(c) for c in self.sub_formulas_up_to_associativity()]
                 )
                 + ")"
             )
 
-    def sub_formulas_up_to_associativity(self):
-        if self.op == "&&" or self.op == "&":
-            is_same_as_op = lambda x: x[0] == "&"
-        elif self.op == "||" or self.op == "|":
-            is_same_as_op = lambda x: x[0] == "|"
-        elif self.op == "+":
-            is_same_as_op = lambda x: x[0] == "+"
+    def sub_formulas_up_to_associativity(self) -> list[Formula]:
+        if self.op in [BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD]:
+            is_same_as_op = lambda x: x == self.op
         else:
             return [self]
 
@@ -79,7 +92,7 @@ class BiOp(Formula):
                 and self.right == other.right
                 and self.left == other.left
             )
-        return NotImplemented
+        return False
 
     def __hash__(self):
         return hash((self.left, self.op, self.right))
@@ -87,7 +100,8 @@ class BiOp(Formula):
     # returns list of variables that appear in formula
     # ordered as they appear in the formula
     # without already appearing variables
-    def variablesin(self) -> [Variable]:
+    @functools.lru_cache()
+    def variablesin(self) -> list[Variable]:
         if self.vars is not None:
             return self.vars
         vars = self.left.variablesin() + self.right.variablesin()
@@ -98,7 +112,7 @@ class BiOp(Formula):
     def simplify(self):
         left = self.left.simplify()
         right = self.right.simplify()
-        if self.op in ["&", "&&"]:
+        if self.op is BoolBiOps.CONJ:
             if isinstance(left, Value) and left.is_true():
                 return right
             elif isinstance(left, Value) and left.is_false():
@@ -107,7 +121,7 @@ class BiOp(Formula):
                 return left
             elif isinstance(right, Value) and right.is_false():
                 return right
-        elif self.op in ["|", "||"]:
+        elif self.op is BoolBiOps.DISJ:
             if isinstance(left, Value) and left.is_true():
                 return left
             elif isinstance(left, Value) and left.is_false():
@@ -116,31 +130,32 @@ class BiOp(Formula):
                 return right
             elif isinstance(right, Value) and right.is_false():
                 return left
-        elif self.op in ["->", "=>"]:
+        elif self.op is BoolBiOps.IMPL:
             if isinstance(left, Value) and left.is_true():
                 return right
             elif isinstance(left, Value) and left.is_false():
-                return Value("True")
+                return Value(BoolAtoms.TRUE)
             elif isinstance(right, Value) and right.is_true():
-                return Value("True")
+                return Value(BoolAtoms.TRUE)
             elif isinstance(right, Value) and right.is_false():
-                return UniOp("!", left)
-        elif self.op in ["<->", "<=>"]:
+                return UniOp(BoolUniOps.NEG, left)
+        elif self.op is BoolBiOps.IFF:
             if isinstance(left, Value) and left.is_true():
                 return right
             elif isinstance(left, Value) and left.is_false():
-                return UniOp("!", right).simplify()
+                return UniOp(BoolUniOps.NEG, right).simplify()
             elif isinstance(right, Value) and right.is_true():
                 return left
             elif right == left:
-                return Value("True")
+                return Value(BoolAtoms.TRUE)
             elif isinstance(right, Value) and right.is_false():
                 return UniOp("!", left).simplify()
-        elif self.op in ["=="]:
+        elif self.op is MathRels.EQ:
             if right == left:
-                return Value("True")
+                return Value(BoolAtoms.TRUE)
         return BiOp(left, self.op, right)
 
+    @functools.lru_cache()
     def ops_used(self):
         return [self.op] + self.left.ops_used() + self.right.ops_used()
 
@@ -153,116 +168,94 @@ class BiOp(Formula):
 
     @functools.lru_cache()
     def to_nuxmv(self):
-        if self.op == "%":
-            return UniOp(
-                "toint",
-                BiOp(
-                    UniOp("unsigned word[8]", self.left.to_nuxmv()),
-                    "mod",
-                    UniOp("unsigned word[8]", self.right.to_nuxmv()),
-                ),
-            )
-        elif self.op == "==":
-            return BiOp(self.left.to_nuxmv(), "==", self.right.to_nuxmv())
-        elif self.op == "=>":
-            return BiOp(self.left.to_nuxmv(), "->", self.right.to_nuxmv())
-        elif self.op == "<=>":
-            return BiOp(self.left.to_nuxmv(), "<->", self.right.to_nuxmv())
-        elif self.op == "&&":
-            return BiOp(self.left.to_nuxmv(), "&", self.right.to_nuxmv())
-        elif self.op == "||":
-            return BiOp(self.left.to_nuxmv(), "|", self.right.to_nuxmv())
-        elif self.op == "W":
-            return BiOp(
-                BiOp(self.left, "U", self.right), "|", UniOp("G", self.left)
-            ).to_nuxmv()
-        elif self.op == "R":
-            return BiOp(self.right, "W", BiOp(self.right, "&", self.left)).to_nuxmv()
-        elif self.op == "M":
-            return BiOp(self.right, "U", BiOp(self.right, "&", self.left)).to_nuxmv()
-        else:
-            return BiOp(self.left.to_nuxmv(), self.op, self.right.to_nuxmv())
+        # if self.op == "%":
+        #     return "toint(unsigned word[8](" + self.left.to_nuxmv() + ") mod unsigned word[8](" + self.right.to_nuxmv() + "))"
+        # else:
+        return (
+            "("
+            + self.left.to_nuxmv()
+            + " "
+            + self.op.to_nuxmv()
+            + " "
+            + self.right.to_nuxmv()
+            + ")"
+        )
 
+    @functools.lru_cache()
     def to_strix(self):
-        if self.op == "==":
-            return BiOp(self.left.to_strix(), "==", self.right.to_strix())
-        elif self.op == "=>":
-            return BiOp(self.left.to_strix(), "->", self.right.to_strix())
-        elif self.op == "<=>":
-            return BiOp(self.left.to_strix(), "<->", self.right.to_strix())
-        elif self.op == "&":
-            return BiOp(self.left.to_strix(), "&&", self.right.to_strix())
-        elif self.op == "|":
-            return BiOp(self.left.to_strix(), "||", self.right.to_strix())
-        # elif self.op == "W":
-        #     return BiOp(BiOp(self.left, "U", self.right), "|", UniOp("G", self.left)).to_nuxmv()
-        # elif self.op == "R":
-        #     return BiOp(self.right, "W", BiOp(self.right, "&", self.left)).to_nuxmv()
-        # elif self.op == "M":
-        #     return BiOp(self.right, "U", BiOp(self.right, "&", self.left)).to_nuxmv()
-        else:
-            return BiOp(self.left.to_strix(), self.op, self.right.to_strix())
+        return self.left.to_strix() + " " + self.op + " " + self.right.to_strix()
 
     ops = {
-        "&": And,
-        "&&": And,
-        "|": Or,
-        "||": Or,
-        "->": Implies,
-        "=>": Implies,
-        "==": EqualsOrIff,
-        "=": EqualsOrIff,
-        "!=": NotEquals,
-        "<->": EqualsOrIff,
-        ">": GT,
-        ">=": GE,
-        "<": LT,
-        "<=": LE,
-        "+": Plus,
-        "-": Minus,
-        "*": Times,
-        "/": Div,
-        "%": BVSRem,
+        BoolBiOps.CONJ: And,
+        BoolBiOps.DISJ: Or,
+        BoolBiOps.IMPL: Implies,
+        MathRels.EQ: EqualsOrIff,
+        MathRels.NEQ: NotEquals,
+        BoolBiOps.IFF: EqualsOrIff,
+        MathRels.GT: GT,
+        MathRels.GE: GE,
+        MathRels.LT: LT,
+        MathRels.LE: LE,
+        MathOps.ADD: Plus,
+        MathOps.SUB: Minus,
+        # "*": Times,
+        # "/": Div,
+        # "%": BVSRem,
     }
 
-    def to_smt(self, symbol_table) -> (FNode, FNode):
+    def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
+        cache = config.Config.getConfig().cache_smt
+        if cache and self.smt_representation:
+            return self.smt_representation
+
         left_expr, left_invar = self.left.to_smt(symbol_table)
         right_expr, right_invar = self.right.to_smt(symbol_table)
 
         try:
             op = self.ops[self.op]
-            return op(left_expr, right_expr), And(left_invar, right_invar)
+            f = op(left_expr, right_expr), And(left_invar, right_invar)
         except KeyError:
             raise NotImplementedError(f"{self.op} unsupported")
         except Exception as e:
             print(str(e))
             op = self.ops[self.op]
-            return op(left_expr, right_expr), And(left_invar, right_invar)
+            f = op(left_expr, right_expr), And(left_invar, right_invar)
+        if cache:
+            self.smt_representation = f
 
-    def to_sympy(self):
-        if self.op[0] == "|":
+        return f
+
+    def to_sympy(self) -> Basic:
+        if self.op == BoolBiOps.DISJ:
             return sympy.Or(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op[0] == "&":
+        elif self.op == BoolBiOps.CONJ:
             return sympy.And(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op[0] == "=" or self.op == "<->":
+        elif self.op == MathRels.EQ or self.op == BoolBiOps.IFF:
             return sympy.Equivalent(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op == ">":
+        elif self.op == MathRels.GT:
             return sympy.StrictGreaterThan(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op == "<":
+        elif self.op == MathRels.LT:
             return sympy.StrictLessThan(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op == ">=":
+        elif self.op == MathRels.GE:
             return sympy.GreaterThan(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op == "<=":
+        elif self.op == MathRels.LE:
             return sympy.LessThan(self.left.to_sympy(), self.right.to_sympy())
-        elif self.op == "-":
+        elif self.op == MathOps.SUB:
             return sympy.Add(
                 self.left.to_sympy(),
                 sympy.Mul(sympy.Integer(-1), self.right.to_sympy()),
             )
+        elif self.op == MathOps.ADD:
+            return sympy.Add(
+                self.left.to_sympy(),
+                self.right.to_sympy(),
+            )
         else:
             raise Exception("Unsupported operator: " + self.op)
 
-    def replace_math_exprs(self, symbol_table, cnt=0):
+    def replace_math_exprs(
+        self, symbol_table, cnt=0
+    ) -> tuple[Formula, dict[str, Formula]]:
         if self.is_mathexpr(symbol_table):
             return Variable("math_" + str(cnt)), {("math_" + str(cnt)): self}
         else:
@@ -273,7 +266,7 @@ class BiOp(Formula):
 
             return BiOp(new_left, self.op, new_right), dic_left | dic_right
 
-    def is_mathexpr(self, symbol_table):
+    def is_mathexpr(self, symbol_table) -> bool:
         return (
             isinstance(self.left, Value)
             and self.left.is_math_value()
@@ -285,7 +278,9 @@ class BiOp(Formula):
             and not symbol_table[str(self.right)] == BOOLEAN
         )
 
-    def replace_formulas(self, context):
+    def replace_formulas(
+        self, context: Union[dict[Formula, Formula], Callable[[Formula], Formula]]
+    ) -> Formula:
         if isinstance(context, dict):
             if self in context.keys():
                 return context[self]
@@ -312,19 +307,16 @@ class BiOp(Formula):
                 self.right.replace_formulas(context),
             )
 
-    def prev_rep(self):
+    def prev_rep(self) -> Formula:
         if self.prev_representation is None:
-            if self.op == ":=":
-                self.prev_representation = BiOp(
-                    self.left, self.op, self.right.prev_rep()
-                )
-            else:
-                self.prev_representation = BiOp(
-                    self.left.prev_rep(), self.op, self.right.prev_rep()
-                )
+            self.prev_representation = BiOp(
+                self.left.prev_rep(), self.op, self.right.prev_rep()
+            )
         return self.prev_representation
 
-    def replace_formulas_multiple(self, context: dict):
+    def replace_formulas_multiple(
+        self, context: dict[Formula, list[Formula]]
+    ) -> list[Formula]:
         if self in context.keys():
             return context[self]
         else:

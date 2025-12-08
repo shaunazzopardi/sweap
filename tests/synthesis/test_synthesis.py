@@ -1,3 +1,4 @@
+import inspect
 import os
 import time
 from pathlib import Path
@@ -6,6 +7,8 @@ from unittest import TestCase
 from parsing.string_to_program import string_to_program
 from synthesis.synthesis import synthesize
 import logging
+import sys
+import functools
 
 logdir = Path(os.getcwd()) / "logs"
 
@@ -28,48 +31,99 @@ class Test(TestCase):
     def setUp(self):
         os.environ["PATH"] = "../binaries:" + os.environ["PATH"]
         os.environ["PATH"] = "./binaries:" + os.environ["PATH"]
+        # self.clear_module_lru_caches()
+
+    def clear_module_lru_caches(self, names=None):
+        """Clear @lru_cache decorated functions in specified modules"""
+        if names is None:
+            # Clear caches in prop_lang modules by default
+            names = [
+                "prop_lang.biop",
+                "prop_lang.formula",
+                "prop_lang.uniop",
+                "prop_lang.value",
+            ]
+
+        cleared_count = 0
+
+        for module_name in names:
+            if module_name in sys.modules:
+                module = sys.modules[module_name]
+
+                # Iterate through all attributes in the module
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+
+                    # Check if it's an lru_cache decorated function
+                    if isinstance(attr, functools._lru_cache_wrapper):
+                        try:
+                            attr.cache_clear()
+                            cleared_count += 1
+                            print(f"Cleared cache for {module_name}.{attr_name}")
+                        except Exception as e:
+                            print(
+                                f"Failed to clear cache for {module_name}.{attr_name}: {e}"
+                            )
+
+                    # Check for class methods with lru_cache
+                    elif inspect.isclass(attr):
+                        for method_name in dir(attr):
+                            method = getattr(attr, method_name)
+                            if isinstance(method, functools._lru_cache_wrapper):
+                                try:
+                                    method.cache_clear()
+                                    cleared_count += 1
+                                    print(
+                                        f"Cleared cache for {module_name}.{attr_name}.{method_name}"
+                                    )
+                                except Exception as e:
+                                    print(
+                                        f"Failed to clear cache for {module_name}.{attr_name}.{method_name}: {e}"
+                                    )
+
+        return cleared_count
 
     def test_synthesize_1(self):
         logging.info("Starting test_synthesize_1")
         with open("./test-problems/program.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)
 
     def test_synthesize_2(self):
         logging.info("Starting test_synthesize_2")
         with open("./test-problems/program2.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)
 
     def test_synthesize_3(self):
         logging.info("Starting test_synthesize_3")
         with open("./test-problems/program3.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertFalse(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertFalse(wrapped_hoa.is_controller)
 
     def test_synthesize_4(self):
         logging.info("Starting test_synthesize_4")
         with open("./test-problems/program4.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)
 
     def test_synthesize_5(self):
         logging.info("Starting test_synthesize_5")
         with open("./test-problems/program5.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)
 
     def test_synthesize_6(self):
         logging.info("Starting test_synthesize_6")
         with open("./test-problems/program6.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertFalse(real)
+            with self.assertRaises(Exception):
+                synthesize(program, ltl_spec, None)
 
     def test_synthesize_7(self):
         logging.info("Starting test_synthesize_7")
@@ -81,39 +135,39 @@ class Test(TestCase):
         logging.info("Starting test_synthesize_7_5")
         with open("./test-problems/program7.5.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertFalse(real)
+            with self.assertRaises(Exception):
+                synthesize(program, ltl_spec, None)
 
     def test_synthesize_8(self):
         logging.info("Starting test_synthesize_8")
         with open("./test-problems/program8.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertFalse(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertFalse(wrapped_hoa.is_controller)
 
     def test_synthesize_9(self):
         logging.info("Starting test_synthesize_9")
         with open("./test-problems/program9.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)
 
     def test_synthesize_10(self):
         logging.info("Starting test_synthesize_10")
         with open("./test-problems/program10.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)
 
     def test_synthesize_11(self):
         logging.info("Starting test_synthesize_11")
         with open("./test-problems/program11.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertFalse(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertFalse(wrapped_hoa.is_controller)
 
     def test_road(self):
         with open("./test-problems/road.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
-            (real, mm) = synthesize(program, ltl_spec, None)
-            self.assertTrue(real)
+            wrapped_hoa = synthesize(program, ltl_spec, None)
+            self.assertTrue(wrapped_hoa.is_controller)

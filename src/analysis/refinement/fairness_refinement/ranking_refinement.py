@@ -24,6 +24,7 @@ from programs.util import (
 )
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import MathRels, MathOps
 from prop_lang.types.types import INTEGER, BOOLEAN, NATURAL, Number
 from prop_lang.util import (
     conjunct,
@@ -106,38 +107,38 @@ def ranking_refinement(ranking, invars, signatures, symbol_table, there_is_inc=T
         right = ranking.right
         if ranking.op == "-":
             if isinstance(ranking.left, Value):
-                dec = BiOp(right, ">", add_prev_suffix(right))
-                inc = BiOp(right, "<", add_prev_suffix(right))
+                dec = BiOp(right, MathRels.GT, add_prev_suffix(right))
+                inc = BiOp(right, MathRels.LT, add_prev_suffix(right))
             elif isinstance(ranking.right, Value):
-                dec = BiOp(left, "<", add_prev_suffix(left))
-                inc = BiOp(left, ">", add_prev_suffix(left))
+                dec = BiOp(left, MathRels.LT, add_prev_suffix(left))
+                inc = BiOp(left, MathRels.GT, add_prev_suffix(left))
             else:
                 sort = sorted([left, right], key=lambda x: str(x))
                 if sort[0] == left:
-                    dec = BiOp(ranking, "<", add_prev_suffix(ranking))
-                    inc = BiOp(ranking, ">", add_prev_suffix(ranking))
+                    dec = BiOp(ranking, MathRels.LT, add_prev_suffix(ranking))
+                    inc = BiOp(ranking, MathRels.GT, add_prev_suffix(ranking))
                 else:
-                    new_ranking = BiOp(sort[0], "-", sort[1])
-                    dec = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
-                    inc = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
+                    new_ranking = BiOp(sort[0], MathOps.SUB, sort[1])
+                    dec = BiOp(new_ranking, MathRels.GT, add_prev_suffix(new_ranking))
+                    inc = BiOp(new_ranking, MathRels.LT, add_prev_suffix(new_ranking))
         elif ranking.op == "+":
             if isinstance(ranking.left, Value):
-                dec = BiOp(right, "<", add_prev_suffix(right))
-                inc = BiOp(right, ">", add_prev_suffix(right))
+                dec = BiOp(right, MathRels.LT, add_prev_suffix(right))
+                inc = BiOp(right, MathRels.GT, add_prev_suffix(right))
             elif isinstance(ranking.right, Value):
-                dec = BiOp(left, "<", add_prev_suffix(left))
-                inc = BiOp(left, ">", add_prev_suffix(left))
+                dec = BiOp(left, MathRels.LT, add_prev_suffix(left))
+                inc = BiOp(left, MathRels.GT, add_prev_suffix(left))
             else:
                 sort = sorted([left, right], key=lambda x: str(x))
-                new_ranking = BiOp(sort[0], "+", sort[1])
-                inc = BiOp(new_ranking, ">", add_prev_suffix(new_ranking))
-                dec = BiOp(new_ranking, "<", add_prev_suffix(new_ranking))
+                new_ranking = BiOp(sort[0], MathOps.ADD, sort[1])
+                inc = BiOp(new_ranking, MathRels.GT, add_prev_suffix(new_ranking))
+                dec = BiOp(new_ranking, MathRels.LT, add_prev_suffix(new_ranking))
         else:
-            inc = BiOp(ranking, ">", add_prev_suffix(ranking))
-            dec = BiOp(ranking, "<", add_prev_suffix(ranking))
+            inc = BiOp(ranking, MathRels.GT, add_prev_suffix(ranking))
+            dec = BiOp(ranking, MathRels.LT, add_prev_suffix(ranking))
     else:
-        inc = BiOp(ranking, ">", add_prev_suffix(ranking))
-        dec = BiOp(ranking, "<", add_prev_suffix(ranking))
+        inc = BiOp(ranking, MathRels.GT, add_prev_suffix(ranking))
+        dec = BiOp(ranking, MathRels.LT, add_prev_suffix(ranking))
 
     if len(invars) > 0:
         normalised_invars = [
@@ -164,11 +165,22 @@ def ranking_refinement(ranking, invars, signatures, symbol_table, there_is_inc=T
     return tran_preds, state_preds, (dec, constraint)
 
 
+def check_termination(
+    symbol_table,
+    program,
+    entry_condition,
+    body: list[Transition],
+    exit_predicate_grounded,
+    add_natural_conditions=True,
+):
+    pass
+
+
 def find_ranking_function(
     symbol_table,
     program,
     entry_condition,
-    body: [Transition],
+    body: list[Transition],
     exit_predicate_grounded,
     add_natural_conditions=True,
 ):
@@ -215,7 +227,7 @@ def loop_to_c(
     symbol_table,
     program: Program,
     entry_condition: Formula,
-    body: [Transition],
+    body: list[Transition],
     exit_cond: Formula,
     add_natural_conditions=True,
 ):
@@ -234,7 +246,11 @@ def loop_to_c(
         )
     }
     local_vars = []
-    for v in {v.name for v in program.local_vars} | set(entry_condition.variablesin()):
+    for v in map(
+        lambda v: v.name, set(program.local_vars + entry_condition.variablesin())
+    ):
+        if v not in symbol_table.keys():
+            print(v)
         if symbol_table[v] == BOOLEAN:
             continue
 
@@ -284,13 +300,15 @@ def loop_to_c(
 
     for t in body:
         safety = (
-            str(type_constraints(t.condition, symbol_table))
+            type_constraints(t.condition, symbol_table)
+            .to_nuxmv()
             .replace(" = ", " == ")
             .replace(" & ", " && ")
             .replace(" | ", " || ")
         )
         cond_simpl = (
-            str(t.condition.simplify())
+            t.condition.simplify()
+            .to_nuxmv()
             .replace(" = ", " == ")
             .replace(" & ", " && ")
             .replace(" | ", " || ")
@@ -735,7 +753,7 @@ def use_fairness_refinement(
 
         entry_valuation = conjunct_formula_set(
             [
-                BiOp(Variable(key), "=", Value(value))
+                BiOp(Variable(key), MathRels.EQ, Value(value))
                 for key, value in ce_prog_loop_tran_concretised[0][1].items()
                 if key in program.init_var_values.keys()
             ]

@@ -3,7 +3,6 @@ from multiprocessing import Pool
 
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
-from pysmt.environment import Environment
 
 import config
 from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
@@ -17,12 +16,11 @@ from programs.transition import Transition
 from programs.util import guarded_action_transitions_to_normal_transitions
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.mathexpr import MathExpr
 from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex
-from prop_lang.util import true, normalize_ltl, run_with_timeout_and_memory_limit
+from prop_lang.update import Update
+from prop_lang.util import true, normalize_ltl
 from prop_lang.variable import Variable
-from synthesis.synthesis import synthesize
 
 name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
@@ -33,6 +31,8 @@ regex_keywords = list(
         re.compile,
         [
             r"turn$",
+            r"true",
+            r"false",
             r"in_loop[0-9]+_[0-9]+",
             r"prog$",
             r"cs$",
@@ -218,14 +218,14 @@ def bool_decl_parser_untyped():
         else:
             value = string_to_prop(action_and_guard[0])
             guard = string_to_prop(action_and_guard[1])
-        return BiOp(Variable(var), ":=", value), guard
+        return Update(Variable(var), value), guard
     except Exception as e:
         yield parsec.fail_with(str(e))
 
 
 @generate
 def num_decl_parser_untyped():
-    var = yield name << spaces() << spaces()
+    var = yield name << spaces()
     yield string(":=") << spaces()
     raw_value = yield regex(r"[^,;\]#]+") << spaces()
     action_and_guard = raw_value.split(" if ")
@@ -233,23 +233,13 @@ def num_decl_parser_untyped():
         if len(action_and_guard) == 1:
             value = string_to_math_expression(action_and_guard[0])
             guard = true()
-            return BiOp(Variable(var), ":=", MathExpr(value)), guard
+            return Update(Variable(var), value), guard
         else:
             value = string_to_math_expression(action_and_guard[0])
             guard = string_to_prop(action_and_guard[1])
-            return BiOp(Variable(var), ":=", MathExpr(value)), guard
+            return Update(Variable(var), value), guard
     except Exception as e:
         yield parsec.fail_with(str(e))
-
-
-@generate
-def assignment_parser_with_action_guard():
-    assignment = (
-        yield parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped)
-        << spaces()
-    )
-    guard = yield action_guard << spaces()
-    return (assignment, guard)
 
 
 @generate
@@ -258,9 +248,9 @@ def action_guard():
     raw_value = yield regex(r"[^,;\]#]+") << spaces()
     try:
         value = string_to_prop(raw_value)
+        return value
     except Exception as e:
         yield parsec.fail_with(str(e))
-    return value
 
 
 @generate
@@ -274,7 +264,7 @@ def initial_val_parser():
     yield parsec.optional(regex("(,|;)"))
     yield spaces() >> string("}")
     list(map(not_a_keyword, [v for v, _, _ in vals]))
-    if len(set([v for v, _, _ in vals])) < len(vals):
+    if len({v for v, _, _ in vals}) < len(vals):
         raise Exception("Variables with same name in VALUATION.")
     return vals
 
@@ -329,20 +319,11 @@ def outputs():
 
 @generate
 def assignments():
-    asss = yield sepBy(
+    assignment_and_guards = yield parsec.sepBy(
         parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped),
         regex("(,|;)") >> spaces(),
     ) << parsec.optional(regex("(,|;)") >> spaces())
-    # if len(set([v[0].left for v in asss])) < len(asss):
-    #     raise Exception("Variables can only be assigned once by a transition.")
-    return asss
-
-
-# @generate
-# def assignment():
-#     assign = yield parsec.try_choice(bool_decl_parser_untyped, num_decl_parser_untyped) >> spaces()
-#     guard = yield parsec.optional(action_guard, true())
-#     return (assign, guard)
+    return assignment_and_guards
 
 
 @generate

@@ -18,10 +18,11 @@ from analysis.compatibility_checking.compatibility_checking_con import (
     compatibility_checking_con,
 )
 from analysis.refinement.refinement import refinement_standard
-from parsing.string_to_ltl import string_to_ltl
+from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import BoolBiOps
 from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     true,
@@ -36,21 +37,24 @@ from prop_lang.util import (
     neg,
 )
 from prop_lang.variable import Variable
-from synthesis.ltl_synthesis.ltl_synthesis import (
-    ltl_synthesis,
-)
-from synthesis.ltl_synthesis.syfco_adapter import syfco_ltl, syfco_ltl_in, syfco_ltl_out
-from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl import ltl_synthesis
+from synthesis.ltl.syfco_adapter import syfco_ltl, syfco_ltl_in, syfco_ltl_out
+from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 from pathlib import Path
 
 from synthesis.machines.wrapped_hoa import WrappedHOA
+import prop_lang.variable
+from prop_lang.mathexpr import MathExpr
+from prop_lang.uniop import UniOp
+from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
+from typing import Any, Dict, List, Set, Tuple, Union
 
 
 def synthesize(
     program: Program,
     ltl: Formula | None,
     tlsf_path: str | None,
-    bound: int,
+    bound: int = -1,
 ) -> WrappedHOA:
     if not program.deterministic:
         print("Program is non-deterministic; refinement may fail.")
@@ -62,10 +66,11 @@ def synthesize(
         in_acts,
         out_acts,
     ) = process_specifications(program, ltl, tlsf_path)
+
     aps = set()
-    for ltl in (ltl_assumptions, ltl_guarantees):
-        for x in ltl:
-            aps |= atomic_predicates(x)
+    for ass_or_guar in (ltl_assumptions, ltl_guarantees):
+        for x in ass_or_guar:
+            aps.update(atomic_predicates(x))
 
     msg = f"spec contains {len(aps)} APs ({[str(a) for a in aps]})"
     print(msg)
@@ -85,7 +90,12 @@ def synthesize(
 
 def process_specifications(
     program: Program, ltl: Formula | None, tlsf_path: str | None
-):
+) -> Tuple[
+    List[Formula],
+    List[Formula],
+    List[Variable],
+    List[Variable],
+]:
     if tlsf_path is not None:
         ltl_text = syfco_ltl(tlsf_path)
         if ' Error"' in ltl_text:
@@ -96,37 +106,43 @@ def process_specifications(
         in_acts_syfco = syfco_ltl_in(tlsf_path)
         out_acts_syfco = syfco_ltl_out(tlsf_path)
 
-        ltl = string_to_ltl(ltl_text)
-    else:
+        ltl = string_to_ltl_with_predicates(ltl_text)
+    elif ltl:
         in_acts_syfco = []
         out_acts_syfco = []
+    else:
+        raise Exception("No LTL specification provided.")
 
-    if isinstance(ltl, BiOp) and (ltl.op == "->" or ltl.op == "=>"):
+    if isinstance(ltl, BiOp) and ltl.op == BoolBiOps.IMPL:
         ltl_assumptions_formula = ltl.left
         ltl_guarantees_formula = ltl.right
     else:
         ltl_assumptions_formula = true()
-        ltl_guarantees_formula = ltl
+        ltl_guarantees_formula: Formula = ltl
 
     if (
         isinstance(ltl_assumptions_formula, BiOp)
-        and ltl_assumptions_formula.op[0] == "&"
+        and ltl_assumptions_formula.op == BoolBiOps.CONJ
     ):
         ltl_assumptions = ltl_assumptions_formula.sub_formulas_up_to_associativity()
     else:
         ltl_assumptions = [ltl_assumptions_formula]
 
-    if isinstance(ltl_guarantees_formula, BiOp) and ltl_guarantees_formula.op[0] == "&":
+    ltl_guarantees: list[Formula]
+    if (
+        isinstance(ltl_guarantees_formula, BiOp)
+        and ltl_guarantees_formula.op == BoolBiOps.CONJ
+    ):
         ltl_guarantees = ltl_guarantees_formula.sub_formulas_up_to_associativity()
     else:
         ltl_guarantees = [ltl_guarantees_formula]
 
     if config.Config.getConfig().dual:
         ltl_assumptions = [
-            massage_ltl_for_dual(f, program.env_events) for f in ltl_assumptions
+            massage_ltl_for_dual(f, program.env_events, False) for f in ltl_assumptions
         ]
         ltl_guarantees = [
-            massage_ltl_for_dual(f, program.env_events) for f in ltl_guarantees
+            massage_ltl_for_dual(f, program.env_events, False) for f in ltl_guarantees
         ]
         ltl_guarantees = [
             neg(
@@ -189,10 +205,10 @@ def abstract_synthesis_loop(
     new_ranking_constraints: list[Formula] = []
     new_structural_loop_constraints: list[Formula] = []
 
-    file_name_template: str = generate_tlsf_file_name_template()
-    cegar_loop_counter: int = -1
-    loop_counter: int = 0
-
+    file_name_template = generate_tlsf_file_name_template()
+    cegar_loop_counter = -1
+    loop_counter = 0
+    in_loop_vars = []
     print("Starting abstract synthesis loop.")
     while bound != 0:
         bound -= 1
@@ -201,13 +217,12 @@ def abstract_synthesis_loop(
         new_state_preds = {
             p
             for p in new_state_preds
-            if p not in predicate_abstraction.state_predicates
-            and p not in predicate_abstraction.chain_state_predicates
+            if p not in predicate_abstraction.raw_state_predicates
         }
         new_tran_preds = {
             strip_mathexpr(p)
             for p in set(new_tran_preds)
-            if p not in predicate_abstraction.transition_predicates
+            if p not in predicate_abstraction.raw_transition_predicates
         }
 
         ## update predicate abstraction
@@ -217,6 +232,7 @@ def abstract_synthesis_loop(
             new_state_preds,
             new_tran_preds,
             new_ranking_constraints,
+            in_loop_vars,
             new_structural_loop_constraints,
             original_LTL_problem,
             ltl_abstraction_type,
@@ -230,7 +246,7 @@ def abstract_synthesis_loop(
             file_name_template, str(cegar_loop_counter), abstract_ltl_problem.tlsf
         )
 
-        wrapped_hoa: WrappedHOA = ltl_synthesis(
+        wrapped_hoa: WrappedHOA = ltl_synthesis.ltl_synthesis(
             abstract_ltl_problem, predicate_abstraction.symbol_table
         )
         logging.info("ltl synthesis took " + str(time.time() - start))
@@ -260,7 +276,6 @@ def abstract_synthesis_loop(
                     wrapped_hoa.machine,
                     original_ltl_spec,
                 )
-
             return wrapped_hoa
 
         if config.Config.getConfig().finite_synthesis:
@@ -291,6 +306,7 @@ def abstract_synthesis_loop(
             (
                 (new_state_preds, new_tran_preds),
                 new_ranking_constraints,
+                in_loop_vars,
                 new_structural_loop_constraints,
                 loop_counter,
             ) = result
@@ -324,7 +340,7 @@ def generate_tlsf_file_name_template() -> str | None:
     return None
 
 
-def safe_overwrite_if_logging(file_name_template, counter, text):
+def safe_overwrite_if_logging(file_name_template: str, counter: str, text: str):
     if config.Config.getConfig().log:
         file_name = file_name_template + counter
         try:
@@ -335,7 +351,7 @@ def safe_overwrite_if_logging(file_name_template, counter, text):
             f.write(text)
 
 
-def safe_rename_logging(file_name_template, counter, new_index):
+def safe_rename_logging(file_name_template: str, counter: str, new_index: str):
     if config.Config.getConfig().log:
         os.rename(file_name_template + counter, file_name_template + new_index)
 
@@ -346,9 +362,10 @@ def refining_abs_and_log(
     new_tran_preds: set[Formula],
     new_ranking_constraints: list[Formula],
     new_structural_loop_constraints: list[Formula],
+    in_loop_vars: list[Variable],
     original_LTL_problem: LTLSynthesisProblem,
     ltl_abstraction_type: LTLAbstractionType,
-):
+) -> Tuple[EffectsAbstraction, AbstractLTLSynthesisProblem]:
     print(
         "adding "
         + ", ".join(map(str, new_state_preds | new_tran_preds))
@@ -358,7 +375,7 @@ def refining_abs_and_log(
     predicate_abstraction.add_predicates(new_state_preds | new_tran_preds, set(), True)
     predicate_abstraction.add_ranking_constraints(new_ranking_constraints)
     predicate_abstraction.add_structural_loop_constraints(
-        new_structural_loop_constraints
+        in_loop_vars, new_structural_loop_constraints
     )
 
     new_state_preds.clear()
@@ -366,11 +383,11 @@ def refining_abs_and_log(
     new_ranking_constraints.clear()
     new_structural_loop_constraints.clear()
 
-    base_abstraction, abstract_ltl_problem = effects_to_ltl.to_ltl(
+    abstract_ltl_problem = effects_to_ltl.to_ltl(
         predicate_abstraction, original_LTL_problem, ltl_abstraction_type
     )
 
-    return base_abstraction, abstract_ltl_problem
+    return predicate_abstraction, abstract_ltl_problem
 
 
 def extract_init_preds(
@@ -379,15 +396,21 @@ def extract_init_preds(
     ltl_guarantees: list[Formula],
     in_acts: list[Variable],
     out_acts: list[Variable],
-):
+) -> Tuple[
+    set[Formula],
+    list[Formula],
+    list[Formula],
+    set[Formula],
+    dict[Formula, Formula],
+]:
     new_state_preds = set()
 
     if config.Config.getConfig().finite_synthesis:
         new_state_preds.update(
             {
                 pred
-                for val in program.init_var_values
-                for pred in finite_state_preds(val)
+                for var in program.local_vars
+                for pred in finite_state_preds(var, program.symbol_table[var.name])
             }
         )
     else:

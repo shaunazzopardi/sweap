@@ -8,7 +8,9 @@ from graphviz import Digraph
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.transition import Transition
+from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from programs.util import (
+    reset_caches,
     stutter_transition,
     symbol_table_from_program,
     is_deterministic,
@@ -27,6 +29,7 @@ from prop_lang.types.types import (
     countable_number_types,
     NATURAL,
 )
+from prop_lang.update import Update
 from prop_lang.util import (
     disjunct_formula_set,
     neg,
@@ -60,6 +63,9 @@ class Program:
         preprocess=True,
         is_determ=None,
     ):
+        config.Config.getConfig().cache_smt = False
+        reset_caches()
+
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
@@ -76,7 +82,7 @@ class Program:
         self.symbol_table, self.init_var_values = symbol_table_from_program(
             self, init_values
         )
-        self.local_vars = [Variable(n) for n, _, _ in init_values]
+        self.local_vars: list[Variable] = [Variable(n) for n, _, _ in init_values]
 
         self.transitions = transitions
 
@@ -85,11 +91,12 @@ class Program:
 
         all_vars = self.local_vars
         self.transitions = [
-            self.add_type_constraints_to_guards(
-                t.complete_outputs(self.out_events).complete_action_set(all_vars)
-            )
+            self.add_type_constraints_to_guards(t)
+            .complete_outputs(self.out_events)
+            .complete_action_set(all_vars)
             for t in self.transitions
         ]
+
         if preprocess:
             logging.info("Processing program.")
             print("Processing program.")
@@ -168,29 +175,47 @@ class Program:
 
             self.deterministic = property(lazy_det, skip, skip, "")
 
-        if not config.Config.getConfig().no_binary_enc:
-            self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
-            self.bin_to_orig_state_map = {
-                st: k for k, st in self.states_binary_map.items()
-            }
-            self.states_binary_map |= {
-                Variable(st): bin_st for st, bin_st in self.states_binary_map.items()
-            }
-        else:
-            self.bin_state_vars = list(self.states)
-            self.bin_to_orig_state_map = {st: st for st in self.states}
-            self.states_binary_map = {(st): Variable(st) for st in self.states}
+        # if not config.Config.getConfig().no_binary_enc:
+        self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
+        self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
+        self.states_binary_map |= {
+            Variable(st): bin_st for st, bin_st in self.states_binary_map.items()
+        }
+        self.symbol_table.update({str(b): BOOLEAN for b in self.bin_state_vars})
+        # TODO: the below is wrong, if incorporated needs to be corrected so that states are mutually exclusive
+        # else:
+        #     self.bin_state_vars = list(self.states)
+        #     self.bin_to_orig_state_map = {st: st for st in self.states}
+        #     self.states_binary_map = {(st): Variable(st) for st in self.states}
 
         self.project_out_constants()
+        # note, we do not need to add natural type constraints to transitions after this call here,
+        # since we are refining integers to naturals only when every transition already
+        # preserves the natural constraint
         while self.refine_var_types():
+            prop_lang_util_reset_caches()
+            reset_caches()
+            # TODO: should we adding type constraints in transitions here again?
             pass
+
+        # doing this after refining var types; otherwise the wrong type constraints will be added to smt calls
+        config.Config.getConfig().cache_smt = True
 
     def refine_var_types(self):
         from prop_lang.types.types import NATURAL
 
         new_symbol_table = {}
+
+        # Create valuation from init_var_values
+        current_vals = [
+            BiOp(Variable(name), "=", val) for name, val in self.init_var_values.items()
+        ]
+        current_valuation = (
+            conjunct_formula_set(current_vals) if current_vals else true()
+        )
+
         for n, type_obj in self.symbol_table.items():
-            if isinstance(type_obj, Number):
+            if isinstance(type_obj, Number) and not str(n).endswith("_prev"):
                 v = Variable(n)
                 if not (
                     isinstance(type_obj, Number)
@@ -199,25 +224,11 @@ class Program:
                     continue
                 nat_pred = BiOp(v, ">=", Value("0"))
 
-                # Create valuation from init_var_values
-                current_vals = [
-                    BiOp(Variable(name), "=", val)
-                    for name, val in self.init_var_values.items()
-                ]
-                current_valuation = (
-                    conjunct_formula_set(current_vals) if current_vals else true()
-                )
-
                 if not is_tautology(
                     implies(current_valuation, nat_pred),
                     self.symbol_table,
                 ):
                     continue
-
-                symbol_table_with_prevs = {
-                    (m + "_prev"): prev_type
-                    for m, prev_type in self.symbol_table.items()
-                }
 
                 exit = False
                 prev_nat = add_prev_suffix(nat_pred)
@@ -225,7 +236,7 @@ class Program:
                 for t in self.transitions:
                     if not is_tautology(
                         implies(conjunct(prev_nat, t.formula()), nat_pred),
-                        self.symbol_table | symbol_table_with_prevs,
+                        self.symbol_table,
                     ):
                         exit = True
                         break
@@ -244,7 +255,7 @@ class Program:
         constant_vars = set()
         for var_name in self.init_var_values.keys():
             var_obj = Variable(var_name)
-            identity_action = BiOp(var_obj, ":=", var_obj)
+            identity_action = Update(var_obj, var_obj)
             if all(identity_action in t.action for t in self.transitions):
                 constant_vars.add(var_name)
 
@@ -265,9 +276,8 @@ class Program:
         for t in self.transitions:
             # Filter actions and replace variables
             t.action = [
-                BiOp(
+                Update(
                     a.left,
-                    a.op,
                     a.right.replace_vars(lambda x: vars_to_project_out.get(x, x)),
                 )
                 for a in t.action
@@ -302,7 +312,7 @@ class Program:
         self.local_vars = [Variable(name) for name in new_init_var_values.keys()]
 
     def add_type_constraints_to_guards(self, transition: Transition):
-        constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()
+        constraints = type_constraints_acts(transition, self.symbol_table)
         if not is_tautology(
             implies(transition.condition, constraints), self.symbol_table
         ):
@@ -327,10 +337,9 @@ class Program:
                 s1 = str(s)
                 return s1[1:-1] if s1.startswith("(") else s1
 
-            result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"  # noqa: E501
+            result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"
             if t.action is not None and len(t.action) > 0:
                 result += " $ " + "; ".join(map(remove_paren, t.action))
-            # Deprecated: we'll remove output actions altogether at some point
             if is_env and t.output is not None and len(t.output) > 0:
                 result += " # " + ", ".join(map(remove_paren, t.output))
             return result + "]"
@@ -425,7 +434,6 @@ class Program:
         return dot
 
     def to_nuXmv_with_turns(self):
-        real_acts = []
         guards = []
         acts = []
         dualise = config.Config.getConfig().dual
@@ -434,34 +442,31 @@ class Program:
                 cond = massage_ltl_for_dual(
                     transition.condition, self.env_events, False
                 )
-                cond = str(cond.to_nuxmv()).replace("X(", "next(")
+                cond = cond.to_nuxmv().replace("X(", "next(")
             else:
-                cond = str(transition.condition.to_nuxmv())
-            guard = "turn = cs & " + str(transition.src) + " & " + str(cond)
+                cond = transition.condition.to_nuxmv()
+            guard = "turn = cs & " + str(transition.src) + " & " + cond
 
             act = (
                 "next("
                 + str(transition.tgt)
-                + ")"
-                + "".join(
-                    [
-                        " & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv())
-                        for act in self.complete_action_set(transition.action)
-                    ]
-                )
-                + "".join(
-                    [
-                        " & next(" + str(assignment) + ")"
-                        for assignment in transition.output
-                    ]
-                )
-                + "".join(
-                    [
-                        " & !next(" + str(event) + ")"
-                        for event in self.out_events
-                        if event not in transition.output
-                    ]
-                )
+                + ") &"
+                + conjunct_formula_set(
+                    self.complete_action_set(transition.action)
+                ).to_nuxmv()
+                # + "".join(
+                #     [
+                #         " & next(" + str(assignment) + ")"
+                #         for assignment in transition.output
+                #     ]
+                # )
+                # + "".join(
+                #     [
+                #         " & !next(" + str(event) + ")"
+                #         for event in self.out_events
+                #         if event not in transition.output
+                #     ]
+                # )
                 + "".join(
                     [
                         " & !next(" + st + ")"
@@ -472,9 +477,6 @@ class Program:
             )
             guards.append(guard)
             acts.append(act)
-            real_acts.append((transition.action, transition.output, transition.tgt))
-
-        real_acts.append(([], [], None))  # for the stutter transition
 
         define = []
         guard_and_act = []
@@ -602,10 +604,10 @@ class Program:
                 cond = massage_ltl_for_dual(
                     transition.condition, self.env_events, False
                 )
-                cond = str(cond.to_nuxmv()).replace("X(", "next(")
+                cond = cond.to_nuxmv().replace("X(", "next(")
             else:
-                cond = str(transition.condition.to_nuxmv())
-            guard = str(transition.src) + " & " + str(cond)
+                cond = transition.condition.to_nuxmv()
+            guard = str(transition.src) + " & " + cond
 
             act = (
                 "next("
@@ -795,14 +797,14 @@ class Program:
 
         return complete_trans, stutter_trans
 
-    def complete_action_set(self, actions: [BiOp]):
+    def complete_action_set(self, actions: list[BiOp]):
         non_updated_vars = [
             var_name
             for var_name in self.init_var_values.keys()
             if var_name not in [str(act.left) for act in actions]
         ]
         return actions + [
-            BiOp(Variable(var), ":=", Variable(var)) for var in non_updated_vars
+            Update(Variable(var), Variable(var)) for var in non_updated_vars
         ]
 
     def __str__(self):

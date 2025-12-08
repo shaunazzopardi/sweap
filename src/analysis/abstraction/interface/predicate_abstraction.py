@@ -13,14 +13,14 @@ class PredicateAbstraction(ABC):
     @abstractmethod
     def add_predicates(
         self,
-        new_interpolants: [Formula],
-        new_ranking_and_invars: dict[Formula, [Formula]],
+        new_interpolants: list[Formula],
+        new_ranking_and_invars: dict[Formula, list[Formula]],
         structural_loop_env,
     ):
         pass
 
     @abstractmethod
-    def concretise_counterexample(self, counterexample: [dict]):
+    def concretise_counterexample(self, counterexample: list[dict]):
         pass
 
     @abstractmethod
@@ -34,23 +34,24 @@ class PredicateAbstraction(ABC):
     #     pass
 
     @abstractmethod
-    def get_state_predicates(self) -> [Formula]:
+    def get_state_predicates(self) -> list[Formula]:
         pass
 
     @abstractmethod
-    def get_transition_predicates(self) -> [Formula]:
+    def get_transition_predicates(self) -> list[Formula]:
         pass
 
     @abstractmethod
-    def get_interpolants(self) -> [Formula]:
+    def get_interpolants(self) -> list[Formula]:
         pass
 
     @abstractmethod
-    def get_ranking_and_invars(self) -> dict[Formula, [Formula]]:
+    def get_ranking_and_invars(self) -> dict[Formula, list[Formula]]:
         pass
 
+    @abstractmethod
     def get_all_preds(self):
-        return self.get_state_predicates() | self.get_transition_predicates()
+        pass
 
     @abstractmethod
     def get_program(self) -> Program:

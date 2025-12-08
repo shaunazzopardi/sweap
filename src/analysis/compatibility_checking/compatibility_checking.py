@@ -16,7 +16,8 @@ from config import Config
 from programs.program import Program
 from programs.util import parse_nuxmv_ce_output_finite
 from prop_lang.biop import BiOp
-from prop_lang.uniop import UniOp
+from prop_lang.types.ops_and_rels import BoolBiOps, MathRels
+from prop_lang.update import Update
 from prop_lang.util import conjunct_formula_set, stringify_pred
 from prop_lang.variable import Variable
 from synthesis.machines.moore_machine import MooreMachine
@@ -55,13 +56,11 @@ def compatibility_checking(
     else:
         mismatch_condition = None
 
-    all_preds = predicate_abstraction.get_all_preds()
-    symbol_table = predicate_abstraction.get_symbol_table()
-
     system = create_nuxmv_model_for_compatibility_checking(
         program,
         moore_nuxmv,
-        all_preds,
+        predicate_abstraction.get_state_predicates(),
+        predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
         not program.deterministic,
         not program.deterministic,
@@ -90,7 +89,7 @@ def compatibility_checking(
 
         ## Finished
 
-        result = moore_machine.to_dot(all_preds)
+        result = moore_machine.to_dot(predicate_abstraction.get_all_raw_preds())
 
         return True, result
 
@@ -111,7 +110,8 @@ def compatibility_checking(
 def create_nuxmv_model_for_compatibility_checking(
     program: Program,
     strategy_model: NuXmvModel,
-    pred_list,
+    state_predicates: set[StatePredicate],
+    transition_predicates: set[TransitionPredicate],
     chain_preds,
     include_mismatches_due_to_nondeterminism=False,
     colloborate=False,
@@ -119,15 +119,8 @@ def create_nuxmv_model_for_compatibility_checking(
     prefer_lassos=False,
 ):
     program_model = program.to_nuXmv_with_turns()
-    bool_preds = [p.bool_var for p in pred_list if isinstance(p, StatePredicate)]
-    bool_preds.extend(
-        [
-            t
-            for p in pred_list
-            if isinstance(p, TransitionPredicate)
-            for t in p.bool_rep.values()
-        ]
-    )
+    bool_preds = [p.bool_var for p in state_predicates]
+    bool_preds.extend([t for p in transition_predicates for t in p.bool_rep.values()])
 
     text = "MODULE main\n"
     strategy_states = sorted(
@@ -159,7 +152,7 @@ def create_nuxmv_model_for_compatibility_checking(
         for p, rep in ch_p.bin_rep.items():
             bool_rep = stringify_pred(p).name
             pred_rep_to_val[bool_rep] = p
-            binned_preds.append(bool_rep + " := " + str(rep))
+            binned_preds.append(bool_rep + " := (" + rep.to_nuxmv() + ")")
     text += (
         "DEFINE\n"
         + "\t"
@@ -168,56 +161,55 @@ def create_nuxmv_model_for_compatibility_checking(
     )
 
     safety_predicate_truth = [
-        BiOp(p.pred, "<->", p.bool_var)
-        for p in pred_list
-        if isinstance(p, StatePredicate)
+        BiOp(p.pred, BoolBiOps.IFF, p.bool_var) for p in state_predicates
     ]
 
     safety_predicate_truth += [
-        BiOp(bool_rep, "<->", (p)) for bool_rep, p in pred_rep_to_val.items()
+        BiOp(Variable(bool_rep), BoolBiOps.IFF, p)
+        for bool_rep, p in pred_rep_to_val.items()
     ]
 
     tran_predicate_truth = [
-        BiOp(pred, "<->", bool_var)
-        for p in pred_list
-        if isinstance(p, TransitionPredicate)
+        BiOp(pred, BoolBiOps.IFF, bool_var)
+        for p in transition_predicates
         for pred, bool_var in p.bool_rep.items()
     ]
 
-    prog_output_equality = [
-        BiOp(o, "=", Variable("prog_" + o.name)) for o in program.out_events
-    ]
+    # prog_output_equality = [
+    #     BiOp(o, MathRels.EQ, Variable("prog_" + o.name)) for o in program.out_events
+    # ]
 
     prog_state_equality = [
-        BiOp(Variable(s), "=", program.states_binary_map[s]) for s in program.states
+        BiOp(Variable(s), BoolBiOps.IFF, program.states_binary_map[s])
+        for s in program.states
     ]
 
-    compatible_output = (
-        "\tcompatible_outputs := "
-        + "((turn == cs) -> ("
-        + str(conjunct_formula_set(prog_output_equality))
-        + "))"
-        + ";\n"
-    )
+    # compatible_output = (
+    #     "\tcompatible_outputs := "
+    #     + "((turn = cs) -> ("
+    #     # + conjunct_formula_set(prog_output_equality).to_nuxmv()
+    #     + "))"
+    #     + ";\n"
+    # )
     compatible_states = (
         "\tcompatible_states := "
-        + "((turn == cs) -> ("
-        + str(conjunct_formula_set(prog_state_equality))
+        + "((turn = cs) -> ("
+        + conjunct_formula_set(prog_state_equality).to_nuxmv()
         + "))"
         + ";\n"
     )
     compatible_state_predicates = (
         "\tcompatible_state_predicates := "
-        + "((turn == cs) -> ("
-        + str(conjunct_formula_set(safety_predicate_truth))
+        + "((turn = cs) -> ("
+        + conjunct_formula_set(safety_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
     )
-    # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
+
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
-        + "((!init_state && turn == cs) -> ("
-        + str(conjunct_formula_set(tran_predicate_truth))
+        + "((!init_state & turn = cs) -> ("
+        + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
     )
@@ -228,13 +220,15 @@ def create_nuxmv_model_for_compatibility_checking(
             if predicate_mismatch
             else ""
         )
-        + "compatible_outputs & compatible_states"
+        # + "compatible_outputs & "
+        + "compatible_states"
         + ";\n"
     )
 
     text += (
-        compatible_output
-        + compatible_states
+        # compatible_output
+        # +
+        compatible_states
         + compatible
         + compatible_state_predicates
         + compatible_tran_predicates
@@ -275,25 +269,19 @@ def create_nuxmv_model_for_compatibility_checking(
         + "))\n"
     )
 
-    turn_logic = ["(turn = prog -> (!next(init_state) && next(turn) = cs))"]
-    turn_logic += ["(turn = cs -> (!next(init_state) && next(turn) = prog))"]
+    turn_logic = ["(turn = prog -> (!next(init_state) & next(turn) = cs))"]
+    turn_logic += ["(turn = cs -> (!next(init_state) & next(turn) = prog))"]
 
-    maintain_prog_vars = str(
-        conjunct_formula_set(
-            [
-                BiOp(
-                    UniOp("next", Variable("prog_" + str(m))),
-                    " = ",
-                    Variable("prog_" + str(m)),
-                )
-                for m in (program.out_events)
-            ]
-            + [
-                BiOp(UniOp("next", Variable(str(m))), " = ", Variable(str(m)))
-                for m in program.bin_state_vars + bool_preds
-            ]
-        )
-    )
+    maintain_prog_vars = conjunct_formula_set(
+        [
+            Update(Variable("prog_" + str(m)), Variable("prog_" + str(m)))
+            for m in (program.out_events)
+        ]
+        + [
+            Update(Variable(str(m)), Variable(str(m)))
+            for m in program.bin_state_vars + bool_preds
+        ]
+    ).to_nuxmv()
     new_trans = (
         ["compatible", "!next(mismatch)"]
         + program_model.trans
@@ -329,7 +317,7 @@ def create_nuxmv_model_for_compatibility_checking(
     if prefer_lassos:
         report_if_state_seen = "\n\t& ".join(
             [
-                "((((turn == cs) & "
+                "((((turn = cs) & "
                 + s.split(" : ")[0]
                 + ") "
                 + " | "
@@ -345,7 +333,7 @@ def create_nuxmv_model_for_compatibility_checking(
         report_if_state_seen += "\n\t& " + "\n\t& ".join(
             [
                 "((("
-                + ("(turn == cs)")
+                + "(turn = cs)"
                 + " & "
                 + s.split(" : ")[0]
                 + " & "
@@ -364,10 +352,6 @@ def create_nuxmv_model_for_compatibility_checking(
 
         text += "\t&" + report_if_state_seen + "\n"
 
-    text = text.replace("%", "mod")
-    text = text.replace("&&", "&")
-    text = text.replace("||", "|")
-    text = text.replace("==", "=")
     return text
 
 

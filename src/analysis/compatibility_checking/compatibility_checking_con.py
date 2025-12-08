@@ -14,6 +14,7 @@ from analysis.model_checker import ModelChecker
 from config import Config
 from programs.program import Program
 from prop_lang.biop import BiOp
+from prop_lang.types.ops_and_rels import BoolBiOps, MathRels
 from prop_lang.util import conjunct_formula_set, stringify_pred
 from prop_lang.variable import Variable
 from synthesis.machines.mealy_machine import MealyMachine
@@ -131,48 +132,50 @@ def create_nuxmv_model_for_compatibility_checking(
     )
 
     safety_predicate_truth = [
-        BiOp(p.pred, "<->", p.bool_var)
+        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
         for p in pred_list
         if isinstance(p, StatePredicate)
     ]
 
     safety_predicate_truth += [
-        BiOp(bool_rep, "<->", (p)) for bool_rep, p in pred_rep_to_val.items()
+        BiOp(Variable(bool_rep), BoolBiOps.IFF, p)
+        for bool_rep, p in pred_rep_to_val.items()
     ]
 
     tran_predicate_truth = [
-        BiOp(pred, "<->", bool_var)
+        BiOp(pred, BoolBiOps.IFF, bool_var)
         for p in pred_list
         if isinstance(p, TransitionPredicate)
         for pred, bool_var in p.bool_rep.items()
     ]
 
     prog_output_equality = [
-        BiOp(o, "=", Variable("prog_" + o.name)) for o in program.out_events
+        BiOp(o, MathRels.EQ, Variable("prog_" + o.name)) for o in program.out_events
     ]
 
     prog_state_equality = [
-        BiOp(Variable(s), "=", program.states_binary_map[s]) for s in program.states
+        BiOp(Variable(s), MathRels.EQ, program.states_binary_map[s])
+        for s in program.states
     ]
 
     compatible_output = (
         "\tcompatible_outputs := "
         + "(("
-        + str(conjunct_formula_set(prog_output_equality))
+        + conjunct_formula_set(prog_output_equality).to_nuxmv()
         + "))"
         + ";\n"
     )
     compatible_states = (
         "\tcompatible_states := "
         + "(("
-        + str(conjunct_formula_set(prog_state_equality))
+        + conjunct_formula_set(prog_state_equality).to_nuxmv()
         + "))"
         + ";\n"
     )
     compatible_state_predicates = (
         "\tcompatible_state_predicates := "
         + "(("
-        + str(conjunct_formula_set(safety_predicate_truth))
+        + conjunct_formula_set(safety_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
     )
@@ -180,7 +183,7 @@ def create_nuxmv_model_for_compatibility_checking(
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
         + "((!init_state) -> ("
-        + str(conjunct_formula_set(tran_predicate_truth))
+        + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
     )
@@ -202,8 +205,6 @@ def create_nuxmv_model_for_compatibility_checking(
         + compatible_state_predicates
         + compatible_tran_predicates
     )
-
-    # TODO consider adding checks that state predicates expected by env are true, for debugging predicate abstraction
 
     text += (
         "INIT\n"
@@ -227,10 +228,6 @@ def create_nuxmv_model_for_compatibility_checking(
 
     text += "TRANS\n" + normal_trans + "\n"
 
-    text = text.replace("%", "mod")
-    text = text.replace("&&", "&")
-    text = text.replace("||", "|")
-    text = text.replace("==", "=")
     return text
 
 
@@ -312,11 +309,7 @@ def there_is_mismatch_between_program_and_controller(
 
     there_is_no_mismatch, out = model_checker.invar_check(
         system,
-        "(G(compatible"
-        + loop_constraints_str
-        + ")) -> ("
-        + str(ltlspec.to_nuxmv())
-        + ")",
+        "(G(compatible" + loop_constraints_str + ")) -> (" + ltlspec.to_nuxmv() + ")",
         bound,
         True,
     )

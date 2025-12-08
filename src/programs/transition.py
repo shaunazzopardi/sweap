@@ -1,12 +1,13 @@
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.update import Update
 from prop_lang.util import true, conjunct, neg, negate, conjunct_formula_set
 from prop_lang.variable import Variable
 
 
 class Transition:
     def __init__(
-        self, src, condition: Formula, action: list[BiOp], output: list[Variable], tgt
+        self, src, condition: Formula, action: list[Update], output: list[Variable], tgt
     ):
         self.src = src
         self.condition = true() if condition is None else condition
@@ -90,7 +91,7 @@ class Transition:
             all_modified.append(act.left)
         for v in vars:
             if v not in all_modified:
-                self.action.append(BiOp(v, ":=", v))
+                self.action.append(Update(v, v))
         if len(self.action) != len(vars):
             raise Exception("Error in action set completion")
         return self

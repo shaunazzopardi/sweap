@@ -1,6 +1,8 @@
-from programs.util import add_prev_suffix
+from programs.util import add_prev_suffix, binary_rep
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import MathRels
+from prop_lang.update import Update
 from prop_lang.util import (
     disjunct_formula_set,
     G,
@@ -45,12 +47,18 @@ def structural_refinement(
     #           program; or modify the abstraction to deal with predicates that can also talk about control states
 
     # TODO binary representation for in_loop vars
-    in_loop_vars = [
+    in_loop_vars_raw = [
         Variable("in_loop" + str(counter) + "_" + str(i))
         for i in range(0, len(terminating_loop))
     ]
+    not_in_loop = Variable("not_in_loop")
 
-    in_loop = disjunct_formula_set(in_loop_vars)
+    bin_vars, bin_rep = binary_rep(
+        in_loop_vars_raw + [not_in_loop], "in_loop_" + str(counter) + "_"
+    )
+
+    in_loop_vars = [bin_rep[b] for b in in_loop_vars_raw]
+    in_loop = neg(bin_rep[not_in_loop])
 
     entry_condition, entry_preds = normalise_formula(
         entry_condition, signatures, symbol_table
@@ -65,41 +73,26 @@ def structural_refinement(
     atomic_state_preds.extend(exit_preds)
     constraints = [neg(in_loop)]
 
-    if len(in_loop_vars) > 1:
-        only_one = G(
-            conjunct_formula_set(
-                [
-                    implies(
-                        v,
-                        neg(
-                            disjunct_formula_set([vv for vv in in_loop_vars if v != vv])
-                        ),
-                    )
-                    for v in in_loop_vars
-                ]
-            )
-        )
-
-        constraints.append(only_one)
-
     stutters = []
 
     for i in range(0, len(terminating_loop)):
         # TODO: preds in guard need to be normalised
         guard, acts = terminating_loop[i]
         complete_acts = [
-            BiOp(c, ":=", c)
+            Update(c, c)
             for c in exit_condition.variablesin()
             if not any(act for act in acts if act.left == c)
         ]
         complete_acts += acts
 
         acts_i = [
-            BiOp(act.left, "=", add_prev_suffix(act.right)) for act in complete_acts
+            BiOp(act.left, MathRels.EQ, add_prev_suffix(act.right))
+            for act in complete_acts
         ]
         act_i = conjunct_formula_set(acts_i)
         sts_i = [
-            BiOp(act.left, "=", add_prev_suffix(act.left)) for act in complete_acts
+            BiOp(act.left, MathRels.EQ, add_prev_suffix(act.left))
+            for act in complete_acts
         ]
         st_i = conjunct_formula_set(sts_i)
 
@@ -107,14 +100,14 @@ def structural_refinement(
         atomic_tran_preds.extend(acts_i)
         atomic_tran_preds.extend(sts_i)
 
-        current_var = Variable("in_loop" + str(counter) + "_" + str(i))
+        current_var = bin_rep[in_loop_vars_raw[i]]
 
         stutters.append(conjunct(st_i, current_var))
 
         if i == len(terminating_loop) - 1:
-            next_var = Variable("in_loop" + str(counter) + "_0")
+            next_var = bin_rep[in_loop_vars_raw[0]]
         else:
-            next_var = Variable("in_loop" + str(counter) + "_" + str(i + 1))
+            next_var = bin_rep[in_loop_vars_raw[i + 1]]
 
         if i == 0:
             if not sat(
@@ -208,4 +201,6 @@ def structural_refinement(
     )
     constraints.append(fairness)
 
-    return (set(atomic_state_preds + atomic_tran_preds), set()), set(constraints)
+    return (set(atomic_state_preds + atomic_tran_preds), set(), bin_vars), set(
+        constraints
+    )

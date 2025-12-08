@@ -3,17 +3,17 @@ from prop_lang.variable import Variable
 
 
 class LTLSynthesisProblem:
-    env_props: [Variable]
-    con_props: [Variable]
-    assumptions: [Formula]
-    guarantees: [Formula]
+    env_props: list[Variable]
+    con_props: list[Variable]
+    assumptions: list[Formula]
+    guarantees: list[Formula]
 
     def __init__(
         self,
-        env_props: [Variable],
-        con_props: [Variable],
-        assumptions: [Formula],
-        guarantees: [Formula],
+        env_props: list[Variable],
+        con_props: list[Variable],
+        assumptions: list[Formula],
+        guarantees: list[Formula],
     ):
         self.env_props = env_props
         self.con_props = con_props

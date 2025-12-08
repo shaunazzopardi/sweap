@@ -173,6 +173,3 @@ class StatePredicate(Predicate):
 
     def boolean_rep(self):
         return self.bool_rep
-
-    def to_smt(self, symbol_table):
-        return self.pred.to_smt(symbol_table)

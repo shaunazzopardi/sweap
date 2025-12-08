@@ -43,7 +43,7 @@ class MooreMachine(Machine):
         intermed_trans = {}
         new_sts = {}
         for src_index, env_behaviour, tgt_index in trans_dict.keys():
-            env_cond = (env_behaviour.simplify()).to_nuxmv()
+            env_cond = env_behaviour.simplify()
             env_cond = propagate_negations(env_cond)
 
             new_src = "st_" + str(src_index)
@@ -66,7 +66,7 @@ class MooreMachine(Machine):
             con_behaviour = disjunct_formula_set(
                 trans_dict[(src_index, env_behaviour, tgt_index)]
             )
-            con_cond = (con_behaviour.simplify()).to_nuxmv()
+            con_cond = con_behaviour.simplify()
             con_cond = propagate_negations(con_cond)
 
             new_tgt = "st_" + str(tgt_index)
@@ -92,11 +92,11 @@ class MooreMachine(Machine):
         return str(self.to_dot())
 
     def to_dot(self, pred_list: [Formula] = None):
-        to_replace = []
+        to_replace = {}
         if pred_list is not None:
             for pred in pred_list:
                 pred_var = label_pred(pred, pred_list)
-                to_replace += [BiOp(pred_var, ":=", pred)]
+                to_replace[pred_var] = pred
 
         dot = Digraph(
             name="MooreMachine",
@@ -159,7 +159,7 @@ class MooreMachine(Machine):
 
         for src in self.transitions.keys():
             for con_beh, tgt in self.transitions.get(src):
-                guard = "(turn = prog) & " + str(src) + " & " + str(con_beh)
+                guard = "(turn = prog) & " + str(src) + " & " + con_beh.to_nuxmv()
                 if guard not in guards_acts.keys():
                     guards_acts[guard] = list()
 
@@ -192,7 +192,7 @@ class MooreMachine(Machine):
                 + "_act_"
                 + str(i)
                 + " := ("
-                + ")\n\t| \t(".join(map(str, guards_acts[guard_keys[i]]))
+                + ")\n\t| \t(".join(guards_acts[guard_keys[i]])
                 + ")"
             ]
             transitions.append(
@@ -226,33 +226,31 @@ class MooreMachine(Machine):
         vars += [str(var) + " : boolean" for var in prog_states]
         vars += [str(var) + " : boolean" for var in pred_acts]
 
-        init = [str(init_cond)]
+        init = [init_cond.to_nuxmv()]
         transitions = ["((" + ")\n\t|\t(".join(transitions) + "))"]
 
         identity = (
             "((turn = cs) -> (identity_"
             + self.name
             + " & "
-            + str(
-                conjunct_formula_set(
-                    [
-                        BiOp(
-                            UniOp("next", Variable("prog_" + e.name)),
-                            "=",
-                            Variable("prog_" + e.name),
-                        )
-                        for e in prog_out_events
-                    ]
-                    + [
-                        BiOp(
-                            UniOp("next", Variable(str(p))),
-                            "=",
-                            Variable(str(p)),
-                        )
-                        for p in prog_states + pred_acts
-                    ]
-                ).to_nuxmv()
-            )
+            + conjunct_formula_set(
+                [
+                    BiOp(
+                        UniOp("next", Variable("prog_" + e.name)),
+                        "=",
+                        Variable("prog_" + e.name),
+                    )
+                    for e in prog_out_events
+                ]
+                + [
+                    BiOp(
+                        UniOp("next", Variable(str(p))),
+                        "=",
+                        Variable(str(p)),
+                    )
+                    for p in prog_states + pred_acts
+                ]
+            ).to_nuxmv()
             + "))"
         )
 
@@ -287,7 +285,7 @@ def handle_transition(
     prog_out = abstract_problem.get_program_out_props()
     prog_preds = abstract_problem.get_program_pred_props()
 
-    env_cond = (env_cond.simplify()).to_nuxmv()
+    env_cond = env_cond.simplify()
     env_cond = propagate_negations(env_cond)
 
     env_turn = sat(conjunct(env, env_cond))
@@ -327,7 +325,7 @@ def handle_transition(
 
         new_con_conds = []
         for con_cond_orig in con_conds:
-            con_cond = (con_cond_orig.simplify()).to_nuxmv()
+            con_cond = con_cond_orig.simplify()
             new_con_conds.append(con_cond)
         new_con_cond = simplify_formula_without_math(
             disjunct_formula_set(new_con_conds)

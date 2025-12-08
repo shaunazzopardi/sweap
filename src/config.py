@@ -1,10 +1,10 @@
 import multiprocessing
 
-from prop_lang.util import neg
+from prop_lang.uniop import UniOp
 from prop_lang.variable import Variable
 
 env = Variable("env_turn")
-con = neg(env)
+con = UniOp("!", env)
 init_state = Variable("init_state")
 
 strix = "strix"
@@ -31,6 +31,13 @@ class Config:
     _parallelise_type = "processes"
     _name = None
     _log = None
+    _cache_smt = False
+
+    def _get_c_s(self):
+        return self._cache_smt
+
+    def _set_c_s(self, value):
+        self._cache_smt = value
 
     def _get_b(self):
         return self._backend
@@ -152,6 +159,7 @@ class Config:
     add_all_preds_in_prog = property(_get_a_p_i_p, _set_a_p_i_p, _do_nothing, "")
     mc = property(_get_mc, _set_mc, _do_nothing, "")
     debug = property(_get_debug, _set_debug, _do_nothing, "")
+    cache_smt = property(_get_c_s, _set_c_s, _do_nothing, "")
     cnf_optimisations = property(_get_cnf_opt, _set_cnf_opt, _do_nothing, "")
     parallelise_type = property(
         _get_parallelise_type, _set_parallelise_type, _do_nothing, ""

@@ -19,7 +19,7 @@ from prop_lang.util import (
 
 
 class TransitionPredicate(Predicate, ABC):
-    def __init__(self, tran_preds: [Formula]):
+    def __init__(self, tran_preds: list[Formula]):
         self.preds = tran_preds
         self.vars = tran_preds[0].variablesin()
         self.stutter = conjunct_formula_set([neg(t) for t in tran_preds])
@@ -50,6 +50,9 @@ class TransitionPredicate(Predicate, ABC):
                 conjunct(gu, now.prev_rep()), nexts, symbol_table
             )
             if len(new_nexts) == 0:
+                new_nexts = self.refine_nexts_with_p(
+                    conjunct(gu, now.prev_rep()), nexts, symbol_table
+                )
                 raise Exception(
                     "Is this guard update formula unsatisfiable?\n" + str(gu)
                 )
@@ -72,9 +75,6 @@ class TransitionPredicate(Predicate, ABC):
 
     def boolean_rep(self):
         return self.bool_rep
-
-    def to_smt(self, symbol_table):
-        return self.pred.to_smt(symbol_table)
 
     def extend_effect(
         self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table

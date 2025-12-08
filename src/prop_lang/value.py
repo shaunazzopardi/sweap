@@ -1,38 +1,37 @@
 import re
-import sympy
+from typing import Union
 
+import sympy
 from pysmt.fnode import FNode
+
 from pysmt.shortcuts import Int, TRUE, FALSE
 from prop_lang.atom import Atom
 from prop_lang.types.types import BOOLEAN, INTEGER
+from prop_lang.types.values import BoolAtoms
 from prop_lang.variable import Variable
 
 
 class Value(Atom):
-    def __init__(self, name: str):
-        if len(str(name)) == 0:
-            raise Exception("Value.__init__: name cannot be empty.")
-        self.name = str(name)
+    def __init__(self, val: Union[BoolAtoms, int]):
+        self.val = val
 
     def __str__(self):
-        return str(self.name)
+        return str(self.val)
 
     def __hash__(self):
-        return self.name.__hash__()
+        return self.val.__hash__()
 
     def __eq__(self, other):
         """Overrides the default implementation"""
         if isinstance(other, Value):
-            return self.name == other.name
+            return self.val == other.val
         return NotImplemented
 
     def is_true(self):
-        lower = self.name.lower()
-        return lower == "true" or lower == "tt"
+        return self.val == BoolAtoms.TRUE
 
     def is_false(self):
-        lower = self.name.lower()
-        return lower == "false" or lower == "ff"
+        return self.val == BoolAtoms.FALSE
 
     def variablesin(self) -> [Variable]:
         return []
@@ -48,19 +47,19 @@ class Value(Atom):
 
     def to_nuxmv(self):
         if self.is_true():
-            return Value("TRUE")
+            return "TRUE"
         elif self.is_false():
-            return Value("FALSE")
+            return "FALSE"
         else:
-            return self
+            return str(self.val)
 
     def to_strix(self):
         if self.is_true():
-            return Value("true")
+            return "true"
         elif self.is_false():
-            return Value("false")
+            return "false"
         else:
-            return self
+            return str(self.val)
 
     def to_smt(self, _) -> (FNode, FNode):
         if self.is_true():
@@ -69,9 +68,11 @@ class Value(Atom):
             return FALSE(), TRUE()
         else:
             try:
-                return Int(int(self.name)), TRUE()
+                return Int(int(self.val)), TRUE()
             except:
-                raise Exception("Value.to_smt: Value is not an integer: " + self.name)
+                raise Exception(
+                    "Value.to_smt: Value is not an integer: " + str(self.val)
+                )
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         if not self.is_true() and not self.is_false():
@@ -79,10 +80,10 @@ class Value(Atom):
         return self, {}
 
     def is_math_value(self):
-        return re.match("[0-9]+", self.name)
+        return re.match("[0-9]+", self.val)
 
     def to_sympy(self):
-        return sympy.core.symbol.Symbol(self.to_nuxmv().name)
+        return sympy.core.symbol.Symbol(self.val)
 
     def replace_formulas(self, context):
         if isinstance(context, dict):
@@ -108,9 +109,9 @@ class Value(Atom):
     def type(self):
         if self.is_true() or self.is_false():
             return BOOLEAN
-        elif re.match("[0-9]+", self.name):
+        elif re.match("[0-9]+", self.val):
             return INTEGER
         else:
             raise Exception(
-                "Value.type: Value is not a boolean or integer: " + self.name
+                "Value.type: Value is not a boolean or integer: " + self.val
             )

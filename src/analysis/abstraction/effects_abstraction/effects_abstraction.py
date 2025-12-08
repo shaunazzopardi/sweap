@@ -26,6 +26,7 @@ from analysis.abstraction.interface.predicate_abstraction import (
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import MathRels
 from prop_lang.types.types import BOOLEAN
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
@@ -48,8 +49,8 @@ logger = logging.getLogger(__name__)
 
 
 class EffectsAbstraction(PredicateAbstraction):
-    def get_interpolants(self) -> [Formula]:
-        pass
+    def get_interpolants(self) -> list[Formula]:
+        raise NotImplementedError
 
     def __init__(self, program: Program, old_to_new_st_preds):
         self.abstract_effect_invars = {}
@@ -89,10 +90,10 @@ class EffectsAbstraction(PredicateAbstraction):
         self.non_init_program_gus = None
         self.gu_to_trans = {}
 
-        self.wrapped_preds = set()
         self.state_predicates = set()
-        self.chain_state_predicates = set()
+        self.raw_state_predicates = set()
         self.transition_predicates = set()
+        self.raw_transition_predicates = set()
         self.chain_rep = {}
 
         self.current_chain_all_bin_rep = {}
@@ -198,7 +199,10 @@ class EffectsAbstraction(PredicateAbstraction):
                     processed_ltl_constraints
                 )
 
-    def add_structural_loop_constraints(self, new_structural_loop_constraints):
+    def add_structural_loop_constraints(
+        self, in_loop_vars, new_structural_loop_constraints
+    ):
+        self.symbol_table.update({str(v): BOOLEAN for v in in_loop_vars})
         for constraint in new_structural_loop_constraints:
             processed_ltl_constraints = []
             processed = strip_mathexpr(constraint)
@@ -229,20 +233,21 @@ class EffectsAbstraction(PredicateAbstraction):
             term_to_p_for_chain = {}
             remaining_st_preds = []
             for p in new_state_predicates:
-                if isinstance(p, BiOp) and p.op[0] == "<":
+                if isinstance(p, BiOp) and (p.op == MathRels.LT or p.op == MathRels.LE):
                     if p.left not in term_to_p_for_chain.keys():
                         term_to_p_for_chain[p.left] = [p]
                     else:
                         term_to_p_for_chain[p.left].append(p)
                 else:
                     f_p = StatePredicate(p)
+                    self.raw_state_predicates.add(p)
                     remaining_st_preds.append(f_p)
                     new_preds.add(f_p)
                     self.state_predicates.add(f_p)
                     self.var_relabellings.update(f_p.boolean_rep())
 
             for term, preds in term_to_p_for_chain.items():
-                self.chain_state_predicates.update(preds)
+                self.raw_state_predicates.update(preds)
                 new_chain_pred = False
                 if term not in self.v_to_chain_pred.keys():
                     v_chain_pred = ChainPredicate(term, self.program, accelerate)
@@ -253,10 +258,13 @@ class EffectsAbstraction(PredicateAbstraction):
 
                 v_chain_pred.add_predicate(preds)
 
+                self.symbol_table |= {str(b): BOOLEAN for b in v_chain_pred.bin_vars}
+
                 if new_chain_pred and accelerate and len(v_chain_pred.tran_preds) > 0:
                     gu = TransitionPredicate(v_chain_pred.tran_preds)
                     new_preds.add(gu)
                     self.transition_predicates.add(gu)
+                    self.raw_transition_predicates.update(v_chain_pred.tran_preds)
                     self.var_relabellings.update(gu.boolean_rep())
                     remaining_st_preds.append(gu)
                 new_preds.add(v_chain_pred)
@@ -313,7 +321,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.state_predicates.add(f_p)
                 self.var_relabellings.update(f_p.boolean_rep())
             remaining_st_preds = new_preds
-
+        # TODO: this is also considering control state variables, exclude these
         (
             self.partitions,
             self.v_to_p,
@@ -515,8 +523,20 @@ class EffectsAbstraction(PredicateAbstraction):
     def get_state_predicates(self):
         return self.state_predicates
 
+    def get_raw_state_predicates(self):
+        return self.raw_state_predicates
+
     def get_transition_predicates(self):
         return self.transition_predicates
+
+    def get_raw_transition_predicates(self):
+        return self.raw_transition_predicates
+
+    def get_all_raw_preds(self):
+        return self.get_raw_state_predicates() | self.get_raw_transition_predicates()
+
+    def get_all_preds(self):
+        return self.get_state_predicates() | self.get_transition_predicates()
 
     def get_ranking_and_invars(self):
         pass
@@ -918,7 +938,10 @@ def compute_abstract_effect_for_guard_update(arg):
             invars.add(p.bool_var)
 
     gu_ltl = effects_to_ltl(new_effects, constants, invars, vars_relabelling)
-    print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
+
+    if config.Config.getConfig().debug:
+        print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
+        print("\n\n" + str(gu))
 
     return (
         gu,

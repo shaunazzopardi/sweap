@@ -21,7 +21,7 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
-from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def to_ltl_organised_by_pred_effects_guard_updates(
@@ -40,6 +40,8 @@ def to_ltl_organised_by_pred_effects_guard_updates(
 
     pred_next = set()
     dualise = config.Config.getConfig().dual
+    # TODO ensure that for each transition, if they have the same transition formula, then join them together
+    #   G(V(qi & X q'i) & guard -> effects)
     for gu, post in predicate_abstraction.second_state_abstraction.items():
         for t in predicate_abstraction.gu_to_trans[gu]:
             E_formula = t.condition.replace_formulas(
@@ -47,7 +49,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             )
             if dualise:
                 E_formula = massage_ltl_for_dual(
-                    E_formula, predicate_abstraction.program.env_events
+                    E_formula, predicate_abstraction.program.env_events, False
                 )
             next_preds = [rename_pred(p) for p in post]
 
@@ -66,6 +68,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
 
     init_transition_ltl = disjunct_formula_set(pred_next)
 
+    # TODO if a transition is only used in the initial state, then don't need to add it here or in EffectsAbstraction
     transition_ltl = {}
     for gu in predicate_abstraction.gu_to_trans.keys():
         cond = predicate_abstraction.gu_to_trans[gu][0].condition.replace_formulas(
@@ -131,7 +134,7 @@ def abstract_ltl_problem(
     program = effects_abstraction.get_program()
     pred_props = program.bin_state_vars + list(predicate_vars)
 
-    states_binary_map = {Variable(k): v for k, v in program.states_binary_map.items()}
+    states_binary_map = {k: v for k, v in program.states_binary_map.items()}
     dict_to_replace = states_binary_map
     dict_to_replace |= effects_abstraction.var_relabellings
 

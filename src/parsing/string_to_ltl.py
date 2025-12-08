@@ -5,6 +5,8 @@ from tatsu.tool import compile
 
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import LTLBiOps, LTLUniOps, BoolBiOps, BoolUniOps
+from prop_lang.types.values import BoolAtoms, natural_val_regex
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -67,17 +69,46 @@ GRAMMAR = """
     atom = /_?[a-zA-Z][a-zA-Z0-9_-]*/;
 """
 
+true_str = {"true", "tt", "TRUE", "True", "TT"}
+false_str = {"false", "ff", "FALSE", "False", "FF"}
+raw_bi_ops_to_op = {
+    "U": LTLBiOps.U,
+    "W": LTLBiOps.W,
+    "R": LTLBiOps.R,
+    "M": LTLBiOps.M,
+    "X": LTLUniOps.X,
+    "F": LTLUniOps.F,
+    "G": LTLUniOps.G,
+    "&": BoolBiOps.CONJ,
+    "&&": BoolBiOps.CONJ,
+    "|": BoolBiOps.DISJ,
+    "||": BoolBiOps.DISJ,
+    "->": BoolBiOps.IMPL,
+    "<->": BoolBiOps.IFF,
+    "iff": BoolBiOps.IFF,
+}
+raw_uni_ops_to_op = {
+    "!": BoolUniOps.NEG,
+    "X": LTLUniOps.X,
+    "F": LTLUniOps.F,
+    "G": LTLUniOps.G,
+}
+
 
 def tuple_to_formula(node) -> Formula:
     if isinstance(node, str):
-        if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF)", node):
-            return Value(node)
+        if node in true_str:
+            return Value(BoolAtoms.TRUE)
+        elif node in false_str:
+            return Value(BoolAtoms.FALSE)
+        elif re.match(natural_val_regex, node):
+            return Value(int(node))
         else:
             return Variable(node)
     elif len(node) == 2:
-        return UniOp(node[0], (node[1]))
+        return UniOp(raw_uni_ops_to_op[node[0]], (node[1]))
     elif len(node) == 3:
-        return BiOp((node[0]), node[1], (node[2]))
+        return BiOp((node[0]), raw_bi_ops_to_op[node[1]], (node[2]))
     else:
         raise Exception("Invalid node: " + str(node))
 

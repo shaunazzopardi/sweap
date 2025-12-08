@@ -1,6 +1,8 @@
 from typing import Any
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import MathOps, MathRels
+from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -8,22 +10,17 @@ from prop_lang.variable import Variable
 class MathExpr(Formula):
     def __init__(self, f: Formula):
         if isinstance(f, BiOp):
-            if f.op in [
-                "+",
-                "-",
-                "*",
-                "/",
-                "<",
-                ">",
-                "<=",
-                ">=",
-                "==",
-                "=",
-                "!=",
-            ]:
+            if f.op in MathOps or f.op in MathRels:
                 self.formula = f
             else:
-                raise Exception("Unsupported operator: " + f.op)
+                raise Exception("Unsupported math operator: " + str(f.op))
+        elif isinstance(f, UniOp):
+            if f.op in MathOps:
+                self.formula = f
+            else:
+                raise Exception("Unsupported math operator: " + str(f.op))
+        else:
+            raise Exception("Unsupported math operator: " + str(f.op))
         self.formula = f
         self.prev_representation = None
 
@@ -44,10 +41,10 @@ class MathExpr(Formula):
 
     def simplify(self):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
-            if isinstance(self.formula.left, Value) and self.formula.left.name == "1":
+            if isinstance(self.formula.left, Value) and self.formula.left.val == "1":
                 return MathExpr(self.formula.right)
             elif (
-                isinstance(self.formula.right, Value) and self.formula.right.name == "1"
+                isinstance(self.formula.right, Value) and self.formula.right.val == "1"
             ):
                 return MathExpr(self.formula.left)
         return self
@@ -59,10 +56,10 @@ class MathExpr(Formula):
         return MathExpr(self.formula.replace_vars(context))
 
     def to_nuxmv(self):
-        return MathExpr(self.formula.to_nuxmv())
+        return self.formula.to_nuxmv()
 
     def to_strix(self):
-        return self
+        return self.formula.to_strix()
 
     def to_smt(self, symbol_table: Any):
         return self.formula.to_smt(symbol_table)

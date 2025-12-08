@@ -1,5 +1,6 @@
 import itertools
 from bisect import bisect_left
+from types import NotImplementedType
 
 from analysis.abstraction.effects_abstraction.predicates.Predicate import (
     Predicate,
@@ -11,6 +12,7 @@ from programs.util import (
 )
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import MathRels
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct,
@@ -30,7 +32,7 @@ from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
-def p_or_dict_val(ps, d):
+def p_or_dict_val(ps, d) -> list:
     new_val = []
     for p in ps:
         if p not in d.keys():
@@ -40,7 +42,10 @@ def p_or_dict_val(ps, d):
     return new_val
 
 
-def old_preds_to_new(new_i, chain):
+from typing import Any, Self
+
+
+def old_preds_to_new(new_i, chain) -> dict[Any, list] | list:
     chain_length = len(chain)
     new_pred = chain[new_i]
     if chain_length == 1:
@@ -62,14 +67,14 @@ def old_preds_to_new(new_i, chain):
         }
 
 
-def recheck_nexts(prev_state, nexts, symbol_table):
+def recheck_nexts(prev_state, nexts, symbol_table) -> list:
     return [
         v_next for v_next in nexts if sat(conjunct(prev_state, v_next), symbol_table)
     ]
 
 
 class ChainPredicate(Predicate):
-    def __init__(self, term: Formula, program, accelerate=False):
+    def __init__(self, term: Formula, program, accelerate=False) -> None:
         self.program = program
         self.raw_state_preds = []
         self.tran_preds = []
@@ -94,16 +99,16 @@ class ChainPredicate(Predicate):
 
         self.accelerate = accelerate
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> NotImplementedType | bool:
         """Overrides the default implementation"""
         if isinstance(other, ChainPredicate):
             return self.term == other.term
         return NotImplemented
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.term)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             "ChainPredicate("
             + stringify_term(self.term)
@@ -114,12 +119,12 @@ class ChainPredicate(Predicate):
     def variablesin(self):
         return self.vars
 
-    def add_predicate(self, preds):
+    def add_predicate(self, preds) -> None:
         # assuming each predicate only has var as a variable
         if len(preds) == 0:
             self.old_to_new_pos = None
             return
-
+        # TODO: if signature is natural, then preds of the form x < 0 will always be false, take this into account
         old_to_new_pos = None
         for p in preds:
             i = bisect_left(
@@ -128,11 +133,11 @@ class ChainPredicate(Predicate):
                 key=lambda x: float(str(x.right)),
             )
             # this rearranges x < 0 and x <= 0 predicates, so that they are in order of strength
-            if p.op == "<":
+            if p.op == MathRels.LT:
                 if 0 < i < len(self.raw_state_preds):
                     if self.raw_state_preds[i - 1].right == p.right:
                         i = i - 1
-            elif p.op == "<=":
+            elif p.op == MathRels.LE:
                 if (
                     len(self.raw_state_preds) > 0
                     and i < len(self.raw_state_preds)
@@ -196,7 +201,6 @@ class ChainPredicate(Predicate):
 
         for i, f in enumerate(self.chain):
             if i + 1 < len(self.chain):
-                # TODO for v = 8, we have a big representation, when !(v <= 7) && v <= 8 suffices
                 if i < len(self.chain) / 2:
                     if i != 0:
                         self.single_pred_bin_rep[self.raw_state_preds[i]] = (
@@ -224,7 +228,7 @@ class ChainPredicate(Predicate):
                             )
                         )
 
-    def refine_and_rename_nexts(self, gu, prev_state, nexts, symbol_table):
+    def refine_and_rename_nexts(self, gu, prev_state, nexts, symbol_table) -> list:
         new_nexts = []
         for old_next in nexts:
             for next in self.replace_formulas_multiple_but(
@@ -234,7 +238,7 @@ class ChainPredicate(Predicate):
                     new_nexts.append(next)
         return new_nexts
 
-    def replace_formulas_multiple_but(self, old_to_new, f, gu, now_or_next):
+    def replace_formulas_multiple_but(self, old_to_new, f, gu, now_or_next) -> list:
         if (now_or_next and gu not in self.init_now) or (
             not now_or_next and gu not in self.init_next
         ):
@@ -289,6 +293,7 @@ class ChainPredicate(Predicate):
             for new_now in new_nows:
                 prev_state = conjunct(gu, new_now.prev_rep())
                 if sat(prev_state, symbol_table):
+                    # TODO: if len(nexts) == 0, then doesn t that mean now is already unsat with guard?
                     if len(nexts) == 0:
                         new_effects.append((new_now, nexts))
                     else:
@@ -303,9 +308,9 @@ class ChainPredicate(Predicate):
     def extend_effect_next(
         self,
         gu: Formula,
-        old_effects: [(Formula, dict[Variable, [Formula]])],
+        old_effects: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         new_effects = []
         for now, nexts in old_effects:
             new_nexts = self.refine_and_rename_nexts(
@@ -315,7 +320,7 @@ class ChainPredicate(Predicate):
 
         return new_effects
 
-    def is_pre_cond(self, gu: Formula, symbol_table):
+    def is_pre_cond(self, gu: Formula, symbol_table) -> None:
         nope = False
         pre = None
         for p in self.chain:
@@ -329,14 +334,14 @@ class ChainPredicate(Predicate):
             self.last_pre[gu] = pre
         return pre
 
-    def is_invar(self, gu: Formula, symbol_table):
+    def is_invar(self, gu: Formula, symbol_table) -> Self | None:
         if is_tautology(
             implies(gu, BiOp(self.term, "=", self.term.prev_rep())),
             symbol_table,
         ):
             return self
 
-    def is_post_cond(self, gu: Formula, symbol_table):
+    def is_post_cond(self, gu: Formula, symbol_table) -> None:
         nope = False
         post = None
         for p in self.chain:
@@ -350,7 +355,9 @@ class ChainPredicate(Predicate):
             self.last_post[gu] = post
         return post
 
-    def refine_old_pre_cond(self, f, gu: Formula, symbol_table):
+    def refine_old_pre_cond(
+        self, f, gu: Formula, symbol_table
+    ) -> tuple | tuple[None, Self]:
         p = f
         # need to check that self.old_to_new is dict because when turning of parallelisation, and a transition with the
         # same gu could have been processed already
@@ -362,7 +369,9 @@ class ChainPredicate(Predicate):
         else:
             return f, self
 
-    def refine_old_post_cond(self, f, gu: Formula, symbol_table):
+    def refine_old_post_cond(
+        self, f, gu: Formula, symbol_table
+    ) -> tuple | tuple[None, Self]:
         if isinstance(f, UniOp) and f.op == "X":
             p = f.right
         else:
@@ -377,22 +386,22 @@ class ChainPredicate(Predicate):
         else:
             return f, self
 
-    def boolean_rep(self):
+    def boolean_rep(self) -> dict:
         return self.single_pred_bin_rep | self.bin_rep
 
-    def init_ranking_refinement(self):
+    def init_ranking_refinement(self) -> None:
         (
             only_updated_by_constants,
             there_is_dec,
             there_is_inc,
         ) = term_incremented_or_decremented(self.program, self.term)
 
-        if not only_updated_by_constants:
+        if not only_updated_by_constants
             if there_is_dec:
-                dec = BiOp(self.term, "<", add_prev_suffix(self.term))
+                dec = BiOp(self.term, MathRels.LT, add_prev_suffix(self.term))
                 self.tran_preds.append(dec)
                 if there_is_inc:
-                    inc = BiOp(add_prev_suffix(self.term), "<", self.term)
+                    inc = BiOp(add_prev_suffix(self.term), MathRels.LT, self.term)
                     self.tran_preds.append(inc)
                     self.bottom_ranking = implies(
                         G(F(dec)), G(F(disjunct(inc, self.chain[0])))
@@ -403,6 +412,6 @@ class ChainPredicate(Predicate):
                 else:
                     self.bottom_ranking = implies(G(F(dec)), G(F(self.chain[0])))
             elif there_is_inc:
-                inc = BiOp(add_prev_suffix(self.term), "<", self.term)
+                inc = BiOp(add_prev_suffix(self.term), MathRels.LT, self.term)
                 self.tran_preds.append(inc)
                 self.top_ranking = implies(G(F(inc)), G(F(self.chain[-1])))

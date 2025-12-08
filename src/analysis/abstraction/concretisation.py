@@ -62,15 +62,13 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
             )
         failed_condition = neg(concretized[-1][0].condition)
         reduced = failed_condition.replace(
-            [
-                BiOp(Variable(str(v)), ":=", Value(concretized[-1][2][str(v)]))
+            {
+                Variable(str(v)): Value(concretized[-1][2][str(v)])
                 for v in program.env_events + program.con_events
-            ]
+            }
         )
         reduced_simplified = simplify_formula_with_math(reduced, program.symbol_table)
-        reduced_normalised = reduced_simplified.replace_formulas(
-            lambda x: normalise_mathexpr(x) if isinstance(x, MathExpr) else None
-        )
+        reduced_normalised = reduced_simplified.replace_formulas(normalise_mathexpr)
 
         return concretized[:-1], ([reduced_normalised], concretized[-1])
     else:
@@ -135,10 +133,10 @@ def process_transition_mismatch(program, concretized, incompatible_state):
     if program.deterministic:
         failed_condition = neg(concretized[-1][0].condition)
         reduced = failed_condition.replace(
-            [
-                BiOp(Variable(str(v)), ":=", Value(concretized[-1][1][str(v)]))
+            {
+                Variable(str(v)): Value(concretized[-1][1][str(v)])
                 for v in program.env_events + program.con_events
-            ]
+            }
         )
         reduced_simplified = simplify_formula_with_math(reduced, program.symbol_table)
 

@@ -38,9 +38,9 @@ def hoa_to_transitions(hoa, realisable, parallelise=True):
             else:
                 cond_to_src_tgt[cond] = [(src, tgt)]
 
-    to_replace = []
+    to_replace = {}
     for i, name in reversed(list(enumerate(aps))):
-        to_replace.append(BiOp(Variable(str(i)), ":=", Variable(name)))
+        to_replace[Variable(str(i))] = Variable(name)
 
     transitions = {}
     if parallelise:

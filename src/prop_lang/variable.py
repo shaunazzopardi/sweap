@@ -2,6 +2,7 @@ import sympy.core.symbol
 
 from pysmt.fnode import FNode
 
+import config
 from prop_lang.atom import Atom
 from prop_lang.types.types import typed_var_to_pysmt_type
 
@@ -34,35 +35,30 @@ class Variable(Atom):
         return []
 
     def replace_vars(self, context):
-        if isinstance(context, list):
-            for val in context:
-                if (val.op == "=" or val.op == ":=") and (
-                    str(val.left.name) == self.name
-                ):
-                    return val.right
+        if isinstance(context, dict):
+            if self in context.keys():
+                return context[self]
+            elif self.name in context.keys():
+                return context[self.name]
+            else:
+                return self
         elif hasattr(context, "__call__"):
             return context(self)
         else:
-            try:
-                val = context
-                if (val.op == "=" or val.op == ":=") and (
-                    str(val.left.name) == self.name
-                ):
-                    return val.right
-            except:
-                raise Exception(
-                    "Variable.replace: context is not a list of assignments, an assignment, or a mapping function."
-                )
-        return self
+            raise Exception(
+                "Variable.replace: context is not a dictionary or a function."
+            )
 
     def to_nuxmv(self):
-        return self
+        return self.name
 
     def to_strix(self):
-        return self
+        return self.name
 
-    def to_smt(self, symbol_table) -> (FNode, FNode):
-        if self.smt_representation:
+    def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
+        cache = config.Config.getConfig().cache_smt
+
+        if cache and self.smt_representation:
             return self.smt_representation
         if self.name in symbol_table.keys():
             type = symbol_table[self.name]
@@ -73,8 +69,10 @@ class Variable(Atom):
                 "Variable.to_smt: variable " + self.name + " not in symbol table."
             )
 
-        self.smt_representation = typed_var_to_pysmt_type(self.name, type)
-        return self.smt_representation
+        f = typed_var_to_pysmt_type(self.name, type)
+        if cache:
+            self.smt_representation = f
+        return f
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         return self, {}

@@ -30,7 +30,7 @@ from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
     AbstractLTLSynthesisProblem,
 )
-from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
+from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def empty_abstraction(predicate_abstraction: EffectsAbstraction):
@@ -640,12 +640,12 @@ def expand_ltl_to_env_con_steps(formula: Formula, env_events: [Variable]):
                 implies(env, expand_ltl_to_env_con_steps(formula.left, env_events)),
                 conjunct(env, expand_ltl_to_env_con_steps(formula.right, env_events)),
             )
-        elif formula.op[0] == "&":
+        elif formula.op == "&":
             return conjunct(
                 expand_ltl_to_env_con_steps(formula.left, env_events),
                 expand_ltl_to_env_con_steps(formula.right, env_events),
             )
-        elif formula.op[0] == "|":
+        elif formula.op == "|":
             return disjunct(
                 expand_ltl_to_env_con_steps(formula.left, env_events),
                 expand_ltl_to_env_con_steps(formula.right, env_events),

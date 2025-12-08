@@ -16,6 +16,7 @@ from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.types.types import BOOLEAN, Type
+from prop_lang.update import Update
 from prop_lang.util import (
     conjunct_formula_set,
     conjunct,
@@ -348,7 +349,7 @@ def ce_state_to_formula(state: dict, symbol_table: dict) -> Formula:
 def ground_formula_on_ce_state_with_index(formula: Formula, state: dict, i) -> Formula:
     to_replace_with = []
     for key, value in state.items():
-        to_replace_with.append(BiOp(Variable(key + "_" + str(i)), ":=", Value(value)))
+        to_replace_with.append(Update(Variable(key + "_" + str(i)), Value(value)))
     return formula.replace(to_replace_with)
 
 
@@ -524,10 +525,7 @@ def ground_predicate_on_vars(program, predicate, ce_state, vars, symbol_table):
         + [Variable(str(v)) for v in vars],
     )
     projected_condition = predicate.replace(
-        [
-            BiOp(Variable(key), ":=", Value(grounded_state[key]))
-            for key in grounded_state.keys()
-        ]
+        {Variable(key): Value(grounded_state[key]) for key in grounded_state.keys()}
     )
     return projected_condition
 
@@ -551,9 +549,8 @@ def keep_bool_preds(formula: Formula, symbol_table):
 
 
 def add_prev_suffix(formula):
-    return append_to_variable_name(
-        formula, [str(v) for v in formula.variablesin()], "_prev"
-    )
+    # TODO don't create the list each time this is called, cache it in formula
+    return append_to_variable_name(formula, [v for v in formula.variablesin()], "_prev")
 
 
 def transition_up_to_dnf(transition: Transition, symbol_table):
@@ -652,13 +649,9 @@ def resolve_next_references(transition, valuation):
                     + str(transition)
                 )
             if vanilla_v in modified_vars.keys():
-                condition = condition.replace(
-                    [BiOp(Variable(v), ":=", modified_vars[vanilla_v])]
-                )
+                condition = condition.replace({Variable(v): modified_vars[vanilla_v]})
             else:
-                condition = condition.replace(
-                    [BiOp(Variable(v), ":=", Variable(vanilla_v))]
-                )
+                condition = condition.replace({Variable(v): Variable(vanilla_v)})
         return Transition(
             transition.src,
             condition,
@@ -875,7 +868,7 @@ def binary_rep_states(vars):
     return binary_rep(vars, "bin_st_")
 
 
-def binary_rep(vars, label):
+def binary_rep(vars, label, printing=True):
     if len(vars) == 0:
         raise Exception("Cannot create binary representation of empty set")
 
@@ -904,12 +897,15 @@ def binary_rep(vars, label):
                 bin_formula = conjunct(bin_formula, new_constraint)
         rep[v] = bin_formula
 
-    for v, f in rep.items():
-        if isinstance(v, frozenset):
-            print("state: " + str(conjunct_formula_set(v)))
-        else:
-            print("state: " + str(v))
-        print("binary rep: " + str(f))
+    if printing:
+        for v, f in rep.items():
+            if isinstance(v, frozenset):
+                print("state: " + str(conjunct_formula_set(v)))
+            else:
+                print("state: " + str(v))
+            print("binary rep: " + str(f))
+
+    # TODO make last one the negation of the others
     return bin_vars, rep
 
 
@@ -942,3 +938,14 @@ def term_incremented_or_decremented(program, f):
                     break
 
     return only_updated_by_constants, there_is_dec, there_is_inc
+
+
+def reset_caches():
+    stutter_transition_cache.clear()
+    transition_formulas.clear()
+
+    guard_update_formulas.clear()
+
+    guard_formulas_unpacked.clear()
+
+    powersets.clear()

@@ -2,6 +2,7 @@ import re
 from enum import Enum
 
 from dataclasses import dataclass
+from typing import Optional
 
 from pysmt.fnode import FNode
 from pysmt.logics import BOOL
@@ -56,6 +57,9 @@ class Type:
     pass
 
 
+SYMBOL_TABLE = dict[str, Type]
+
+
 class BaseNumberTypes(Enum):
     integer = ("integer",)
     natural = ("natural",)
@@ -79,9 +83,9 @@ class Boolean(Type):
 
 class Number(Type):
     number_type: BaseNumberTypes
-    interval: Interval
+    interval: Optional[Interval]
 
-    def __init__(self, number_type: BaseNumberTypes, interval: Interval = None):
+    def __init__(self, number_type: BaseNumberTypes, interval: Optional[Interval]):
         self.number_type = number_type
         self.interval = interval
 
@@ -93,9 +97,9 @@ class Number(Type):
 
     def __eq__(self, other):
         if isinstance(other, Number):
-            return (
-                self.number_type == other.number_type
-                and self.interval == other.interval
+            return self.number_type == other.number_type and (
+                self.interval == other.interval
+                or (self.interval is None and other.interval is None)
             )
         return False
 
@@ -121,9 +125,12 @@ def interval_range(num: Number) -> tuple[int, int]:
 def is_finite(type: Type) -> bool:
     if isinstance(type, Number):
         return (
-            (type.number_type == NATURAL or type.number_type == INTEGER)
+            (
+                type.number_type == BaseNumberTypes.integer
+                or type.number_type == BaseNumberTypes.natural
+            )
             and type.interval
-            and (type.interval.lower == "" or type.interval.upper == "")
+            and not (type.interval.lower == "" or type.interval.upper == "")
         )
     elif isinstance(type, Boolean):
         return True
@@ -132,8 +139,8 @@ def is_finite(type: Type) -> bool:
 
 
 BOOLEAN: Boolean = Boolean()
-NATURAL: Number = Number(BaseNumberTypes.natural)
-INTEGER: Number = Number(BaseNumberTypes.integer)
+NATURAL: Number = Number(BaseNumberTypes.natural, None)
+INTEGER: Number = Number(BaseNumberTypes.integer, None)
 
 natural_str = ["natural", "nat"]
 natural_regex = "(" + "|".join(natural_str) + ")"

@@ -47,3 +47,21 @@ class NonDeterministic(Atom):
 
     def to_sympy(self):
         raise NotImplementedError("NonDeterministic.to_sympy")
+
+    def prev_rep(self):
+        raise NotImplementedError("NonDeterministic.prev_rep")
+
+    def replace_formulas_multiple(self, context: dict):
+        raise NotImplementedError("NonDeterministic.replace_formulas_multiple")
+
+    def prev_rep(self):
+        raise NotImplementedError("NonDeterministic.prev_rep")
+
+    def replace_formulas_multiple(self, context: dict):
+        raise NotImplementedError("NonDeterministic.replace_formulas_multiple")
+
+    def prev_rep(self):
+        raise NotImplementedError("NonDeterministic.prev_rep")
+
+    def replace_formulas_multiple(self, context: dict):
+        raise NotImplementedError("NonDeterministic.replace_formulas_multiple")
