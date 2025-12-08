@@ -17,6 +17,7 @@ from prop_lang.factory import (
     create_neg_no,
     create_uniop,
 )
+from prop_lang.formula import Formula
 from prop_lang.types.types import BOOLEAN, INTEGER
 from prop_lang.types.values import BoolAtoms
 from prop_lang.uniop import UniOp
@@ -403,10 +404,10 @@ def transitions_parser():
 parser = rpg_parser
 
 
-def rpg_parsec(input: str) -> (Program, Formula):
+def rpg_parsec(input: str) -> tuple[Program, Formula]:
     input_wo_comments = re.sub(";[^\n]*(\n|$)", "", input)
-    rpg = (parser << parsec.eof()).parse(input_wo_comments)
-    return rpg
+    rpg, ltl = (parser << parsec.eof()).parse(input_wo_comments)
+    return rpg, ltl
 
 
 def process(inputs, state_vars, init, src_update_tuples):
