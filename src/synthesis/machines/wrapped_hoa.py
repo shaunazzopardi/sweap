@@ -45,7 +45,21 @@ class WrappedHOA:
         con_props = synthesis_problem.get_con_props()
 
         dual = config.Config.getConfig().dual
-        name = "counterstrategy" if dual and self.is_controller else "controller"
+        if dual:
+            if self.is_controller:
+                name = "counterstrategy"
+                logging.info("Unrealizable")
+            else:
+                name = "controller"
+                logging.info("Realizable")
+        else:
+            if self.is_controller:
+                name = "controller"
+                logging.info("Realizable")
+            else:
+                name = "counterstrategy"
+                logging.info("Unrealizable")
+
         if not self.is_controller:
             mm = MooreMachine(name, init_st, env_props, con_props, {})
             mm.add_transitions(trans, symbol_table)
