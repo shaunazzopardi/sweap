@@ -43,8 +43,8 @@ program robot_deliver_products_5 {
         office -> moveToBank [stop & productCode == 1 $ neededPieces := d1; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
         office -> moveToBank [stop & productCode == 2 $ neededPieces := d2; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
         office -> moveToBank [stop & productCode == 3 $ neededPieces := d3; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
-        office -> moveToBank [stop & productCode == 3 $ neededPieces := d4; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
-        office -> moveToBank [stop & productCode != 1 & productCode != 2 & productCode != 3 $ neededPieces := d5; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
+        office -> moveToBank [stop & productCode == 4 $ neededPieces := d4; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
+        office -> moveToBank [stop & productCode != 1 & productCode != 2 & productCode != 3 & productCode != 4 $ neededPieces := d5; sparePieces := 0; money := 0; d1 := 0; d2 := 0; d3 := 0],
 
         office -> office [!e & !f & g & !h & !stop $ d1 := d1 + 1],
         office -> office [!e & f & !g & !h & !stop $ d1 := d1 - 1],
