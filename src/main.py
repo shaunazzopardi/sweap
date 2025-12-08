@@ -13,6 +13,7 @@ from analysis.model_checker import ModelChecker
 from config import Config
 from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
 from parsing.string_to_program import string_to_program
+from parsing.string_to_rpg import rpg_parsec
 from programs.program import Program
 from prop_lang.formula import Formula
 from synthesis.machines.machine import Machine
@@ -34,6 +35,7 @@ def setup_argument_parser() -> ArgumentParser:
         "--p", dest="program", help="Path to a .prog file.", type=str
     )
     input_group.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
+    input_group.add_argument("--rpg", dest="rpg", help="Path to a .rpg file.", type=str)
 
     action_group = parser.add_mutually_exclusive_group()
 
@@ -127,6 +129,7 @@ def setup_argument_parser() -> ArgumentParser:
         nargs="?",
         const=True,
     )
+    # TODO: add option to fill in gaps between predicates in chains
     parser.add_argument(
         "--no_binary_enc",
         dest="no_binary_enc",
@@ -160,8 +163,7 @@ def process_args(args: Namespace) -> (Program, Formula):
     if args.finite_synthesise and args.lazy:
         raise Exception("--lazy cannot be used with finite_synthesise flag.")
 
-    if args.no_binary_enc:
-        conf.eager_fairness = False
+    if args.no_binary_enc or args.translate:
         conf.no_binary_enc = True
     else:
         conf.no_binary_enc = False
@@ -191,12 +193,20 @@ def process_args(args: Namespace) -> (Program, Formula):
         with open(args.program) as prog_file:
             prog_str = prog_file.read()
         return string_to_program(prog_str)
-    else:
+    elif args.tsl is not None:
+        name = ".".join(os.path.basename(args.tsl).split(".")[0:-1])
+        conf.name = name + "_tsl"
         with open(args.tsl) as ltlmt_formula:
             ltlmt = string_to_ltlmt(ltlmt_formula.read())
             tp = ToProgram()
             prog_name = Path(args.tsl).stem + "_tsl"
             return tp.ltlmt2prog(ltlmt, prog_name)
+    elif args.rpg is not None:
+        name = ".".join(os.path.basename(args.rpg).split(".")[0:-1])
+        conf.name = name + "_rpg"
+        with open(args.rpg) as rpg_str:
+            result = rpg_parsec(rpg_str.read())
+            return result
 
 
 def handle_translation(target, program, ltl_spec) -> str:
@@ -225,10 +235,13 @@ def main():
 
     args: Namespace = parser.parse_args()
 
-    if args.program is None and args.tsl is None:
+    _main(args)
+
+
+def _main(args: Namespace):
+
+    if args.program is None and args.tsl is None and args.rpg is None:
         raise Exception("No input given! (Specify either --p or --tsl.)")
-    if args.program is not None and args.tsl is not None:
-        raise Exception("Cannot use both --p and --tsl.")
 
     program, ltl_spec = process_args(args)
 
@@ -256,7 +269,7 @@ def main():
 
     if args.translate:
         out = handle_translation(args.translate, program, ltl_spec)
-        print("\n\n" + str(args.translate) + " version of the program:\n\n" + out)
+        print(str(args.translate) + " version of the problem:\n\n" + out)
     elif args.model_check:
         nuxmv_script = handle_translation("nuxmv", program, ltl_spec)
         _, out = ModelChecker().invar_check(

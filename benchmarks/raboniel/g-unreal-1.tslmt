@@ -8,10 +8,11 @@ assume{
 
 guarantee {
 
-    [t <- e];
+    [t <- ee];
     X G ([t <- t]); 
 
     G ([x <- add x i1()]);
     
+    G (le x (add t i42()));
     G (le x (add t i42()));
 }

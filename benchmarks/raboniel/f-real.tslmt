@@ -2,9 +2,8 @@
 //-- Inputs: e
 
 guarantee {
-
-    [t <- e];
-    X G ([t <- t]); 
+    [t <- ee];
+    X G ([t <- t]);
 
     G ([x <- add x i1()]);
 

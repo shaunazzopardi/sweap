@@ -1,27 +1,22 @@
-//-- State:  c, x, y
+//-- State:  cc, x, y
 //-- Inputs: e
 
 assume{
     (eq x i0());
-    (eq c i0());
+    (eq cc i0());
 }
 
 guarantee {
 
-    // updates c
-    G ([c <- i0()] || [c <- i1()]);
-    G ((eq c i1()) -> [c <- i1()]);
-    
-    // updates x
-    G ( (eq c i0()) -> [x <- add x e] || [x <- sub x  e]);
-    G (!(eq c i0()) -> [x <- add x y]);
+    // updates cc
+    G ([cc <- i0()] || [cc <- i1()]);
+    G ((eq cc i1()) -> [cc <- i1()]);
 
-    // updates y
-    [y <- add x i1()];
-    X G [y <- y];
+    // updates x
+    G ( (eq cc i0()) -> [x <- add x ee] || [x <- sub x  ee]);
+    G (!(eq cc i0()) -> [x <- add x i1()]);
     
     // objectives
-    G ((eq c i0()) -> (ge x i0()));
-    G (!(eq c i0()) -> F (le x (sub i0() i10000())));
-    X (gt y i0());
+    G ((eq cc i0()) -> (ge x i0()));
+    G (!(eq cc i0()) -> F (le x (sub i0() i10000())));
 }
