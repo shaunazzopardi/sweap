@@ -1,7 +1,16 @@
 import logging
 
+from pysmt.environment import Environment
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Interpolator, is_sat, serialize, qelim
+from pysmt.rewritings import conjunctive_partition
+from pysmt.shortcuts import (
+    Interpolator,
+    get_unsat_core,
+    is_sat,
+    serialize,
+    qelim,
+    Solver,
+)
 from pysmt.simplifier import BddSimplifier
 
 
@@ -17,6 +26,10 @@ def sequence_interpolant(formulas: [FNode]) -> [FNode]:
 
 def quantifier_elimination(formula: FNode) -> FNode:
     return qelim(formula, solver_name="z3")
+
+
+def find_unsat_core(smt: FNode):
+    return get_unsat_core(conjunctive_partition(smt))
 
 
 def check(smt: FNode):

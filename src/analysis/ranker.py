@@ -30,6 +30,7 @@ class Ranker:
                 out = subprocess.getstatusoutput(cmd)
                 logging.info("cpachecker took " + str(time.time() - start))
                 out = str(out)
+                logging.info(out)
                 if "Verification result: UNKNOWN" in out:
                     return False, None
                 elif "Verification result: FALSE" in out:

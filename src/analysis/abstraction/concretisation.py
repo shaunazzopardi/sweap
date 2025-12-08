@@ -8,7 +8,6 @@ from programs.util import (
     add_prev_suffix,
 )
 from prop_lang.biop import BiOp
-from prop_lang.mathexpr import MathExpr
 from prop_lang.util import (
     neg,
     conjunct_formula_set,
@@ -20,6 +19,7 @@ from prop_lang.util import (
     is_predicate_var,
     normalise_mathexpr,
     true,
+    unsat_core,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -52,8 +52,9 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
     # two options, either we stopped because of a predicate mismatch, or a transition mismatch
     incompatibility_formula = []
     if (
-        incompatible_state[2]["compatible_states"] == "FALSE"
-        or incompatible_state[2]["compatible_outputs"] == "FALSE"
+        incompatible_state[2]["compatible_states"]
+        == "FALSE"
+        # or incompatible_state[2]["compatible_outputs"] == "FALSE"
     ):
         # TODO
         if not program.deterministic:
@@ -112,6 +113,21 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                 return concretized, env_pred_state
             # if not, then we choose the wrong transition
             else:
+                if not program.deterministic:
+                    raise Exception(
+                        "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
+                    )
+                core_unsat = unsat_core(
+                    conjunct_formula_set(
+                        pred_state
+                        + predicate_state_before_incompatibility
+                        + [transition_formula(concretized[-1][0])]
+                    ),
+                    program.symbol_table,
+                )
+                print("UNSAT CORE: ")
+                for c in core_unsat:
+                    print("\t" + str(c))
                 raise Exception(
                     "Something wrong in abstraction.\nAbstract transition is not satisfiable:\n\n"
                     + str(
