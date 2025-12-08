@@ -396,7 +396,7 @@ class ChainPredicate(Predicate):
             there_is_inc,
         ) = term_incremented_or_decremented(self.program, self.term)
 
-        if not only_updated_by_constants
+        if not only_updated_by_constants:
             if there_is_dec:
                 dec = BiOp(self.term, MathRels.LT, add_prev_suffix(self.term))
                 self.tran_preds.append(dec)
