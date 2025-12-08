@@ -4,21 +4,21 @@ from synthesis.ltl_synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 class AbstractLTLSynthesisProblem:
-    pure_env_props: [Variable]
-    program_out_props: [Variable]
-    program_pred_props: [Variable]
-    con_props: [Variable]
+    pure_env_props: list[Variable]
+    program_out_props: list[Variable]
+    program_pred_props: list[Variable]
+    con_props: list[Variable]
     ltl_synthesis_problem: LTLSynthesisProblem
     tlsf: str
 
     def __init__(
         self,
-        pure_env_props: [Variable],
-        program_out_props: [Variable],
-        program_pred_props: [Variable],
-        con_props: [Variable],
-        assumptions: [Formula],
-        guarantees: [Formula],
+        pure_env_props: list[Variable],
+        program_out_props: list[Variable],
+        program_pred_props: list[Variable],
+        con_props: list[Variable],
+        assumptions: list[Formula],
+        guarantees: list[Formula],
     ):
         self.pure_env_props = pure_env_props
         self.program_out_props = program_out_props
