@@ -19,7 +19,7 @@ def binary_interpolant(A: FNode, B: FNode) -> FNode:
         return s.binary_interpolant(A, B)
 
 
-def sequence_interpolant(formulas: [FNode]) -> [FNode]:
+def sequence_interpolant(formulas: list[FNode]) -> list[FNode]:
     with Interpolator(name="msat") as s:
         return s.sequence_interpolant(formulas)
 
