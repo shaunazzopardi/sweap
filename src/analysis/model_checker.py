@@ -49,7 +49,7 @@ class ModelChecker:
                     # TODO
                     return NotImplemented
             except subprocess.CalledProcessError as err:
-                self.fail(
+                raise Exception(
                     err.output
                     + "\n You may be using a special nuXmv keyword as a variable name."
                 )
@@ -71,15 +71,9 @@ class ModelChecker:
             commands.write("quit\n")
             commands.close()
 
-            try:
-                out = subprocess.check_output(
-                    [nuxmv_path, "-source", commands.name, model.name],
-                    encoding="utf-8",
-                )
-                logging.info(out)
-                return out
-            except subprocess.CalledProcessError as err:
-                self.fail(err.output)
-            finally:
-                os.remove(model.name)
-                os.remove(commands.name)
+            out = subprocess.check_output(
+                [nuxmv_path, "-source", commands.name, model.name],
+                encoding="utf-8",
+            )
+            logging.info(out)
+            return out
