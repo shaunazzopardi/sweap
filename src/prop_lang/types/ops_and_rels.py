@@ -1,29 +1,7 @@
 from enum import Enum
 from typing import Union
 
-
-class StringableEnum(Enum):
-    def __str__(self):
-        return self.value[0]
-
-    def __add__(self, other):
-        return self.value[0] + str(other)
-
-    def __repr__(self):
-        return self.value[0]
-
-    def __radd__(self, other):
-        return str(other) + self.value[0]
-
-    def __eq__(self, other):
-        if isinstance(other, StringableEnum):
-            return self.value[0] == other.value[0]
-        elif isinstance(other, str):
-            return self.value[0] == other
-        return False
-
-    def __hash__(self):
-        return hash(self.value[0])
+from prop_lang.types.types import StringableEnum
 
 
 class MathOps(StringableEnum):

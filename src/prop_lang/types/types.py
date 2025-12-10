@@ -9,6 +9,30 @@ from pysmt.logics import BOOL
 from pysmt.shortcuts import INT, BOOL, GE, LE, GT, LT, And, Int, TRUE, Symbol
 
 
+class StringableEnum(Enum):
+    def __str__(self):
+        return self.value[0]
+
+    def __add__(self, other):
+        return self.value[0] + str(other)
+
+    def __repr__(self):
+        return self.value[0]
+
+    def __radd__(self, other):
+        return str(other) + self.value[0]
+
+    def __eq__(self, other):
+        if isinstance(other, StringableEnum):
+            return self.value[0] == other.value[0]
+        elif isinstance(other, str):
+            return self.value[0] == other
+        return False
+
+    def __hash__(self):
+        return hash(self.value[0])
+
+
 @dataclass(frozen=True)
 class Interval:
     lower: str = ""
@@ -54,13 +78,20 @@ class Interval:
 
 
 class Type:
-    pass
+    def __add__(self, other):
+        return str(self) + str(other)
+
+    def __repr__(self):
+        return str(self)
+
+    def __radd__(self, other):
+        return str(other) + str(self)
 
 
 SYMBOL_TABLE = dict[str, Type]
 
 
-class BaseNumberTypes(Enum):
+class BaseNumberTypes(StringableEnum):
     integer = ("integer",)
     natural = ("natural",)
 
@@ -78,7 +109,7 @@ class Boolean(Type):
         return False
 
     def __hash__(self):
-        return hash("boolean")
+        return hash(str(self))
 
 
 class Number(Type):
