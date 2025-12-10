@@ -1,0 +1,25 @@
+program gf_real {
+    STATES {
+        q0: init, q1
+    }
+    ENVIRONMENT EVENTS {
+        i: integer
+    }
+    CONTROLLER EVENTS {
+        cx
+    }
+    VALUATION {
+        x : integer := 0;
+    }
+    TRANSITIONS {
+        q0 -> q1 [$ x := i],
+
+        q1 -> q1 [cx $ x := x + 1],
+        q1 -> q1 [!cx]
+    }
+
+    SPECIFICATION {
+        (X G (cx)) &&
+        (G F (x > 1000))
+    }
+}

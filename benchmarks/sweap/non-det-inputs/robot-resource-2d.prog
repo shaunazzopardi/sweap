@@ -1,6 +1,6 @@
 program robot-resource-2d {
     STATES {
-        movetarg : init, incntx, decntx, setntx, goal, unsafe
+        movetarg : init, goal, unsafe
     }
 
     ENVIRONMENT EVENTS {
