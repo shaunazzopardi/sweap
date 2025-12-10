@@ -101,8 +101,6 @@ def not_a_keyword(s: str):
 def rpg_parser():
     yield string("type") >> spaces()
     game_type = yield name << spaces()
-    if game_type == "Parity":
-        raise Exception("Parity games are not supported.")
     yield spaces()
     vs = yield many1((loc_parser | var_dec_parser) << spaces())
     yield spaces()
@@ -112,7 +110,7 @@ def rpg_parser():
     inputs = {}
     vars = {}
     states = set()
-    marked_states = set()
+    marked_states = {}
 
     for v, kind, type in vs:
         not_a_keyword(str(v))
@@ -125,9 +123,11 @@ def rpg_parser():
             case "output":
                 vars[v] = type
             case "loc":
-                states.add(v)
-                if type == "1":
-                    marked_states.add(v)
+                states.add(v.name)
+                if type in marked_states.keys():
+                    marked_states[type].append(v)
+                else:
+                    marked_states[type] = [v]
             case _:
                 raise Exception("Unknown var kind: " + str(kind))
 
@@ -150,15 +150,19 @@ def rpg_parser():
         preprocess=False,
     )
     input_toggle_states = disjunct_formula_set(map(lambda x: Variable(x), new_states))
-    objective_states = disjunct_formula_set(map(lambda x: Variable(x), marked_states))
 
     match game_type:
         case "Buechi":
+            objective_states = disjunct_formula_set(marked_states[1])
             objective = G(F(objective_states))
         case "Safety":
+            objective_states = disjunct_formula_set(marked_states[1])
             objective = G(disjunct(objective_states, input_toggle_states))
         case "Reach":
+            objective_states = disjunct_formula_set(marked_states[1])
             objective = F(objective_states)
+        case "Parity":
+            objective = parity_objective(marked_states)
         case _:
             raise Exception("Unknown game type: " + str(game_type))
 
@@ -670,3 +674,37 @@ def process(inputs, state_vars, init, src_update_tuples):
         fresh_init = new_init
 
     return fresh_init, env_vars, con_vars, new_states, new_transitions
+
+
+def parity_objective(marked_states: dict[int, list[str]]) -> Formula:
+    parities = list(marked_states.keys())
+    parities.sort()
+    first_odd = parities[0] % 2 == 1
+
+    if len(parities) == 1 and first_odd:
+        raise Exception("Parity objective with only one odd priority is unrealizable.")
+    elif len(parities) == 1 and not first_odd:
+        raise Exception(
+            "Parity objective with only one even priority is trivially realizable."
+        )
+
+    future_odds = {}
+
+    for i, p in enumerate(parities):
+        if p % 2 == 0:
+            future_odds[p] = []
+        else:
+            for even in future_odds.keys():
+                future_odds[even].extend(marked_states[p])
+
+    objectives = []
+
+    for even, odds in future_odds.items():
+        even_states = disjunct_formula_set(marked_states[even])
+        odd_states = disjunct_formula_set(odds)
+        if len(odds) > 0:
+            objectives.append(conjunct(G(F(even_states)), neg(G(F(odd_states)))))
+        else:
+            objectives.append(G(F(even_states)))
+
+    return disjunct_formula_set(objectives)
