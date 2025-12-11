@@ -9,6 +9,7 @@ from programs.program import Program
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
 from prop_lang.types.ops_and_rels import MathRels
+from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     neg,
     conjunct_formula_set,
@@ -195,7 +196,7 @@ def safety_refinement_seq_int(
             for act in t.action:
                 for v in act.right.variablesin():
                     to_replace = {}
-                    if v in program.num_in_out:
+                    if v in program.num_in_out and symbol_table[v.name] != BOOLEAN:
                         pred = BiOp(v, "=", Value(cs_state[str(v)]))
                         to_replace[pred.left] = pred.right
                         sig, _, preds = normalise_pred_multiple_vars(
@@ -205,11 +206,12 @@ def safety_refinement_seq_int(
                         signatures.add(sig)
 
                     pred = BiOp(act.left, "=", act.right.replace(to_replace))
-                    sig, _, preds = normalise_pred_multiple_vars(
-                        pred, signatures, symbol_table
-                    )
-                    new_state_preds.update(preds)
-                    signatures.add(sig)
+                    if symbol_table[act.left.name] != BOOLEAN:
+                        sig, _, preds = normalise_pred_multiple_vars(
+                            pred, signatures, symbol_table
+                        )
+                        new_state_preds.update(preds)
+                        signatures.add(sig)
 
         # cs_states = [cs_state for _, _, cs_state in agreed_on_transitions] + [disagreed_on_state[1][2]]
         # for cs_state in cs_states:
