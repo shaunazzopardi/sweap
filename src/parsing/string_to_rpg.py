@@ -203,7 +203,7 @@ def loc_parser():
     var_type = yield regex("[0-9]")
     yield spaces()
 
-    return state_name, "loc", var_type
+    return Variable(state_name), "loc", int(var_type)
 
 
 @generate
