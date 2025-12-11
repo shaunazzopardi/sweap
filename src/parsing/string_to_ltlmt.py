@@ -33,6 +33,7 @@ from prop_lang.util import (
     F,
     true,
     atomic_predicates,
+    sat,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -242,32 +243,51 @@ class ToProgram(NodeWalker):
             else:
                 raw_formula_nodes.append(node)
 
+        init_assumptions = []
+
         for node in raw_formula_nodes:
             match node[0]:
                 case "assume":
                     for n in node[2]:
                         if isinstance(n, Formula):
-                            assumptions.append(
-                                normalize_ltl(n.replace_formulas(macros))
-                            )
+                            f = normalize_ltl(n.replace_formulas(macros))
+                            assumptions.append(f)
+                            init_assumptions.extend(f)
                         else:
-                            assumptions.extend(
+                            fs = [
                                 normalize_ltl(f.replace_formulas(macros))
                                 for f in n
                                 if f not in delimiters
-                            )
+                            ]
+                            assumptions.extend(fs)
+                            init_assumptions.extend(fs)
                 case "always assume":
                     for n in node[2]:
                         if isinstance(n, Formula):
-                            assumptions.append(
-                                G(normalize_ltl(n.replace_formulas(macros)))
-                            )
+                            f = normalize_ltl(n.replace_formulas(macros))
+                            assumptions.append(G(f))
+                            if not any(
+                                o
+                                for o in remove_globals(f).ops_used()
+                                if o in unary_LTL_operators | binary_LTL_operators
+                            ):
+                                init_assumptions.append(f)
                         else:
-                            assumptions.extend(
+                            fs = [
                                 G(normalize_ltl(f.replace_formulas(macros)))
                                 for f in n
                                 if f not in delimiters
-                            )
+                            ]
+                            assumptions.extend(fs)
+
+                            for f in fs:
+                                ff = remove_globals(f)
+                                if not any(
+                                    o
+                                    for o in ff.ops_used()
+                                    if o in unary_LTL_operators | binary_LTL_operators
+                                ):
+                                    init_assumptions.append(ff)
                 case "guarantee":
                     for n in node[2]:
                         if isinstance(n, Formula):
@@ -324,6 +344,13 @@ class ToProgram(NodeWalker):
         )
 
         init_values = [(str(x), types[str(x)], init_type_values(x)) for x in self.vars]
+
+        # TODO use this init_assumptions to limit env init transitions
+        if not sat(conjunct_formula_set(init_assumptions), types):
+            raise Exception(
+                "Unsatisfiable initial assumptions: "
+                + "\n".join(map(str, init_assumptions))
+            )
 
         env_init = Variable("env_init")
         init_values.append((str(env_init), BOOLEAN, Value(BoolAtoms.TRUE)))
@@ -683,6 +710,21 @@ def infer_type_of_vars(updates: dict[str, set[BiOp]], partitions, formula) -> di
     if len(left) > 0:
         raise Exception("Could not infer type of variables: " + str(left))
     return types
+
+
+def remove_globals(formula: Formula) -> Formula:
+    if isinstance(formula, BiOp):
+        new_left = remove_globals(formula.left)
+        new_right = remove_globals(formula.right)
+        return BiOp(new_left, formula.op, new_right)
+    elif isinstance(formula, UniOp):
+        new_formula = remove_globals(formula.right)
+        if formula.op == "G":
+            return new_formula
+        else:
+            return UniOp(formula.op, new_formula)
+    else:
+        return formula
 
 
 # TODO HEURISTIC:
