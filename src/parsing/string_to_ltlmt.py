@@ -37,8 +37,6 @@ from prop_lang.util import (
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-from synthesis.machines.wrapped_hoa import WrappedHOA
-from synthesis.synthesis import synthesize
 
 GRAMMAR = """
     @@grammar::LTL
