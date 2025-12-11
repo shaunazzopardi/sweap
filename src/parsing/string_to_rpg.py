@@ -679,27 +679,37 @@ def process(inputs, state_vars, init, src_update_tuples):
 def parity_objective(marked_states: dict[int, list[str]]) -> Formula:
     parities = list(marked_states.keys())
     parities.sort()
-    first_odd = parities[0] % 2 == 1
+    smallest_is_odd = parities[0] % 2 == 1
 
-    if len(parities) == 1 and first_odd:
-        raise Exception("Parity objective with only one odd priority is unrealizable.")
-    elif len(parities) == 1 and not first_odd:
-        raise Exception(
-            "Parity objective with only one even priority is trivially realizable."
-        )
+    if len(parities) == 1:
+        if smallest_is_odd:
+            raise Exception(
+                "Parity objective with only one odd priority is unrealizable."
+            )
+        elif not smallest_is_odd:
+            raise Exception(
+                "Parity objective with only one even priority is trivially realizable."
+            )
 
-    future_odds = {}
+    even_to_larger_odds = {}
 
-    for i, p in enumerate(parities):
+    for p in parities:
         if p % 2 == 0:
-            future_odds[p] = []
+            even_to_larger_odds[p] = []
         else:
-            for even in future_odds.keys():
-                future_odds[even].extend(marked_states[p])
+            for even in even_to_larger_odds.keys():
+                even_to_larger_odds[even].extend(marked_states[p])
+
+    if len(even_to_larger_odds.keys()) == 0:
+        raise Exception("Parity objective with only odd priorities is unrealizable.")
+    if len(even_to_larger_odds.keys()) == len(parities):
+        raise Exception(
+            "Parity objective with only even priorities is trivially realizable."
+        )
 
     objectives = []
 
-    for even, odds in future_odds.items():
+    for even, odds in even_to_larger_odds.items():
         even_states = disjunct_formula_set(marked_states[even])
         odd_states = disjunct_formula_set(odds)
         if len(odds) > 0:
