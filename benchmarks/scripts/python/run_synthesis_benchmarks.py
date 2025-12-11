@@ -118,6 +118,8 @@ def test_synthesis():
                                     result["realisable"] = "OOM"
                                 elif hoa == "Timeout":
                                     result["realisable"] = "TO"
+                                elif "java.lang.OutOfMemoryError" in hoa:
+                                    result["realisable"] = "OOM"
                                 else:
                                     result["realisable"] = f"ERR: {hoa}"
                         except Exception as e:
