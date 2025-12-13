@@ -241,6 +241,16 @@ class ToProgram(NodeWalker):
             else:
                 raw_formula_nodes.append(node)
 
+        new_macros = macros
+        changed = True
+        while changed:
+            changed = False
+            for k, v in new_macros.items():
+                new_macros[k] = v.replace_formulas(macros)
+                if new_macros[k] != v:
+                    changed = True
+        macros = new_macros
+
         init_assumptions = []
 
         for node in raw_formula_nodes:
