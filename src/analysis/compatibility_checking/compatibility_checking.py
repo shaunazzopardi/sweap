@@ -430,7 +430,7 @@ def there_is_mismatch_between_program_and_strategy(
             )
         elif not mismatch_condition and not rich_in_out:
             there_is_no_mismatch, out = model_checker.invar_check(
-                system, "G(compatible)", None, config.mc
+                system, "compatible", None, False
             )
         elif mismatch_condition and not rich_in_out:
             there_is_no_mismatch, out = model_checker.invar_check(
