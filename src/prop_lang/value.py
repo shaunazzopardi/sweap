@@ -80,10 +80,10 @@ class Value(Atom):
         return self, {}
 
     def is_math_value(self):
-        return re.match("[0-9]+", self.val)
+        return re.match("[0-9]+", str(self.val))
 
     def to_sympy(self):
-        return sympy.core.symbol.Symbol(self.val)
+        return sympy.core.symbol.Symbol(str(self.val))
 
     def replace_formulas(self, context):
         if isinstance(context, dict):
@@ -109,7 +109,7 @@ class Value(Atom):
     def type(self):
         if self.is_true() or self.is_false():
             return BOOLEAN
-        elif re.match("[0-9]+", self.val):
+        elif re.match("[0-9]+", str(self.val)):
             return INTEGER
         else:
             raise Exception(
