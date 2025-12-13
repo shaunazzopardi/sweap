@@ -2230,7 +2230,7 @@ def put_vars_on_left_side(pred):
 def get_vars_and_constants_in_term(term):
     vars = []
     constants = []
-    left_to_do = distribute_minus(term).sub_formulas_up_to_associativity()
+    left_to_do = term.sub_formulas_up_to_associativity()
     while True:
         new_left_to_do = []
         if len(left_to_do) == 0:
@@ -2319,50 +2319,6 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=False):
             formula.op,
             massage_ltl_for_dual(formula.right, next_events, preds_too),
         )
-    else:
-        return formula
-
-
-# only biop allowed is with +
-# subtraction is distributed over terms
-def distribute_minus(formula):
-    if isinstance(formula, BiOp):
-        if formula.op == "-":
-            left = distribute_minus(formula.left)
-            right = distribute_minus(formula.right)
-            return BiOp(left, "+", distribute_minus(UniOp(MathOps.SUB, right)))
-        elif formula.op == "+":
-            return BiOp(
-                distribute_minus(formula.left), "+", distribute_minus(formula.right)
-            )
-        else:
-            return BiOp(
-                distribute_minus(formula.left),
-                formula.op,
-                distribute_minus(formula.right),
-            )
-    elif isinstance(formula, UniOp) and formula.op == "-":
-        inner = distribute_minus(formula.right)
-        # Cancel double negation: -(-x) => x
-        if isinstance(inner, UniOp) and inner.op == "-":
-            return distribute_minus(inner.right)
-        # Distribute minus over addition/subtraction
-        if isinstance(inner, BiOp):
-            if inner.op == "+":
-                return BiOp(
-                    distribute_minus(UniOp(MathOps.SUB, inner.left)),
-                    "+",
-                    distribute_minus(UniOp(MathOps.SUB, inner.right)),
-                )
-            elif inner.op == "-":
-                return BiOp(
-                    distribute_minus(UniOp(MathOps.SUB, inner.left)),
-                    "+",
-                    distribute_minus(inner.right),
-                )
-        return UniOp(MathOps.SUB, inner)
-    elif isinstance(formula, UniOp):
-        return UniOp(formula.op, distribute_minus(formula.right))
     else:
         return formula
 
