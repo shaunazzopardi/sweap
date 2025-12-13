@@ -2323,6 +2323,21 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=False):
         return formula
 
 
+def all_sat_models(preds, symbol_table):
+    if len(preds) == 0:
+        raise Exception("all_sat_models called with zero-sized preds")
+    models = [c for c in preds[0].chain]
+    for chain_pred in preds[1:]:
+        new_models = []
+        for m in models:
+            for c in chain_pred.chain:
+                new_m = conjunct(c, m)
+                if sat(new_m, symbol_table):
+                    new_models.append(new_m)
+        models = new_models
+    return models
+
+
 def reset_caches(names=None):
     dnf_cache.clear()
     cnf_cache.clear()

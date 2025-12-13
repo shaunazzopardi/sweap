@@ -3,6 +3,10 @@ import logging
 import time
 from multiprocessing import Pool
 
+from pysmt.shortcuts import Symbol, Exists, And
+from pysmt.typing import INT
+from analysis.smt_checker import quantifier_elimination
+
 import config
 from analysis.abstraction.effects_abstraction.abs_util import (
     update_var_partition_mult,
@@ -42,6 +46,9 @@ from prop_lang.util import (
     strip_mathexpr,
     propagate_nexts,
     is_tautology,
+    all_sat_models,
+    fnode_to_formula,
+    atomic_predicates,
 )
 from prop_lang.variable import Variable
 
@@ -210,23 +217,15 @@ class EffectsAbstraction(PredicateAbstraction):
             processed_ltl_constraints.append(processed)
             self.structural_loop_constraints.extend(processed_ltl_constraints)
 
-    def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
-        if len(new_state_predicates) == 0:
-            return
-        # assuming input state predicates have been normalised (all of type < or <=, and vars on LHS and constants on RHS)
-
-        logger.info("Adding predicates to predicate abstraction:")
-        logger.info(
-            "state preds: [" + ", ".join(list(map(str, new_state_predicates))) + "]"
-        )
-
-        logger.info("Tagging abstract transitions with predicates..")
-        start = time.time()
-
+    def process_preds(self, new_state_predicates: list[Formula]):
         use_chain_preds = not config.Config.getConfig().no_binary_enc
         remaining_st_preds = list(new_state_predicates)
 
-        pred_contains_input_vars = lambda x: True if any(v for v in x.variablesin() if v in self.program.inp_out_puts) else False
+        pred_contains_input_vars = lambda x: (
+            True
+            if any(v for v in x.variablesin() if v in self.program.inp_out_puts)
+            else False
+        )
 
         new_preds = set()
 
@@ -253,7 +252,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.raw_state_predicates.update(preds)
                 new_chain_pred = False
                 if term not in self.v_to_chain_pred.keys():
-                    v_chain_pred = ChainPredicate(term, self.program, pred_contains_input_vars(term), accelerate)
+                    v_chain_pred = ChainPredicate(
+                        term, self.program, pred_contains_input_vars(term), accelerate
+                    )
                     self.v_to_chain_pred[term] = v_chain_pred
                     new_chain_pred = True
                 else:
@@ -264,7 +265,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.symbol_table |= {str(b): BOOLEAN for b in v_chain_pred.bin_vars}
 
                 if new_chain_pred and accelerate and len(v_chain_pred.tran_preds) > 0:
-                    gu = TransitionPredicate(v_chain_pred.tran_preds, v_chain_pred.is_input)
+                    gu = TransitionPredicate(
+                        v_chain_pred.tran_preds, v_chain_pred.is_input
+                    )
                     new_preds.add(gu)
                     self.transition_predicates.add(gu)
                     self.raw_transition_predicates.update(v_chain_pred.tran_preds)
@@ -283,9 +286,15 @@ class EffectsAbstraction(PredicateAbstraction):
 
                     for gu in self.init_program_gus:
                         for p in v_chain_pred.chain:
-                            if not any(v for v in p.variablesin() if v in self.program.inp_out_puts):
+                            if not any(
+                                v
+                                for v in p.variablesin()
+                                if v in self.program.inp_out_puts
+                            ):
                                 if sat(
-                                    conjunct(conjunct(self.init_conf.prev_rep(), gu), p),
+                                    conjunct(
+                                        conjunct(self.init_conf.prev_rep(), gu), p
+                                    ),
                                     self.symbol_table,
                                 ):
                                     self.second_state_abstraction[gu].append(p)
@@ -371,19 +380,69 @@ class EffectsAbstraction(PredicateAbstraction):
                         self.init_state_abstraction.append(neg(p.pred))
 
                 for gu in self.init_program_gus:
-                    if not any(v for v in p.variablesin() if v in self.program.inp_out_puts):
-                        if sat(conjunct(conjunct(self.init_conf.prev_rep(), gu), p.pred), self.symbol_table):
+                    if not any(
+                        v for v in p.variablesin() if v in self.program.inp_out_puts
+                    ):
+                        if sat(
+                            conjunct(conjunct(self.init_conf.prev_rep(), gu), p.pred),
+                            self.symbol_table,
+                        ):
                             self.second_state_abstraction[gu].append(p.pred)
                         else:
                             self.second_state_abstraction[gu].append(neg(p.pred))
+        return new_preds
+
+    def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
+        if len(new_state_predicates) == 0:
+            return
+        # assuming input state predicates have been normalised (all of type < or <=, and vars on LHS and constants on RHS)
+
+        logger.info("Adding predicates to predicate abstraction:")
+        logger.info(
+            "state preds: [" + ", ".join(list(map(str, new_state_predicates))) + "]"
+        )
+
+        logger.info("Tagging abstract transitions with predicates..")
+        start = time.time()
+
+        new_preds = self.process_preds(new_state_predicates)
 
         no_of_workers = config.Config.getConfig().workers if parallelise else 1
 
         all_preds = self.state_predicates | set(self.v_to_chain_pred.values())
 
-        new_preds = list(new_preds)
-        # we do this sorting to ensure deterministic behaviour in abstraction, in case of bugs
-        new_preds.sort(key=lambda x: str(x))
+        # new_preds = list(new_preds)
+        # # we do this sorting to ensure deterministic behaviour in abstraction, in case of bugs
+        # new_preds.sort(key=lambda x: str(x))
+
+        input_preds = []
+        for c in self.v_to_chain_pred.values():
+            if c.is_input:
+                input_preds.append(c)
+
+        input_preds = []
+        for c in self.v_to_chain_pred.values():
+            if c.is_input:
+                input_preds.append(c)
+
+        if len(input_preds) > 0:
+            new_qe_preds = set()
+            models = all_sat_models(input_preds, self.program.symbol_table)
+            new_models = []
+            for m in models:
+                exist_vars = [Symbol(str(v), INT) for v in self.program.num_in_out]
+                quant_formula = Exists(
+                    exist_vars, And(*m.to_smt(self.program.symbol_table))
+                )
+
+                ret = quantifier_elimination(quant_formula)
+                rett = fnode_to_formula(ret)
+                new_qe_preds.update(atomic_predicates(rett))
+                new_models.append(conjunct(rett, m))
+
+            self.sat_input_models = new_models
+            new_new_preds = self.process_preds(new_qe_preds)
+            new_preds.update(new_new_preds)
 
         gus = []
         gu_invars = []
@@ -903,6 +962,31 @@ def compute_abstract_effect_for_guard_update(arg):
     # new_us_part tells which prev update parts to join together
     # old_us_part_to_pred tells us which preds are considered in effects (now and next) of old_us_part
     # effects will be of the form: old_us_part -> (now, [next])
+    # TODO the below can be optimised
+    no_changes = False
+    new_new_part_to_curr_parts = {}
+    while not no_changes:
+        done_parts = set()
+        for us_part1, old_part1 in new_part_to_curr_parts.items():
+            if us_part1 in done_parts:
+                continue
+            no_changes = True
+            new_us_part1 = set()
+            old_us_part1 = set()
+            new_us_part1.update(us_part1)
+            old_us_part1.update(old_part1)
+            done_parts.add(us_part1)
+            for us_part2, old_part2 in new_part_to_curr_parts.items():
+                if us_part2 not in done_parts:
+                    if len(us_part1.intersection(us_part2)) != 0:
+                        done_parts.add(us_part2)
+                        new_us_part1.update(us_part2)
+                        old_us_part1.update(old_part2)
+                        no_changes = False
+
+            new_new_part_to_curr_parts[frozenset(new_us_part1)] = old_us_part1
+
+        new_part_to_curr_parts = new_new_part_to_curr_parts
 
     all_relevant_next_preds = set()
     new_effects = {}

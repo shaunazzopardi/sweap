@@ -237,6 +237,47 @@ def abstract_ltl_problem(
         if isinstance(v, tuple) and v[1] == BOOLEAN:
             con_props.append(v[0])
 
+    if len(program.num_in_out) > 0:
+        if dualise:
+            models = effects_abstraction.sat_input_models
+            if len(models) > 0:
+                model_f = G(
+                    disjunct_formula_set(
+                        [
+                            m.replace_formulas(effects_abstraction.var_relabellings)
+                            for m in models
+                        ]
+                    )
+                )
+                guarantees = [
+                    model_f,
+                    implies(
+                        conjunct_formula_set(assumptions),
+                        conjunct_formula_set(guarantees),
+                    ),
+                ]
+                assumptions = []
+        else:
+            models = effects_abstraction.sat_input_models
+            if len(models) > 0:
+                model_f = G(
+                    disjunct_formula_set(
+                        [
+                            m.replace_formulas(effects_abstraction.var_relabellings)
+                            for m in models
+                        ]
+                    )
+                )
+                assumptions.append(model_f)
+    # if dualise:
+    #     env_props += [Variable("lose")]
+    #     assumptions += [neg(Variable("lose"))]
+    #     guarantees += [G(neg(Variable("lose")))]
+
+    # if controller_fail is not None:
+    #     assumptions = [disjunct(controller_fail, conjunct_formula_set(assumptions))]
+    #     guarantees += [neg(controller_fail)]
+
     ltl_synthesis_problem = AbstractLTLSynthesisProblem(
         env_props,
         program.out_events,
