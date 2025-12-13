@@ -875,6 +875,7 @@ def compute_abstract_effect_for_guard_update(arg):
         for u in curr_u:
             u_part = v_to_partition[u.left]
             part = partitions[u_part]
+            right_parts = [v_to_partition[v] for v in u.right.variablesin()]
             for other_curr_u in old_us_part:
                 if other_curr_u != curr_u:
                     if any(
@@ -882,9 +883,10 @@ def compute_abstract_effect_for_guard_update(arg):
                         for uu in other_curr_u
                         if uu.left in part
                         or any(
-                            True
-                            for v in uu.right.variablesin()
-                            if v in u.right.variablesin()
+                            p
+                            for p in right_parts
+                            if p
+                            in [v_to_partition[vv] for vv in uu.right.variablesin()]
                         )
                     ):
                         curr_us_to_join.add(other_curr_u)
