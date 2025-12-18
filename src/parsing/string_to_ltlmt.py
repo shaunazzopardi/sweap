@@ -354,7 +354,11 @@ class ToProgram(NodeWalker):
         init_values = [(str(x), types[str(x)], init_type_values(x)) for x in self.vars]
 
         # TODO use this init_assumptions to limit env init transitions
-        if not sat(conjunct_formula_set(init_assumptions), types):
+        try:
+            satisfiable_assumptions = sat(conjunct_formula_set(init_assumptions), types)
+        except NotImplementedError:
+            satisfiable_assumptions = True
+        if not satisfiable_assumptions:
             raise Exception(
                 "Unsatisfiable initial assumptions: "
                 + "\n".join(map(str, init_assumptions))
