@@ -1,10 +1,10 @@
-//-- State: floor, target
+//-- State: at_floor, target
 //-- Inputs: signal
 
 assume {
   eq target i0();
-  ge floor i1();
-  ge i3() floor;
+  ge at_floor i1();
+  ge i3() at_floor;
 }
 
 always assume {
@@ -14,15 +14,15 @@ always assume {
 }
 
 always guarantee {
-  ge floor i1(); /* INV */
-  ge i3() floor; /* INV */
-  !(eq signal i0()) && !(eq floor target) -> [target <- signal];
-  eq signal i0() && !(eq floor target) -> [target <- target];
-  eq floor target -> [target <- i0()];
+  ge at_floor i1(); /* INV */
+  ge i3() at_floor; /* INV */
+  !(eq signal i0()) && !(eq at_floor target) -> [target <- signal];
+  eq signal i0() && !(eq at_floor target) -> [target <- target];
+  eq at_floor target -> [target <- i0()];
 
-  [floor <- floor] || [floor <- add floor i1()] || [floor <- sub floor i1()];
+  [at_floor <- at_floor] || [at_floor <- add at_floor i1()] || [at_floor <- sub at_floor i1()];
 
-  eq target i1() -> F (eq floor i1());
-  eq target i2() -> F (eq floor i2());
-  eq target i3() -> F (eq floor i3());
+  eq target i1() -> F (eq at_floor i1());
+  eq target i2() -> F (eq at_floor i2());
+  eq target i3() -> F (eq at_floor i3());
 }
