@@ -20,7 +20,7 @@ from analysis.compatibility_checking.compatibility_checking_con import (
     compatibility_checking_con,
 )
 from analysis.refinement.refinement import refinement_standard
-from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
+from parsing.string_to_ltl import string_to_ltl_with_predicates
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula

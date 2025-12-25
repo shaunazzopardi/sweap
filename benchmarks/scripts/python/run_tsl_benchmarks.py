@@ -3,7 +3,8 @@ import os
 from pysmt.environment import Environment
 
 import config
-from parsing.string_to_ltlmt import string_to_ltlmt, ToProgram
+from parsing.string_to_ltlmt import ToProgram
+from parsing.string_to_ltl import string_to_ltlmt
 from programs.util import reset_caches as program_util_reset_caches
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from prop_lang.util import run_with_timeout_and_memory_limit

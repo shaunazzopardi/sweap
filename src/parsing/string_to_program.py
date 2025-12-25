@@ -5,7 +5,8 @@ import parsec
 from parsec import generate, string, sepBy, spaces, regex
 
 import config
-from parsing.string_to_ltl_with_predicates import string_to_ltl_with_predicates
+from parsing.keywords import regex_keywords
+from parsing.string_to_ltl import string_to_ltl_with_predicates
 from parsing.string_to_prop_logic import (
     string_to_math_expression,
     string_to_prop,
@@ -25,43 +26,6 @@ from prop_lang.variable import Variable
 name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
 state = regex(r"[a-zA-Z0-9@$_-]+")
-
-regex_keywords = list(
-    map(
-        re.compile,
-        [
-            r"turn$",
-            r"true",
-            r"false",
-            r"in_loop[0-9]+_[0-9]+",
-            r"prog$",
-            r"cs$",
-            r"pred_.*",
-            r"bin_.*",
-            r"mismatch$",
-            r"compatible_.*",
-            r"guard_.*",
-            r"act_.*",
-            r"identity_.*",
-            r"counterstrategy_guard_.*",
-            r"counterstrategy_act_.*",
-            r"floor$",
-        ],
-    )
-)
-
-
-def not_a_keyword(s: str):
-    for k in list(regex_keywords):
-        if k.match(s):
-            raise Exception(
-                "'"
-                + s
-                + "'"
-                + " matches a reserved keyword/pattern "
-                + str(k).replace("re.compile", "")
-                + ", rename."
-            )
 
 
 @generate

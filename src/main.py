@@ -11,7 +11,8 @@ from analysis.compatibility_checking.compatibility_checking import (
 )
 from analysis.model_checker import ModelChecker
 from config import Config
-from parsing.string_to_ltlmt import ToProgram, string_to_ltlmt
+from parsing.string_to_ltlmt import ToProgram
+from parsing.string_to_ltl import string_to_ltlmt
 from parsing.string_to_program import string_to_program
 from parsing.string_to_rpg import rpg_parsec
 from programs.program import Program

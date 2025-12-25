@@ -8,7 +8,7 @@ from tatsu.grammars import Grammar
 from tatsu.tool import compile
 from tatsu.walkers import NodeWalker
 
-from parsing.string_to_program import not_a_keyword, regex_keywords
+from parsing.string_to_ltl import unary_LTL_operators, binary_LTL_operators
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import binary_rep
@@ -37,126 +37,6 @@ from prop_lang.util import (
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-
-GRAMMAR = """
-    @@grammar::LTL
-
-    start = { macros }* $ ;
-
-    macros
-        = f_macro
-        | 'assume' '{' { expression [';'] }* '}'
-        | 'always assume' '{' { expression [';'] }* '}'
-        | 'guarantee' '{' { expression [';'] }* '}'
-        | 'always guarantee' '{' { expression [';'] }* '}'
-        ;
-
-    f_macro
-        = atom '=' (math_predicate | math_expression | expression | math_0) ';';
-
-    expression
-        = level_0 ('->' | '<->' | '||' | '|' | '&&' | '&') expression
-        | level_0
-        ;
-
-    level_0 
-        = atomic ('U' | 'W' | 'R' | 'M') level_0
-        | atomic
-        ;
-
-    atomic
-        = '(' @:expression ')'
-        | ('!' | 'X' | 'F' | 'G') atomic
-        | boolean_term
-        | action
-        ;
-
-    action
-        = '[' atom '<-' math_expression ']';
-
-    boolean_term
-        = 'true'
-        | 'false'
-        | math_predicate
-        | atom
-        | '!' boolean_term
-        ;
-
-    math_predicate
-        = ('lt' | 'le' | 'gt' | 'ge' | 'eq' | 'neq') math_expression math_expression;
-
-
-    math_expression
-        = ('add' | 'sub' | 'mul') math_0 math_expression
-        | math_0
-        ;
-
-    math_expression_eof
-        = math_expression $ ;
-
-    math_0
-        = number
-        | atom
-        | '(' math_expression ')'
-        ;
-
-    atom = /_?[a-zA-Z][a-zA-Z0-9_-]*/;
-    number = /[ic]m?([0-9]+|[0-9]+\\.[0-9]+)\\(\\)/;
-"""
-
-translate_ops = {
-    "eq": "=",
-    "neq": "!=",
-    "lt": "<",
-    "le": "<=",
-    "gt": ">",
-    "ge": ">=",
-    "add": "+",
-    "sub": "-",
-    "mul": "-",
-}
-
-unary_operators = {"!", "-"}
-unary_LTL_operators = {"G", "F", "X"}
-binary_operators = {"&&", "||", "&", "|", "->", "<->"}
-binary_LTL_operators = {"U", "W", "R", "M"}
-
-
-def tuple_to_formula(node) -> Formula:
-    if isinstance(node, str):
-        if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF|m?[0-9]+)", node):
-            if node[0] == "m":
-                return UniOp("-", Value(node[1:]))
-            return Value(node)
-        else:
-            return Variable(node)
-    elif len(node) == 2:
-        if isinstance(node[0], str) and (
-            node[0] in unary_operators or node[0] in unary_LTL_operators
-        ):
-            return UniOp(node[0], (node[1]))
-        else:
-            return node
-    elif len(node) == 3:
-        if isinstance(node[0], str) and node[0] in translate_ops.keys():
-            return create_mathrel(node[1], translate_ops[node[0]], node[2])
-        elif isinstance(node[1], str) and (
-            node[1] in binary_operators or node[1] in binary_LTL_operators
-        ):
-            return BiOp((node[0]), node[1], (node[2]))
-        elif node[0] == "(" and node[2] == ")":
-            return node[1]
-        else:
-            return node
-    elif len(node) == 5 and node[2] == "<-":
-        if not isinstance(node[1], Variable):
-            raise Exception(
-                "The left hand side of an update must be a variable: "
-                + " ".join(map(str, node))
-            )
-        return Update((node[1]), node[3])
-    else:
-        return node
 
 
 delimiters = {";", "{", "}"}
@@ -211,7 +91,6 @@ class ToProgram(NodeWalker):
         self.walk(node.right)
 
     def walk_Variable(self, node: Variable):
-        not_a_keyword(str(node))
         self.vars.add(Variable(node.name))
 
     def walk_MathExpr(self, node: MathExpr):
