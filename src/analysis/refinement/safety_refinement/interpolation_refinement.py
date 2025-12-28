@@ -192,37 +192,9 @@ def safety_refinement_seq_int(
             if len(new_state_preds) == 0:
                 raise Exception("No new state predicates identified.")
 
-        signatures.add(sig)
-        new_all_preds = new_state_preds | old_state_predicates
-        new_all_preds = reduce_up_to_iff(
-            old_state_predicates,
-            new_all_preds,
-            symbol_table,
-        )  # TODO symbol_table needs to be updated with prevs
+    logging.info("Using: " + ", ".join([str(p) for p in new_state_preds]))
 
-        # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
-        # raise Exception("Could not find new state predicates..")
-
-    logging.info(
-        "Using: "
-        + ", ".join(
-            [
-                str(p)
-                for p in new_all_preds
-                if p not in old_state_predicates and neg(p) not in old_state_predicates
-            ]
-        )
-    )
-
-    new_preds = {
-        p
-        for p in new_all_preds
-        if p not in old_state_predicates and neg(p) not in old_state_predicates
-    }
-    if len(new_preds) == 0:
-        print("No new state predicates identified.")
-
-    return True, new_preds
+    return True, new_state_preds
 
 
 def interactive_state_predicates():
