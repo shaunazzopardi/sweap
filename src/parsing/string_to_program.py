@@ -29,7 +29,7 @@ state = regex(r"[a-zA-Z0-9@$_-]+")
 
 @generate
 def program_parser():
-    yield string("program") >> spaces()
+    yield spaces() << string("program") >> spaces()
     program_name = yield name << spaces()
     yield string("{") >> spaces()
     (states, initial_state) = yield state_parser
