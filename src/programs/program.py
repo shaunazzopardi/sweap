@@ -7,6 +7,7 @@ from graphviz import Digraph
 
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
+from programs.dfa import program_sccs, reachable_states
 from programs.transition import Transition
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from programs.util import (
@@ -212,6 +213,9 @@ class Program:
         #     self.states_binary_map = {(st): Variable(st) for st in self.states}
 
         self.project_out_constants()
+
+        self.updates = {u for trans in self.transitions for u in trans.action}
+        self.sccs = program_sccs(self)
         # note, we do not need to add natural type constraints to transitions after this call here,
         # since we are refining integers to naturals only when every transition already
         # preserves the natural constraint

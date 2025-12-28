@@ -404,15 +404,17 @@ class ChainPredicate(Predicate):
     def init_ranking_refinement(self) -> None:
         (
             only_updated_by_constants,
+            only_updated_by_other_vars,
             there_is_dec,
             there_is_inc,
+            there_is_inc_dec_in_same_scc,
         ) = term_incremented_or_decremented(self.program, self.term)
 
-        if not only_updated_by_constants:
+        if not only_updated_by_constants and not only_updated_by_other_vars:
             if there_is_dec:
                 dec = BiOp(self.term, MathRels.LT, add_prev_suffix(self.term))
                 self.tran_preds.append(dec)
-                if there_is_inc:
+                if there_is_inc_dec_in_same_scc:
                     inc = BiOp(add_prev_suffix(self.term), MathRels.LT, self.term)
                     self.tran_preds.append(inc)
                     self.bottom_ranking = implies(
@@ -423,7 +425,7 @@ class ChainPredicate(Predicate):
                     )
                 else:
                     self.bottom_ranking = implies(G(F(dec)), G(F(self.chain[0])))
-            elif there_is_inc:
+            if there_is_inc and not there_is_inc_dec_in_same_scc:
                 inc = BiOp(add_prev_suffix(self.term), MathRels.LT, self.term)
                 self.tran_preds.append(inc)
                 self.top_ranking = implies(G(F(inc)), G(F(self.chain[-1])))

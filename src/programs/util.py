@@ -12,6 +12,7 @@ from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
 
 from analysis.smt_checker import check, bdd_simplify
+from programs.dfa import classify_initial_values
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -930,34 +931,58 @@ def binary_rep(vars, label, printing=True):
 
 
 def term_incremented_or_decremented(program, f):
-    updates = [u for trans in program.transitions for u in trans.action]
     vars_in_f = f.variablesin()
 
     only_updated_by_constants = True
+    only_updated_by_other_program_vars = True
 
     there_is_inc = False
     there_is_dec = False
-    for u in set(updates):
-        if u.left in vars_in_f:
-            if u.left == u.right:
-                continue
-            else:
-                dec = BiOp(add_prev_suffix(f), ">", f)
-                inc = BiOp(add_prev_suffix(f), "<", f)
-                act = BiOp(u.left, "==", add_prev_suffix(u.right))
-                if sat(conjunct(dec, act), program.symbol_table):
-                    there_is_dec = True
-                    if len(u.right.variablesin()) > 0:
-                        only_updated_by_constants = False
-                if sat(conjunct(inc, act), program.symbol_table):
-                    there_is_inc = True
-                    if len(u.right.variablesin()) > 0:
-                        only_updated_by_constants = False
+    there_is_inc_dec_in_same_scc = False
+    for scc in program.sccs:
+        scc_inc = False
+        scc_dec = False
+        updates = {u for t in scc for u in t.action}
+        for u in updates:
+            if u.left in vars_in_f:
+                if u.left == u.right:
+                    continue
+                else:
+                    dec = BiOp(add_prev_suffix(f), ">", f)
+                    inc = BiOp(add_prev_suffix(f), "<", f)
+                    act = BiOp(u.left, "==", add_prev_suffix(u.right))
+                    dec_here = sat(conjunct(dec, act), program.symbol_table)
+                    inc_here = sat(conjunct(inc, act), program.symbol_table)
 
-                if there_is_dec and there_is_inc and not only_updated_by_constants:
-                    break
+                    scc_inc = True if inc_here else scc_inc
+                    scc_dec = True if dec_here else scc_dec
 
-    return only_updated_by_constants, there_is_dec, there_is_inc
+                    vars_in_u = u.right.variablesin()
+                    if len(vars_in_u) > 0:
+                        only_updated_by_constants = False
+                    # if a variable v only depends on other program variables
+                    # then the predicate abstraction will implicitly force v to progress towards
+                    # the ends of the partition (if the other variables are forced to do so)
+                    # so only need a ranking refinement for v if it depends on itself, or on inputs
+                    if u.left in vars_in_u or any(
+                        v for v in vars_in_u if v in program.num_in_out
+                    ):
+                        only_updated_by_other_program_vars = False
+        if scc_inc:
+            there_is_inc = True
+            if scc_dec:
+                there_is_dec = True
+                there_is_inc_dec_in_same_scc = True
+        elif scc_dec:
+            there_is_dec = True
+
+    return (
+        only_updated_by_constants,
+        only_updated_by_other_program_vars,
+        there_is_dec,
+        there_is_inc,
+        there_is_inc_dec_in_same_scc,
+    )
 
 
 def reset_caches():
