@@ -707,9 +707,9 @@ def guarded_action_transitions_to_normal_transitions(arg):
     transitions = []
 
     symbol_table = {}
-    for name, type, _ in valuation:
-        symbol_table[name] = type
-        symbol_table[name + "_next"] = type
+    for v in valuation:
+        symbol_table[v[0]] = v[1]
+        symbol_table[v[0] + "_next"] = v[1]
 
     for ev, t in env_events + con_events:
         symbol_table[ev.name] = t
