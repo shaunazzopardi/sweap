@@ -76,6 +76,10 @@ def compatibility_checking_con(
         logging.info(out)
         logging.info(str(mealy_machine))
         print(str(mealy_machine))
+        logging.info(
+            "Controller does not enforce the required LTL property on the program:\n"
+            + str(out)
+        )
         raise Exception(
             "Controller does not enforce the required LTL property on the program:\n"
             + str(out)
@@ -83,6 +87,10 @@ def compatibility_checking_con(
     else:
         print(out)
         print("Controller enforces the required LTL property!")
+        logging.info(
+            "Controller does not enforce the required LTL property on the program:\n"
+            + str(out)
+        )
         return True
 
 
