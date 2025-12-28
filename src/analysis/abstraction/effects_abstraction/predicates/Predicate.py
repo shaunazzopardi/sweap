@@ -60,3 +60,8 @@ def refine_nexts(now, nexts, symbol_table):
         if sat(conjunct(now, v_next), symbol_table):
             new_nexts.append(v_next)
     return new_nexts
+
+
+@abstractmethod
+def choices(self) -> list[Formula]:
+    pass

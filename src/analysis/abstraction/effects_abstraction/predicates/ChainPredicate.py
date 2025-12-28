@@ -429,3 +429,6 @@ class ChainPredicate(Predicate):
                 inc = BiOp(add_prev_suffix(self.term), MathRels.LT, self.term)
                 self.tran_preds.append(inc)
                 self.top_ranking = implies(G(F(inc)), G(F(self.chain[-1])))
+
+    def choices(self):
+        return self.chain

@@ -185,3 +185,6 @@ class StatePredicate(Predicate):
 
     def boolean_rep(self):
         return self.bool_rep
+
+    def choices(self):
+        return self.options

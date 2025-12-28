@@ -140,3 +140,6 @@ class TransitionPredicate(Predicate, ABC):
         for option in self.options:
             if is_tautology(implies(gu, iff(option.prev_rep(), option)), symbol_table):
                 return option.replace_formulas(self.bool_rep)
+
+    def choices(self):
+        return self.options
