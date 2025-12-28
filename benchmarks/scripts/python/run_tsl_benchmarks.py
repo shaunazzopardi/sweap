@@ -1,3 +1,4 @@
+import logging
 import os
 
 from pysmt.environment import Environment
@@ -9,6 +10,11 @@ from programs.util import reset_caches as program_util_reset_caches
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from prop_lang.util import run_with_timeout_and_memory_limit
 from synthesis.synthesis import synthesize
+
+dirname = os.path.dirname(__file__)
+strix_path = str(os.path.join(dirname, "../../../binaries"))
+
+os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
 
 def test_synthesis():
@@ -54,6 +60,22 @@ def test_synthesis():
     for root, dirs, files in os.walk(benchmarks_dir):
         for file in files:
             if file.endswith(".tslmt") and file not in ignore:
+                logdir = benchmarks_dir + "/logs/" + file + "/" + (str(time.time()))
+
+                if not os.path.exists(logdir):
+                    os.makedirs(logdir)
+
+                config.Config.getConfig().name = file.split(".")[0]
+                config.Config.getConfig()._log = logdir
+                logging.basicConfig(
+                    filename=(logdir + "/.log"),
+                    encoding="utf-8",
+                    level=logging.INFO,
+                    format="%(asctime)s %(levelname)-8s %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    force=True,
+                )
+
                 import gc
 
                 gc.collect()
@@ -88,6 +110,10 @@ def test_synthesis():
 
                         f = string_to_ltlmt(content)
                         prog, ltl = ToProgram().ltlmt2prog(f, file)
+
+                        gc.collect()
+                        program_util_reset_caches()
+                        prop_lang_util_reset_caches()
                         parse_end_time = time.time()
                         result["parse_time_seconds"] = round(
                             parse_end_time - parse_start_time, 3
@@ -100,7 +126,7 @@ def test_synthesis():
                             success, hoa = run_with_timeout_and_memory_limit(
                                 synthesize,
                                 [prog, ltl, None, -1],
-                                timeout=30,
+                                timeout=60,
                                 max_memory_gb=50,
                             )
                             if success:
@@ -170,7 +196,7 @@ def test_parsing():
                 content = f.read()
                 with Environment() as env:
                     f = string_to_ltlmt(content)
-                    ToProgram().ltlmt2prog(f, "")
+                    ToProgram().ltlmt2prog(f, file)
     print(f"Finished parsing with {cnt} errors.")
 
 

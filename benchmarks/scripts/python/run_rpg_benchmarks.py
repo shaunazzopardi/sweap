@@ -3,12 +3,16 @@ import os
 from pysmt.environment import Environment
 
 import config
-from parsing.string_to_ltlmt import string_to_ltlmt, ToProgram
 from parsing.string_to_rpg import rpg_parsec
 from programs.util import reset_caches as program_util_reset_caches
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from prop_lang.util import run_with_timeout_and_memory_limit
 from synthesis.synthesis import synthesize
+
+dirname = os.path.dirname(__file__)
+strix_path = str(os.path.join(dirname, "../../../binaries"))
+
+os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
 
 def test_synthesis():
@@ -26,7 +30,8 @@ def test_synthesis():
     ignore = """"""
 
     # verifies controller
-    config.Config.getConfig()._set_v_c(True)
+    config.Config.getConfig()._set_v_c(False)
+    config.Config.getConfig().backend = "strix"
 
     # Read existing results to avoid reprocessing
     processed_files = set()
@@ -86,7 +91,7 @@ def test_synthesis():
                     with Environment() as env:
                         parse_start_time = time.time()
 
-                        prog, ltl = rpg_parsec(content)
+                        prog, ltl = rpg_parsec(content, file)
                         parse_end_time = time.time()
                         result["parse_time_seconds"] = round(
                             parse_end_time - parse_start_time, 3
@@ -99,7 +104,7 @@ def test_synthesis():
                             success, hoa = run_with_timeout_and_memory_limit(
                                 synthesize,
                                 [prog, ltl, None, -1],
-                                timeout=30,
+                                timeout=100,
                                 max_memory_gb=50,
                             )
                             if success:
@@ -159,17 +164,18 @@ def test_synthesis():
 
 def test_parsing():
     dirname = os.path.dirname(__file__)
-    benchmarks_dir = str(os.path.join(dirname, "../../raboniel/"))
+    benchmarks_dir = str(os.path.join(dirname, "../../rpgsolve/"))
 
     cnt = 0
     # iterate over all files in the directory
     for file in os.listdir(benchmarks_dir):
-        if file.endswith(".tslmt"):
+        if file.endswith(".rpg"):
             with open(os.path.join(benchmarks_dir, file), "r") as f:
                 content = f.read()
                 with Environment() as env:
-                    f = string_to_ltlmt(content)
-                    ToProgram().ltlmt2prog(f, "")
+                    print("Parsing " + file)
+                    f = rpg_parsec(content, "name")
+                    print("Parsed " + file)
     print(f"Finished parsing with {cnt} errors.")
 
 

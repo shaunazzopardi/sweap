@@ -9,6 +9,11 @@ from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from prop_lang.util import run_with_timeout_and_memory_limit
 from synthesis.synthesis import synthesize
 
+dirname = os.path.dirname(__file__)
+strix_path = str(os.path.join(dirname, "../../../binaries"))
+
+os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
+
 
 def test_synthesis():
     import csv
@@ -90,6 +95,7 @@ def test_synthesis():
                         result["parse_time_seconds"] = round(
                             parse_end_time - parse_start_time, 3
                         )
+
                         try:
                             # Time the synthesis step
                             # Time the synthesis step
