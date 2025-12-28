@@ -38,6 +38,9 @@ from prop_lang.util import (
     implies,
     massage_ltl_for_dual,
     neg,
+    is_tautology,
+    is_contradictory,
+    false,
 )
 from prop_lang.variable import Variable
 from synthesis.ltl import ltl_synthesis
@@ -46,9 +49,6 @@ from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 from pathlib import Path
 
 from synthesis.machines.wrapped_hoa import WrappedHOA
-import prop_lang.variable
-from prop_lang.mathexpr import MathExpr
-from prop_lang.uniop import UniOp
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from typing import Any, Dict, List, Set, Tuple, Union
 
