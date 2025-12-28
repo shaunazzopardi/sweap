@@ -103,7 +103,9 @@ def compatibility_checking(
         incompatible_state,
     ) = parse_nuxmv_ce_output_finite(program, out, cs_alphabet)
     agreed_on_execution, disagreed_on_state = concretize_transitions(
-        program, agreed_on_transitions_indexed, incompatible_state
+        program,
+        agreed_on_transitions_indexed,
+        incompatible_state,
     )
 
     return None, (agreed_on_execution, disagreed_on_state)

@@ -67,6 +67,8 @@ class Program:
         config.Config.getConfig().cache_smt = False
         reset_caches()
 
+        if not name:
+            raise Exception("Program must have a name.")
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
