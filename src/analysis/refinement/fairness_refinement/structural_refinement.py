@@ -58,7 +58,7 @@ def structural_refinement(
     not_in_loop = Variable("not_in_loop")
 
     bin_vars, bin_rep = binary_rep(
-        in_loop_vars_raw + [not_in_loop], "in_loop_" + str(counter) + "_"
+        in_loop_vars_raw + [not_in_loop], "bin_loop_" + str(counter) + "_"
     )
 
     in_loop_vars = [bin_rep[b] for b in in_loop_vars_raw]
