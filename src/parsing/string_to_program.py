@@ -74,6 +74,9 @@ def program_parser():
         env,
         con,
     )
+    ltl_spec = ltl_spec.replace_formulas(
+        {Variable(s): False for s in states if s not in program.states}
+    )
     return program, ltl_spec
 
 
