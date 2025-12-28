@@ -2113,96 +2113,121 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
     left = pred_with_var_on_one_side.left
     right = pred_with_var_on_one_side.right
 
+    is_integer = not any(
+        v for v in left.variablesin() if symbol_table[str(v)] == BOOLEAN
+    )
+
     if isinstance(pred_with_var_on_one_side, BiOp):
         if op == "<":
-            # turn x < c is good already
+            # turn x < c is good already, turn to x <= c - 1 if integer
             if vars_on_left:
-                return (
-                    signature,
-                    pred_with_var_on_one_side,
-                    [pred_with_var_on_one_side],
-                )
+                if is_integer:
+                    new_pred = lt_to_le(pred_with_var_on_one_side)
+                else:
+                    new_pred = pred_with_var_on_one_side
+                new_atomic_preds = [new_pred]
             else:
                 # of form c < x -> x > c -> ! x <= c
-                new_pred = BiOp(right, "<=", left)
-                return signature, neg(new_pred), [new_pred]
+                new_pred_f = BiOp(right, "<=", left)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred]
         elif op == "<=":
             # x <= c is good already
             if vars_on_left:
-                return (
-                    signature,
-                    pred_with_var_on_one_side,
-                    [pred_with_var_on_one_side],
-                )
+                new_pred = pred_with_var_on_one_side
+                new_atomic_preds = [new_pred]
             else:
-                # c <= x -> x >= c -> ! x < c
-                new_pred = BiOp(right, "<", left)
-                return signature, neg(new_pred), [new_pred]
+                # c <= x -> x >= c -> ! x < c or ! x <= c - 1 if integer
+                new_pred_f = BiOp(right, "<", left)
+                if is_integer:
+                    new_pred_f = lt_to_le(new_pred_f)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
         elif op == ">":
             # x > c -> !(x <= c)
             if vars_on_left:
-                new_pred = BiOp(left, "<=", right)
-                return signature, neg(new_pred), [new_pred]
+                new_pred_f = BiOp(left, "<=", right)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
             else:
-                # of form c > x, then can represent as x < c
+                # of form c > x, then can represent as x < c or x <= c - 1 if integer
                 new_pred = BiOp(right, "<", left)
-                return signature, new_pred, [new_pred]
+                if is_integer:
+                    new_pred = lt_to_le(new_pred)
+                new_atomic_preds = [new_pred]
         elif op == ">=":
             if vars_on_left:
-                # x >= c -> ! x < c
-                new_pred = BiOp(left, "<", right)
-                return signature, neg(new_pred), [new_pred]
+                # x >= c -> ! x < c or x <= c - 1 if integer
+                new_pred_f = BiOp(left, "<", right)
+                if is_integer:
+                    new_pred_f = lt_to_le(new_pred_f)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
             else:
                 # c >= x -> x <= c
                 new_pred = BiOp(right, "<=", left)
-                return signature, new_pred, [new_pred]
+                new_atomic_preds = [new_pred]
         elif op == "=":
             if vars_on_left:
-                # x == c -> x <= c and ! x < c
+                # x == c -> x <= c and ! x < c or x <= c - 1 if integer
                 new_pred1 = BiOp(left, "<=", right)
-                new_pred2 = BiOp(left, "<", right)
-                return (
-                    signature,
-                    conjunct(neg(new_pred2), new_pred1),
-                    [new_pred1, new_pred2],
-                )
+                new_pred2_f = BiOp(left, "<", right)
+                if is_integer:
+                    new_pred2_f = lt_to_le(new_pred2_f)
+                new_pred = conjunct(neg(new_pred2_f), new_pred1)
+                new_atomic_preds = [new_pred1, new_pred2_f]
             else:
-                # c == x -> x <= c and ! x < c
+                # c == x -> x <= c and ! x < c or x <= c - 1 if integer
                 new_pred1 = BiOp(right, "<=", left)
-                new_pred2 = BiOp(right, "<", left)
-                return (
-                    signature,
-                    conjunct(neg(new_pred2), new_pred1),
-                    [new_pred1, new_pred2],
-                )
+                new_pred2_f = BiOp(right, "<", left)
+                if is_integer:
+                    new_pred2_f = lt_to_le(new_pred2_f)
+                new_pred = conjunct(neg(new_pred2_f), new_pred1)
+                new_atomic_preds = [new_pred1, new_pred2_f]
         elif op == "!=":
             if vars_on_left:
-                # x != c -> !(x <= c) or x < c
+                # x != c -> !(x <= c) or x < c or x <= c - 1 if integer
                 new_pred1 = BiOp(left, "<=", right)
                 new_pred2 = BiOp(left, "<", right)
-                return (
-                    signature,
-                    disjunct(neg(new_pred1), new_pred2),
-                    [new_pred1, new_pred2],
-                )
+                if is_integer:
+                    new_pred2 = lt_to_le(new_pred2)
+                new_pred = disjunct(neg(new_pred1), new_pred2)
+                new_atomic_preds = [new_pred1, new_pred2]
             else:
                 new_pred1 = BiOp(right, "<=", left)
                 new_pred2 = BiOp(right, "<", left)
-                return (
-                    signature,
-                    disjunct(neg(new_pred1), new_pred2),
-                    [new_pred1, new_pred2],
-                )
+                if is_integer:
+                    new_pred2 = lt_to_le(new_pred2)
+                new_pred = disjunct(neg(new_pred1), new_pred2)
+                new_atomic_preds = [new_pred1, new_pred2]
         else:
             raise Exception(
                 "Predicate "
                 + str(pred_with_var_on_one_side)
                 + " has an unexpected relational operator"
             )
+
+        return signature, new_pred, new_atomic_preds
+
     else:
         raise Exception(
             "Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp"
         )
+
+
+def lt_to_le(pred):
+    # convert all < to <= in a Linear Integer Arithmetic inequality
+
+    if isinstance(pred, BiOp):
+        if pred.op == "<":
+            new_right = simplify_sum(BiOp(pred.right, "-", Value("1")), {})
+            return BiOp(pred.left, "<=", new_right)
+        else:
+            raise Exception(
+                "Predicate " + str(pred) + " is not of form: f(vars) < constants"
+            )
+    else:
+        raise Exception("Predicate " + str(pred) + " is not a BiOp")
 
 
 def put_vars_on_left_side(pred):
