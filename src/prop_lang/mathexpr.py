@@ -23,12 +23,13 @@ class MathExpr(Formula):
             raise Exception("Unsupported math operator: " + str(f.op))
         self.formula = f
         self.prev_representation = None
+        self.hsh = self.formula.__hash__()
 
     def __str__(self):
         return str(self.formula)
 
     def __hash__(self):
-        return self.formula.__hash__()
+        return self.hsh
 
     def __eq__(self, other):
         if isinstance(other, MathExpr):

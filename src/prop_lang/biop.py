@@ -51,6 +51,7 @@ class BiOp(Formula):
 
         self.prev_representation = None
         self.smt_representation = None
+        self.hsh = hash(f"{self.left.__hash__()} {self.op} {self.right.__hash__()}")
 
     @functools.lru_cache()
     def __str__(self):
@@ -95,7 +96,7 @@ class BiOp(Formula):
         return False
 
     def __hash__(self):
-        return hash((self.left, self.op, self.right))
+        return self.hsh
 
     # returns list of variables that appear in formula
     # ordered as they appear in the formula

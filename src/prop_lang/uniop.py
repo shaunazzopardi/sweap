@@ -19,6 +19,7 @@ class UniOp(Formula):
         self.right = right
         self.prev_representation = None
         self.smt_representation = None
+        self.hsh = hash(f"{self.op} {self.right.__hash__()}")
 
     @functools.lru_cache()
     def __str__(self):
@@ -44,7 +45,7 @@ class UniOp(Formula):
             return NotImplemented
 
     def __hash__(self):
-        return hash((self.op, self.right))
+        return self.hsh
 
     @functools.lru_cache()
     def variablesin(self) -> [Variable]:
