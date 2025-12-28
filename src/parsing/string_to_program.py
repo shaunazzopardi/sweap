@@ -1,11 +1,10 @@
-import re
 from multiprocessing import Pool
 
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
 
 import config
-from parsing.keywords import regex_keywords
+from parsing.keywords import is_keyword
 from parsing.string_to_ltl import string_to_ltl_with_predicates
 from parsing.string_to_prop_logic import (
     string_to_math_expression,
@@ -125,7 +124,7 @@ def state_parser():
     yield spaces()
     initial_states = []
     for s, tag in tagged_states:
-        not_a_keyword(s)
+        is_keyword(s)
         if tag == "init":
             initial_states.append(s)
         elif tag != "":
@@ -267,8 +266,9 @@ def initial_val_parser():
     yield spaces()
     yield parsec.optional(regex("(,|;)"))
     yield spaces() >> string("}")
-    list(map(not_a_keyword, [v for v, _, _ in vals]))
-    if len({v for v, _, _ in vals}) < len(vals):
+    names = {v[0] for v in vals}
+    list(map(is_keyword, names))
+    if len(names) < len(vals):
         raise Exception("Variables with same name in VALUATION.")
     return vals
 
