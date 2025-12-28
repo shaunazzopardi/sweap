@@ -221,9 +221,9 @@ class EffectsAbstraction(PredicateAbstraction):
         use_chain_preds = not config.Config.getConfig().no_binary_enc
         remaining_st_preds = list(new_state_predicates)
 
-        pred_contains_input_vars = lambda x: (
+        pred_only_contains_input_vars = lambda x: (
             True
-            if any(v for v in x.variablesin() if v in self.program.inp_out_puts)
+            if not any(v for v in x.variablesin() if v in self.program.local_vars)
             else False
         )
 
@@ -241,7 +241,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     else:
                         term_to_p_for_chain[p.left].append(p)
                 else:
-                    f_p = StatePredicate(p, pred_contains_input_vars(p))
+                    f_p = StatePredicate(p, pred_only_contains_input_vars(p))
                     self.raw_state_predicates.add(p)
                     remaining_st_preds.append(f_p)
                     new_preds.add(f_p)
@@ -253,7 +253,10 @@ class EffectsAbstraction(PredicateAbstraction):
                 new_chain_pred = False
                 if term not in self.v_to_chain_pred.keys():
                     v_chain_pred = ChainPredicate(
-                        term, self.program, pred_contains_input_vars(term), accelerate
+                        term,
+                        self.program,
+                        pred_only_contains_input_vars(term),
+                        accelerate,
                     )
                     self.v_to_chain_pred[term] = v_chain_pred
                     new_chain_pred = True
@@ -329,7 +332,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                         break
         else:
             for p in remaining_st_preds:
-                f_p = StatePredicate(p, pred_contains_input_vars(p))
+                f_p = StatePredicate(p, pred_only_contains_input_vars(p))
                 new_preds.add(f_p)
                 self.state_predicates.add(f_p)
                 self.var_relabellings.update(f_p.boolean_rep())

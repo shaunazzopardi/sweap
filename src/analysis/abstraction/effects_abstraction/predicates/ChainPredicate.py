@@ -232,8 +232,6 @@ class ChainPredicate(Predicate):
                         )
 
     def refine_and_rename_nexts(self, gu, prev_state, nexts, symbol_table) -> list:
-        if self.is_input:
-            return recheck_nexts(prev_state, nexts, symbol_table)
         new_nexts = []
         for old_next in nexts:
             for next in self.replace_formulas_multiple_but(
