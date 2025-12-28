@@ -183,6 +183,16 @@ class Program:
             else:
                 self.state_to_trans[t.src] = [t]
 
+        reachable_statess = reachable_states(self)
+        if len(reachable_statess) != len(self.states):
+            self.states = reachable_statess
+            self.transitions = [t for t in self.transitions if t.src in self.states]
+            self.orig_ts = [t for t in self.orig_ts if t.src in self.states]
+            self.stutter_ts = [t for t in self.stutter_ts if t.src in self.states]
+            self.state_to_trans = {
+                k: v for k, v in self.state_to_trans.items() if k in self.states
+            }
+
         self.deterministic = None
         if is_determ is None:
             self.deterministic = is_deterministic(self)
