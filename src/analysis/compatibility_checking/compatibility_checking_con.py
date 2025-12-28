@@ -89,7 +89,8 @@ def compatibility_checking_con(
 def create_nuxmv_model_for_compatibility_checking(
     program: Program,
     strategy_model: NuXmvModel,
-    pred_list,
+    state_predicates: set[StatePredicate],
+    transition_predicates: set[TransitionPredicate],
     chain_preds,
     include_mismatches_due_to_nondeterminism=False,
     colloborate=False,
@@ -224,6 +225,7 @@ def create_nuxmv_model_for_compatibility_checking(
         + compatible
         + compatible_state_predicates
         + compatible_tran_predicates
+        + compatible_input_predicates
     )
 
     text += (
