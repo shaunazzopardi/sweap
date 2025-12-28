@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import resource
@@ -188,7 +189,7 @@ def abstract_synthesis_loop(
         ltl_guarantees,
         signatures,
         old_to_new_st_preds,
-    ) = extract_init_preds(program, ltl_assumptions, ltl_guarantees, in_acts, out_acts)
+    ) = extract_init_preds(program, ltl_assumptions, ltl_guarantees)
 
     ltl_abstraction_type: LTLAbstractionType = LTLAbstractionType(
         LTLAbstractionBaseType.effects_representation,
@@ -399,8 +400,6 @@ def extract_init_preds(
     program: Program,
     ltl_assumptions: list[Formula],
     ltl_guarantees: list[Formula],
-    in_acts: list[Variable],
-    out_acts: list[Variable],
 ) -> Tuple[
     set[Formula],
     list[Formula],
@@ -430,7 +429,9 @@ def extract_init_preds(
     for t in program.transitions:
         preds_in_cond = atomic_predicates(t.condition)
         new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
-        in_outs_in_act = {v for v in program.bool_in_out for act in t.action if v in act.variablesin()}
+        in_outs_in_act = {
+            v for v in program.bool_in_out for act in t.action if v in act.variablesin()
+        }
         new_state_preds.update(in_outs_in_act)
 
         for act in t.action:
@@ -440,6 +441,25 @@ def extract_init_preds(
                 else:
                     new_state_preds.add(BiOp(act.left, "=", act.right))
 
+    ltl_assumptions = [
+        strip_mathexpr(ltl).replace_vars(
+            lambda x: program.constants[x] if x in program.constants.keys() else x
+        )
+        for ltl in ltl_assumptions
+    ]
+    ltl_guarantees = [
+        strip_mathexpr(ltl).replace_vars(
+            lambda x: program.constants[x] if x in program.constants.keys() else x
+        )
+        for ltl in ltl_guarantees
+    ]
+
+    new_state_preds.update(
+        itertools.chain.from_iterable([atomic_predicates(f) for f in ltl_assumptions])
+    )
+    new_state_preds.update(
+        itertools.chain.from_iterable([atomic_predicates(f) for f in ltl_guarantees])
+    )
     # TODO don't normalise here; normalise inside of effectsabstraction
     # rankings should also be added inside of abstraction, based on normalised preds?
     old_to_new_st_preds = {}
@@ -447,44 +467,43 @@ def extract_init_preds(
     signatures = set()
     normalised_state_preds = set()
     for p in new_state_preds:
+        if p in program.bool_in_out:
+            continue
         if isinstance(p, Variable):
+            if p.name in program.states:
+                continue
             normalised_state_preds.add(p)
             continue
         result = normalise_pred_multiple_vars(p, signatures, symbol_table)
-        if len(result) == 1:
+        if isinstance(result, Variable):
             normalised_state_preds.add(result)
         else:
             sig, new_p, preds = result
             old_to_new_st_preds[p] = new_p
             signatures.add(sig)
             normalised_state_preds.update(preds)
-    new_state_preds = normalised_state_preds
 
-    prog_state_vars = [Variable(s) for s in program.states]
-    new_ltl_assumptions = []
-    ignore_these = set(program.bool_in_out + prog_state_vars)
-    for ltl in ltl_assumptions:
-        ltl = strip_mathexpr(ltl)
-        ltl = ltl.replace_vars(
-            lambda x: program.constants[x] if x in program.constants.keys() else x
-        )
-        new_ltl, new_preds = normalise_formula(
-            ltl, signatures, symbol_table, ignore_these
-        )
-        new_state_preds.update(new_preds)
-        new_ltl_assumptions.append(new_ltl)
+    new_state_preds = set()
+    filtered = {}
+    for x in normalised_state_preds:
+        if is_tautology(x, symbol_table):
+            filtered[x] = true()
+        elif is_contradictory(x, symbol_table):
+            filtered[x] = false()
+        else:
+            new_state_preds.add(x)
 
-    new_ltl_guarantees = []
-    for ltl in ltl_guarantees:
-        ltl = strip_mathexpr(ltl)
-        ltl = ltl.replace_vars(
-            lambda x: program.constants[x] if x in program.constants.keys() else x
-        )
-        new_ltl, new_preds = normalise_formula(
-            ltl, signatures, symbol_table, ignore_these
-        )
-        new_state_preds.update(new_preds)
-        new_ltl_guarantees.append(new_ltl)
+    new_old_to_new_st_preds = {}
+    for k, v in old_to_new_st_preds.items():
+        new_old_to_new_st_preds[k] = v.replace_formulas(filtered)
+
+    old_to_new_st_preds = new_old_to_new_st_preds
+    new_ltl_assumptions = [
+        l.replace_formulas(old_to_new_st_preds) for l in ltl_assumptions
+    ]
+    new_ltl_guarantees = [
+        l.replace_formulas(old_to_new_st_preds) for l in ltl_guarantees
+    ]
 
     return (
         new_state_preds,
