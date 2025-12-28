@@ -235,6 +235,7 @@ def abstract_synthesis_loop(
             new_state_preds,
             new_tran_preds,
             new_ranking_constraints,
+            new_structural_loop_constraints,
             in_loop_vars,
             signatures,
             original_LTL_problem,
@@ -310,8 +311,8 @@ def abstract_synthesis_loop(
             (
                 (new_state_preds, new_tran_preds),
                 new_ranking_constraints,
-                in_loop_vars,
                 new_structural_loop_constraints,
+                in_loop_vars,
                 loop_counter,
             ) = result
             if not (
@@ -367,6 +368,7 @@ def refining_abs_and_log(
     new_ranking_constraints: list[Formula],
     new_structural_loop_constraints: list[Formula],
     in_loop_vars: list[Variable],
+    signatures,
     original_LTL_problem: LTLSynthesisProblem,
     ltl_abstraction_type: LTLAbstractionType,
 ) -> Tuple[EffectsAbstraction, AbstractLTLSynthesisProblem]:
