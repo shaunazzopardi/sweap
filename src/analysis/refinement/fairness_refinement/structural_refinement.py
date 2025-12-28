@@ -1,3 +1,6 @@
+from pysmt.shortcuts import And
+
+from analysis.smt_checker import bdd_simplify
 from programs.util import add_prev_suffix, binary_rep
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -7,6 +10,7 @@ from prop_lang.util import (
     disjunct_formula_set,
     G,
     conjunct_formula_set,
+    fnode_to_formula,
     implies,
     neg,
     conjunct,
@@ -63,6 +67,8 @@ def structural_refinement(
     entry_condition, entry_preds = normalise_formula(
         entry_condition, signatures, symbol_table
     )
+    exit_condition_fnode = bdd_simplify(And(*exit_condition.to_smt(symbol_table)))
+    exit_condition = fnode_to_formula(exit_condition_fnode)
     exit_condition, exit_preds = normalise_formula(
         exit_condition, signatures, symbol_table
     )
