@@ -563,7 +563,9 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
         simple_f = propagate_negations(simple_f)
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
         if simplify:
-            simple_f_without_math = simplify_formula_without_math(simple_f_without_math)
+            simple_f_without_math = simplify_formula_without_math(
+                simple_f_without_math, symbol_table
+            )
 
         if (
             isinstance(simple_f_without_math, BiOp)
@@ -656,7 +658,9 @@ def cnf(f: Formula, symbol_table: dict = None):
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f).simplify()
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
-        simple_f_without_math = simplify_formula_without_math(simple_f_without_math)
+        simple_f_without_math = simplify_formula_without_math(
+            simple_f_without_math, symbol_table
+        )
         for_sympi = simple_f_without_math.to_sympy()
         if isinstance(for_sympi, int):
             return f
