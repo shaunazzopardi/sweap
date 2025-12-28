@@ -50,7 +50,10 @@ class Variable(Atom):
             )
 
     def to_nuxmv(self):
-        return self.name
+        if self.is_next():
+            return "next(" + self.name[:-1] + ")"
+        else:
+            return self.name
 
     def to_strix(self):
         return self.name
@@ -103,5 +106,11 @@ class Variable(Atom):
 
     def prev_rep(self):
         if self.prev_representation is None:
-            self.prev_representation = Variable(self.name + "_prev")
+            if self.is_next():
+                self.prev_representation = Variable(self.name[:-1])
+            else:
+                self.prev_representation = Variable(self.name + "_prev")
         return self.prev_representation
+
+    def is_next(self):
+        return self.name.endswith("'")
