@@ -49,6 +49,7 @@ from prop_lang.util import (
     all_sat_models,
     fnode_to_formula,
     atomic_predicates,
+    normalise_pred_multiple_vars,
 )
 from prop_lang.variable import Variable
 
@@ -114,6 +115,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.program = program
         self.loop_vars = set()
         self.loop_counter = 0
+        self.sat_input_models = []
 
         logger.info("Initialising predicate abstraction.")
 
@@ -186,11 +188,12 @@ class EffectsAbstraction(PredicateAbstraction):
         self,
         new_state_predicates: [Formula],
         new_transition_predicates: [Formula],
+        signatures,
         parallelise=True,
     ):
 
         self.add_state_predicates(
-            new_state_predicates | new_transition_predicates, parallelise
+            new_state_predicates | new_transition_predicates, signatures, parallelise
         )
 
     def add_ranking_constraints(
@@ -397,7 +400,9 @@ class EffectsAbstraction(PredicateAbstraction):
                             self.second_state_abstraction[gu].append(neg(p.pred))
         return new_preds
 
-    def add_state_predicates(self, new_state_predicates: [Formula], parallelise=True):
+    def add_state_predicates(
+        self, new_state_predicates: list[Formula], signatures, parallelise=True
+    ):
         if len(new_state_predicates) == 0:
             return
         # assuming input state predicates have been normalised (all of type < or <=, and vars on LHS and constants on RHS)
@@ -425,8 +430,10 @@ class EffectsAbstraction(PredicateAbstraction):
             if c.is_input:
                 input_preds.append(c)
 
-        input_preds = []
-        for c in self.v_to_chain_pred.values():
+        for c in self.state_predicates:
+            if c.is_input:
+                input_preds.append(c)
+        for c in self.transition_predicates:
             if c.is_input:
                 input_preds.append(c)
 
@@ -437,15 +444,41 @@ class EffectsAbstraction(PredicateAbstraction):
             for m in models:
                 exist_vars = [Symbol(str(v), INT) for v in self.program.num_in_out]
                 quant_formula = Exists(
-                    exist_vars, And(*m.to_smt(self.program.symbol_table))
+                    exist_vars,
+                    And(*m.to_smt(self.program.symbol_table)),
                 )
 
                 ret = quantifier_elimination(quant_formula)
                 rett = fnode_to_formula(ret)
-                new_qe_preds.update(atomic_predicates(rett))
-                new_models.append(conjunct(rett, m))
+                normalised_state_preds = set()
+                if len(rett.variablesin()) > 0:
+                    old_to_new = {}
+                    for p in atomic_predicates(rett):
+                        if len(p.variablesin()) == 0:
+                            continue
+                        result = normalise_pred_multiple_vars(
+                            p, signatures, self.symbol_table
+                        )
+                        if isinstance(result, Variable):
+                            normalised_state_preds.add(result)
+                        else:
+                            sig, new_p, preds = result
+                            old_to_new[p] = new_p
+                            signatures.add(sig)
+                            normalised_state_preds.update(preds)
+                    new_qe_preds.update(
+                        {
+                            p
+                            for p in normalised_state_preds
+                            if p not in self.raw_state_predicates
+                        }
+                    )
+                    new_models.append(conjunct(rett.replace_formulas(old_to_new), m))
+                else:
+                    new_models.append(m)
 
             self.sat_input_models = new_models
+            print("Adding preds for input models: " + ", ".join(map(str, new_qe_preds)))
             new_new_preds = self.process_preds(new_qe_preds)
             new_preds.update(new_new_preds)
 

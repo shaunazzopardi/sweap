@@ -235,7 +235,7 @@ def abstract_synthesis_loop(
             new_tran_preds,
             new_ranking_constraints,
             in_loop_vars,
-            new_structural_loop_constraints,
+            signatures,
             original_LTL_problem,
             ltl_abstraction_type,
         )
@@ -375,7 +375,9 @@ def refining_abs_and_log(
         + " to predicate abstraction"
     )
 
-    predicate_abstraction.add_predicates(new_state_preds | new_tran_preds, set(), True)
+    predicate_abstraction.add_predicates(
+        new_state_preds | new_tran_preds, set(), signatures, True
+    )
     predicate_abstraction.add_ranking_constraints(new_ranking_constraints)
     predicate_abstraction.add_structural_loop_constraints(
         in_loop_vars, new_structural_loop_constraints
