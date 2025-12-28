@@ -75,7 +75,6 @@ def compatibility_checking(
     ) = there_is_mismatch_between_program_and_strategy(
         system,
         is_controller,
-        len(program.num_in_out) > 0,
         mismatch_condition=mismatch_condition,
     )
 
@@ -184,7 +183,9 @@ def create_nuxmv_model_for_compatibility_checking(
     ]
 
     safety_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var) for p in state_predicates
+        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
+        for p in state_predicates
+        if not p.is_input
     ]
 
     safety_predicate_truth += [
@@ -300,7 +301,9 @@ def create_nuxmv_model_for_compatibility_checking(
     text += (
         "INVAR\n"
         + "\t(("
-        + ")\n\t& (".join(program_model.invar + strategy_model.invar)
+        + ")\n\t& (".join(
+            program_model.invar + strategy_model.invar + ["compatible_inputs"]
+        )
         + "))\n"
     )
 
@@ -411,7 +414,7 @@ def create_nuxmv_model(nuxmvModel):
 
 
 def there_is_mismatch_between_program_and_strategy(
-    system, controller: bool, rich_in_out: bool, mismatch_condition=None
+    system, controller: bool, mismatch_condition=None
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
@@ -424,15 +427,11 @@ def there_is_mismatch_between_program_and_strategy(
             return True, None, out
 
     if not controller:
-        if not mismatch_condition and rich_in_out:
+        if not mismatch_condition:
             there_is_no_mismatch, out = model_checker.invar_check(
-                system, "G(compatible_inputs) -> G(compatible)", None, True
+                system, "compatible", None, config.mc
             )
-        elif not mismatch_condition and not rich_in_out:
-            there_is_no_mismatch, out = model_checker.invar_check(
-                system, "compatible", None, False
-            )
-        elif mismatch_condition and not rich_in_out:
+        else:
             there_is_no_mismatch, out = model_checker.invar_check(
                 system,
                 "!(!compatible" + " & " + mismatch_condition + ")",
@@ -443,8 +442,6 @@ def there_is_mismatch_between_program_and_strategy(
                 there_is_no_mismatch, out = model_checker.invar_check(
                     system, "compatible", None, config.mc
                 )
-        else:
-            raise NotImplementedError
         return False, not there_is_no_mismatch, out
 
     else:
