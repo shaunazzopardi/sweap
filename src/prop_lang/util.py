@@ -322,6 +322,12 @@ def only_dis_or_con_junctions(f: Formula):
                 "&",
                 only_dis_or_con_junctions(BiOp(f.right, "->", f.left)),
             )
+        elif f.op in LTLBiOps:
+            return BiOp(
+                only_dis_or_con_junctions(f.left),
+                f.op,
+                only_dis_or_con_junctions(f.right),
+            )
         else:
             # check if math expr? math expr should be abstracted out before manipulating formulas also for dnf
             # logging.info("only_dis_or_con_junctions: I do not know how to handle " + str(f) + ", treating it as math expression.")
@@ -787,7 +793,7 @@ def propagate_negations(formula: Formula):
         if formula.op == "!":
             return negate(propagate_negations(formula.right))
         else:
-            return UniOp(formula.op, propagate_negations(formula))
+            return UniOp(formula.op, propagate_negations(formula.right))
     elif isinstance(formula, BiOp):
         return BiOp(
             propagate_negations(formula.left),
