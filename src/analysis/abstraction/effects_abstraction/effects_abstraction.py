@@ -87,9 +87,9 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.v_to_chain_pred = {}
 
-        self.init_conf = None
-        self.init_state_abstraction = []
-        self.second_state_abstraction = {}
+        self.init_conf: Formula = true()
+        self.init_state_abstraction = [[true()]]
+        self.init_constants = []
 
         self.init_program_trans = None
         self.non_init_program_trans = None
@@ -164,9 +164,6 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.gu_to_trans[gu].append(t)
             else:
                 self.gu_to_trans[gu] = [t]
-
-        for gu in self.init_program_gus:
-            self.second_state_abstraction[gu] = []
 
         for gu in self.non_init_program_gus | self.init_program_gus:
             self.abstract_effect_ltl[gu] = true()
@@ -286,55 +283,39 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.var_relabellings.update(v_chain_pred.boolean_rep())
 
                 if new_chain_pred:
-                    if not v_chain_pred.is_input:
-                        for p in v_chain_pred.chain:
-                            if sat(conjunct(self.init_conf, p), self.symbol_table):
-                                self.init_state_abstraction.append(p)
-                                break
-
-                    for gu in self.init_program_gus:
-                        for p in v_chain_pred.chain:
-                            if not any(
-                                v
-                                for v in p.variablesin()
-                                if v in self.program.inp_out_puts
+                    new_init_abs = []
+                    for p in v_chain_pred.chain:
+                        for m in self.init_state_abstraction:
+                            m_with_p = m + [p]
+                            if sat(
+                                conjunct_formula_set(m_with_p + [self.init_conf]),
+                                self.symbol_table,
                             ):
-                                if sat(
-                                    conjunct(
-                                        conjunct(self.init_conf.prev_rep(), gu), p
-                                    ),
-                                    self.symbol_table,
-                                ):
-                                    self.second_state_abstraction[gu].append(p)
-                                    break
+                                new_init_abs.append(m_with_p)
+                    self.init_state_abstraction = new_init_abs
                 else:
                     old_to_new = v_chain_pred.old_to_new
-                    for old_p in old_to_new.keys():
-                        # TODO if transition pred do not update
-                        if old_p in self.init_state_abstraction:
-                            self.init_state_abstraction.remove(old_p)
-                            for p in old_to_new[old_p]:
-                                if sat(
-                                    conjunct(self.init_conf, p),
-                                    self.symbol_table,
-                                ):
-                                    self.init_state_abstraction.append(p)
-                                    break
-
-                    for gu in self.init_program_gus:
+                    # TODO if transition pred do not update
+                    new_init_abs = []
+                    for m in self.init_state_abstraction:
                         for old_p in old_to_new.keys():
-                            if old_p in self.second_state_abstraction[gu]:
-                                self.second_state_abstraction[gu].remove(old_p)
+                            if old_p in m:
+                                m.remove(old_p)
                                 for p in old_to_new[old_p]:
+                                    m_with_p = m + [p]
                                     if sat(
-                                        conjunct(
-                                            conjunct(self.init_conf.prev_rep(), gu),
-                                            p,
+                                        conjunct_formula_set(
+                                            m_with_p + [self.init_conf]
                                         ),
                                         self.symbol_table,
                                     ):
-                                        self.second_state_abstraction[gu].append(p)
-                                        break
+                                        new_init_abs.append(m_with_p)
+                            else:
+                                new_init_abs.append(m)
+                    self.init_state_abstraction = new_init_abs
+                    # TODO: to avoid having to learn init values, re-introduce second state abstraction
+                    #       do it for each model? second_state_abs: dom(init_state_abs) -> [[preds]]
+                    #       maybe this is a bit too much
         else:
             for p in remaining_st_preds:
                 f_p = StatePredicate(p, pred_only_contains_input_vars(p))
@@ -359,45 +340,43 @@ class EffectsAbstraction(PredicateAbstraction):
                     {str(bool_var): BOOLEAN for bool_var in p.bool_rep.values()}
                 )
 
-                self.init_state_abstraction.append(p.stutter)
-                for gu in self.init_program_gus:
-                    for option in p.options:
-                        if sat(
-                            conjunct(conjunct(self.init_conf.prev_rep(), gu), option),
-                            self.symbol_table,
-                        ):
-                            self.second_state_abstraction[gu].append(option)
-                            break
+                if not p.is_input:
+                    self.init_constants.append(p.stutter)
             else:
+                # For structural refinement we treat transition predicates as state predicates
                 self.symbol_table.update({str(p.bool_var): BOOLEAN})
+                if p.is_input:
+                    continue
                 if "_prev" in str(p):
-                    if sat(
+                    if is_tautology(
                         conjunct(
-                            conjunct(self.init_conf.prev_rep(), self.init_conf),
+                            conjunct_formula_set(
+                                [
+                                    BiOp(v, "=", v.prev_rep())
+                                    for v in self.program.local_vars
+                                ]
+                            ),
                             p.pred,
                         ),
                         self.symbol_table,
                     ):
-                        self.init_state_abstraction.append(p.pred)
+                        self.init_constants.append(p.pred)
                     else:
-                        self.init_state_abstraction.append(neg(p.pred))
-                elif not p.is_input:
-                    if sat(conjunct(self.init_conf, p.pred), self.symbol_table):
-                        self.init_state_abstraction.append(p.pred)
-                    else:
-                        self.init_state_abstraction.append(neg(p.pred))
+                        self.init_constants.append(neg(p.pred))
+                else:
+                    new_init_abs = []
+                    for m in self.init_state_abstraction:
+                        for choice in p.choices():
+                            m_with_p = m + [choice]
+                            if sat(
+                                conjunct_formula_set(m_with_p + [self.init_conf]),
+                                self.symbol_table,
+                            ):
+                                new_init_abs.append(m_with_p)
+                    if len(new_init_abs) == 0:
+                        print("")
+                    self.init_state_abstraction = new_init_abs
 
-                for gu in self.init_program_gus:
-                    if not any(
-                        v for v in p.variablesin() if v in self.program.inp_out_puts
-                    ):
-                        if sat(
-                            conjunct(conjunct(self.init_conf.prev_rep(), gu), p.pred),
-                            self.symbol_table,
-                        ):
-                            self.second_state_abstraction[gu].append(p.pred)
-                        else:
-                            self.second_state_abstraction[gu].append(neg(p.pred))
         return new_preds
 
     def add_state_predicates(

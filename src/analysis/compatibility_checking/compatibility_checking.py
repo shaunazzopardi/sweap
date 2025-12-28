@@ -274,7 +274,7 @@ def create_nuxmv_model_for_compatibility_checking(
             program_model.init
             + strategy_model.init
             + [
-                "compatible_inputs",
+                "compatible",
                 "turn = cs",
                 "mismatch = FALSE",
                 "init_state = TRUE",

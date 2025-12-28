@@ -35,29 +35,14 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         predicate_abstraction.program.initial_state
     ]
 
-    init_preds = [rename_pred(p) for p in predicate_abstraction.init_state_abstraction]
+    init_preds = [
+        rename_pred(conjunct_formula_set(f))
+        for f in predicate_abstraction.init_state_abstraction
+    ]
 
-    # init_state = conjunct(init_explicit_state, conjunct_formula_set(init_preds))
+    init_constants = [rename_pred(p) for p in predicate_abstraction.init_constants]
 
-    # pred_next = set()
     dualise = config.Config.getConfig().dual
-    # for gu, post in predicate_abstraction.second_state_abstraction.items():
-    #     for t in predicate_abstraction.gu_to_trans[gu]:
-    #         E_formula = t.condition.replace_formulas(predicate_abstraction.var_relabellings)
-    #         if dualise:
-    #             E_formula = massage_ltl_for_dual(E_formula, predicate_abstraction.program.inputs)
-    #         next_preds = [rename_pred(p) for p in post]
-    #
-    #         pred_next.add(conjunct((conjunct_formula_set([E_formula])),
-    #                                propagate_nexts(X(conjunct_formula_set(next_preds + [program.states_binary_map[t.tgt]])))))
-    #
-    # init_transition_ltl = disjunct_formula_set(pred_next)
-
-    next_bins = []
-    if dualise:
-        for ch_pred in predicate_abstraction.v_to_chain_pred.values():
-            if ch_pred.is_input:
-                next_bins.extend(ch_pred.bin_rep.values())
 
     init_transition_ltl = []
     transition_ltl = {}
@@ -107,18 +92,13 @@ def to_ltl_organised_by_pred_effects_guard_updates(
 
     init_transition_ltl = disjunct_formula_set(init_transition_ltl)
 
-    abs = [init_explicit_state] + init_preds + [init_transition_ltl] + _transition_ltl
-    bin_sanity_condition = []
-    # if dualise:
-    #     for ch_pred in predicate_abstraction.v_to_chain_pred.values():
-    #         if ch_pred.is_input:
-    #             cond = disjunct_formula_set(ch_pred.bin_rep.values())
-    #             bin_sanity_condition.append(G(cond))
-    #     if len(bin_sanity_condition) > 0:
-    #         return neg(conjunct_formula_set(bin_sanity_condition)), abs
-    #     else:
-    #         return None, abs
-    # else:
+    abs = (
+        [init_explicit_state, disjunct_formula_set(init_preds)]
+        + init_constants
+        + [init_transition_ltl]
+        + _transition_ltl
+    )
+
     return None, abs
 
 

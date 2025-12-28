@@ -1,3 +1,4 @@
+import itertools
 import logging
 import math
 import os
@@ -17,10 +18,13 @@ from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.types.types import BOOLEAN, Type
+from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
 from prop_lang.util import (
+    atomic_predicates,
     conjunct_formula_set,
     conjunct,
+    dnf_safe,
     neg,
     append_to_variable_name,
     dnf,
@@ -41,20 +45,26 @@ from prop_lang.variable import Variable
 
 def symbol_table_from_program(
     program, init_values
-) -> tuple[dict[str, Type], dict[str, Value]]:
+) -> tuple[dict[str, Type], dict[str, Value], list[Variable]]:
     symbol_table = dict()
     init_var_values = dict()
+    unset_init_vars = []
     for state in program.states:
         symbol_table[state] = BOOLEAN
     for ev, t in program.out_events + program.env_events + program.con_events:
         symbol_table[ev.name] = t
-    for var_name, var_type, var_init_value in init_values:
-        init_var_values[var_name] = var_init_value
+    for v in init_values:
+        var_name = v[0]
+        var_type = v[1]
+        if len(v) == 3:
+            init_var_values[var_name] = v[2]
+        else:
+            unset_init_vars.append(v[0])
         symbol_table[var_name] = var_type
         symbol_table[var_name + "_prev"] = var_type
         symbol_table[var_name + "_prev" + "_prev"] = var_type
 
-    return symbol_table, init_var_values
+    return symbol_table, init_var_values, unset_init_vars
 
 
 def ce_state_to_predicate_abstraction_trans(
@@ -197,9 +207,7 @@ def parse_nuxmv_ce_output_finite(program, out, cs_alphabet):
 
 def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     transition_no = len(program.transitions)
-    program_alphabet = [str(s) for s in program.states] + list(
-        program.init_var_values.keys()
-    )
+    program_alphabet = [str(s) for s in program.states] + program.local_vars_str
 
     program_states = []
     program_transitions = []
@@ -471,9 +479,7 @@ def stutter_transition(program, state, cnf=False):
         stutter_t = (
             Transition(state, condition, [], [], state)
             .complete_outputs(program.out_events)
-            .complete_action_set(
-                [Variable(v_name) for v_name in program.init_var_values.keys()]
-            )
+            .complete_action_set([v for v in program.local_vars])
         )
         stutter_transition_cache[program][condition] = stutter_t
         return stutter_t
@@ -994,3 +1000,20 @@ def reset_caches():
     guard_formulas_unpacked.clear()
 
     powersets.clear()
+
+
+def refine_init_values(program, initial_assumptions):
+    _, vars_init_val_no_matter = classify_initial_values(program)
+    preds = atomic_predicates(initial_assumptions)
+    vars_in_preds = set(itertools.chain.from_iterable([p.variablesin() for p in preds]))
+    for v in vars_init_val_no_matter:
+        if v in vars_in_preds:
+            continue
+        if program.symbol_table[str(v)] == BOOLEAN:
+            program.init_var_values[str(v)] = Value(BoolAtoms.FALSE)
+            program.unset_init_vars.remove(str(v))
+        else:
+            program.init_var_values[str(v)] = Value(0)
+            program.unset_init_vars.remove(str(v))
+
+    return program

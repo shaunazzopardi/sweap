@@ -232,7 +232,9 @@ def create_nuxmv_model_for_compatibility_checking(
         "INIT\n"
         + "\t("
         + ")\n\t& (".join(
-            program_model.init + strategy_model.init + ["init_state = TRUE"]
+            program_model.init
+            + strategy_model.init
+            + ["init_state = TRUE", "compatible"]
         )
         + ")\n"
     )

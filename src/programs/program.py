@@ -1,7 +1,7 @@
 import logging
 from multiprocessing import Pool
 from textwrap import dedent
-from typing import Set
+from typing import Set, Union
 
 from graphviz import Digraph
 
@@ -57,7 +57,7 @@ class Program:
         name,
         sts,
         init_st,
-        init_values: list[tuple[str, Type, Atom]],
+        init_values: list[Union[tuple[str, Type], tuple[str, Type, Atom]]],
         transitions: list[Transition],
         env_events: list[tuple[Variable, str]],
         con_events: list[tuple[Variable, str]],
@@ -103,10 +103,11 @@ class Program:
 
         self.out_events = []
 
-        self.symbol_table, self.init_var_values = symbol_table_from_program(
-            self, init_values
+        self.symbol_table, self.init_var_values, self.unset_init_vars = (
+            symbol_table_from_program(self, init_values)
         )
-        self.local_vars: list[Variable] = [Variable(n) for n, _, _ in init_values]
+        self.local_vars_str: list[str] = [v[0] for v in init_values]
+        self.local_vars: list[Variable] = [Variable(v) for v in self.local_vars_str]
 
         self.transitions = transitions
 
@@ -351,7 +352,9 @@ class Program:
             del self.symbol_table[var_name + "_prev_prev"]
 
         self.init_var_values = new_init_var_values
-        self.local_vars = [Variable(name) for name in new_init_var_values.keys()]
+        for v in vars_to_project_out.keys():
+            self.local_vars.remove(v)
+            self.local_vars_str.remove(str(v))
 
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table)
@@ -414,10 +417,10 @@ class Program:
                 {state_to_str(self.initial_state)}: init, {other_states}
             }}
             ENVIRONMENT EVENTS {{
-                {', '.join(str(e) for e in self.env_events)}
+                {', '.join(f"{e} : {t}" for e, t in self.env_events)}
             }}
             CONTROLLER EVENTS {{
-                {', '.join(str(e) for e in self.con_events)}
+                {', '.join(f"{e} : {t}" for e, t in self.con_events)}
             }}
             VALUATION {{
                 {SN.join(valuations)}{';' if valuations else ''}
@@ -531,7 +534,7 @@ class Program:
             i += 1
 
         identity = []
-        for var in self.init_var_values.keys():
+        for var in self.local_vars:
             identity.append("next(" + str(var) + ") = " + str(var))
         for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
@@ -560,7 +563,8 @@ class Program:
         vars = ["turn : {prog, cs}"]
         vars += sorted([s + " : boolean" for s in self.states])
 
-        for var, _ in self.init_var_values.items():
+        for v in self.local_vars + self.num_in_out:
+            var = v.name
             var_type = self.symbol_table[var]
             if var_type == BOOLEAN:
                 vars.append(var + " : " + "boolean")
@@ -574,8 +578,7 @@ class Program:
             else:
                 raise Exception("Unsupported type for variable: " + str(var_type))
 
-        vars += [str(v) + " : " + t for (v, t) in self.env_events + self.con_events]
-        vars += [str(var) + " : boolean" for var in self.out_events]
+        vars += [str(var) + " : boolean" for var in self.out_events + self.bool_in_out]
 
         init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
@@ -594,12 +597,9 @@ class Program:
         update_prevs = "(turn = cs)" + (
             " & "
             + " & ".join(
-                [
-                    "next(" + str(var) + "_prev) = " + str(var)
-                    for var in self.init_var_values.keys()
-                ]
+                ["next(" + str(var) + "_prev) = " + str(var) for var in self.local_vars]
             )
-            if len(self.init_var_values) > 0
+            if len(self.local_vars) > 0
             else ""
         )
         maintain_prevs = "!(turn = cs)" + (
@@ -607,10 +607,10 @@ class Program:
             + " & ".join(
                 [
                     "next(" + str(var) + "_prev) = " + str(var) + "_prev"
-                    for var in self.init_var_values.keys()
+                    for var in self.local_vars
                 ]
             )
-            if len(self.init_var_values) > 0
+            if len(self.local_vars) > 0
             else ""
         )
         prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
@@ -620,14 +620,29 @@ class Program:
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
         invar += [
             str(var) + " >= 0"
-            for var in self.init_var_values.keys()
-            if self.symbol_table[var] == NATURAL
+            for var in self.local_vars
+            if self.symbol_table[var.name] == NATURAL
         ]
         invar.extend(
             [
-                str(var) + "_prev" + " >= 0"
-                for var in self.init_var_values.keys()
+                var + "_prev" + " >= 0"
+                for var in self.local_vars_str
                 if self.symbol_table[var] == NATURAL
+            ]
+        )
+
+        invar.extend(
+            [
+                str(var) + " >= 0"
+                for var in self.num_in_out
+                if self.symbol_table[str(var)] == NATURAL
+            ]
+        )
+        invar.extend(
+            [
+                str(var) + "_prev" + " >= 0"
+                for var in self.num_in_out
+                if self.symbol_table[str(var)] == NATURAL
             ]
         )
 
@@ -696,8 +711,8 @@ class Program:
             i += 1
 
         identity = []
-        for var in self.init_var_values.keys():
-            identity.append("next(" + str(var) + ") = " + str(var))
+        for var in self.local_vars_str:
+            identity.append("next(" + var + ") = " + var)
         for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
 
@@ -728,7 +743,8 @@ class Program:
 
         prev_logic = []
 
-        for var, _ in self.init_var_values.items():
+        for v in self.local_vars + self.num_in_out:
+            var = v.name
             var_type = self.symbol_table[var]
             if var_type == BOOLEAN:
                 vars.append(var + " : " + "boolean")
@@ -744,8 +760,7 @@ class Program:
 
             prev_logic += ["next(" + str(var) + "_prev) = " + str(var)]
 
-        vars += [str(v) + " : " + t for v, t in self.env_events + self.con_events]
-        vars += [str(var) + " : boolean" for var in self.out_events]
+        vars += [str(var) + " : boolean" for var in self.out_events + self.bool_in_out]
 
         init = [self.initial_state]
         init += ["!" + st for st in self.states if st != self.initial_state]
@@ -766,15 +781,29 @@ class Program:
         invar = mutually_exclusive_rules(self.states)
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
         invar += [
-            str(var) + " >= 0"
-            for var in self.init_var_values.keys()
+            var + " >= 0"
+            for var in self.local_vars_str
             if self.symbol_table[var] == NATURAL
         ]
         invar.extend(
             [
-                str(var) + "_prev" + " >= 0"
-                for var in self.init_var_values.keys()
+                var + "_prev" + " >= 0"
+                for var in self.local_vars_str
                 if self.symbol_table[var] == NATURAL
+            ]
+        )
+        invar.extend(
+            [
+                str(var) + " >= 0"
+                for var in self.num_in_out
+                if self.symbol_table[str(var)] == NATURAL
+            ]
+        )
+        invar.extend(
+            [
+                str(var) + "_prev" + " >= 0"
+                for var in self.num_in_out
+                if self.symbol_table[str(var)] == NATURAL
             ]
         )
 
@@ -835,13 +864,11 @@ class Program:
 
     def complete_action_set(self, actions: list[BiOp]):
         non_updated_vars = [
-            var_name
-            for var_name in self.init_var_values.keys()
-            if var_name not in [str(act.left) for act in actions]
+            v
+            for v in self.local_vars_str
+            if v not in [str(act.left) for act in actions]
         ]
-        return actions + [
-            Update(Variable(var), Variable(var)) for var in non_updated_vars
-        ]
+        return actions + [Update(var, var) for var in non_updated_vars]
 
     def __str__(self):
         return str(self.to_dot())
