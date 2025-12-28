@@ -127,7 +127,8 @@ class ChainPredicate(Predicate):
         if len(preds) == 0:
             self.old_to_new_pos = None
             return
-        # TODO: if signature is natural, then preds of the form x < 0 will always be false, take this into account
+
+        preds = [p for p in preds if p not in self.raw_state_preds]
         old_to_new_pos = None
         for p in preds:
             i = bisect_left(
