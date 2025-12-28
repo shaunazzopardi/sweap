@@ -984,6 +984,7 @@ def compute_abstract_effect_for_guard_update(arg):
     new_new_part_to_curr_parts = {}
     while not no_changes:
         done_parts = set()
+        no_changes = False
         for us_part1, old_part1 in new_part_to_curr_parts.items():
             if us_part1 in done_parts:
                 continue
