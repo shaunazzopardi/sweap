@@ -39,15 +39,15 @@ def program_parser():
     con = yield string("CONTROLLER EVENTS") >> typed_event_parser
     yield spaces()
     initial_vals = yield initial_val_parser
-    initial_vs = [Variable(v) for v, _, _ in initial_vals]
-    if len(set(env + con + states + initial_vs)) < len(env + con + states + initial_vs):
+    state_vars = [Variable(v[0]) for v in initial_vals]
+    if len(set(env + con + states + state_vars)) < len(env + con + states + state_vars):
         raise Exception(
             "Duplicate var names: "
             + ", ".join(
                 [
                     str(v)
-                    for v in env + con + states + initial_vs
-                    if (env + con + states + initial_vs).count(v) > 1
+                    for v in env + con + states + state_vars
+                    if (env + con + states + state_vars).count(v) > 1
                 ]
             )
         )
@@ -57,7 +57,7 @@ def program_parser():
     ltl_spec = yield parsec.optional(specification_parser)
     yield spaces() >> string("}") >> spaces()
 
-    symbol_table = {v: t for v, t, _ in initial_vals}
+    symbol_table = {v[0]: v[1] for v in initial_vals}
     arg = []
     for t in transitions:
         arg.append((t, initial_vals, env, con, symbol_table))
@@ -177,7 +177,7 @@ def bool_decl_parser():
     raw_value = yield regex("[^,;}]+") << spaces()
     try:
         value = string_to_prop(raw_value)
-        return var, BOOLEAN, value
+        return var, type, value
     except Exception as e:
         yield parsec.fail_with(str(e))
 
@@ -263,7 +263,9 @@ def action_guard():
 def initial_val_parser():
     yield string("VALUATION") >> spaces() >> string("{") >> spaces()
     vals = yield sepBy(
-        parsec.try_choice(bool_decl_parser, num_decl_parser),
+        parsec.try_choices(
+            bool_decl_parser, num_decl_parser, var_bool_type_parser, var_num_type_parser
+        ),
         regex("(,|;)") << spaces(),
     )
     yield spaces()
