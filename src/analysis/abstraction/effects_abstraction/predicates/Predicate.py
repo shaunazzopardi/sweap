@@ -18,27 +18,27 @@ class Predicate(ABC):
     def extend_effect_now(
         self,
         gu: Formula,
-        effect: [(Formula, dict[Variable, [Formula]])],
+        effect: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         pass
 
     @abstractmethod
     def extend_effect_next(
         self,
         gu: Formula,
-        effect: [(Formula, dict[Variable, [Formula]])],
+        effect: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         pass
 
     @abstractmethod
     def extend_effect(
         self,
         gu: Formula,
-        effect: [(Formula, dict[Variable, [Formula]])],
+        effect: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         pass
 
     @abstractmethod
@@ -53,6 +53,10 @@ class Predicate(ABC):
     def is_post_cond(self, gu: Formula, symbol_table):
         pass
 
+    @abstractmethod
+    def choices(self) -> list[Formula]:
+        pass
+
 
 def refine_nexts(now, nexts, symbol_table):
     new_nexts = []
@@ -60,8 +64,3 @@ def refine_nexts(now, nexts, symbol_table):
         if sat(conjunct(now, v_next), symbol_table):
             new_nexts.append(v_next)
     return new_nexts
-
-
-@abstractmethod
-def choices(self) -> list[Formula]:
-    pass
