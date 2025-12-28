@@ -112,6 +112,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.var_relabellings = {}
 
         self.program = program
+        self.loop_vars = set()
         self.loop_counter = 0
 
         logger.info("Initialising predicate abstraction.")
@@ -211,6 +212,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self, in_loop_vars, new_structural_loop_constraints
     ):
         self.symbol_table.update({str(v): BOOLEAN for v in in_loop_vars})
+        self.loop_vars.update(in_loop_vars)
         for constraint in new_structural_loop_constraints:
             processed_ltl_constraints = []
             processed = strip_mathexpr(constraint)

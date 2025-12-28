@@ -171,7 +171,6 @@ def abstract_ltl_problem(
     dict_to_replace = states_binary_map
     dict_to_replace |= effects_abstraction.var_relabellings
 
-    loop_vars = []
     loop_constraints = []
     # TODO need to get rankings from chain preds
     for (
@@ -183,7 +182,6 @@ def abstract_ltl_problem(
         loop_constraints.append(f)
         all_preds = set()
         all_preds |= atomic_predicates(f)
-        loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
     for chain_pred in effects_abstraction.v_to_chain_pred.values():
         top_ranking = chain_pred.top_ranking
         if not top_ranking is None:
@@ -195,11 +193,8 @@ def abstract_ltl_problem(
     for f in effects_abstraction.structural_loop_constraints:
         f = propagate_nexts(f.replace_formulas(dict_to_replace))
         loop_constraints.append(f)
-        all_preds = set()
-        all_preds |= atomic_predicates(f)
-        loop_vars.extend([v for v in all_preds if isinstance(v, Variable)])
 
-    for p in loop_vars:
+    for p in effects_abstraction.loop_vars:
         if dualise:
             if any(
                 v
@@ -225,8 +220,8 @@ def abstract_ltl_problem(
     assumptions = loop_constraints + ltl_abstraction + orig_assumptions
     guarantees = orig_guarantees
 
-    env_pred_props = {(v) for v in env_pred_props}
-    con_pred_props = {(v) for v in con_pred_props}
+    env_pred_props = set(env_pred_props) | env_predicate_vars
+    con_pred_props = con_pred_props | con_predicate_vars
 
     env_props = []
     for v in original_LTL_problem.env_props:
