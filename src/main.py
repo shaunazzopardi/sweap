@@ -206,7 +206,7 @@ def process_args(args: Namespace) -> (Program, Formula):
         name = ".".join(os.path.basename(args.rpg).split(".")[0:-1])
         conf.name = name + "_rpg"
         with open(args.rpg) as rpg_str:
-            result = rpg_parsec(rpg_str.read())
+            result = rpg_parsec(rpg_str.read(), conf.name)
             return result
 
 

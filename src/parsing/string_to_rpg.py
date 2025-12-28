@@ -1,13 +1,11 @@
 import re
 
 import parsec
-from parsec import generate, string, sepBy, spaces, regex, many1
+from parsec import choice, generate, string, sepBy, spaces, regex, many1
 
-import config
 from programs.program import Program
 from programs.transition import Transition
-from programs.util import binary_rep
-from prop_lang.biop import BiOp
+from programs.util import binary_rep, refine_init_values
 from prop_lang.factory import (
     create_update,
     create_var,
@@ -23,21 +21,20 @@ from prop_lang.types.values import BoolAtoms
 from prop_lang.uniop import UniOp
 from prop_lang.update import Update
 from prop_lang.util import (
+    mutually_exclusive_rules,
     true,
     neg,
     conjunct,
     disjunct_formula_set,
     simplify_formula_without_math,
     conjunct_formula_set,
-    implies,
     G,
     F,
     disjunct,
+    sat,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
-from synthesis.machines.wrapped_hoa import WrappedHOA
-from synthesis.synthesis import synthesize
 
 name_regex = r"(?!(true|false|sys( |\()|if ))[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
@@ -131,25 +128,28 @@ def rpg_parser():
             case _:
                 raise Exception("Unknown var kind: " + str(kind))
 
-    new_init, env_vars, con_vars, new_states, transitions = process(
+    new_init, con_vars, transitions = process(
         inputs,
         vars,
         init,
         transitions,
     )
 
-    non_bool_inputs = {v: t for v, t in inputs.items() if t != BOOLEAN}
     program = Program(
-        config.Config.getConfig().name,
-        list(states) + new_states,
+        file_name,
+        list(states),
         new_init,
-        [(str(v), t, init_values[t]) for v, t in (non_bool_inputs | vars).items()],
+        [(str(v), t) for v, t in vars.items()],
         transitions,
-        list(env_vars),
-        list(con_vars),
+        list(inputs.items()),
+        [(v, BOOLEAN) for v in con_vars],
         preprocess=False,
     )
-    input_toggle_states = disjunct_formula_set(map(lambda x: Variable(x), new_states))
+    refine_init_values(program, true())
+
+    marked_states = {
+        k: [s for s in v if s.name in program.states] for k, v in marked_states.items()
+    }
 
     match game_type:
         case "Buechi":
@@ -157,7 +157,7 @@ def rpg_parser():
             objective = G(F(objective_states))
         case "Safety":
             objective_states = disjunct_formula_set(marked_states[1])
-            objective = G(disjunct(objective_states, input_toggle_states))
+            objective = G(objective_states)
         case "Reach":
             objective_states = disjunct_formula_set(marked_states[1])
             objective = F(objective_states)
@@ -166,14 +166,7 @@ def rpg_parser():
         case _:
             raise Exception("Unknown game type: " + str(game_type))
 
-    if len(new_states) == 0:
-        ltl_spec = objective
-    else:
-        ltl_spec = implies(
-            G(F(neg(input_toggle_states))),
-            objective,
-        )
-    return program, ltl_spec
+    return program, objective
 
 
 @generate
@@ -356,8 +349,20 @@ def num_value_parser():
 
 @generate
 def bool_value_parser():
-    v = yield (string("true") | string("false"))
-    return create_value(v)
+    v = yield choice(true_parser, false_parser)
+    return v
+
+
+@generate
+def true_parser():
+    yield string("true")
+    return Value(BoolAtoms.TRUE)
+
+
+@generate
+def false_parser():
+    yield string("false")
+    return Value(BoolAtoms.FALSE)
 
 
 @generate
@@ -408,35 +413,38 @@ def transitions_parser():
 parser = rpg_parser
 
 
-def rpg_parsec(input: str) -> tuple[Program, Formula]:
+def rpg_parsec(input: str, name_str: str) -> tuple[Program, Formula]:
     input_wo_comments = re.sub(";[^\n]*(\n|$)", "", input)
+    global file_name
+    file_name = name_str
     rpg, ltl = (parser << parsec.eof()).parse(input_wo_comments)
     return rpg, ltl
 
 
 def process(inputs, state_vars, init, src_update_tuples):
-    # TODO need to init initial values of variables
-    new_init = init
-    new_states = []
-    new_tgts = {}
-    new_transitions = []
-    env_vars = set()
     con_vars = set()
-    transitions = {}
+    transitions = []
+    symbol_table = {str(v): t for v, t in (inputs | state_vars).items()}
+    seen_srcs = set()
+    # TODO: when RPG transitions have same src, tgt, and guard, but different update choices
+    #       the effects_abstraction should have transitions of the form:
+    #       guard -> ((trigger1 and u_1) or ... (trigger2 and u_n))
+    #       so abstraction becomes (now, list[(trigger, [nexts])])
+    #       this will keep abstraction smaller
     for src, rest in src_update_tuples:
-        if src in transitions.keys():
+        if src in seen_srcs:
             raise Exception("Multiple 'trans' from state " + src + "'.")
 
-        transitions[src] = []
         if isinstance(rest, str):
-            transitions[src].append(Transition(src, true(), [], [], rest))
+            transitions.append(Transition(src, true(), [], [], rest))
         elif isinstance(rest, frozenset):
             if len(rest) == 1:
                 u_tgt = list(rest)[0]
-                transitions[src].append(
+                transitions.append(
                     Transition(src, true(), list(u_tgt[0]), [], u_tgt[1])
                 )
                 continue
+
             con_events, binary_map = binary_rep(
                 range(0, len(rest)), "con_", printing=False
             )
@@ -450,19 +458,41 @@ def process(inputs, state_vars, init, src_update_tuples):
             )
             con_vars.update(con_events)
             for i, (u, d) in enumerate(rest):
-                transitions[src].append(Transition(src, binary_map[i], list(u), [], d))
+                transitions.append(Transition(src, binary_map[i], list(u), [], d))
         else:
             if len(rest) == 1:
                 u_t, c = list(rest.items())[0]
                 if len(u_t) == 1:
                     u = list(u_t)[0]
                     if isinstance(u, str):
-                        transitions[src].append(Transition(src, c, [], [], u))
+                        transitions.append(Transition(src, c, [], [], u))
                     else:
-                        transitions[src].append(
-                            Transition(src, c, list(u[0]), [], u[1])
-                        )
+                        transitions.append(Transition(src, c, list(u[0]), [], u[1]))
                     continue
+            if conds_mutually_exclusive(list(rest.values()), symbol_table):
+                left_to_do = {}
+                for us, c in rest.items():
+                    if len(us) != 1:
+                        left_to_do[us] = c
+                        continue
+                    else:
+                        for u_tgt in us:
+                            if isinstance(u_tgt, str):
+                                transitions.append(Transition(src, c, [], [], u_tgt))
+                            else:
+                                transitions.append(
+                                    Transition(
+                                        src,
+                                        c,
+                                        list(u_tgt[0]),
+                                        [],
+                                        u_tgt[1],
+                                    )
+                                )
+                if len(left_to_do) == 0:
+                    continue
+                else:
+                    rest = left_to_do
             for us, c in rest.items():
                 con_events, binary_map = binary_rep(
                     range(0, len(us)), "con_", printing=False
@@ -472,16 +502,14 @@ def process(inputs, state_vars, init, src_update_tuples):
                         binary_map[i] for i in range(0, len(us)) if i < len(us) - 1
                     )
                 )
-                # TODO consider trying to simplify this, with something of the for (bin_0 & (.. || ..)) || (!bin_0 & (.. || ..))
-                #       this will be useful depending on what the underlying synthesis engine does
                 con_vars.update(con_events)
                 for i, u_tgt in enumerate(us):
                     if isinstance(u_tgt, str):
-                        transitions[src].append(
+                        transitions.append(
                             Transition(src, conjunct(c, binary_map[i]), [], [], u_tgt)
                         )
                     else:
-                        transitions[src].append(
+                        transitions.append(
                             Transition(
                                 src,
                                 conjunct(c, binary_map[i]),
@@ -491,192 +519,13 @@ def process(inputs, state_vars, init, src_update_tuples):
                             )
                         )
 
-    for src, ts in transitions.items():
-        inputs_needed = {
-            i
-            for i in inputs.keys()
-            for t in ts
-            if i in t.condition.variablesin()
-            or any(True for u in t.action if i in u.right.variablesin())
-        }
-        if len(inputs_needed) == 0:
-            new_tgts[src] = src
-            continue
-        else:
-            to_remove = set()
-            for v in inputs_needed:
-                if inputs[v] == BOOLEAN:
-                    env_vars.add(v)
-                    to_remove.add(v)
-            inputs_needed -= to_remove
-            if len(inputs_needed) == 0:
-                continue
-
-            new_e = "e_" + src
-            new_states.append(new_e)
-            new_tgts[src] = new_e
-            if src == init:
-                new_init = new_e
-
-            orig_end_env = Variable("end")
-            env_events, binary_map = binary_rep(
-                inputs_needed | set(map(neg, inputs_needed)) | {orig_end_env},
-                "env_",
-                printing=False,
-            )
-            env_vars.update(env_events)
-            env_t = []
-            end_env = neg(
-                disjunct_formula_set(
-                    f for v, f in binary_map.items() if v != orig_end_env
-                )
-            )
-
-            # TODO initially the environment can set the program vars to any value
-            #       can assume stuff in assume to limit
-            for v, f in binary_map.items():
-                if v == orig_end_env:
-                    env_t.append(
-                        Transition(
-                            new_e,
-                            end_env,
-                            [],
-                            [],
-                            src,
-                        )
-                    )
-                elif isinstance(v, UniOp) and v.op == "!":
-                    if inputs[v.right] == INTEGER:
-                        env_t.append(
-                            Transition(
-                                new_e,
-                                f,
-                                [Update(v.right, BiOp(v.right, "-", Value("1")))],
-                                [],
-                                new_e,
-                            )
-                        )
-                    else:
-                        raise Exception(
-                            "Unsupported type for variable "
-                            + str(v)
-                            + ": "
-                            + str(inputs[v.right])
-                        )
-                else:
-                    if inputs[v] == INTEGER:
-                        env_t.append(
-                            Transition(
-                                new_e,
-                                f,
-                                [Update(v, BiOp(v, "+", Value("1")))],
-                                [],
-                                new_e,
-                            )
-                        )
-                    else:
-                        raise Exception(
-                            "Unsupported type for variable "
-                            + str(v)
-                            + ": "
-                            + str(inputs[v])
-                        )
-
-            new_transitions.extend(env_t)
-
-    new_tgt = lambda t: new_tgts[t.tgt] if t.tgt in new_tgts.keys() else t.tgt
-    new_transitions.extend(
-        {t.to(new_tgt(t)) for _, ts in transitions.items() for t in ts}
-    )
-
-    if len(state_vars) > 0:
-        # create fresh init state where env can set the program variables initial values
-        fresh_init = "prog_vars_toggle"
-        new_states.append(fresh_init)
-        orig_end_env = Variable("end")
-        env_events, binary_map = binary_rep(
-            state_vars.keys() | set(map(neg, state_vars.keys())) | {orig_end_env},
-            "env_",
-            printing=False,
-        )
-        env_vars.update(env_events)
-        end_env = neg(
-            disjunct_formula_set(f for v, f in binary_map.items() if v != orig_end_env)
-        )
-        for v, f in binary_map.items():
-            if v == orig_end_env:
-                new_transitions.append(
-                    Transition(
-                        fresh_init,
-                        end_env,
-                        [],
-                        [],
-                        new_init,
-                    )
-                )
-            elif isinstance(v, UniOp) and v.op == "!":
-                if state_vars[v.right] == INTEGER:
-                    new_transitions.append(
-                        Transition(
-                            fresh_init,
-                            f,
-                            [Update(v.right, BiOp(v.right, "-", Value("1")))],
-                            [],
-                            fresh_init,
-                        )
-                    )
-                elif state_vars[v.right] == BOOLEAN:
-                    new_transitions.append(
-                        Transition(
-                            fresh_init,
-                            f,
-                            [Update(v.right, Value(BoolAtoms.FALSE))],
-                            [],
-                            fresh_init,
-                        )
-                    )
-                else:
-                    raise Exception(
-                        "Unsupported type for variable "
-                        + str(v)
-                        + ": "
-                        + str(inputs[v.right])
-                    )
-            else:
-                if state_vars[v] == INTEGER:
-                    new_transitions.append(
-                        Transition(
-                            fresh_init,
-                            f,
-                            [Update(v, BiOp(v, "+", Value("1")))],
-                            [],
-                            fresh_init,
-                        )
-                    )
-                elif state_vars[v] == BOOLEAN:
-                    new_transitions.append(
-                        Transition(
-                            fresh_init,
-                            f,
-                            [Update(v, Value(BoolAtoms.TRUE))],
-                            [],
-                            fresh_init,
-                        )
-                    )
-                else:
-                    raise Exception(
-                        "Unsupported type for variable "
-                        + str(v)
-                        + ": "
-                        + str(inputs[v])
-                    )
-    else:
-        fresh_init = new_init
-
-    return fresh_init, env_vars, con_vars, new_states, new_transitions
+    return init, con_vars, transitions
 
 
 def parity_objective(marked_states: dict[int, list[str]]) -> Formula:
+    marked_states = {
+        k + 1: v for k, v in marked_states.items()
+    }  # make priorities 1-based
     parities = list(marked_states.keys())
     parities.sort()
     smallest_is_odd = parities[0] % 2 == 1
@@ -718,3 +567,12 @@ def parity_objective(marked_states: dict[int, list[str]]) -> Formula:
             objectives.append(G(F(even_states)))
 
     return disjunct_formula_set(objectives)
+
+
+def conds_mutually_exclusive(conds: list[Formula], symbol_table) -> bool:
+    for i in range(0, len(conds)):
+        for j in range(i + 1, len(conds)):
+            sat_formula = conjunct(conds[i], conds[j])
+            if sat(sat_formula, symbol_table):
+                return False
+    return True
