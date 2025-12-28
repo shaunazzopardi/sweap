@@ -886,12 +886,12 @@ def binary_rep(vars, label, printing=True):
     if bin == 0:
         bin = 1
 
-    sorted_vars = sorted(vars, key=lambda x: str(x))
     bin_vars = [Variable(label + str(i)) for i in range(0, bin)]
 
     base = "{0:0" + str(bin) + "b}"
     rep = {}
-    for i, v in enumerate(sorted_vars):
+    vars = sorted(vars, key=lambda x: str(x))
+    for i, v in enumerate(vars):
         bin_rep = base.format(i)
         bin_formula = None
         for j, pos in enumerate(bin_rep):
@@ -906,24 +906,11 @@ def binary_rep(vars, label, printing=True):
                 bin_formula = conjunct(bin_formula, new_constraint)
         rep[v] = bin_formula
 
-    rest = [rep[v]]
-    while i < 2**bin - 1:
-        i = i + 1
-        bin_rep = base.format(i)
-        bin_formula = None
-        for j, pos in enumerate(bin_rep):
-            if pos == "0":
-                new_constraint = neg(bin_vars[j])
-            else:
-                new_constraint = bin_vars[j]
-
-            if bin_formula is None:
-                bin_formula = new_constraint
-            else:
-                bin_formula = conjunct(bin_formula, new_constraint)
-        rest.append(bin_formula)
-
-    rep[v] = disjunct_formula_set(rest)
+    if i > 2 and i < 2**bin - 1:
+        rep[v] = neg(disjunct_formula_set(f for vv, f in rep.items() if vv != v))
+        rep[v] = dnf_safe(
+            propagate_negations(rep[v]), {str(vv): BOOLEAN for vv in bin_vars}
+        )
 
     if printing:
         for v, f in rep.items():
