@@ -247,7 +247,8 @@ def loop_to_c(
     }
     local_vars = []
     for v in map(
-        lambda v: v.name, set(program.local_vars + entry_condition.variablesin())
+        lambda v: v.name,
+        set(program.local_vars + entry_condition.variablesin() + program.num_in_out),
     ):
         if v not in symbol_table.keys():
             print(v)
@@ -755,7 +756,7 @@ def use_fairness_refinement(
             [
                 BiOp(Variable(key), MathRels.EQ, Value(value))
                 for key, value in ce_prog_loop_tran_concretised[0][1].items()
-                if key in program.init_var_values.keys()
+                if key in program.local_vars_str
             ]
         )
 
