@@ -260,9 +260,16 @@ def ite_parser():
         ret = {u: conjunct(cond, c) for u, c in first.items()}
 
     if isinstance(second, str):
-        ret[frozenset([(frozenset([]), second)])] = neg(cond)
+        new_second = frozenset([(frozenset([]), second)])
+        if new_second in ret.keys():
+            ret[new_second] = disjunct(ret[new_second], neg(cond))
+        else:
+            ret[new_second] = neg(cond)
     elif isinstance(second, frozenset):
-        ret[second] = neg(cond)
+        if second in ret.keys():
+            ret[second] = disjunct(ret[second], neg(cond))
+        else:
+            ret[second] = neg(cond)
     else:
         for u, c in second.items():
             neg_cond = conjunct(neg(cond), c)
