@@ -1,3 +1,4 @@
+import logging
 import re
 
 import parsec
@@ -166,6 +167,8 @@ def rpg_parser():
         case _:
             raise Exception("Unknown game type: " + str(game_type))
 
+    print(program.to_prog(objective))
+    logging.info(program.to_prog(objective))
     return program, objective
 
 
