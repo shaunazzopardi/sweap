@@ -13,7 +13,7 @@ from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.types.ops_and_rels import BoolBiOps, MathOps, MathRels
+from prop_lang.types.ops_and_rels import BoolBiOps, MathOps, MathRels, LTLBiOps
 from prop_lang.update import Update
 from prop_lang.mathexpr import MathExpr
 from prop_lang.types.types import (
@@ -553,7 +553,7 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if len(f.ops_used()) <= 1:
+    if len(set(f.ops_used())) <= 1:
         return f
 
     if not symbol_table:
@@ -561,10 +561,13 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
     try:
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f)
+
+        if BoolBiOps.DISJ not in simple_f.ops_used():
+            return f
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
         if simplify:
             simple_f_without_math = simplify_formula_without_math(
-                simple_f_without_math, symbol_table
+                simple_f_without_math, symbol_table | {v: BOOLEAN for v in dic.keys()}
             )
 
         if (

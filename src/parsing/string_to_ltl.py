@@ -12,8 +12,8 @@ from prop_lang.mathexpr import MathExpr
 from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
 from prop_lang.uniop import UniOp
-from prop_lang.update_formula import UpdateFormula
 
+from prop_lang.util import conjunct_formula_set
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -63,18 +63,26 @@ GRAMMAR = """
     action_ltlmt
         = '[' atom '<-' expression ']'
         | '[' atom '<-' math_expression ']';
-    
-    action_issy
-        = '[' math_update_expression_issy ']';
 
-    boolean_term
+    boolean_term_not_issy
         = 'true'
         | 'false'
         | math_predicate
         | atom
         | '!' boolean_term
         ;
+    
+    
+    boolean_term_issy
+        = 'true'
+        | 'false'
+        | math_predicate
+        | next_atom
+        | atom
+        | '!' boolean_term_issy
+        ;
 
+    math_predicate_issy = '[' math_predicate_ltl ']' | '[' boolean_term ']' | issy_keep;
     math_predicate_ltl
         = math_expression_ltl ('>=' | '<=' | '>' | '<' | '==' | '=' | '!=') math_expression_ltl;
 
@@ -91,23 +99,23 @@ GRAMMAR = """
         | math_0
         ;
 
-    math_0
+    math_0_ltl_mt
         = number
         | atom
         | '(' math_expression ')'
         ;
-    
-    math_update_expression_issy
-        = math_0_issy_update ('+' | '-' | '*') math_update_expression_issy
-        | math_0_issy_update
-        ;
 
-    math_0_issy_update
+    math_0_issy
         = number
-        | atom
+        | issy_keep
         | next_atom
-        | '(' math_update_expression_issy ')'
+        | boolean_term
+        | atom
+        | '(' math_expression_ltl ')'
         ;
+    
+    issy_keep
+        = 'keep' '(' { atom } ')' ;
     
     math_expression_eof
         = math_expression $ ;
@@ -136,43 +144,6 @@ binary_operators = {"&&", "||", "&", "|", "->", "<->"}
 binary_LTL_operators = {"U", "W", "R", "M"}
 
 
-def tuple_to_formula(node) -> Formula:
-    if isinstance(node, str):
-        if re.match("(true|false|tt|ff|TRUE|FALSE|True|False|TT|FF|m?[0-9]+)", node):
-            if node[0] == "m":
-                return UniOp("-", Value(node[1:]))
-            return Value(node)
-        else:
-            return Variable(node)
-    elif len(node) == 2:
-        if isinstance(node[0], str) and (
-            node[0] in unary_operators or node[0] in unary_LTL_operators
-        ):
-            return UniOp(node[0], (node[1]))
-        else:
-            return node
-    elif len(node) == 3:
-        if isinstance(node[0], str) and node[0] in translate_ops.keys():
-            return create_mathrel(node[1], translate_ops[node[0]], node[2])
-        elif isinstance(node[1], str) and (
-            node[1] in binary_operators or node[1] in binary_LTL_operators
-        ):
-            return BiOp((node[0]), node[1], (node[2]))
-        elif node[0] == "(" and node[2] == ")":
-            return node[1]
-        else:
-            return node
-    elif len(node) == 5 and node[2] == "<-":
-        if not isinstance(node[1], Variable):
-            raise Exception(
-                "The left hand side of an update must be a variable: "
-                + " ".join(map(str, node))
-            )
-        return Update((node[1]), node[3])
-    else:
-        return node
-
-
 parser_ltl: Grammar = compile(
     GRAMMAR.replace("| action", "").replace(
         "start_placeholder", "start = expression $ ;"
@@ -180,6 +151,8 @@ parser_ltl: Grammar = compile(
     + "\n number = number_ltl ; "
     + "\n math_expression = math_expression_ltl ; "
     + "\n math_predicate = math_predicate_ltl ;"
+    + "\n math_0 = math_0_ltl_mt ;"
+    + "\n boolean_term = boolean_term_not_issy ;"
 )
 parser_ltlmt: Grammar = compile(
     GRAMMAR.replace("start_placeholder", "start = { macros }* $ ;")
@@ -187,13 +160,18 @@ parser_ltlmt: Grammar = compile(
     + "\n number = number_ltlmt ; "
     + "\n math_predicate = math_predicate_ltlmt ;"
     + "\n action = action_ltlmt;"
+    + "\n math_0 = math_0_ltl_mt ;"
+    + "\n boolean_term = boolean_term_not_issy ;"
 )
 parser_issy_ltl: Grammar = compile(
-    GRAMMAR.replace("start_placeholder", "start = expression $ ;")
+    GRAMMAR.replace("| action", "| next_atom").replace(
+        "start_placeholder", "start = expression $ ;"
+    )
     + "\n number = number_ltl ; "
     + "\n math_expression = math_expression_ltl ; "
-    + "\n math_predicate = math_predicate_ltl ;"
-    + "\n action = action_issy;"
+    + "\n math_predicate = math_predicate_issy ;"
+    + "\n math_0 = math_0_issy ;"
+    + "\n boolean_term = boolean_term_issy ;"
 )
 
 
@@ -250,7 +228,7 @@ class Semantics:
             return MathExpr(BiOp(ast[0], ast[1], ast[2]))
         raise Exception("Unhandled AST node: " + str(ast))
 
-    def boolean_term(self, ast):
+    def boolean_term_not_issy(self, ast):
         if ast == "true":
             return Value(BoolAtoms.TRUE)
         elif ast == "false":
@@ -262,8 +240,23 @@ class Semantics:
         else:
             return ast
 
-    def action_issy(self, ast):
-        return UpdateFormula(ast[1])
+    def boolean_term_issy(self, ast):
+        return self.boolean_term_not_issy(ast)
+
+    def math_predicate_issy(self, ast):
+        if isinstance(ast, Formula):
+            return ast
+        if any(v for v in ast[1].variablesin() if v.is_next()):
+            # return UpdateFormula(ast[1])
+            return ast[1]
+        else:
+            return ast[1]
+
+    def issy_keep(self, ast):
+        stutters = []
+        for at in ast[2]:
+            stutters.append(BiOp(Variable(at.name + "'"), "=", at))
+        return conjunct_formula_set(stutters)
 
     def action_ltlmt(self, ast):
         if any(

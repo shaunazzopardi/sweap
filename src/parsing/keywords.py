@@ -20,6 +20,7 @@ regex_keywords = list(
             r"counterstrategy_guard_.*",
             r"counterstrategy_act_.*",
             r"floor$",
+            r"keep",
         ],
     )
 )

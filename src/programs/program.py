@@ -1,3 +1,4 @@
+import itertools
 import logging
 from multiprocessing import Pool
 from textwrap import dedent
@@ -874,3 +875,73 @@ class Program:
 
     def __str__(self):
         return str(self.to_dot())
+
+
+def program_cross_product(programs: list[Program], symbol_table, name=None):
+    # Implement cross product of multiple programs
+    new_states_combinations = itertools.product(
+        *[list(prog.states) for prog in programs]
+    )
+    new_initial_state = "_".join(prog.initial_state for prog in programs)
+    new_states = set()
+    prog_old_to_new_state = {
+        i: {Variable(s): set() for s in programs[i].states}
+        for i in range(len(programs))
+    }
+
+    new_transitions = []
+    for state_tuple in new_states_combinations:
+        possible_transitions = []
+        for i, prog in enumerate(programs):
+            from_state = state_tuple[i]
+            transitions_from_state = prog.state_to_trans[from_state]
+            possible_transitions.append(transitions_from_state)
+        for transition_combination in itertools.product(*possible_transitions):
+            combined_src = "_".join(state_tuple)
+            new_states.add(combined_src)
+            for i in range(len(state_tuple)):
+                prog_old_to_new_state[i][Variable(state_tuple[i])].add(
+                    Variable(combined_src)
+                )
+            combined_tgt = "_".join(t.tgt for t in transition_combination)
+            new_states.add(combined_tgt)
+            for i in range(len(transition_combination)):
+                prog_old_to_new_state[i][Variable(transition_combination[i].tgt)].add(
+                    Variable(combined_tgt)
+                )
+            combined_condition = conjunct_formula_set(
+                [t.condition for t in transition_combination]
+            )
+            combined_actions = []
+            combined_outputs = []
+            for t in transition_combination:
+                combined_actions.extend(t.action)
+                combined_outputs.extend(t.output)
+            new_t = Transition(
+                combined_src,
+                combined_condition,
+                combined_actions,
+                combined_outputs,
+                combined_tgt,
+            )
+            new_transitions.append(new_t)
+    new_prog = Program(
+        name=name if name else "_xprod_".join([prog.name for prog in programs]),
+        sts=list(new_states_combinations),
+        init_st=new_initial_state,
+        init_values=[
+            (var.name, symbol_table[var.name])
+            for prog in programs
+            for var in prog.local_vars
+        ],
+        transitions=new_transitions,
+        env_events=list({(var, t) for prog in programs for var, t in prog.env_events}),
+        con_events=list({(var, t) for prog in programs for var, t in prog.con_events}),
+        preprocess=True,
+    )
+    reachable_states = [Variable(s) for s in new_prog.states]
+    prog_old_to_new_state = {
+        i: {prev: new.intersection(reachable_states) for prev, new in d.items()}
+        for i, d in prog_old_to_new_state.items()
+    }
+    return new_prog, prog_old_to_new_state

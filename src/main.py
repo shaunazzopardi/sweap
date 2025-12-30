@@ -11,6 +11,7 @@ from analysis.compatibility_checking.compatibility_checking import (
 )
 from analysis.model_checker import ModelChecker
 from config import Config
+from parsing import string_to_issy
 from parsing.string_to_ltlmt import ToProgram
 from parsing.string_to_ltl import string_to_ltlmt
 from parsing.string_to_program import string_to_program
@@ -37,13 +38,16 @@ def setup_argument_parser() -> ArgumentParser:
     )
     input_group.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
     input_group.add_argument("--rpg", dest="rpg", help="Path to a .rpg file.", type=str)
+    input_group.add_argument(
+        "--issy", dest="issy", help="Path to a .issy file.", type=str
+    )
 
     action_group = parser.add_mutually_exclusive_group()
 
     action_group.add_argument(
         "--translate",
         dest="translate",
-        help="Options for target language: `prog', `dot', `nuxmv', or `'vmt'. Assumes input through `--p', `--tsl', or `--rpg'.",
+        help="Options for target language: `prog', `dot', `nuxmv', or `'vmt'. Assumes input through `--p', `--tsl', `--rpg', or '--issy'.",
         type=str,
     )
     action_group.add_argument(
@@ -208,6 +212,12 @@ def process_args(args: Namespace) -> (Program, Formula):
         with open(args.rpg) as rpg_str:
             result = rpg_parsec(rpg_str.read(), conf.name)
             return result
+    elif args.issy is not None:
+        name = ".".join(os.path.basename(args.issy).split(".")[0:-1])
+        conf.name = name + "_issy"
+        with open(args.issy) as issy_str:
+            result = string_to_issy.string_to_issy(issy_str.read(), conf.name)
+            return result
 
 
 def handle_translation(target, program, ltl_spec) -> str:
@@ -241,7 +251,12 @@ def main():
 
 def _main(args: Namespace):
 
-    if args.program is None and args.tsl is None and args.rpg is None:
+    if (
+        args.program is None
+        and args.tsl is None
+        and args.rpg is None
+        and args.issy is None
+    ):
         raise Exception("No input given! (Specify either --p or --tsl.)")
 
     program, ltl_spec = process_args(args)
