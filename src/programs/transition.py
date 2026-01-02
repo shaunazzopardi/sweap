@@ -15,6 +15,7 @@ class Transition:
         self.output = sorted(output, key=lambda x: str(x))
         self.tgt = tgt
         self.f = None
+        self.pred_upgrades: list[BiOp] = []
 
     def __str__(self) -> str:
         to_str = lambda x: (
