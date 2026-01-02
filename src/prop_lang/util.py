@@ -65,17 +65,15 @@ def conjunct(left: Formula, right: Formula) -> Formula:
     return BiOp(left, "&", right)
 
 
-def conjunct_formula_set(s, sort=False) -> Formula:
-    if sort:
-        s = sorted(list({p for p in s}), key=lambda x: str(x))
-
-    ret = true()
-    if not hasattr(s, "__iter__"):
-        raise Exception(
-            "conjunct_formula_set: needs an iterable." + str(s) + " is not."
-        )
-    for f in s:
-        ret = conjunct(f, ret)
+def conjunct_formula_set(s) -> Formula:
+    ss = list(s)
+    if len(ss) == 0:
+        return true()
+    elif len(ss) == 1:
+        return ss[0]
+    ret = ss[0]
+    for f in ss[1:]:
+        ret = conjunct(ret, f)
     return ret
 
 
@@ -105,9 +103,24 @@ def disjunct(left: Formula, right: Formula):
 
 
 def disjunct_formula_set(s) -> Formula:
-    ret = false()
-    for f in s:
-        ret = disjunct(f, ret)
+    ss = list(s)
+    if len(ss) == 0:
+        return false()
+    elif len(ss) == 1:
+        return list(ss)[0]
+    ret = ss[0]
+    for f in ss[1:]:
+        ret = disjunct(ret, f)
+    return ret
+
+
+def implies_formula_set(s) -> Formula:
+    ss = list(s)
+    if len(ss) < 2:
+        raise Exception("implies_formula_set: need at least two formulas.")
+    ret = ss[0]
+    for f in ss[1:]:
+        ret = implies(ret, f)
     return ret
 
 
