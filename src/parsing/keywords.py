@@ -5,8 +5,8 @@ regex_keywords = list(
         re.compile,
         [
             r"turn$",
-            r"true",
-            r"false",
+            r"true$",
+            r"false$",
             r"in_loop[0-9]+_[0-9]+",
             r"prog$",
             r"cs$",
@@ -20,7 +20,10 @@ regex_keywords = list(
             r"counterstrategy_guard_.*",
             r"counterstrategy_act_.*",
             r"floor$",
-            r"keep",
+            r"keep$",
+            r"eq_con_.*",
+            r"sat_con_.*",
+            r"minigame_event_.*",
         ],
     )
 )
