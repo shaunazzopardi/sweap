@@ -10,7 +10,9 @@ import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.dfa import program_sccs, reachable_states
 from programs.transition import Transition
-from prop_lang.util import reset_caches as prop_lang_util_reset_caches
+from prop_lang.formula import Formula
+from prop_lang.types.values import BoolAtoms
+from prop_lang.util import reset_caches as prop_lang_util_reset_caches, iff
 from programs.util import (
     reset_caches,
     stutter_transition,
@@ -18,6 +20,8 @@ from programs.util import (
     is_deterministic,
     binary_rep_states,
     add_prev_suffix,
+    transition_formula,
+    binary_rep,
 )
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
@@ -897,6 +901,15 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
             transitions_from_state = prog.state_to_trans[from_state]
             possible_transitions.append(transitions_from_state)
         for transition_combination in itertools.product(*possible_transitions):
+            cond = conjunct_formula_set(
+                conjunct(
+                    transition_formula(t),
+                    conjunct_formula_set([p.prev_rep() for p in t.pred_upgrades]),
+                )
+                for t in transition_combination
+            )
+            if not sat(cond, symbol_table):
+                continue
             combined_src = "_".join(state_tuple)
             new_states.add(combined_src)
             for i in range(len(state_tuple)):
@@ -912,28 +925,51 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
             combined_condition = conjunct_formula_set(
                 [t.condition for t in transition_combination]
             )
-            combined_actions = []
+            combined_actions = set()
             combined_outputs = []
             for t in transition_combination:
-                combined_actions.extend(t.action)
+                combined_actions.update(t.action)
                 combined_outputs.extend(t.output)
+
+            left_to_u = {}
+            for u in combined_actions:
+                if u.left in left_to_u.keys():
+                    # conflict, keep deterministic one
+                    if isinstance(u.right, NonDeterministic) and isinstance(
+                        left_to_u[u.left], NonDeterministic
+                    ):
+                        raise Exception(
+                            "Conflict in cross product updates for variable "
+                            + str(u.left)
+                        )
+                    elif not isinstance(u.right, NonDeterministic) and isinstance(
+                        left_to_u[u.left], NonDeterministic
+                    ):
+                        left_to_u[u.left] = u
+                else:
+                    left_to_u[u.left] = u
+            combined_actions = set(left_to_u.values())
+
             new_t = Transition(
                 combined_src,
                 combined_condition,
-                combined_actions,
+                list(combined_actions),
                 combined_outputs,
                 combined_tgt,
             )
             new_transitions.append(new_t)
+
     new_prog = Program(
         name=name if name else "_xprod_".join([prog.name for prog in programs]),
         sts=list(new_states_combinations),
         init_st=new_initial_state,
-        init_values=[
-            (var.name, symbol_table[var.name])
-            for prog in programs
-            for var in prog.local_vars
-        ],
+        init_values=list(
+            {
+                (var.name, symbol_table[var.name])
+                for prog in programs
+                for var in prog.local_vars
+            }
+        ),
         transitions=new_transitions,
         env_events=list({(var, t) for prog in programs for var, t in prog.env_events}),
         con_events=list({(var, t) for prog in programs for var, t in prog.con_events}),
@@ -945,3 +981,268 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
         for i, d in prog_old_to_new_state.items()
     }
     return new_prog, prog_old_to_new_state
+
+
+def fill_in_minigames(program: Program, ltl_formulas: list[Formula]):
+    no_mini_games_added = True
+    to_add_to_local_vars = set()
+    bool_updates = set()
+    var_to_minigame_state = {}
+    minigame_states = set()
+    new_states = []
+    new_trans = []
+    new_con_events = set()
+    ts_to_remove = []
+
+    mini_game_counter = 0
+    existing_mini_games_from_with = {}
+    for t in program.transitions:
+        non_determined_updates = [
+            a for a in t.action if isinstance(a.right, NonDeterministic)
+        ]
+        if len(non_determined_updates) == 0:
+            new_trans.append(t)
+            continue
+
+        if any(
+            v
+            for p in t.pred_upgrades
+            for v in p.variablesin()
+            if v in program.num_in_out
+        ):
+            raise Exception(
+                "We do not support minigames with numerical inputs/outputs yet."
+            )
+
+        undetermined_vars = frozenset(u.left for u in non_determined_updates)
+        if (
+            t.tgt in existing_mini_games_from_with.keys()
+            and undetermined_vars in existing_mini_games_from_with[t.tgt].keys()
+        ):
+            start_state = existing_mini_games_from_with[t.tgt][undetermined_vars]
+            new_t = Transition(
+                t.src,
+                t.condition,
+                [a for a in t.action if a not in non_determined_updates],
+                [],
+                start_state,
+            )
+            new_trans.append(new_t)
+            continue
+
+        # need to create enough controller events to represent the minigame choices
+        raw_events = (
+            [u.left.name + "_inc" for u in non_determined_updates]
+            + [u.left.name + "_dec" for u in non_determined_updates]
+            + ["stop"]
+        )
+
+        con_bin_vars, bin_map = binary_rep(raw_events, "minigame_event_")
+        to_replace = {}
+        current_con_events = list(set(program.con_events) | new_con_events)
+        vars_to_reuse = (
+            len(con_bin_vars)
+            if len(current_con_events) >= len(con_bin_vars)
+            else len(current_con_events)
+        )
+        for i in range(vars_to_reuse):
+            to_replace[con_bin_vars[i]] = current_con_events[i][0]
+            con_bin_vars[i] = current_con_events[i][0]
+
+        bin_map = {k: v.replace_formulas(to_replace) for k, v in bin_map.items()}
+        new_con_events.update({(var, BOOLEAN) for var in con_bin_vars})
+        stop = bin_map["stop"]
+
+        # create minigame transitions
+        start_state = t.tgt + "_minigame_" + str(mini_game_counter)
+        minigame_states.add(Variable(start_state))
+        new_states.append(start_state)
+        end_state = t.tgt
+        new_t = Transition(
+            t.src,
+            t.condition,
+            [a for a in t.action if a not in non_determined_updates],
+            [],
+            start_state,
+        )
+        mg_preds = t.pred_upgrades
+        undet_vars = []
+
+        to_replace_preds = {}
+        for u in non_determined_updates:
+            v = u.left
+            if program.symbol_table[str(u.left)] == BOOLEAN:
+                bool_updates.add(v)
+                continue
+            int_v = Variable("int_" + str(v))
+            to_replace_preds[v] = int_v
+
+        stop_prop = conjunct_formula_set(
+            p.prev_rep().replace_formulas(to_replace_preds) for p in mg_preds
+        )
+
+        if end_state in existing_mini_games_from_with.keys():
+            if undetermined_vars in existing_mini_games_from_with[end_state].keys():
+                existing_mini_games_from_with[end_state][
+                    undetermined_vars
+                ] = start_state
+            else:
+                existing_mini_games_from_with[end_state][
+                    undetermined_vars
+                ] = start_state
+        else:
+            existing_mini_games_from_with[end_state] = {undetermined_vars: start_state}
+        for u in non_determined_updates:
+            no_mini_games_added = False
+            v = u.left
+            if v in var_to_minigame_state.keys():
+                var_to_minigame_state[v].append(Variable(start_state))
+            else:
+                var_to_minigame_state[v] = [Variable(start_state)]
+            undet_vars.append(v)
+
+            inc_prop = bin_map[(v.name + "_inc")]
+            dec_prop = bin_map[(v.name + "_dec")]
+
+            if v in bool_updates:
+                # inc_transition
+                inc_t = Transition(
+                    start_state,
+                    inc_prop,
+                    [Update(v, Value(BoolAtoms.TRUE))],
+                    [],
+                    start_state,
+                )
+                dec_t = Transition(
+                    start_state,
+                    dec_prop,
+                    [Update(v, Value(BoolAtoms.FALSE))],
+                    [],
+                    start_state,
+                )
+                new_trans.append(inc_t)
+                new_trans.append(dec_t)
+            else:
+                int_v = Variable("int_" + str(v))
+                to_add_to_local_vars.add((v, int_v))
+
+                new_t.action.append(Update(int_v, v))
+                new_t.action.append(Update(v, v))
+                # inc_transition
+                inc_t = Transition(
+                    start_state,
+                    inc_prop,
+                    [Update(int_v, BiOp(int_v, "+", Value(1)))],
+                    [],
+                    start_state,
+                )
+                dec_t = Transition(
+                    start_state,
+                    dec_prop,
+                    [Update(int_v, BiOp(int_v, "-", Value(1)))],
+                    [],
+                    start_state,
+                )
+                stutter_t = Transition(
+                    start_state,
+                    conjunct(stop, neg(stop_prop)),
+                    [],
+                    [],
+                    start_state,
+                )
+                new_trans.append(inc_t)
+                new_trans.append(dec_t)
+                new_trans.append(stutter_t)
+
+        stop_t = Transition(
+            start_state,
+            conjunct(stop, stop_prop),
+            [
+                Update(v, Variable("int_" + str(v)))
+                for v in undet_vars
+                if v not in bool_updates
+            ]
+            + [
+                Update(Variable("int_" + str(v)), Value(0))
+                for v in undet_vars
+                if v not in bool_updates
+            ],
+            [],
+            end_state,
+        )
+        new_trans.append(stop_t)
+
+        mini_game_counter += 1
+        new_trans.append(new_t)
+        ts_to_remove.append(t)
+
+    if no_mini_games_added:
+        return program, {}, []
+
+    new_init_var_values = {
+        (
+            str(int_v),
+            program.symbol_table[str(v)],
+            Value(0) if v not in bool_updates else Value(False),
+        )
+        for v, int_v in to_add_to_local_vars
+    }
+
+    for t in new_trans:
+        for tt in new_trans:
+            if t == tt or t.src != tt.src:
+                continue
+            elif sat(
+                conjunct(t.condition, tt.condition),
+                program.symbol_table
+                | {
+                    str(v): BOOLEAN
+                    for v in minigame_states | {v[0] for v in new_con_events}
+                },
+            ):
+                raise Exception(
+                    "Conflict in minigame transitions between \n"
+                    + str(t)
+                    + "\nand\n"
+                    + str(tt)
+                )
+
+    # now, for each pred in ltl_spec that involves non_determined_updates, we need to
+    # replace it with a formula that accounts for the minigame
+    # e.g., G (x' < 5) becomes G ( in_minigame U !in_minigame & (x < 5) )
+    # where in_minigame is a formula that is true when in any of the minigame states
+    # and add guarantee GF(!in_minigame) to ensure we eventually exit minigame
+
+    preds_in_ltl = set()
+    for ltl in ltl_formulas:
+        preds_in_ltl.update(atomic_predicates(ltl))
+    preds_to_replace = {}
+    for p in preds_in_ltl:
+        undet_vars_in_p = [
+            v for v in p.variablesin() if v in var_to_minigame_state.keys()
+        ]
+        if len(undet_vars_in_p) == 0:
+            continue
+        relevant_minigame_states = set()
+        for v in undet_vars_in_p:
+            relevant_minigame_states.update(var_to_minigame_state[v])
+        in_minigame = disjunct_formula_set(relevant_minigame_states)
+        new_p = BiOp(in_minigame, "U", conjunct(neg(in_minigame), p))
+        preds_to_replace[p] = new_p
+
+    reset_caches()
+    prop_lang_util_reset_caches()
+    new_prog = Program(
+        name=program.name,
+        sts=program.states | set(new_states),
+        init_st=program.initial_state,
+        init_values=list(
+            {(var.name, program.symbol_table[var.name]) for var in program.local_vars}
+            | new_init_var_values
+        ),
+        transitions=new_trans,
+        env_events=program.env_events,
+        con_events=list(set(program.con_events) | new_con_events),
+        preprocess=False,
+    )
+    return new_prog, preds_to_replace, list(minigame_states)
