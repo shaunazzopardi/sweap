@@ -759,8 +759,6 @@ def infer_var_types_with_booleans(
             return
 
     visit(formula, "bool")
-    for f in global_assumptions:
-        visit(f, "bool")
     for updates_for_var in updates.values():
         for update in updates_for_var:
             visit(update, "bool")
