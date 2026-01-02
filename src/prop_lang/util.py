@@ -2146,7 +2146,7 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
                 # of form c < x -> x > c -> ! x <= c
                 new_pred_f = BiOp(right, "<=", left)
                 new_pred = neg(new_pred_f)
-                new_atomic_preds = [new_pred]
+                new_atomic_preds = [new_pred_f]
         elif op == "<=":
             # x <= c is good already
             if vars_on_left:
