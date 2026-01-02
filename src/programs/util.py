@@ -17,6 +17,7 @@ from programs.dfa import classify_initial_values
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import BOOLEAN, Type
 from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
@@ -793,7 +794,11 @@ def transition_formula(t):
         formula = conjunct(
             add_prev_suffix(t.condition),
             conjunct_formula_set(
-                [BiOp(act.left, "=", add_prev_suffix(act.right)) for act in t.action]
+                [
+                    BiOp(act.left, "=", add_prev_suffix(act.right))
+                    for act in t.action
+                    if not isinstance(act.right, NonDeterministic)
+                ]
             ),
         )
         transition_formulas[t] = formula
