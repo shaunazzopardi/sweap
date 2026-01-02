@@ -2108,7 +2108,9 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
     vars_on_left = True
     if signature not in signatures:
         for sig in signatures:
-            if is_tautology(BiOp(sig, "=", signature), symbol_table):
+            if sig == signature or is_tautology(
+                BiOp(sig, "=", signature), symbol_table
+            ):
                 signature = sig
                 pred_with_var_on_one_side = BiOp(
                     sig, op, pred_with_var_on_one_side.right
