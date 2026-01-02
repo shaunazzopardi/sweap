@@ -103,11 +103,10 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                     ):
                         incompatibility_formula.append(p)
 
-                if (
-                    incompatibility_formula == neg(true())
-                    or incompatibility_formula == true()
-                ):
-                    raise Exception("Incompatibility formula is not correct")
+                if len(incompatibility_formula) == 0:
+                    raise Exception(
+                        "Incompatibility formula is not correct; no predicate mismatches found."
+                    )
 
                 env_pred_state = (incompatibility_formula, incompatible_state)
                 return concretized, env_pred_state
