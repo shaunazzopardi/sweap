@@ -52,6 +52,7 @@ class BiOp(Formula):
         self.prev_representation = None
         self.smt_representation = None
         self.hsh = hash(f"{self.left.__hash__()} {self.op} {self.right.__hash__()}")
+        self.sub_formulas = self._sub_formulas_up_to_associativity()
 
     @functools.lru_cache()
     def __str__(self):
@@ -69,6 +70,9 @@ class BiOp(Formula):
             )
 
     def sub_formulas_up_to_associativity(self) -> list[Formula]:
+        return self.sub_formulas
+
+    def _sub_formulas_up_to_associativity(self) -> list[Formula]:
         if self.op in [BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD]:
             is_same_as_op = lambda x: x == self.op
         else:
@@ -78,11 +82,11 @@ class BiOp(Formula):
         if not isinstance(self.left, BiOp) or not is_same_as_op(self.left.op):
             sub_formulas += [self.left]
         else:
-            sub_formulas += self.left.sub_formulas_up_to_associativity()
+            sub_formulas += self.left.sub_formulas
         if not isinstance(self.right, BiOp) or not is_same_as_op(self.right.op):
             sub_formulas += [self.right]
         else:
-            sub_formulas += self.right.sub_formulas_up_to_associativity()
+            sub_formulas += self.right.sub_formulas
         return sub_formulas
 
     def __eq__(self, other):
