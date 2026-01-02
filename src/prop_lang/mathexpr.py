@@ -54,7 +54,11 @@ class MathExpr(Formula):
         return []
 
     def replace_vars(self, context):
-        return MathExpr(self.formula.replace_vars(context))
+        replaces_f = self.formula.replace_vars(context)
+        if isinstance(replaces_f, Value) or isinstance(replaces_f, Variable):
+            return replaces_f
+        else:
+            return MathExpr(replaces_f)
 
     def to_nuxmv(self):
         return self.formula.to_nuxmv()
@@ -75,16 +79,16 @@ class MathExpr(Formula):
         if isinstance(context, dict):
             if self in context.keys():
                 return context[self]
-            else:
-                return MathExpr(self.formula.replace_formulas(context))
         elif callable(context):
             ret = context(self)
             if ret is not None:
                 return ret
-            else:
-                return MathExpr(self.formula.replace_formulas(context))
+
+        replaces_f = self.formula.replace_formulas(context)
+        if isinstance(replaces_f, Value) or isinstance(replaces_f, Variable):
+            return replaces_f
         else:
-            return MathExpr(self.formula.replace_formulas(context))
+            return MathExpr(replaces_f)
 
     def prev_rep(self):
         if self.prev_representation is None:
