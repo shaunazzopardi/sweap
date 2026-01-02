@@ -854,11 +854,7 @@ def negate(formula):
         elif formula.op == "<=":
             return BiOp(formula.left, ">", formula.right)
         elif formula.op == "=" or formula.op == "==":
-            return BiOp(
-                BiOp(formula.left, ">", formula.right),
-                "|",
-                BiOp(formula.left, "<", formula.right),
-            )
+            return BiOp(formula.left, "!=", formula.right)
         else:
             return UniOp("!", formula)
     else:
