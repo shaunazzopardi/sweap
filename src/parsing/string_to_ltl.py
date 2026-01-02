@@ -1,10 +1,13 @@
 import re
 from enum import Enum
 
+from pysmt.fnode import FNode
+from pysmt.shortcuts import serialize
 from tatsu.grammars import Grammar
 from tatsu.tool import compile
 
 from parsing.keywords import regex_keywords, is_keyword
+from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.biop import BiOp
 from prop_lang.factory import create_mathrel
 from prop_lang.formula import Formula
@@ -13,7 +16,13 @@ from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
 from prop_lang.uniop import UniOp
 
-from prop_lang.util import conjunct_formula_set
+from prop_lang.util import (
+    conjunct_formula_set,
+    neg,
+    disjunct_formula_set,
+    implies_formula_set,
+    dnf,
+)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -34,55 +43,84 @@ GRAMMAR = """
         = atom '=' (math_predicate | math_expression | expression | math_0) ';';
 
     expression
-        = biop_expression
-        | level_0
+        = impl_expression
         ;
-    
-    biop_expression
-        = level_0 ('->' | '<->' | '||' | '|' | '&&' | '&') expression;
 
-    level_0 
+    impl_expression
+        = or_expression {('->' | '<->') or_expression}*
+        ;
+
+    or_expression
+        = and_expression {('||' | '|') and_expression}*
+        ;
+
+    and_expression
+        = ltl_expression {('&&' | '&') ltl_expression}*
+        ;
+
+    ltl_expression
         = ltl_biop
-        | atomic
-        ;
-        
-    ltl_biop
-        = atomic ('U' | 'W' | 'R' | 'M') level_0 ;
-
-    atomic
-        = '(' @:expression ')'
         | ltl_uniop
-        | boolean_term
-        | action
+        | basic_expression
+        ;
+
+    ltl_biop
+        = ltl_uniop {('U' | 'W' | 'R' | 'M') (ltl_uniop)}+
         ;
 
     ltl_uniop
-        = ('!' | 'X' | 'F' | 'G') atomic
+        = {('!' | 'X' | 'F' | 'G')}* basic_expression
+        ;
+
+    basic_expression
+        = bool_vals
+        | '(' expression ')'
+        | math_predicate
+        | boolean_term
+        ;
+        
+    atomic
+        = '(' @:expression ')'
+        | math_predicate
+        | boolean_term
         ;
 
     action_ltlmt
         = '[' atom '<-' expression ']'
         | '[' atom '<-' math_expression ']';
 
-    boolean_term_not_issy
-        = 'true'
-        | 'false'
+    boolean_term_ltl
+        = bool_vals
         | math_predicate
         | atom
         | '!' boolean_term
         ;
     
+    boolean_term_ltlmt
+        = action_ltlmt
+        | bool_vals
+        | math_predicate
+        | atom
+        | '!' boolean_term
+        ;
     
     boolean_term_issy
-        = 'true'
-        | 'false'
-        | math_predicate
+        = bool_vals
+        | math_predicate_ltl
         | next_atom
         | atom
         | '!' boolean_term_issy
         ;
+        
+    bool_vals = 'true' | 'false' ;
 
-    math_predicate_issy = '[' math_predicate_ltl ']' | '[' boolean_term ']' | issy_keep;
+    math_predicate_issy = '[' ('true' | 'false')
+                        | '[' (next_atom | atom) ('=' | '!=') ('true' | 'false') ']'
+                        | '!' '[' (next_atom | atom) ('=' | '!=') ('true' | 'false') ']'
+                        | '[' boolean_term ']'
+                        | '!' '[' boolean_term ']'
+                        | issy_keep;
+                        
     math_predicate_ltl
         = math_expression_ltl ('>=' | '<=' | '>' | '<' | '==' | '=' | '!=') math_expression_ltl;
 
@@ -90,8 +128,7 @@ GRAMMAR = """
         = ('lt' | 'le' | 'gt' | 'ge' | 'eq' | 'neq') math_expression_ltlmt math_expression_ltlmt;
 
     math_expression_ltl
-        = math_0 ('+' | '-' | '*') math_expression_ltl
-        | math_0
+        = math_0 {('+' | '-' | '*') math_0}*
         ;
 
     math_expression_ltlmt
@@ -107,9 +144,7 @@ GRAMMAR = """
 
     math_0_issy
         = number
-        | issy_keep
         | next_atom
-        | boolean_term
         | atom
         | '(' math_expression_ltl ')'
         ;
@@ -145,28 +180,23 @@ binary_LTL_operators = {"U", "W", "R", "M"}
 
 
 parser_ltl: Grammar = compile(
-    GRAMMAR.replace("| action", "").replace(
-        "start_placeholder", "start = expression $ ;"
-    )
+    GRAMMAR.replace("start_placeholder", "start = expression $ ;")
     + "\n number = number_ltl ; "
     + "\n math_expression = math_expression_ltl ; "
     + "\n math_predicate = math_predicate_ltl ;"
     + "\n math_0 = math_0_ltl_mt ;"
-    + "\n boolean_term = boolean_term_not_issy ;"
+    + "\n boolean_term = boolean_term_ltl ;"
 )
 parser_ltlmt: Grammar = compile(
     GRAMMAR.replace("start_placeholder", "start = { macros }* $ ;")
     + "\n math_expression = math_expression_ltlmt ; "
     + "\n number = number_ltlmt ; "
     + "\n math_predicate = math_predicate_ltlmt ;"
-    + "\n action = action_ltlmt;"
     + "\n math_0 = math_0_ltl_mt ;"
-    + "\n boolean_term = boolean_term_not_issy ;"
+    + "\n boolean_term = boolean_term_ltlmt ;"
 )
 parser_issy_ltl: Grammar = compile(
-    GRAMMAR.replace("| action", "| next_atom").replace(
-        "start_placeholder", "start = expression $ ;"
-    )
+    GRAMMAR.replace("start_placeholder", "start = expression $ ;")
     + "\n number = number_ltl ; "
     + "\n math_expression = math_expression_ltl ; "
     + "\n math_predicate = math_predicate_issy ;"
@@ -222,18 +252,23 @@ class Semantics:
         raise Exception("Unhandled AST node: " + str(ast))
 
     def math_expression_ltl(self, ast):
+        if len(ast[1]) == 0:
+            return ast[0]
+        ret = ast[0]
+        for op, f in ast[1]:
+            ret = BiOp(ret, op, f)
+        return ret
+
+    def boolean_term_ltl(self, ast):
         if isinstance(ast, Formula):
             return ast
-        elif len(ast) == 3:
-            return MathExpr(BiOp(ast[0], ast[1], ast[2]))
-        raise Exception("Unhandled AST node: " + str(ast))
+        elif ast[0] == "!":
+            return UniOp("!", ast[1])
+        else:
+            return ast
 
-    def boolean_term_not_issy(self, ast):
-        if ast == "true":
-            return Value(BoolAtoms.TRUE)
-        elif ast == "false":
-            return Value(BoolAtoms.FALSE)
-        elif isinstance(ast, Formula):
+    def boolean_term_ltlmt(self, ast):
+        if isinstance(ast, Formula):
             return ast
         elif ast[0] == "!":
             return UniOp("!", ast[1])
@@ -241,11 +276,30 @@ class Semantics:
             return ast
 
     def boolean_term_issy(self, ast):
-        return self.boolean_term_not_issy(ast)
+        if isinstance(ast, Formula):
+            return ast
+        elif ast[0] == "!":
+            return UniOp("!", ast[1])
+        else:
+            return ast
+
+    def bool_vals(self, ast):
+        if ast == "true":
+            return Value(BoolAtoms.TRUE)
+        else:
+            return Value(BoolAtoms.FALSE)
 
     def math_predicate_issy(self, ast):
         if isinstance(ast, Formula):
             return ast
+        if len(ast) == 5:
+            val = Value(BoolAtoms.TRUE) if ast[3] == "true" else Value(BoolAtoms.FALSE)
+            return BiOp(ast[1], ast[2], val)
+        elif len(ast) == 6:
+            val = Value(BoolAtoms.TRUE) if ast[4] == "true" else Value(BoolAtoms.FALSE)
+            return neg(BiOp(ast[2], ast[3], val))
+        elif ast[0] == "!":
+            return neg(ast[1])
         if any(v for v in ast[1].variablesin() if v.is_next()):
             # return UpdateFormula(ast[1])
             return ast[1]
@@ -269,13 +323,38 @@ class Semantics:
             return Update(ast[1], ast[3])
 
     def ltl_uniop(self, ast):
-        return UniOp(ast[0], ast[1])
+        if len(ast[0]) == 0:
+            return ast[1]
+        res = UniOp(ast[0][-1], ast[1])
+        for op in reversed(ast[0][:-1]):
+            res = UniOp(op, res)
+        return res
 
     def ltl_biop(self, ast):
-        return BiOp(ast[0], ast[1], ast[2])
+        if isinstance(ast, Formula):
+            return ast
+        ret = ast[0]
+        for op, f in ast[1]:
+            ret = BiOp(ret, op, f)
+        return ret
 
     def biop_expression(self, ast):
         return BiOp(ast[0], ast[1], ast[2])
+
+    def or_expression(self, ast):
+        if len(ast[1]) == 0:
+            return ast[0]
+        return disjunct_formula_set([ast[0]] + list(map(lambda x: x[1], ast[1])))
+
+    def and_expression(self, ast):
+        if len(ast[1]) == 0:
+            return ast[0]
+        return conjunct_formula_set([ast[0]] + list(map(lambda x: x[1], ast[1])))
+
+    def impl_expression(self, ast):
+        if len(ast[1]) == 0:
+            return ast[0]
+        return implies_formula_set([ast[0]] + list(map(lambda x: x[1], ast[1])))
 
     def f_macro(self, ast):
         return ast
