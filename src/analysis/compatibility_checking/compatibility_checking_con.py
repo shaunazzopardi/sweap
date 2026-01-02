@@ -117,7 +117,9 @@ def create_nuxmv_model_for_compatibility_checking(
         + ["init_state : boolean"]
     )
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
-
+    has_input_preds = lambda p: any(
+        v for v in p.variablesin() if v in program.num_in_out
+    )
     pred_rep_to_val = {}
     input_pred_rep_to_val = {}
     binned_preds = []
@@ -127,7 +129,7 @@ def create_nuxmv_model_for_compatibility_checking(
             bool_rep = stringify_pred(p).name
             d[bool_rep] = p
             binned_preds.append(bool_rep + " := " + str(rep))
-        if ch_p.is_input:
+        if has_input_preds(ch_p.term):
             input_pred_rep_to_val |= d
         else:
             pred_rep_to_val |= d
@@ -140,7 +142,9 @@ def create_nuxmv_model_for_compatibility_checking(
     )
 
     input_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var) for p in state_predicates if p.is_input
+        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
+        for p in state_predicates
+        if has_input_preds(p)
     ]
     input_predicate_truth += [
         BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
@@ -149,14 +153,14 @@ def create_nuxmv_model_for_compatibility_checking(
     input_predicate_truth += [
         BiOp(pred, BoolBiOps.IFF, bool_var)
         for p in transition_predicates
-        if p.is_input
+        if has_input_preds(p)
         for pred, bool_var in p.bool_rep.items()
     ]
 
     safety_predicate_truth = [
         BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
         for p in state_predicates
-        if not p.is_input
+        if not has_input_preds(p)
     ]
 
     safety_predicate_truth += [
@@ -168,7 +172,7 @@ def create_nuxmv_model_for_compatibility_checking(
         BiOp(pred, BoolBiOps.IFF, bool_var)
         for p in transition_predicates
         for pred, bool_var in p.bool_rep.items()
-        if not p.is_input
+        if not has_input_preds(p)
     ]
 
     prog_output_equality = [
