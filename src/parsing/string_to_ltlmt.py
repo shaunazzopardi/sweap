@@ -346,6 +346,9 @@ class ToProgram(NodeWalker):
 
         states = set()
         if len(partition_updates_items) > 0:
+            partition_updates_items = sorted(
+                partition_updates_items, key=lambda x: x[0]
+            )
             con_act_vars_no = max(len(v) for v in partition_to_updates.values())
             con_act_vars, binary_map = binary_rep(
                 [Variable(str(v)) for v in range(0, con_act_vars_no)], "con_act_"
@@ -355,6 +358,8 @@ class ToProgram(NodeWalker):
             for j, (var, acts) in enumerate(partition_updates_items):
                 to_replace_here = {}
                 last_partition = j == len(partition_updates_items) - 1
+
+                acts = sorted(acts, key=lambda x: str(x[0]))
 
                 state = "c_" + str(var)
                 states.add(state)
@@ -369,11 +374,8 @@ class ToProgram(NodeWalker):
 
                 used_fs = []
                 for i, act in enumerate(acts):
-                    if i == len(acts) - 1:
-                        act_bool_f = neg(disjunct_formula_set(used_fs))
-                    else:
-                        act_bool_f = con_act_f[i]
-                        used_fs.append(act_bool_f)
+                    act_bool_f = con_act_f[i]
+                    used_fs.append(act_bool_f)
                     for a in act:
                         if a in to_replace_here.keys():
                             to_replace_here[a].append(act_bool_f)

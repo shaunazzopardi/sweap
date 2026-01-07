@@ -1,5 +1,7 @@
 import logging
+import re
 
+import config
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
@@ -27,6 +29,7 @@ def compatibility_checking(
     program: Program,
     predicate_abstraction: EffectsAbstraction,
     moore_machine: MooreMachine,
+    abstract_ltl_problem,
     is_controller: bool,
     prefer_lasso_counterexamples: bool,
 ):
@@ -62,6 +65,7 @@ def compatibility_checking(
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
+        abstract_ltl_problem,
         not program.deterministic,
         not program.deterministic,
         predicate_mismatch=True,
@@ -117,6 +121,7 @@ def create_nuxmv_model_for_compatibility_checking(
     state_predicates: set[StatePredicate],
     transition_predicates: set[TransitionPredicate],
     chain_preds,
+    abstract_ltl_problem,
     include_mismatches_due_to_nondeterminism=False,
     colloborate=False,
     predicate_mismatch=False,
@@ -240,7 +245,7 @@ def create_nuxmv_model_for_compatibility_checking(
 
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
-        + "((!init_state & turn = cs) -> ("
+        + "((turn = cs) -> ("
         + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -282,7 +287,7 @@ def create_nuxmv_model_for_compatibility_checking(
             + strategy_model.init
             + [
                 "compatible",
-                "turn = cs",
+                "turn = cs" if not config.Config.getConfig().dual else "turn = init1",
                 "mismatch = FALSE",
                 "init_state = TRUE",
             ]
@@ -356,6 +361,22 @@ def create_nuxmv_model_for_compatibility_checking(
         + maintain_prog_vars
         + "))"
     )
+
+    if config.Config.getConfig().dual:
+        normal_trans = (
+            "\t((turn != init1) -> ("
+            + normal_trans
+            + ")) &\n"
+            + "((turn = init1) -> (next(compatible) & next("
+            + (" & ".join(program_model.init) if program_model.init else "TRUE")
+            + ") &"
+            + "(("
+            + ")\n\t| (".join(strategy_model.trans)
+            + "))\n &"
+            + "next(turn = cs) & next(!init_state) & "
+            + "next(!mismatch)"
+            + "))"
+        )
 
     text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
 
@@ -433,21 +454,24 @@ def there_is_mismatch_between_program_and_strategy(
             logging.info("Are you sure the counterstrategy given is complete?")
             return True, None, out
 
+    # hack: if env_lose is used in system, i.e. it appears as a word
+    env_lose_logic = " | env_lose" if re.match("\benv_lose\b", system) else ""
+
     if not controller:
         if not mismatch_condition:
             there_is_no_mismatch, out = model_checker.invar_check(
-                system, "compatible", None, config.mc
+                system, "compatible" + env_lose_logic, None, config.mc
             )
         else:
             there_is_no_mismatch, out = model_checker.invar_check(
                 system,
-                "!(!compatible" + " & " + mismatch_condition + ")",
+                "!(!compatible" + " & " + mismatch_condition + ")" + env_lose_logic,
                 None,
                 config.mc,
             )
             if there_is_no_mismatch:
                 there_is_no_mismatch, out = model_checker.invar_check(
-                    system, "compatible", None, config.mc
+                    system, "compatible" + env_lose_logic, None, config.mc
                 )
         return False, not there_is_no_mismatch, out
 

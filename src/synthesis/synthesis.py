@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os
+import re
 import resource
 
 import time
@@ -27,6 +28,7 @@ from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.types.ops_and_rels import BoolBiOps
 from prop_lang.types.types import BOOLEAN
+from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
     true,
     atomic_predicates,
@@ -41,7 +43,9 @@ from prop_lang.util import (
     is_tautology,
     is_contradictory,
     false,
+    sat,
 )
+from prop_lang.value import Value
 from prop_lang.variable import Variable
 from synthesis.ltl import ltl_synthesis
 from synthesis.ltl.syfco_adapter import syfco_ltl, syfco_ltl_in, syfco_ltl_out
@@ -142,10 +146,12 @@ def process_specifications(
 
     if config.Config.getConfig().dual:
         ltl_assumptions = [
-            massage_ltl_for_dual(f, program.inputs, False) for f in ltl_assumptions
+            massage_ltl_for_dual(f, [c for c, _ in program.env_events], False)
+            for f in ltl_assumptions
         ]
         ltl_guarantees = [
-            massage_ltl_for_dual(f, program.inputs, False) for f in ltl_guarantees
+            massage_ltl_for_dual(f, [c for c, _ in program.env_events], False)
+            for f in ltl_guarantees
         ]
         ltl_guarantees = [
             neg(
@@ -157,8 +163,8 @@ def process_specifications(
         ]
         ltl_assumptions = []
 
-    in_acts = [e for e in program.env_events]
-    out_acts = [e for e in program.con_events]
+    in_acts = [e for e, t in program.env_events if t == BOOLEAN]
+    out_acts = [c for c, t in program.con_events if t == BOOLEAN]
     prog_acts = program.out_events
 
     if tlsf_path is not None:
@@ -254,7 +260,10 @@ def abstract_synthesis_loop(
             abstract_ltl_problem, predicate_abstraction.symbol_table
         )
         logging.info("ltl synthesis took " + str(time.time() - start))
-        print("Peak memory used so far: " + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
+        print(
+            "Peak memory used so far: "
+            + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        )
 
         if wrapped_hoa.is_controller:
             new_index = "-unreal" if config.Config.getConfig().dual else "-real"
@@ -265,12 +274,13 @@ def abstract_synthesis_loop(
                     conjunct_formula_set(ltl_assumptions),
                     conjunct_formula_set(ltl_guarantees),
                 )
+                logging.info("Verifying: " + str(original_ltl_spec))
                 print(str(original_ltl_spec))
                 print(
                     "Verifying whether "
                     + (
                         "controller"
-                        if config.Config.getConfig().dual
+                        if not config.Config.getConfig().dual
                         else "counterstrategy"
                     )
                     + " enforces required LTL specification on program.."
@@ -280,6 +290,7 @@ def abstract_synthesis_loop(
                     predicate_abstraction,
                     wrapped_hoa.machine,
                     original_ltl_spec,
+                    abstract_ltl_problem,
                 )
             return wrapped_hoa
 
@@ -294,6 +305,7 @@ def abstract_synthesis_loop(
             wrapped_hoa.is_controller,
             signatures,
             loop_counter,
+            abstract_ltl_problem,
             prefer_lasso_counterexamples,
             allow_user_input,
         )
@@ -437,7 +449,10 @@ def extract_init_preds(
         new_state_preds.update(in_outs_in_act)
 
         for act in t.action:
-            if len(act.right.variablesin()) == 0:
+            # exclude constant assignments for minigame intermediate values
+            if len(act.right.variablesin()) == 0 and not re.match(
+                r"int_.*", str(act.left)
+            ):
                 if program.symbol_table[str(act.left)] == BOOLEAN:
                     new_state_preds.add(act.left)
                 else:
@@ -471,11 +486,19 @@ def extract_init_preds(
     for p in new_state_preds:
         if p in program.bool_in_out:
             continue
+        if len(p.variablesin()) == 0:
+            print("flattened: " + str(p))
+            old_to_new_st_preds[p] = (
+                Value(BoolAtoms.TRUE)
+                if sat(p, symbol_table)
+                else Value(BoolAtoms.FALSE)
+            )
         if isinstance(p, Variable):
             if p.name in program.states:
                 continue
             normalised_state_preds.add(p)
             continue
+        print("normalising predicate: " + str(p))
         result = normalise_pred_multiple_vars(p, signatures, symbol_table)
         if isinstance(result, Variable):
             normalised_state_preds.add(result)

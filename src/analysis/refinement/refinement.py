@@ -20,6 +20,7 @@ def refinement_standard(
     real,
     signatures,
     loop_counter,
+    abstract_ltl_problem,
     # TODO put all the below parameters in a dictionary
     prefer_lasso_counterexamples,
     allow_user_input,
@@ -31,6 +32,7 @@ def refinement_standard(
         program,
         predicate_abstraction,
         mm,
+        abstract_ltl_problem,
         real,
         prefer_lasso_counterexamples,
     )

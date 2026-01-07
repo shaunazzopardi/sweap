@@ -35,7 +35,7 @@ from prop_lang.util import (
     is_tautology,
     iff,
     propagate_negations,
-    type_constraints,
+    type_constraints_formula,
     var_to_predicate,
     fnode_to_formula,
     run_with_timeout,
@@ -46,7 +46,7 @@ from prop_lang.variable import Variable
 
 def symbol_table_from_program(
     program, init_values
-) -> tuple[dict[str, Type], dict[str, Value], list[Variable]]:
+) -> tuple[dict[str, Type], dict[str, Value], list[str]]:
     symbol_table = dict()
     init_var_values = dict()
     unset_init_vars = []
@@ -54,6 +54,9 @@ def symbol_table_from_program(
         symbol_table[state] = BOOLEAN
     for ev, t in program.out_events + program.env_events + program.con_events:
         symbol_table[ev.name] = t
+        if t is not BOOLEAN:
+            symbol_table[ev.name + "_prev"] = t
+            symbol_table[ev.name + "_prev" + "_prev"] = t
     for v in init_values:
         var_name = v[0]
         var_type = v[1]
@@ -450,6 +453,27 @@ def bdd_simplify_guards(program, guard):
         return guard
 
 
+def bdd_simplify_native(guard, symbol_table):
+    fnode = And(*guard.to_smt(symbol_table))
+    condition_simplified = bdd_simplify(fnode)
+    if condition_simplified is not None:
+        condition_simplified = fnode_to_formula(condition_simplified)
+        print(
+            "simplified "
+            + str(guard)
+            + " (len "
+            + str(len(guard))
+            + ") to "
+            + str(condition_simplified)
+            + " (len "
+            + str(len(condition_simplified))
+            + ")"
+        )
+        return condition_simplified
+    else:
+        return guard
+
+
 def stutter_transition(program, state, cnf=False):
     transitions = program.transitions
     condition = neg(
@@ -466,11 +490,6 @@ def stutter_transition(program, state, cnf=False):
 
     if check(cond_fnode):
         if cnf:
-            # conf = config.Config.getConfig()
-            # start = time.time()
-            # if conf.cnf_optimisations:
-            #     condition_simplified = cnf_safe(condition, program.symbol_table, timeout=2)
-            # else:
             args = [program, condition]
             success, condition_simplified = run_with_timeout(
                 bdd_simplify_guards, args, timeout=0.2
@@ -685,12 +704,12 @@ def guarded_action_transitions_to_normal_transitions(arg):
     unguarded_acts = []
     guarded_acts = {act: set() for (act, _) in guarded_transition.action}
     for act, guard in guarded_transition.action:
+        new_guard = guard
         if isinstance(guard, Value):
             if guard.is_true():
                 unguarded_acts += [act]
-        else:
-            new_guard = conjunct(guard, type_constraints(act.left, symbol_table))
-            guarded_acts[act].add(new_guard)
+            continue
+        guarded_acts[act].add(new_guard)
 
     guarded_acts = {act: g_set for act, g_set in guarded_acts.items() if len(g_set) > 0}
 
@@ -783,6 +802,7 @@ def guarded_action_transitions_to_normal_transitions(arg):
         symbol_table,
     ):
         raise Exception("Not all transitions are covered by guards")
+
     return transitions
 
 
@@ -911,7 +931,7 @@ def binary_rep(vars, label, printing=True):
                 bin_formula = conjunct(bin_formula, new_constraint)
         rep[v] = bin_formula
 
-    if i > 2 and i < 2**bin - 1:
+    if i > 1 and i < 2**bin - 1:
         rep[v] = neg(disjunct_formula_set(f for vv, f in rep.items() if vv != v))
         rep[v] = dnf_safe(
             propagate_negations(rep[v]), {str(vv): BOOLEAN for vv in bin_vars}

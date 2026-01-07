@@ -5,7 +5,6 @@ from multiprocessing import Pool
 
 from config import strix, semml
 from parsing.string_to_prop_logic import string_to_prop
-from prop_lang.biop import BiOp
 from prop_lang.variable import Variable
 
 

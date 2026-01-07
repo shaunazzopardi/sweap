@@ -5,14 +5,15 @@ from textwrap import dedent
 from typing import Set, Union
 
 from graphviz import Digraph
-
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.dfa import program_sccs, reachable_states
 from programs.transition import Transition
 from prop_lang.formula import Formula
 from prop_lang.types.values import BoolAtoms
-from prop_lang.util import reset_caches as prop_lang_util_reset_caches, iff
+from prop_lang.util import (
+    reset_caches as prop_lang_util_reset_caches,
+)
 from programs.util import (
     reset_caches,
     stutter_transition,
@@ -64,8 +65,8 @@ class Program:
         init_st,
         init_values: list[Union[tuple[str, Type], tuple[str, Type, Atom]]],
         transitions: list[Transition],
-        env_events: list[tuple[Variable, str]],
-        con_events: list[tuple[Variable, str]],
+        env_events: list[tuple[Variable, Type]],
+        con_events: list[tuple[Variable, Type]],
         preprocess=True,
         is_determ=None,
     ):
@@ -87,16 +88,6 @@ class Program:
         self.num_in_out = [v for v, t in env_events + con_events if not t == BOOLEAN]
         self.bool_in_out = [v for v in inputs + outputs if v not in self.num_in_out]
 
-        # check that non-boolean events only in env events
-        for ev, t in con_events:
-            if not t == BOOLEAN:
-                raise Exception(
-                    "Only environment events can have non-boolean variables: "
-                    + str(ev)
-                    + ": "
-                    + str(t)
-                )
-
         if config.Config.getConfig().dual:
             self.env_events = con_events
             self.con_events = env_events
@@ -107,6 +98,16 @@ class Program:
             self.con_events = con_events
             self.inputs = inputs
             self.outputs = outputs
+
+        # check that non-boolean events only in env events
+        for ev, t in con_events:
+            if not t == BOOLEAN:
+                raise Exception(
+                    "Only environment events can have non-boolean variables: "
+                    + str(ev)
+                    + ": "
+                    + str(t)
+                )
 
         self.out_events = []
 
@@ -123,11 +124,28 @@ class Program:
 
         all_vars = self.local_vars
         self.transitions = [
-            self.add_type_constraints_to_guards(t)
-            .complete_outputs(self.out_events)
-            .complete_action_set(all_vars)
+            tt.complete_outputs(self.out_events).complete_action_set(all_vars)
             for t in self.transitions
+            for tt in self.add_type_constraints_to_guards(t)
         ]
+
+        # Intervals are encoded in program logic, so we can drop them from symbol table
+        # TODO: not doing this can cause controllers that are not correct
+        #       e.g., elevator-paper-10, reversible-lane-r-5.prog, robot-grid-reach-2d-5.prog,
+        #       reversible-lane-r-10.prog, reversible-lane-r-50.prog
+        #       Why?
+        # TODO: why does this problem not also arise for natural types?
+        new_symbol_table = {}
+        for v, t in self.symbol_table.items():
+            if isinstance(t, Number) and t.interval:
+                new_symbol_table[v] = Number(
+                    t.number_type,
+                    None,
+                )
+            else:
+                new_symbol_table[v] = t
+
+        self.symbol_table = new_symbol_table
 
         if preprocess:
             logging.info("Processing program.")
@@ -193,6 +211,10 @@ class Program:
 
         reachable_statess = reachable_states(self)
         if len(reachable_statess) != len(self.states):
+            print(
+                "Removed unreachable states: "
+                + ", ".join(map(str, self.states - reachable_statess))
+            )
             self.states = reachable_statess
             self.transitions = [t for t in self.transitions if t.src in self.states]
             self.orig_ts = [t for t in self.orig_ts if t.src in self.states]
@@ -365,12 +387,20 @@ class Program:
 
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table)
-        if not is_tautology(
-            implies(transition.condition, constraints), self.symbol_table
-        ):
-            return transition.add_condition(constraints)
+        # constraints += list(type_constraints(transition.condition, self.symbol_table))
+        ts = []
+        if len(constraints) == 0:
+            ts.append(transition)
         else:
-            return transition
+            # if not is_tautology(
+            #     implies(transition.condition, constraints), self.symbol_table
+            # ):
+            ts.append(transition.add_condition(conjunct_formula_set(constraints)))
+            ts.append(transition.add_condition(neg(conjunct_formula_set(constraints))))
+        # else:
+        #     return transition
+
+        return ts
 
     def is_finite_state(self):
         return all(is_finite(type_obj) for type_obj in self.symbol_table.values())
@@ -443,7 +473,7 @@ class Program:
 
     def to_dot(self):
         dot = Digraph(
-            name=self.name,
+            name=self.name + "_dot",
             graph_attr=[
                 ("overlap", "scalexy"),
                 ("splines", "true"),
@@ -491,7 +521,12 @@ class Program:
         dualise = config.Config.getConfig().dual
         for transition in self.transitions:
             if dualise:
-                cond = massage_ltl_for_dual(transition.condition, self.inputs, False)
+                # cond = (
+                #     transition.condition.to_nuxmv()
+                # )
+                cond = massage_ltl_for_dual(
+                    transition.condition, [v for v, _ in self.env_events], False
+                )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
                 cond = transition.condition.to_nuxmv()
@@ -567,7 +602,10 @@ class Program:
 
         transitions = guard_and_act
 
-        vars = ["turn : {prog, cs}"]
+        if dualise:
+            vars = ["turn : {prog, cs, init1, init2}"]
+        else:
+            vars = ["turn : {prog, cs}"]
         vars += sorted([s + " : boolean" for s in self.states])
 
         for v in self.local_vars + self.num_in_out:
@@ -582,6 +620,7 @@ class Program:
             ):
                 vars.append(var + " : " + "integer")
                 vars.append(var + "_prev : " + "integer")
+                vars.append(var + "_prev_prev : " + "integer")
             else:
                 raise Exception("Unsupported type for variable: " + str(var_type))
 
@@ -637,6 +676,30 @@ class Program:
                 if self.symbol_table[var] == NATURAL
             ]
         )
+        # add interval constraints
+
+        invar.extend(
+            [
+                str(var)
+                + (">= " if n.interval.lower_inclusive else ">")
+                + str(n.interval.lower)
+                for var in self.local_vars
+                if isinstance(n := self.symbol_table[str(var)], Number)
+                and n.interval
+                and n.interval.lower != ""
+            ]
+        )
+        invar.extend(
+            [
+                str(var)
+                + ("<= " if n.interval.upper_inclusive else "<")
+                + str(n.interval.upper)
+                for var in self.local_vars
+                if isinstance(n := self.symbol_table[str(var)], Number)
+                and n.interval
+                and n.interval.upper != ""
+            ]
+        )
 
         invar.extend(
             [
@@ -662,7 +725,12 @@ class Program:
         dualise = config.Config.getConfig().dual
         for transition in self.transitions:
             if dualise:
-                cond = massage_ltl_for_dual(transition.condition, self.inputs, False)
+                # cond = (
+                #     transition.condition.to_nuxmv()
+                # )
+                cond = massage_ltl_for_dual(
+                    transition.condition, [v for v, _ in self.env_events], False
+                )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
                 cond = transition.condition.to_nuxmv()
@@ -806,6 +874,30 @@ class Program:
                 if self.symbol_table[str(var)] == NATURAL
             ]
         )
+
+        invar.extend(
+            [
+                str(var)
+                + (">= " if n.interval.lower_inclusive else ">")
+                + str(n.interval.lower)
+                for var in self.local_vars
+                if isinstance(n := self.symbol_table[str(var)], Number)
+                and n.interval
+                and n.interval.lower != ""
+            ]
+        )
+
+        invar.extend(
+            [
+                str(var)
+                + ("<= " if n.interval.upper_inclusive else "<")
+                + str(n.interval.upper)
+                for var in self.local_vars
+                if isinstance(n := self.symbol_table[str(var)], Number)
+                and n.interval
+                and n.interval.upper != ""
+            ]
+        )
         invar.extend(
             [
                 str(var) + "_prev" + " >= 0"
@@ -881,7 +973,9 @@ class Program:
         return str(self.to_dot())
 
 
-def program_cross_product(programs: list[Program], symbol_table, name=None):
+def program_cross_product(
+    programs: list[Program], symbol_table, losing_states, lose_var, name=None
+):
     # Implement cross product of multiple programs
     new_states_combinations = itertools.product(
         *[list(prog.states) for prog in programs]
@@ -894,12 +988,14 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
     }
 
     new_transitions = []
+    # TODO: optimise with parallel processing, and ?
     for state_tuple in new_states_combinations:
         possible_transitions = []
         for i, prog in enumerate(programs):
             from_state = state_tuple[i]
             transitions_from_state = prog.state_to_trans[from_state]
             possible_transitions.append(transitions_from_state)
+        print("TRAN COMBS: " + str(len(list(itertools.product(*possible_transitions)))))
         for transition_combination in itertools.product(*possible_transitions):
             cond = conjunct_formula_set(
                 conjunct(
@@ -908,7 +1004,16 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
                 )
                 for t in transition_combination
             )
-            if not sat(cond, symbol_table):
+            if (
+                "lose" in state_tuple
+                or any(
+                    i
+                    for i in range(len(state_tuple))
+                    if state_tuple[i] in losing_states[i]
+                )
+                or not sat(cond, symbol_table)
+            ):
+                print("NOT SAT: " + str(cond))
                 continue
             combined_src = "_".join(state_tuple)
             new_states.add(combined_src)
@@ -916,12 +1021,24 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
                 prog_old_to_new_state[i][Variable(state_tuple[i])].add(
                     Variable(combined_src)
                 )
-            combined_tgt = "_".join(t.tgt for t in transition_combination)
-            new_states.add(combined_tgt)
-            for i in range(len(transition_combination)):
-                prog_old_to_new_state[i][Variable(transition_combination[i].tgt)].add(
-                    Variable(combined_tgt)
-                )
+            tgt_tuple = [t.tgt for t in transition_combination]
+            if "lose" in tgt_tuple:
+                combined_tgt = lose_var
+                new_states.add(combined_tgt)
+            if losing := [
+                i for i in range(len(tgt_tuple)) if tgt_tuple[i] in losing_states[i]
+            ]:
+                combined_tgt = lose_var
+                new_states.add(combined_tgt)
+                for i in losing:
+                    prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(lose_var)
+            else:
+                combined_tgt = "_".join(t.tgt for t in transition_combination)
+                new_states.add(combined_tgt)
+                for i in range(len(tgt_tuple)):
+                    prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                        Variable(combined_tgt)
+                    )
             combined_condition = conjunct_formula_set(
                 [t.condition for t in transition_combination]
             )
@@ -935,12 +1052,12 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
             for u in combined_actions:
                 if u.left in left_to_u.keys():
                     # conflict, keep deterministic one
-                    if isinstance(u.right, NonDeterministic) and isinstance(
-                        left_to_u[u.left], NonDeterministic
+                    if not isinstance(u.right, NonDeterministic) and not isinstance(
+                        left_to_u[u.left].right, NonDeterministic
                     ):
-                        raise Exception(
-                            "Conflict in cross product updates for variable "
-                            + str(u.left)
+                        combined_condition = conjunct(
+                            combined_condition,
+                            BiOp(u.right, "=", left_to_u[u.left].right),
                         )
                     elif not isinstance(u.right, NonDeterministic) and isinstance(
                         left_to_u[u.left], NonDeterministic
@@ -983,8 +1100,11 @@ def program_cross_product(programs: list[Program], symbol_table, name=None):
     return new_prog, prog_old_to_new_state
 
 
-def fill_in_minigames(program: Program, ltl_formulas: list[Formula]):
+def fill_in_minigames(
+    program: Program, ltl_formulas: list[Formula], to_exclude_from_minigame
+):
     no_mini_games_added = True
+    no_losing_state_modifications = True
     to_add_to_local_vars = set()
     bool_updates = set()
     var_to_minigame_state = {}
@@ -996,12 +1116,27 @@ def fill_in_minigames(program: Program, ltl_formulas: list[Formula]):
 
     mini_game_counter = 0
     existing_mini_games_from_with = {}
+    to_exclude_from_minigame = list(to_exclude_from_minigame)
     for t in program.transitions:
         non_determined_updates = [
             a for a in t.action if isinstance(a.right, NonDeterministic)
         ]
         if len(non_determined_updates) == 0:
             new_trans.append(t)
+            continue
+
+        if (t.src in to_exclude_from_minigame) or (
+            t.tgt in to_exclude_from_minigame and len(t.pred_upgrades) == 0
+        ):
+            no_losing_state_modifications = True
+            new_t = Transition(
+                t.src,
+                t.condition,
+                [a for a in t.action if a not in non_determined_updates],
+                [],
+                to_exclude_from_minigame[0],
+            )
+            new_trans.append(new_t)
             continue
 
         if any(
@@ -1143,16 +1278,17 @@ def fill_in_minigames(program: Program, ltl_formulas: list[Formula]):
                     [],
                     start_state,
                 )
-                stutter_t = Transition(
-                    start_state,
-                    conjunct(stop, neg(stop_prop)),
-                    [],
-                    [],
-                    start_state,
-                )
+                if sat(neg(stop_prop), program.symbol_table):
+                    stutter_t = Transition(
+                        start_state,
+                        conjunct(stop, neg(stop_prop)),
+                        [],
+                        [],
+                        start_state,
+                    )
+                    new_trans.append(stutter_t)
                 new_trans.append(inc_t)
                 new_trans.append(dec_t)
-                new_trans.append(stutter_t)
 
         stop_t = Transition(
             start_state,
@@ -1177,7 +1313,42 @@ def fill_in_minigames(program: Program, ltl_formulas: list[Formula]):
         ts_to_remove.append(t)
 
     if no_mini_games_added:
-        return program, {}, []
+        reset_caches()
+        prop_lang_util_reset_caches()
+        for t in new_trans:
+            for tt in new_trans:
+                if t == tt or t.src != tt.src:
+                    continue
+                elif sat(
+                    conjunct(t.condition, tt.condition),
+                    program.symbol_table
+                    | {
+                        str(v): BOOLEAN
+                        for v in minigame_states | {v[0] for v in new_con_events}
+                    },
+                ):
+                    raise Exception(
+                        "Conflict in minigame transitions between \n"
+                        + str(t)
+                        + "\nand\n"
+                        + str(tt)
+                    )
+        new_prog = Program(
+            name=program.name,
+            sts=program.states,
+            init_st=program.initial_state,
+            init_values=list(
+                {
+                    (var.name, program.symbol_table[var.name])
+                    for var in program.local_vars
+                }
+            ),
+            transitions=new_trans,
+            env_events=program.env_events,
+            con_events=program.con_events,
+            preprocess=False,
+        )
+        return new_prog, {}, []
 
     new_init_var_values = {
         (

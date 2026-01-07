@@ -99,7 +99,9 @@ class ChainPredicate(Predicate):
         self.init_now = set()
         self.init_next = set()
 
-        self.accelerate = accelerate and not is_input
+        self.accelerate = accelerate and any(
+            v for v in self.vars if v not in program.inp_out_puts
+        )
         self.is_input = is_input
 
     def __eq__(self, other) -> NotImplementedType | bool:
@@ -402,6 +404,8 @@ class ChainPredicate(Predicate):
         return self.single_pred_bin_rep | self.bin_rep
 
     def init_ranking_refinement(self) -> None:
+        if self.is_input:
+            return
         (
             only_updated_by_constants,
             only_updated_by_other_vars,

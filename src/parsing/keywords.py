@@ -24,6 +24,8 @@ regex_keywords = list(
             r"eq_con_.*",
             r"sat_con_.*",
             r"minigame_event_.*",
+            r"env_lose$",
+            r"lose$",
         ],
     )
 )

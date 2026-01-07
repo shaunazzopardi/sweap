@@ -177,18 +177,26 @@ class BiOp(Formula):
         #     return "toint(unsigned word[8](" + self.left.to_nuxmv() + ") mod unsigned word[8](" + self.right.to_nuxmv() + "))"
         # else:
         return (
-            "("
+            "(("
             + self.left.to_nuxmv()
-            + " "
+            + ") "
             + self.op.to_nuxmv()
-            + " "
+            + " ("
             + self.right.to_nuxmv()
-            + ")"
+            + "))"
         )
 
     @functools.lru_cache()
     def to_strix(self):
-        return self.left.to_strix() + " " + self.op + " " + self.right.to_strix()
+        return (
+            "("
+            + self.left.to_strix()
+            + ") "
+            + self.op
+            + " ("
+            + self.right.to_strix()
+            + "))"
+        )
 
     ops = {
         BoolBiOps.CONJ: And,

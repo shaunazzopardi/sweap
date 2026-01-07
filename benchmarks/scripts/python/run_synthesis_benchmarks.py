@@ -1,4 +1,5 @@
 import os
+import csv
 
 from pysmt.environment import Environment
 
@@ -14,17 +15,16 @@ strix_path = str(os.path.join(dirname, "../../../binaries"))
 
 os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
+dirname = os.path.dirname(__file__)
+benchmarks_dir = str(os.path.join(dirname, "../../sweap"))
+csv_dir = os.path.join(dirname, "../../sweap/results")
+if not os.path.exists(csv_dir):
+    os.makedirs(csv_dir)
+csv_path = os.path.join(csv_dir, "synthesis_results.csv")
+
 
 def test_synthesis():
-    import csv
     import time
-
-    dirname = os.path.dirname(__file__)
-    benchmarks_dir = str(os.path.join(dirname, "../../sweap"))
-    csv_dir = os.path.join(dirname, "../../sweap/results")
-    if not os.path.exists(csv_dir):
-        os.makedirs(csv_dir)
-    csv_path = os.path.join(csv_dir, "synthesis_results.csv")
 
     cnt = 0
     ignore = """"""
@@ -164,34 +164,22 @@ def test_synthesis():
     print(f"Results written to {csv_path}")
 
 
-def test_synthesis_one_file(file_path):
-    with open(file_path, "r") as f:
-        content = f.read()
+def test_parsing():
+    for root, _, files in os.walk(benchmarks_dir):
+        for file in files:
+            if file.endswith(".prog"):
+                file_path = os.path.join(root, file)
 
-        # Time the parsing step
-        with Environment() as env:
-            prog, ltl = string_to_program(content)
-            try:
-                result = {}
-                success, hoa = synthesize(prog, ltl, None, -1)
-                if success:
-                    result["realisable"] = (
-                        hoa.is_controller and not config.Config.getConfig().dual
-                        if hoa is not None
-                        else "N/A"
-                    )
-                else:
-                    # Handle timeout or OOM
-                    if hoa == "Memory limit exceeded":
-                        result["realisable"] = "OOM"
-                    elif hoa == "Timeout":
-                        result["realisable"] = "TO"
-                    else:
-                        result["realisable"] = f"ERR: {hoa}"
-            except Exception as e:
-                if "Could not find a controller" not in str(e):
-                    print(f"Error parsing {file_path}: {e}")
-                    result["realisable"] = f"Error: {str(e)}"
+                with open(file_path, "r") as f:
+                    content = f.read()
+
+                    # Time the parsing step
+                    with Environment() as env:
+                        try:
+                            _ = string_to_program(content)
+                        except Exception as e:
+                            print(f"Error parsing {file_path}: {e}")
+                            return False
 
 
 if __name__ == "__main__":

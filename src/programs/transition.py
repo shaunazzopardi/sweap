@@ -94,7 +94,13 @@ class Transition:
             if v not in all_modified:
                 self.action.append(Update(v, v))
         if len(self.action) != len(vars):
-            raise Exception("Error in action set completion")
+            raise Exception(
+                "Error in action set completion:"
+                + "vars "
+                + ", ".join(map(str, vars))
+                + "; trans: "
+                + str(self)
+            )
         return self
 
     def formula(self):
@@ -104,3 +110,6 @@ class Transition:
                 + [BiOp(a.left, "=", a.right.prev_rep()) for a in self.action]
             )
         return self.f
+
+    def set_predicate_upgrades(self, pred_upgrades: list[BiOp]):
+        self.pred_upgrades = pred_upgrades

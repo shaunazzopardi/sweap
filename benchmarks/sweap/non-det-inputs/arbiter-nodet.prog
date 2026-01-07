@@ -1,0 +1,27 @@
+program arbiter-non-det-inps {
+    STATES {
+        q0 : init, q1
+    }
+
+    ENVIRONMENT EVENTS {
+        room: boolean, i: integer
+    }
+
+    CONTROLLER EVENTS {
+        finished
+    }
+
+    VALUATION {
+        cnt : integer;
+    }
+
+    TRANSITIONS {
+        q0 -> q1 [],
+        q1 -> q1 [!finished $ cnt := cnt - 1],
+        q1 -> q0 [cnt == 0 & finished $]
+    }
+
+    SPECIFICATION {
+        G(q1 -> F q0)
+    }
+}

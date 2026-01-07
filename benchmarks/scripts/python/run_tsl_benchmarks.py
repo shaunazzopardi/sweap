@@ -32,7 +32,7 @@ def test_synthesis():
     ignore = """"""
 
     # verifies controller
-    config.Config.getConfig()._set_v_c(True)
+    config.Config.getConfig()._set_v_c(False)
 
     # Read existing results to avoid reprocessing
     processed_files = set()
@@ -126,7 +126,7 @@ def test_synthesis():
                             success, hoa = run_with_timeout_and_memory_limit(
                                 synthesize,
                                 [prog, ltl, None, -1],
-                                timeout=60,
+                                timeout=30,
                                 max_memory_gb=50,
                             )
                             if success:

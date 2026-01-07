@@ -60,7 +60,7 @@ def setup_argument_parser() -> ArgumentParser:
         const=-1,
     )
     action_group.add_argument(
-        "--finite-synthesise",
+        "--finite_synthesise",
         dest="finite_synthesise",
         help="Finite synthesis workflow (only works with finite programs).",
         type=int,

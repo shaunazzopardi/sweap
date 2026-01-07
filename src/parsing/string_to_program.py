@@ -17,9 +17,12 @@ from programs.util import guarded_action_transitions_to_normal_transitions
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.nondet import NonDeterministic
-from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex
+from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex, INTEGER
+from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
+from prop_lang.update_formula import UpdateFormula
 from prop_lang.util import true, normalize_ltl
+from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
@@ -75,7 +78,7 @@ def program_parser():
         con,
     )
     ltl_spec = ltl_spec.replace_formulas(
-        {Variable(s): False for s in states if s not in program.states}
+        {Variable(s): Value(BoolAtoms.FALSE) for s in states if s not in program.states}
     )
     return program, ltl_spec
 
@@ -333,6 +336,17 @@ def assignments():
         regex("(,|;)") >> spaces(),
     ) << parsec.optional(regex("(,|;)") >> spaces())
     return assignment_and_guards
+
+
+@generate
+def nondet_assignment():
+    yield string("*") << spaces()
+    yield string("[") << spaces()
+    raw_value = yield regex("[^\\]]+") << spaces()
+    yield string("]") << spaces()
+    condition = string_to_prop(raw_value)
+    # doesn t handle nexts
+    return UpdateFormula(condition)
 
 
 @generate

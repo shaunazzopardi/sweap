@@ -31,8 +31,9 @@ def test_synthesis():
     ignore = """"""
 
     # verifies controller
-    config.Config.getConfig()._set_v_c(False)
-    config.Config.getConfig().backend = "strix"
+    config.Config.getConfig()._set_v_c(True)
+    config.Config.getConfig().backend = "semml"
+    config.Config.getConfig().dual = False
 
     # Read existing results to avoid reprocessing
     processed_files = set()
@@ -93,40 +94,52 @@ def test_synthesis():
                         parse_start_time = time.time()
 
                         try:
-                            prog, ltl = string_to_issy(content, file)
+                            success, res = run_with_timeout_and_memory_limit(
+                                string_to_issy,
+                                [content, file],
+                                timeout=40,
+                                max_memory_gb=50,
+                            )
+
                             parse_end_time = time.time()
                             result["parse_time_seconds"] = round(
                                 parse_end_time - parse_start_time, 3
                             )
-                            # Time the synthesis step
-                            # Time the synthesis step
-                            synthesis_start_time = time.time()
-
-                            success, hoa = run_with_timeout_and_memory_limit(
-                                synthesize,
-                                [prog, ltl, None, -1],
-                                timeout=30,
-                                max_memory_gb=50,
-                            )
+                            if not success:
+                                raise Exception(res)
                             if success:
-                                if config.Config.getConfig().dual:
-                                    result["realisable"] = (
-                                        not hoa.is_controller
-                                        if hoa is not None
-                                        else "N/A"
-                                    )
+                                prog, ltl = res
+                                # Time the synthesis step
+                                # Time the synthesis step
+                                synthesis_start_time = time.time()
+
+                                success, hoa = run_with_timeout_and_memory_limit(
+                                    synthesize,
+                                    [prog, ltl, None, -1],
+                                    timeout=40,
+                                    max_memory_gb=50,
+                                )
+                                if success:
+                                    if config.Config.getConfig().dual:
+                                        result["realisable"] = (
+                                            not hoa.is_controller
+                                            if hoa is not None
+                                            else "N/A"
+                                        )
+                                    else:
+                                        result["realisable"] = (
+                                            hoa.is_controller
+                                            if hoa is not None
+                                            else "N/A"
+                                        )
                                 else:
-                                    result["realisable"] = (
-                                        hoa.is_controller if hoa is not None else "N/A"
-                                    )
-                            else:
-                                # Handle timeout or OOM
-                                if hoa == "Memory limit exceeded":
-                                    result["realisable"] = "OOM"
-                                elif hoa == "Timeout":
-                                    result["realisable"] = "TO"
-                                else:
-                                    result["realisable"] = f"ERR: {hoa}"
+                                    # Handle timeout or OOM
+                                    if hoa == "Memory limit exceeded":
+                                        result["realisable"] = "OOM"
+                                    elif hoa == "Timeout":
+                                        result["realisable"] = "TO"
+                                    else:
+                                        result["realisable"] = f"ERR: {hoa}"
                         except Exception as e:
                             if "Could not find a controller" not in str(e):
                                 print(f"Error parsing {file}: {e}")
@@ -180,7 +193,7 @@ def test_parsing():
                 content = f.read()
                 with Environment() as env:
                     print("Parsing " + file)
-                    f = rpg_parsec(content, "name")
+                    f = string_to_issy(content, "name")
                     print("Parsed " + file)
     print(f"Finished parsing with {cnt} errors.")
 

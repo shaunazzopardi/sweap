@@ -18,6 +18,7 @@ from prop_lang.util import (
     label_pred,
     is_tautology,
     iff,
+    mutually_exclusive_rules,
 )
 from prop_lang.variable import Variable
 from synthesis.abstract_ltl_synthesis_problem import (
@@ -159,7 +160,7 @@ class MooreMachine(Machine):
 
         for src in self.transitions.keys():
             for con_beh, tgt in self.transitions.get(src):
-                guard = "(turn = prog) & " + str(src) + " & " + con_beh.to_nuxmv()
+                guard = "(turn != cs) & " + str(src) + " & " + con_beh.to_nuxmv()
                 if guard not in guards_acts.keys():
                     guards_acts[guard] = list()
 
@@ -213,7 +214,10 @@ class MooreMachine(Machine):
 
         define += ["identity_" + self.name + " := " + " & ".join(identity)]
 
-        vars = ["turn : {prog, cs}"]
+        if dualise:
+            vars = ["turn : {prog, cs, init1, init2}"]
+        else:
+            vars = ["turn : {prog, cs}"]
         vars += [str(st) + " : boolean" for st in self.states]
         vars += [
             str(var) + " : boolean"
@@ -257,12 +261,12 @@ class MooreMachine(Machine):
         trans = [
             "("
             + identity
-            + " &\n\t\t((turn = prog) -> ("
+            + " &\n\t\t((turn != cs) -> ("
             + ")\n\t|\t(".join(transitions)
             + ")))"
         ]
-        invar = ["TRUE"]
-        # # invar = mutually_exclusive_rules(self.states)
+        # invar = ["TRUE"]
+        invar = mutually_exclusive_rules(self.states)
         # invar = mutually_exclusive_rules(["prog_" + s for s in prog_states])
         # invar += [str(disjunct_formula_set([Variable(str(s)) for s in self.states]))]
         # j = 0

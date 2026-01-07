@@ -4,6 +4,7 @@ import re
 import parsec
 from parsec import choice, generate, string, sepBy, spaces, regex, many1
 
+from parsing.keywords import is_keyword
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import binary_rep, refine_init_values
@@ -19,10 +20,7 @@ from prop_lang.factory import (
 from prop_lang.formula import Formula
 from prop_lang.types.types import BOOLEAN, INTEGER
 from prop_lang.types.values import BoolAtoms
-from prop_lang.uniop import UniOp
-from prop_lang.update import Update
 from prop_lang.util import (
-    mutually_exclusive_rules,
     true,
     neg,
     conjunct,
@@ -41,27 +39,6 @@ name_regex = r"(?!(true|false|sys( |\()|if ))[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
 state = regex(r"[a-zA-Z0-9@$_-]+")
 
-regex_keywords = list(
-    map(
-        re.compile,
-        [
-            r"turn$",
-            r"in_loop[0-9]+_[0-9]+",
-            r"prog$",
-            r"cs$",
-            r"pred_.*",
-            r"bin_.*",
-            r"mismatch$",
-            r"compatible_.*",
-            r"guard_.*",
-            r"act_.*",
-            r"identity_.*",
-            r"counterstrategy_guard_.*",
-            r"counterstrategy_act_.*",
-            r"floor$",
-        ],
-    )
-)
 math_ops = {"=", "!=", "<", "<=", ">", ">=", "+", "-"}
 
 unary_operators = {"not": "!", "-": "-"}
@@ -82,19 +59,6 @@ init_values = {
 }
 
 
-def not_a_keyword(s: str):
-    for k in list(regex_keywords):
-        if k.match(s):
-            raise Exception(
-                "'"
-                + s
-                + "'"
-                + " matches a reserved keyword/pattern "
-                + str(k).replace("re.compile", "")
-                + ", rename."
-            )
-
-
 @generate
 def rpg_parser():
     yield string("type") >> spaces()
@@ -111,7 +75,7 @@ def rpg_parser():
     marked_states = {}
 
     for v, kind, type in vs:
-        not_a_keyword(str(v))
+        is_keyword(str(v))
         if v in inputs.keys() or v in vars.keys() or v in states:
             raise Exception(v + "' defined multiple times.")
 

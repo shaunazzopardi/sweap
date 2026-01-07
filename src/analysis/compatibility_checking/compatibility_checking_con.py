@@ -1,5 +1,7 @@
 import logging
+import re
 
+import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
@@ -15,7 +17,7 @@ from config import Config
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.types.ops_and_rels import BoolBiOps, MathRels
-from prop_lang.util import conjunct_formula_set, stringify_pred
+from prop_lang.util import conjunct_formula_set, normalize_ltl, stringify_pred
 from prop_lang.variable import Variable
 from synthesis.machines.mealy_machine import MealyMachine
 
@@ -25,6 +27,7 @@ def compatibility_checking_con(
     predicate_abstraction: EffectsAbstraction,
     mealy_machine: MealyMachine,
     original_ltl_spec,
+    abstract_ltl_problem,
 ):
     moore_nuxmv = mealy_machine.to_nuXmv_with_turns_for_con_verif(
         predicate_abstraction.get_program().bin_state_vars,
@@ -39,6 +42,7 @@ def compatibility_checking_con(
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
+        abstract_ltl_problem,
         not program.deterministic,
         not program.deterministic,
         predicate_mismatch=True,
@@ -53,6 +57,7 @@ def compatibility_checking_con(
     ) = there_is_mismatch_between_program_and_controller(
         system,
         original_ltl_spec,
+        abstract_ltl_problem,
         predicate_abstraction.structural_loop_constraints,
         bound,
     )
@@ -100,6 +105,7 @@ def create_nuxmv_model_for_compatibility_checking(
     state_predicates: set[StatePredicate],
     transition_predicates: set[TransitionPredicate],
     chain_preds,
+    abstract_ltl_problem,
     include_mismatches_due_to_nondeterminism=False,
     colloborate=False,
     predicate_mismatch=False,
@@ -244,9 +250,7 @@ def create_nuxmv_model_for_compatibility_checking(
         "INIT\n"
         + "\t("
         + ")\n\t& (".join(
-            program_model.init
-            + strategy_model.init
-            + ["init_state = TRUE", "compatible"]
+            program_model.init + strategy_model.init + ["init_state", "compatible"]
         )
         + ")\n"
     )
@@ -261,8 +265,25 @@ def create_nuxmv_model_for_compatibility_checking(
 
     turn_logic = ["!next(init_state)"]
 
-    new_trans = program_model.trans + strategy_model.trans + turn_logic
-    normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
+    if config.Config.getConfig().dual:
+        normal_trans = (
+            "(("
+            + ")\n\t| (".join(strategy_model.trans)
+            + "))\n &"
+            + "\t((!init_state -> ("
+            + "(("
+            + ")\n\t\t& (".join(program_model.trans + turn_logic)
+            + ")))) & next(!init_state)) &\n"
+            + "(init_state -> ("
+            + " next("
+            + (" & ".join(program_model.init) if program_model.init else "TRUE")
+            + ")"
+            + ")"
+            + ")"
+        )
+    else:
+        new_trans = program_model.trans + strategy_model.trans + turn_logic
+        normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
 
     text += "TRANS\n" + normal_trans + "\n"
 
@@ -273,6 +294,8 @@ def create_nuxmv_model(nuxmvModel):
     from warnings import warn
 
     warn("This method is deprecated.", DeprecationWarning, stacklevel=2)
+
+    env_pred_props = set(env_pred_props) | env_predicate_vars
 
     text = "MODULE main\n"
     text += "VAR\n" + "\t" + ";\n\t".join(nuxmvModel.vars) + ";\n"
@@ -329,7 +352,7 @@ def there_is_mismatch_between_program_and_strategy(
 
 
 def there_is_mismatch_between_program_and_controller(
-    system, ltlspec, loop_constraints, bound
+    system, ltlspec, abstract_ltl_problem, loop_constraints, bound
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
@@ -345,9 +368,25 @@ def there_is_mismatch_between_program_and_controller(
     else:
         loop_constraints_str = ""
 
+    objective = (
+        "(G(compatible"
+        + loop_constraints_str
+        + ")"
+        + (
+            " & " + abstract_ltl_problem.init_choice_logic.to_nuxmv()
+            if abstract_ltl_problem.init_choice_logic
+            else ""
+        )
+        + ") -> ("
+        + normalize_ltl(ltlspec).to_nuxmv()
+        + ")"
+    )
+    if config.getConfig().dual:
+        objective = "X(" + objective + ")"
+
     there_is_no_mismatch, out = model_checker.invar_check(
         system,
-        "(G(compatible" + loop_constraints_str + ")) -> (" + ltlspec.to_nuxmv() + ")",
+        objective,
         bound,
         True,
     )

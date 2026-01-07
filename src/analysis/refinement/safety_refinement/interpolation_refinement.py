@@ -1,6 +1,6 @@
 import logging
 
-from pysmt.shortcuts import And, ForAll, Implies
+from pysmt.shortcuts import And, ForAll, Implies, serialize
 
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
@@ -156,8 +156,6 @@ def safety_refinement_seq_int(
 
         old_state_predicates = predicate_abstraction.raw_state_predicates
 
-        success = True
-
         if new_state_preds_fnode:
             new_state_preds = [
                 fnode_to_formula(f).replace_vars(reset_vars)
@@ -167,30 +165,39 @@ def safety_refinement_seq_int(
                 p for ps in new_state_preds for p in atomic_predicates(ps)
             ]
 
-            new_state_preds = normalise_and_filter_preds(
+            new_state_preds, _ = normalise_and_filter_preds(
                 old_state_predicates, new_state_preds, signatures, symbol_table
             )
 
-            success = not predicates_known(
-                old_state_predicates, new_state_preds, symbol_table
-            )
+            success = len(new_state_preds) > 0
         else:
             success = False
 
         if not success:
-            new_state_preds = qe_refinement(
+            new_state_preds = qe_refinement_only_inputs(
                 formulas,
                 old_state_predicates,
+                program,
                 reset_vars,
                 predicate_abstraction.program.symbol_table,
                 new_symbol_table,
             )
-            new_state_preds = normalise_and_filter_preds(
-                old_state_predicates, new_state_preds, signatures, symbol_table
-            )
+            if new_state_preds:
+                new_state_preds, _ = normalise_and_filter_preds(
+                    old_state_predicates, new_state_preds, signatures, symbol_table
+                )
+            else:
+                new_state_preds = qe_refinement(
+                    formulas,
+                    old_state_predicates,
+                    signatures,
+                    reset_vars,
+                    predicate_abstraction.program.symbol_table,
+                    new_symbol_table,
+                )
 
-            if len(new_state_preds) == 0:
-                raise Exception("No new state predicates identified.")
+        if len(new_state_preds) == 0:
+            raise Exception("No new state predicates identified.")
 
     logging.info("Using: " + ", ".join([str(p) for p in new_state_preds]))
 
@@ -214,16 +221,22 @@ def interactive_state_predicates():
 
 
 def qe_refinement(
-    formulas, state_predicates, reset_vars, symbol_table, new_symbol_table
+    formulas,
+    state_predicates,
+    signatures,
+    reset_vars,
+    symbol_table,
+    new_symbol_table,
 ):
-    new_state_preds = set()
+    possible_new_preds = []
     for i in range(0, len(formulas)):
+        new_state_preds = set()
         typed_vars = list(
             {
                 typed_var_to_pysmt_type(str(v), new_symbol_table[str(v)])[0]
                 for f in formulas
                 for v in f.variablesin()
-                if str(v).split("_")[-1] != str(i)
+                if str(v).split("_")[-1] != str(i) and Variable(str(v).split("_")[-1])
             }
         )
         left = conjunct_formula_set(formulas[0:-1])
@@ -245,8 +258,7 @@ def qe_refinement(
         for p in preds_in_res:
             if not sat(conjunct(p, left), new_symbol_table):
                 to_proj[p] = Value(BoolAtoms.FALSE)
-            # elif is_tautology(implies(left, p), new_symbol_table):
-            #     to_proj[p] = Value(BoolAtoms.TRUE)
+
         new_pos_f = pos_f.replace_formulas(to_proj)
         new_pos_f = simplify_formula_with_math(new_pos_f, new_symbol_table)
 
@@ -259,16 +271,73 @@ def qe_refinement(
         new_state_preds.update(
             [p.replace_vars(reset_vars) for p in atomic_predicates(new_neg_f)]
         )
-
+        new_state_preds, _ = normalise_and_filter_preds(
+            state_predicates, new_state_preds, signatures, symbol_table
+        )
         # TODO these may not be the highest quality predicates
-        #       e.g., a predicate state_var < input is probably better than input < 0
-        if not predicates_known(
-            state_predicates,
-            new_state_preds,
-            symbol_table,
-        ):
-            break
+        #       e.g., a predicate state_var < input may be better than input < 0
+        if new_state_preds:
+            possible_new_preds.append(frozenset(new_state_preds))
+    new_state_preds = min(possible_new_preds, key=lambda x: len(x), default=set())
     return new_state_preds
+
+
+def qe_refinement_only_inputs(
+    formulas, state_predicates, program, reset_vars, symbol_table, new_symbol_table
+):
+    new_state_preds = set()
+    typed_vars = list(
+        {
+            typed_var_to_pysmt_type(str(v), new_symbol_table[str(v)])[0]
+            for f in formulas
+            for v in f.variablesin()
+            if Variable(str(v).split("_")[0]) not in program.num_in_out
+        }
+    )
+    left = conjunct_formula_set(formulas[0:-1])
+    right = formulas[-1]
+    LHS = And(*left.to_smt(new_symbol_table))
+    RHS = And(*right.to_smt(new_symbol_table))
+    formula = ForAll(typed_vars, Implies(LHS, RHS))
+    qe = quantifier_elimination(formula)
+    pos_f = fnode_to_formula(qe)
+    preds_in_res = atomic_predicates(pos_f)
+
+    RHS = And(*neg(right).to_smt(new_symbol_table))
+    formula = ForAll(typed_vars, Implies(LHS, RHS))
+    qe = quantifier_elimination(formula)
+    neg_f = fnode_to_formula(qe)
+    preds_in_res.update(atomic_predicates(neg_f))
+
+    to_proj = {}
+    for p in preds_in_res:
+        if not sat(conjunct(p, left), new_symbol_table):
+            to_proj[p] = Value(BoolAtoms.FALSE)
+        # elif is_tautology(implies(left, p), new_symbol_table):
+        #     to_proj[p] = Value(BoolAtoms.TRUE)
+    new_pos_f = pos_f.replace_formulas(to_proj)
+    new_pos_f = simplify_formula_with_math(new_pos_f, new_symbol_table)
+
+    new_neg_f = neg_f.replace_formulas(to_proj)
+    new_neg_f = simplify_formula_with_math(new_neg_f, new_symbol_table)
+
+    new_state_preds.update(
+        [p.replace_vars(reset_vars) for p in atomic_predicates(new_pos_f)]
+    )
+    new_state_preds.update(
+        [p.replace_vars(reset_vars) for p in atomic_predicates(new_neg_f)]
+    )
+
+    # TODO these may not be the highest quality predicates
+    #       e.g., a predicate state_var < input is probably better than input < 0
+    if not predicates_known(
+        state_predicates,
+        new_state_preds,
+        symbol_table,
+    ):
+        return new_state_preds
+    else:
+        return None
 
 
 def predicates_known(old_state_predicates, new_state_preds, symbol_table):
@@ -303,4 +372,4 @@ def normalise_and_filter_preds(
         and not is_tautology(x, symbol_table)
         and not is_contradictory(x, symbol_table)
     }
-    return fresh_state_preds
+    return fresh_state_preds, signatures

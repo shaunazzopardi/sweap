@@ -8,7 +8,7 @@ from prop_lang.variable import Variable
 from prop_lang.formula import Formula
 
 
-def create_update(left: Formula, right: Formula) -> BiOp:
+def create_update(left: Formula, right: Formula) -> Update:
     return Update(left, right)
 
 

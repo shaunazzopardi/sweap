@@ -32,6 +32,15 @@ def find_unsat_core(smt: FNode):
     return get_unsat_core(conjunctive_partition(smt))
 
 
+def choose_model(smt: FNode):
+    with Solver(name="msat") as solver:
+        solver.add_assertion(smt)
+        if solver.solve():
+            return solver.get_model()
+        else:
+            return None
+
+
 def check(smt: FNode):
     try:
         return is_sat(smt, solver_name="msat")

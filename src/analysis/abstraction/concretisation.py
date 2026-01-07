@@ -1,5 +1,6 @@
 from pysmt.shortcuts import And
 
+import config
 from analysis.smt_checker import check
 from programs.util import (
     stutter_transition,
@@ -30,6 +31,7 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
 
     # ignore the mismatch state
     concretized = []
+
     for i in range(0, len(indices_and_state_list[0])):
         program_transition = indices_and_state_list[0][i]
         program_state = indices_and_state_list[1][i]
@@ -77,9 +79,15 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
             incompatible_state[2]["compatible_state_predicates"] == "FALSE"
             or incompatible_state[2]["compatible_tran_predicates"] == "FALSE"
         ):
-            pred_state = [p for p in preds_in_state(incompatible_state[2]) if not any(v for v in p.variablesin() if v in program.inp_out_puts)]
+            pred_state = [
+                p
+                for p in preds_in_state(incompatible_state[2])
+                if not any(v for v in p.variablesin() if v in program.inp_out_puts)
+            ]
             predicate_state_before_incompatibility = [
-                add_prev_suffix(p) for p in preds_in_state(concretized[-1][2])
+                add_prev_suffix(p)
+                for p in preds_in_state(concretized[-1][2])
+                if not any(v for v in p.variablesin() if "_prev" in str(v))
             ]
             # we check if this incompatible state formula is ever possibly true after the last transition
             # if it is then the problem is with the predicate state

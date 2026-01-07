@@ -1,5 +1,7 @@
 import logging
 import re
+from typing import Optional
+
 import sympy
 
 from pysmt.environment import Environment
@@ -66,13 +68,14 @@ def conjunct(left: Formula, right: Formula) -> Formula:
 
 
 def conjunct_formula_set(s) -> Formula:
-    ss = list(s)
-    if len(ss) == 0:
+    if not isinstance(s, list):
+        s = list(s)
+    if len(s) == 0:
         return true()
-    elif len(ss) == 1:
-        return ss[0]
-    ret = ss[0]
-    for f in ss[1:]:
+    elif len(s) == 1:
+        return s[0]
+    ret = s[0]
+    for f in s[1:]:
         ret = conjunct(ret, f)
     return ret
 
@@ -103,23 +106,25 @@ def disjunct(left: Formula, right: Formula):
 
 
 def disjunct_formula_set(s) -> Formula:
-    ss = list(s)
-    if len(ss) == 0:
+    if not isinstance(s, list):
+        s = list(s)
+    if len(s) == 0:
         return false()
-    elif len(ss) == 1:
-        return list(ss)[0]
-    ret = ss[0]
-    for f in ss[1:]:
+    elif len(s) == 1:
+        return s[0]
+    ret = s[0]
+    for f in s[1:]:
         ret = disjunct(ret, f)
     return ret
 
 
 def implies_formula_set(s) -> Formula:
-    ss = list(s)
-    if len(ss) < 2:
+    if not isinstance(s, list):
+        s = list(s)
+    if len(s) < 2:
         raise Exception("implies_formula_set: need at least two formulas.")
-    ret = ss[0]
-    for f in ss[1:]:
+    ret = s[0]
+    for f in s[1:]:
         ret = implies(ret, f)
     return ret
 
@@ -203,8 +208,9 @@ def unsat_core(
 ) -> set[Formula]:
     core = find_unsat_core(And(*formula.to_smt(symbol_table)))
     core_formulas = set()
-    for fnode in core:
-        core_formulas.add(fnode_to_formula(fnode))
+    if core:
+        for fnode in core:
+            core_formulas.add(fnode_to_formula(fnode))
     return core_formulas
 
 
@@ -296,7 +302,9 @@ def propagate_nexts_and_atomize(formula, init=False):
     elif isinstance(formula, Variable):
         if init:
             return Variable(str(formula) + "_next")
-    if isinstance(formula, UniOp):
+        else:
+            return formula
+    elif isinstance(formula, UniOp):
         if formula.op == "X":
             return propagate_nexts_and_atomize(formula.right, True)
         else:
@@ -451,7 +459,7 @@ def simplify_formula_without_math(formula, symbol_table=None):
 
 
 def formula_with_next_to_without(formula):
-    X_propagated_to_atoms = propagate_nexts_and_atomize(formula.to_strix())
+    X_propagated_to_atoms = propagate_nexts_and_atomize(formula)
 
     return X_propagated_to_atoms
 
@@ -740,23 +748,30 @@ def related_to(v, F: Formula):
     return related_to
 
 
+def type_constraints_formula(formula, symbol_table):
+    return conjunct_formula_set(type_constraints(formula, symbol_table))
+
+
 def type_constraints(formula, symbol_table):
-    return conjunct_formula_set(
-        set({type_constraint(v, symbol_table) for v in formula.variablesin()})
-    )
+    constraints = set()
+    for v in formula.variablesin():
+        t = type_constraint(v, symbol_table)
+        if not (isinstance(t, Value) and t.is_true()):
+            constraints.add(t)
+    return constraints
 
 
 def type_constraints_acts(transition, symbol_table):
     acts = transition.action
     constraints = []
     for act in acts:
-        if act.right != act.left:
-            constraint = type_constraint(act.left, symbol_table).replace(
-                {act.left: act.right}
-            )
-            if sat(conjunct(transition.condition, neg(constraint)), symbol_table):
-                constraints.append(constraint)
-    return conjunct_formula_set(constraints)
+        if act.right != act.left and len(act.right.variablesin()) > 0:
+            constraint = type_constraint(act.left, symbol_table)
+            if not isinstance(constraint, Value):
+                constraint = constraint.replace_formulas({act.left: act.right})
+                if sat(conjunct(transition.condition, constraint), symbol_table):
+                    constraints.append(constraint)
+    return constraints
 
 
 def action_constraints(transition, symbol_table):
@@ -1170,6 +1185,8 @@ def atomic_predicates(formula) -> set[Formula]:
         elif isinstance(formula, Update):
             return atomic_predicates(formula.formula)
         else:
+            if isinstance(formula, str):
+                raise Exception("atomic_predicates: formula is string " + formula)
             raise Exception("atomic_predicates: not implemented for " + str(formula))
 
 
@@ -2259,17 +2276,17 @@ def put_vars_on_left_side(pred):
         new_left_vars = left_vars + [
             propagate_minuses(UniOp(MathOps.SUB, t)) for t in right_vars
         ]
+        print(str(pred))
         new_left = sum(new_left_vars)
 
         new_right_constants = right_constants + [
             propagate_minuses(UniOp(MathOps.SUB, c)) for c in left_constants
         ]
         if len(new_right_constants) == 0:
-            new_right = Value("0")
+            new_right = Value(int(0))
         else:
             new_right = sum(new_right_constants)
 
-        new_left_vars.sort(key=lambda x: str(x))
         new_right = simplify_sum(new_right, {})  # this should evaluate the sum
         return new_left, BiOp(new_left, pred.op, new_right)
     else:
@@ -2311,9 +2328,21 @@ def sum(terms):
     elif len(terms) == 1:
         return terms[0]
     else:
-        term = terms[0]
-        for i in range(1, len(terms)):
-            term = BiOp(term, "+", terms[i])
+        kept_terms = set()
+        for t in terms:
+            minus_t = propagate_minuses(UniOp(MathOps.SUB, t))
+            if propagate_minuses(UniOp(MathOps.SUB, (t))) in kept_terms:
+                kept_terms.remove(minus_t)
+            else:
+                kept_terms.add(t)
+
+        if len(kept_terms) == 0:
+            return Value(int(0))
+
+        new_terms = list(kept_terms)
+        term = new_terms[0]
+        for i in range(1, len(new_terms)):
+            term = BiOp(term, "+", new_terms[i])
         return term
 
 
@@ -2443,3 +2472,183 @@ def reset_caches(names=None):
                                 )
 
     return cleared_count
+
+
+def extract_global_formula(formula: Formula) -> Optional[Formula]:
+    """Return f if formula is equivalent to G(f); otherwise return None.
+    Assuming that formula == propagate_negations(only_dis_or_con_junctions(formula))
+    """
+
+    temporal_ops = {"G", "F", "X", "U", "W", "R", "M"}
+
+    def is_propositional(node: Formula) -> bool:
+        return not any(op in temporal_ops for op in node.ops_used())
+
+    if isinstance(formula, Value):
+        return None
+
+    if isinstance(formula, UniOp) and formula.op == "G":
+        if is_propositional(formula.right):
+            return formula.right
+        return extract_global_formula(formula.right)
+
+    if isinstance(formula, BiOp) and formula.op == "&":
+        left = extract_global_formula(formula.left)
+        if left is None:
+            return None
+        right = extract_global_formula(formula.right)
+        if right is None:
+            return None
+        return conjunct(left, right)
+
+    if isinstance(formula, BiOp) and formula.op == "|":
+        left = extract_global_formula(formula.left)
+        if left is None:
+            return None
+        right = extract_global_formula(formula.right)
+        if right is None:
+            return None
+        return disjunct(left, right)
+
+    return None
+
+
+def extract_initial_formula(formula: Formula) -> Formula | None:
+    """Return a formula that must hold in the initial state to satisfy the LTL formula.
+
+    Assuming: formula has been normalised formula = normalize_ltl(formula)
+    Temporal operators are handled conservatively:
+    - G(f) returns extract_initial_formula(f)
+    - F(f), X(f) return None
+    - f U g returns extract_initial_formula(f) | extract_initial_formula(g)
+    - otherwise recurse over boolean structure
+    """
+
+    temporal_ops = {"G", "F", "X", "U"}
+
+    def combine_and(left: Formula | None, right: Formula | None) -> Formula | None:
+        if left is None and right is None:
+            return None
+        if left is None:
+            return right
+        if right is None:
+            return left
+        return conjunct(left, right)
+
+    def combine_or(left: Formula | None, right: Formula | None) -> Formula | None:
+        if left is None or right is None:
+            return None
+        return disjunct(left, right)
+
+    if not any(op in temporal_ops for op in formula.ops_used()):
+        return formula
+
+    if isinstance(formula, UniOp):
+        if formula.op == "G":
+            return extract_initial_formula(formula.right)
+        if formula.op in {"F", "X"}:
+            return None
+        if formula.op == "!":
+            inner = extract_initial_formula(formula.right)
+            if inner is None:
+                return None
+            return neg(inner)
+        return None
+
+    if isinstance(formula, BiOp):
+        if formula.op == "U":
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            return combine_or(left, right)
+        if formula.op == "&":
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            return combine_and(left, right)
+        if formula.op == "|":
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            return combine_or(left, right)
+        if formula.op in {"->", "<-", "<->"}:
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            if left is None or right is None:
+                return None
+            return BiOp(left, formula.op, right)
+        return None
+
+    return None
+
+
+def extract_initial_values(
+    variables: set[Variable] | set[str],
+    formula: Formula,
+    symbol_table: dict,
+) -> tuple[Formula | None, dict[Variable, Value]]:
+    """Extract initial-state constraints and any uniquely-determined variable values."""
+
+    init_formula = extract_initial_formula(formula)
+    if init_formula is None:
+        return None, {}
+
+    predicates_by_var: dict[Variable, set[Formula]] = {}
+    for pred in atomic_predicates(init_formula):
+        if not hasattr(pred, "variablesin"):
+            continue
+        for v in pred.variablesin():
+            predicates_by_var.setdefault(v, set()).add(pred)
+
+    fixed_values: dict[Variable, Value] = {}
+
+    for var in variables:
+        var_obj = Variable(var) if isinstance(var, str) else var
+        if var_obj.name not in symbol_table:
+            continue
+        var_type = symbol_table[var_obj.name]
+
+        if var_type == BOOLEAN:
+            sat_true = sat(conjunct(init_formula, var_obj), symbol_table)
+            sat_false = sat(conjunct(init_formula, neg(var_obj)), symbol_table)
+            if sat_true and not sat_false:
+                fixed_values[var_obj] = Value(BoolAtoms.TRUE)
+            elif sat_false and not sat_true:
+                fixed_values[var_obj] = Value(BoolAtoms.FALSE)
+            continue
+
+        implied_values = set()
+        for pred in predicates_by_var.get(var_obj, set()):
+            if isinstance(pred, MathExpr):
+                pred = strip_mathexpr(pred)
+            if not isinstance(pred, BiOp):
+                continue
+            if str(pred.op) not in {"=", "=="}:
+                continue
+            if pred.left == var_obj and isinstance(pred.right, Value):
+                candidate = pred.right
+            elif pred.right == var_obj and isinstance(pred.left, Value):
+                candidate = pred.left
+            else:
+                continue
+            if not sat(
+                conjunct(init_formula, neg(BiOp(var_obj, "=", candidate))), symbol_table
+            ):
+                implied_values.add(candidate)
+        if len(implied_values) == 1:
+            fixed_values[var_obj] = next(iter(implied_values))
+
+    return init_formula, fixed_values
+
+
+def remove_globals(formula: Formula) -> Formula:
+    """Assuming that formula == propagate_negations(only_dis_or_con_junctions(formula))"""
+    if isinstance(formula, BiOp):
+        new_left = remove_globals(formula.left)
+        new_right = remove_globals(formula.right)
+        return BiOp(new_left, formula.op, new_right)
+    elif isinstance(formula, UniOp):
+        new_formula = remove_globals(formula.right)
+        if formula.op == "G":
+            return new_formula
+        else:
+            return UniOp(formula.op, new_formula)
+    else:
+        return formula

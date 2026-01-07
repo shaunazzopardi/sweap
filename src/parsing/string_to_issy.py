@@ -9,12 +9,12 @@ from pysmt.logics import BOOL
 from pysmt.shortcuts import Exists, And, Symbol
 from pysmt.typing import INT
 
-from analysis.smt_checker import quantifier_elimination
+from analysis.smt_checker import bdd_simplify, quantifier_elimination
 import config
 from parsing.string_to_rpg import parity_objective
 from programs.program import Program, program_cross_product, fill_in_minigames
 from programs.transition import Transition
-from programs.util import binary_rep, powerset
+from programs.util import binary_rep, powerset, refine_init_values
 from prop_lang.biop import BiOp
 from prop_lang.factory import (
     create_update,
@@ -51,13 +51,19 @@ from prop_lang.util import (
     dnf,
     false,
     simplify_formula_with_math,
+    extract_initial_values,
+    is_dnf,
+    is_contradictory,
+    normalize_ltl,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from parsing.string_to_ltl import (
+    fnode_to_issy_formula,
     string_to_issy_ltl,
     unary_LTL_operators,
     binary_LTL_operators,
+    simplify_issy_formula_with_math,
 )
 
 name_regex = r"(?!(true|false|sys( |\()|if ))[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
@@ -474,6 +480,7 @@ def process(
     old_dual = config.Config.getConfig().dual
     config.Config.getConfig().dual = False
     con_vars = set()
+    lose_var = None
 
     if len(games) == 0:
         raise Exception("We do not handle yet ISSY problems with no games.")
@@ -517,6 +524,7 @@ def process(
 
     parts_to_sub_programs = []
     added_non_det = False
+    states_to_exclude_minigame = {}
     for i, game_part in enumerate(game_parts):
         # process games separately, treat common variables as internal state vars
         # problem: program will complete action sets automatically
@@ -526,9 +534,10 @@ def process(
         # this triggers adding mini-game to set x to any value.
         # and x := cond(x), such that mini-game always ends in a state with cond(x) true
         # NOTE: if unset var not used in guard then no need to add mini-game
-        for game_index in range(len(game_part)):
+        for game in game_part:
+            game_index = len(parts_to_sub_programs)
+            states_to_exclude_minigame[game_index] = set()
             vars_updates_depend_on_in_game = set()
-            game = game_part[game_index]
             game_type, init, locs_in_game, transitions = game
 
             marked_states = {}
@@ -548,8 +557,30 @@ def process(
             }
 
             raw_transitions = {src: [] for src, _, _ in transitions}
-            for src, formula, tgt in transitions:
-                cond_updates = formula_to_transitions(formula, inputs, symbol_table)
+            for src, orig_formula, tgt in transitions:
+                cond_updates = []
+
+                print(str(orig_formula))
+                formula = only_dis_or_con_junctions(
+                    propagate_negations(strip_mathexpr(orig_formula))
+                )
+                print(str(formula))
+
+                if is_dnf(formula) and any(
+                    v for v in formula.variablesin() if v.is_next()
+                ):
+                    if isinstance(formula, BiOp) and formula.op == "|":
+                        for f in formula.sub_formulas_up_to_associativity():
+                            cond_updates_f = formula_to_transitions(
+                                f, inputs, symbol_table
+                            )
+                            cond_updates.extend(cond_updates_f)
+                    else:
+                        cond_updates = formula_to_transitions(
+                            formula, inputs, symbol_table
+                        )
+                else:
+                    cond_updates = formula_to_transitions(formula, inputs, symbol_table)
 
                 for res in cond_updates:
                     if res is None:
@@ -619,15 +650,8 @@ def process(
             # need to detect when transitions from same src have non-mutually exclusive conditions, and in that case
             # create binary variables to distinguish them, and give them to controller
             for src, trans in raw_transitions.items():
-                equiv_map, sat_map, no_trans_triggered = condition_choices(
-                    trans, symbol_table
-                )
-
-                if no_trans_triggered:
-                    locs.add("lose")
-                    lose_transitions.append(
-                        Transition(src, no_trans_triggered, [], [], "lose")
-                    )
+                print("trans: " + "\n".join(map(str, trans)))
+                equiv_map, sat_map, _ = condition_choices(trans, symbol_table)
 
                 eq_trigger_to_add_to_others = {}
                 sat_trigger_to_add_to_others = {t: [] for t in trans}
@@ -677,15 +701,22 @@ def process(
                             [tt.condition for tt in ts_to_distinguish]
                         )
 
-                        none_of_the_rest = neg(one_of_the_rest)
-                        trigger_conditions.append(
-                            disjunct(
-                                none_of_the_rest,
-                                conjunct(
-                                    one_of_the_rest, sat_binary_map[raw_sat_triggers[0]]
-                                ),
+                        if not is_tautology(one_of_the_rest, symbol_table):
+
+                            none_of_the_rest = neg(one_of_the_rest)
+                            trigger_conditions.append(
+                                disjunct(
+                                    none_of_the_rest,
+                                    conjunct(
+                                        one_of_the_rest,
+                                        sat_binary_map[raw_sat_triggers[0]],
+                                    ),
+                                )
                             )
-                        )
+                        else:
+                            trigger_conditions.append(
+                                sat_binary_map[raw_sat_triggers[0]]
+                            )
 
                         for i, tt in enumerate(ts_to_distinguish):
                             one_of_the_rest = disjunct_formula_set(
@@ -696,15 +727,19 @@ def process(
                                 ]
                                 + [t.condition]
                             )
-
-                            none_of_the_rest = neg(one_of_the_rest)
-                            trigger_condition = disjunct(
-                                none_of_the_rest,
-                                conjunct(
-                                    one_of_the_rest,
-                                    sat_binary_map[raw_sat_triggers[i + 1]],
-                                ),
-                            )
+                            if not is_tautology(one_of_the_rest, symbol_table):
+                                none_of_the_rest = neg(one_of_the_rest)
+                                trigger_condition = disjunct(
+                                    none_of_the_rest,
+                                    conjunct(
+                                        one_of_the_rest,
+                                        sat_binary_map[raw_sat_triggers[i + 1]],
+                                    ),
+                                )
+                            else:
+                                trigger_condition = sat_binary_map[
+                                    raw_sat_triggers[i + 1]
+                                ]
                             sat_trigger_to_add_to_others[tt].append(trigger_condition)
 
                     new_t = Transition(
@@ -724,12 +759,23 @@ def process(
                             already_distinguishable[tt] = set(sat_map[t]) | {t}
                         else:
                             already_distinguishable[tt].update(set(sat_map[t]) | {t})
+
+                no_trans_triggered = neg(
+                    disjunct_formula_set(t.condition for t in new_transitions)
+                )
+                if sat(
+                    no_trans_triggered,
+                    symbol_table | {str(v): BOOLEAN for v in con_vars},
+                ):
+                    locs.add("lose")
+                    lose_var = "lose"
+                    states_to_exclude_minigame[game_index].add("lose")
+                    lose_transitions.append(
+                        Transition(src, no_trans_triggered, [], [], "lose")
+                    )
             # Now, we have processed the transitions, and added nondets
             # we need to build programs
             # do cross product, while taking into account predicate upgrades, and accordingly add mini-games
-
-            if len(games) == 1 and not added_non_det:
-                config.Config.getConfig().dual = old_dual
 
             # build program for this game
             # need to massage vars according to expected format
@@ -750,16 +796,31 @@ def process(
                 for i, s in marked_states.items()
             }
 
+            losing_states = []
+
             match game_type:
                 case "Buechi":
                     objective_states = disjunct_formula_set(marked_states[1])
                     objective = G(F(objective_states))
                 case "Safety":
                     objective_states = disjunct_formula_set(marked_states[1])
-                    if len(marked_states[1]) == len(program.states):
+                    if len(marked_states[1]) == (
+                        len(program.states)
+                        if len(lose_transitions) == 0
+                        else len(program.states) - 1
+                    ):
                         objective = true()
                     else:
                         objective = G(objective_states)
+                        losing_states_here = [
+                            s
+                            for s in program.states
+                            if Variable(s) not in marked_states[1]
+                        ]
+                        losing_states.extend(losing_states_here)
+                        states_to_exclude_minigame[game_index].update(
+                            losing_states_here
+                        )
                 case "Reachability":
                     objective_states = disjunct_formula_set(marked_states[1])
                     objective = F(objective_states)
@@ -778,6 +839,7 @@ def process(
                 (
                     program,
                     objective,
+                    losing_states,
                 )
             )
 
@@ -792,17 +854,32 @@ def process(
     if len(parts_to_sub_programs) == 1:
         program = parts_to_sub_programs[0][0]
         game_objectives = [parts_to_sub_programs[0][1]]
+        losing_states = {0: parts_to_sub_programs[0][2]}
         preds_to_replace = {}
+        to_exclude_from_minigame = states_to_exclude_minigame[0]
     else:
         symbol_table.update({str(v): BOOLEAN for v in con_vars})
-
-        if old_dual and not added_non_det:
-            config.Config.getConfig().dual = old_dual
+        losing_states = {
+            i: parts_to_sub_programs[i][2] for i in range(len(parts_to_sub_programs))
+        }
+        if not lose_var and any(i for i, ls in losing_states.items() if len(ls) > 0):
+            lose_var = "lose"
 
         program, prog_old_to_new_state = program_cross_product(
-            [p for p, _ in parts_to_sub_programs], symbol_table, name_str
+            [p for p, _, _ in parts_to_sub_programs],
+            symbol_table,
+            losing_states,
+            lose_var,
+            name_str,
         )
         print(program.to_prog(""))
+        prog_old_to_new_state = {
+            i: {
+                old_s: [s for s in ss if str(s) in program.states]
+                for old_s, ss in prog_old_to_new_state[i].items()
+            }
+            for i in prog_old_to_new_state.keys()
+        }
         to_replace.update(prog_old_to_new_state)
         game_objectives = [
             obj.replace(
@@ -811,15 +888,28 @@ def process(
                     for s, new_ss in prog_old_to_new_state[i].items()
                 }
             )
-            for i, (_, obj) in enumerate(parts_to_sub_programs)
+            for i, (_, obj, _) in enumerate(parts_to_sub_programs)
         ]
+        to_exclude_from_minigame = [
+            str(new_s)
+            for i, ss in states_to_exclude_minigame.items()
+            for s in ss
+            for new_s in prog_old_to_new_state[i][Variable(s)]
+        ]
+        if lose_var:
+            to_exclude_from_minigame.append(lose_var)
 
     if old_dual:
         config.Config.getConfig().dual = old_dual
+        print(str(config.Config.getConfig().dual))
 
+    # we do not need to add minigames at some states:
+    # if goal is safety: no need to add minigames at unsafe states
+    # (not handled yet) if goal is reachability: no need to add minigames from states that cannot reach goal
     program, preds_to_replace, minigame_states = fill_in_minigames(
-        program, formula_objectives
+        program, formula_objectives, to_exclude_from_minigame
     )
+
     if len(minigame_states) > 0:
         minigame_safety = G(F(neg(disjunct_formula_set(minigame_states))))
         new_game_objectives = [minigame_safety]
@@ -847,15 +937,30 @@ def process(
         new_objective = game_objectives_f
     else:
         new_objective = conjunct_formula_set(
-            [
-                BiOp(
-                    massage_ltl(o.left),
-                    "->",
-                    conjunct(massage_ltl(o.right), game_objectives_f),
-                )
-                for o in formula_objectives
-            ]
+            [massage_ltl(o) for o in formula_objectives]
+            + [game_objectives_f]
+            # [
+            #     BiOp(
+            #         massage_ltl(o.left),
+            #         "->",
+            #         conjunct(massage_ltl(o.right), game_objectives_f),
+            #     )
+            #     for o in formula_objectives
+            # ]
         )
+
+    refine_init_values(program, conjunct_formula_set(formula_objectives))
+    if True or len(game_objectives) == 0:
+        f = neg(conjunct_formula_set(formula_objectives))
+        f = normalize_ltl(propagate_negations(f))
+        _, fixed_values = extract_initial_values(
+            set(Variable(v) for v in program.unset_init_vars),
+            f,
+            symbol_table,
+        )
+        for var, val in fixed_values.items():
+            program.init_var_values[str(var)] = val
+            program.unset_init_vars.remove(str(var))
     print(program.to_prog(new_objective))
     return program, new_objective
 
@@ -881,21 +986,19 @@ def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
         cond_i = t_i.condition
         for j in range(i + 1, n):
             t_j = transitions[j]
+            if t_j in found_equiv:
+                continue
             cond_j = t_j.condition
             if sat(conjunct(cond_i, cond_j), symbol_table):
-                if not t_j in found_equiv:
-                    if sat(conjunct(cond_i, neg(cond_j)), symbol_table) or sat(
-                        conjunct(cond_j, neg(cond_i)), symbol_table
-                    ):
-                        compat_map[t_i].add(t_j)
-                        compat_map[t_j].add(t_i)
-                    else:
-                        equiv_map[t_i].add(t_j)
-                        equiv_map[t_j].add(t_i)
-                        found_equiv.add(t_j)
-                else:
+                if sat(conjunct(cond_i, neg(cond_j)), symbol_table) or sat(
+                    conjunct(cond_j, neg(cond_i)), symbol_table
+                ):
                     compat_map[t_i].add(t_j)
                     compat_map[t_j].add(t_i)
+                else:
+                    equiv_map[t_i].add(t_j)
+                    equiv_map[t_j].add(t_i)
+                    found_equiv.add(t_j)
     no_trans_triggered = neg(disjunct_formula_set(t.condition for t in transitions))
     if not sat(no_trans_triggered, symbol_table):
         no_trans_triggered = None
@@ -956,47 +1059,9 @@ def independent_games(vars, games):
     return list(map(lambda s: list(map(lambda g: games[g], s)), independent_game_sets))
 
 
-def maximal_satisfiable_update_sets(updates, symbol_table):
-    if not updates:
-        return []
-
-    indices = list(range(len(updates)))
-    maximal = []
-
-    for r in range(1, len(indices) + 1):
-        for subset in itertools.combinations(indices, r):
-            subset_updates = [updates[i] for i in subset]
-            combined_update = conjunct_formula_set(subset_updates)
-            if not sat(combined_update, symbol_table):
-                continue
-
-            subset_set = set(subset)
-            dominated = False
-            to_remove = []
-            for existing in maximal:
-                if subset_set.issubset(existing):
-                    dominated = True
-                    break
-                if existing.issubset(subset_set):
-                    to_remove.append(existing)
-
-            if dominated:
-                continue
-            for existing in to_remove:
-                maximal.remove(existing)
-            maximal.append(subset_set)
-
-    return [[updates[i] for i in sorted(subset)] for subset in maximal]
-
-
-def formula_to_transitions(orig_formula, inputs, symbol_table):
+def formula_to_transitions(formula, inputs, symbol_table):
     # TODO if already in dnf form, then just extract normally
     #   else the below
-    print(str(orig_formula))
-    formula = only_dis_or_con_junctions(
-        propagate_negations(strip_mathexpr(orig_formula))
-    )
-    print(str(formula))
     preds = atomic_predicates(formula)
     updates = set()
     to_replace = {}
@@ -1028,22 +1093,46 @@ def formula_to_transitions(orig_formula, inputs, symbol_table):
         )
 
     trans = {}
+    cond_to_u = {}
     for r in results:
         if r is None:
             continue
-        cond, u = r
-        if u in trans.keys():
-            trans[u].add(cond)
-        else:
-            trans[u] = {cond}
+        cond, new_cond, u = r
+        cond_to_u.setdefault(cond, set()).add((u, new_cond))
+
+    for cond, us in trans.items():
+        if len(us) > 1:
+            # if there is a (u1, new_cond1) and (u2, new_cond2) in us
+            # s.t., u1 is a subset of u2, and new_cond1 is None
+            # then we can remove (u2, new_cond2)
+            us_list = list(us)
+            to_remove = set()
+            for i in range(len(us_list)):
+                u1, new_cond1 = us_list[i]
+                for j in range(len(us_list)):
+                    if i == j:
+                        continue
+                    u2, new_cond2 = us_list[j]
+                    if new_cond1 is None and u1.is_subset_of(u2):
+                        to_remove.add((u2, new_cond2))
+            for r in to_remove:
+                us.remove(r)
+
+    for cond, us in cond_to_u.items():
+        for u, new_cond in us:
+            new_new_cond = cond if not new_cond else conjunct(cond, new_cond)
+            if u in trans.keys():
+                trans[u].add(new_new_cond)
+            else:
+                trans[u] = {new_new_cond}
 
     results = []
     for u, conds in trans.items():
         reduced_conds = reduce_formula_set_up_to_equivalence(conds, symbol_table)
-        print("reduced up to strength: " + str(len(reduced_conds)))
+        print("reduced up to strength: " + str(len(conds) - len(reduced_conds)))
         reduced_conds = set(
             map(
-                lambda x: simplify_formula_with_math(x, symbol_table),
+                lambda x: simplify_issy_formula_with_math(x, symbol_table),
                 reduced_conds,
             )
         )
@@ -1068,12 +1157,47 @@ def formula_to_transitions(orig_formula, inputs, symbol_table):
                     + "\n vs \n"
                     + str(disjunct_formula_set(reduced_conds_disj))
                 )
-            print("joined conjuncts: " + str(len(reduced_conds_disj)))
+            print(
+                "joined conjuncts: " + str(len(reduced_conds) - len(reduced_conds_disj))
+            )
 
-            results.append((disjunct_formula_set(reduced_conds_disj), [u]))
-        else:
-            results.append((disjunct_formula_set(reduced_conds), [u]))
+            reduced_conds = reduced_conds_disj
+
+        new_cond, new_u = add_pred_upgrades_as_conds(u)
+        results.append(
+            (conjunct(new_cond, disjunct_formula_set(reduced_conds)), [new_u])
+        )
+
     return results
+
+
+def add_pred_upgrades_as_conds(us):
+    eq_update_map = {}
+    pred_upgrades = set()
+    new_updates = set()
+    for u in us:
+        if isinstance(u, BiOp) and u.op == "=":
+            left, right = u.left, u.right
+            if (
+                isinstance(left, Variable)
+                and left.is_next()
+                and not any(v for v in right.variablesin() if v.is_next())
+            ):
+                eq_update_map[left] = right
+                new_updates.add(u)
+            else:
+                pred_upgrades.add(u)
+        else:
+            pred_upgrades.add(u)
+
+    new_conds = []
+    for p in pred_upgrades:
+        next_removed = p.replace_formulas(eq_update_map)
+        if not any(v for v in next_removed.variablesin() if v.is_next()):
+            new_conds.append(next_removed)
+        else:
+            new_updates.add(next_removed)
+    return conjunct_formula_set(new_conds), new_updates
 
 
 def reduce_formula_set_up_to_equivalence(
@@ -1172,30 +1296,54 @@ def join_disjuncts(conjunctions_of_atoms):
 def handle_update_combination(arg):
     combination, formula, update_list, inputs, symbol_table = arg
 
+    if not sat(conjunct_formula_set(combination), symbol_table):
+        return None
+
     new_f_wo_false = formula.replace_formulas(
         {u: false() for u in update_list if u not in combination}
         | {MathExpr(u): false() for u in update_list if u not in combination}
     )
+
+    bdd_simplified = bdd_simplify(new_f_wo_false.to_smt(symbol_table)[0])
+    if bdd_simplified:
+        simplified = fnode_to_issy_formula(bdd_simplified)
+        # needs to be pre-processed as formula was pre-processed
+        simplified = propagate_negations(strip_mathexpr(simplified))
+        if isinstance(simplified, Value):
+            return None
+        us_in_new_f_wo_false = [
+            u
+            for u in atomic_predicates(simplified)
+            if any(v for v in u.variablesin() if v.is_next())
+        ]
+        if len(us_in_new_f_wo_false) != len(combination):
+            return None
+
     new_f = new_f_wo_false.replace_formulas(
         {u: true() for u in combination}
         | {MathExpr(u): false() for u in update_list if u not in combination}
     )
-    if not sat(
-        conjunct(
-            new_f,
-            conjunct_formula_set(
-                combination | {neg(u) for u in update_list if u not in combination}
+    if not sat(new_f, symbol_table):
+        return None
+    if not is_tautology(
+        implies(
+            conjunct(
+                new_f,
+                conjunct_formula_set(
+                    combination | {neg(u) for u in update_list if u not in combination}
+                ),
             ),
+            formula,
         ),
         symbol_table,
     ):
         return None
     dnfed_new_f = dnf(new_f, symbol_table)
     new_cond, new_comb = clean_updates(combination, inputs, symbol_table)
-    if new_cond:
-        dnfed_new_f = conjunct(new_cond, dnfed_new_f)
+    # if new_cond:
+    #     dnfed_new_f = conjunct(new_cond, dnfed_new_f)
 
-    return dnfed_new_f, new_comb
+    return dnfed_new_f, new_cond, new_comb
 
 
 def clean_updates(

@@ -30,7 +30,7 @@ from prop_lang.util import (
     conjunct,
     conjunct_formula_set,
     neg,
-    type_constraints,
+    type_constraints_formula,
     is_tautology,
     sat,
     atomic_predicates,
@@ -141,13 +141,19 @@ def ranking_refinement(ranking, invars, signatures, symbol_table, there_is_inc=T
         dec = BiOp(ranking, MathRels.LT, add_prev_suffix(ranking))
 
     if len(invars) > 0:
-        normalised_invars = [
-            normalise_pred_multiple_vars(i, signatures, symbol_table) for i in invars
-        ]
-        inv = conjunct_formula_set(map(lambda x: x[1], normalised_invars))
-        state_preds = set(
-            itertools.chain.from_iterable(map(lambda x: x[2], normalised_invars))
-        )
+        normalised_invars = set()
+        state_preds = set()
+        for i in invars:
+            result = normalise_pred_multiple_vars(i, signatures, symbol_table)
+            if isinstance(result, Variable):
+                normalised_invars.add(i)
+            else:
+                new_sig, new_invar, new_preds = result
+                signatures.add(new_sig)
+                normalised_invars.add(new_invar)
+                state_preds.update(new_preds)
+
+        inv = conjunct_formula_set(normalised_invars)
         if not there_is_inc:
             constraint = implies(G(F(dec)), G(F(neg(inv))))
             tran_preds = {dec}
@@ -301,7 +307,7 @@ def loop_to_c(
 
     for t in body:
         safety = (
-            type_constraints(t.condition, symbol_table)
+            type_constraints_formula(t.condition, symbol_table)
             .to_nuxmv()
             .replace(" = ", " == ")
             .replace(" & ", " && ")
@@ -367,7 +373,7 @@ def loop_to_c(
         .replace(" | ", " || ")
     )
     exit_cond_var_constraints = (
-        str(type_constraints(exit_cond, symbol_table))
+        str(type_constraints_formula(exit_cond, symbol_table))
         .replace(" = ", " == ")
         .replace(" & ", " && ")
         .replace(" | ", " || ")

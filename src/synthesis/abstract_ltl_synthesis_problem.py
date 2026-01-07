@@ -19,6 +19,7 @@ class AbstractLTLSynthesisProblem:
         con_props: list[Variable],
         assumptions: list[Formula],
         guarantees: list[Formula],
+        init_choice_logic: Formula,
     ):
         self.pure_env_props = pure_env_props
         self.program_out_props = program_out_props
@@ -31,6 +32,7 @@ class AbstractLTLSynthesisProblem:
             guarantees,
         )
         self.tlsf = self.ltl_synthesis_problem.tlsf
+        self.init_choice_logic = init_choice_logic
 
     def get_env_props(self):
         return self.pure_env_props

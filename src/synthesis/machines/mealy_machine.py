@@ -9,10 +9,12 @@ from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from config import env, con
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct_formula_set,
     disjunct_formula_set,
+    is_tautology,
     neg,
     conjunct,
     dnf_safe,
@@ -241,10 +243,18 @@ class MealyMachine(Machine):
         for st in self.con_transitions.keys():
             self.states.add(st)
 
-        had_an_effect = True
-        while had_an_effect:
-            had_an_effect = self.minimize_env_states()
-            had_an_effect = had_an_effect or self.minimize_con_states()
+        # had_an_effect = True
+        # while had_an_effect:
+        #     init_states = len(self.states)
+        #     had_an_effect = self.minimize_env_states()
+        #     had_an_effect = had_an_effect or self.minimize_con_states()
+        #     if had_an_effect:
+        #         print(
+        #             "reduced states to "
+        #             + str(len(self.states))
+        #             + ", from "
+        #             + str(init_states)
+        #         )
 
     def minimize_env_states(self):
         had_an_effect = False
@@ -528,7 +538,11 @@ class MealyMachine(Machine):
         guards_acts = {}
 
         init_cond = conjunct_formula_set(
-            [neg(Variable(stt)) for stt in self.states if stt != self.init_st]
+            [
+                neg(Variable(stt))
+                for stt in self.env_transitions.keys()
+                if stt != self.init_st
+            ]
             + [Variable(self.init_st)]
         )
         init_cond = conjunct(
@@ -549,7 +563,11 @@ class MealyMachine(Machine):
                             UniOp(
                                 "next",
                                 conjunct_formula_set(
-                                    [neg(Variable(s)) for s in self.states if s != tgt]
+                                    [
+                                        neg(Variable(s))
+                                        for s in self.env_transitions.keys()
+                                        if s != tgt
+                                    ]
                                 ),
                             ),
                         ]

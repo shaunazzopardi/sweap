@@ -91,11 +91,25 @@ def test_synthesis():
                     with Environment() as env:
                         parse_start_time = time.time()
 
-                        prog, ltl = rpg_parsec(content, file)
-                        parse_end_time = time.time()
-                        result["parse_time_seconds"] = round(
-                            parse_end_time - parse_start_time, 3
+                        success, res = run_with_timeout_and_memory_limit(
+                            rpg_parsec,
+                            [content, file],
+                            timeout=30,
+                            max_memory_gb=50,
                         )
+                        if success:
+                            parse_end_time = time.time()
+                            result["parse_time_seconds"] = round(
+                                parse_end_time - parse_start_time, 3
+                            )
+                            prog, ltl = res
+                        else:
+                            parse_end_time = time.time()
+                            result["parse_time_seconds"] = round(
+                                parse_end_time - parse_start_time, 3
+                            )
+                            result["realisable"] = "TO parsing"
+                            continue
                         try:
                             # Time the synthesis step
                             # Time the synthesis step
@@ -104,7 +118,7 @@ def test_synthesis():
                             success, hoa = run_with_timeout_and_memory_limit(
                                 synthesize,
                                 [prog, ltl, None, -1],
-                                timeout=100,
+                                timeout=30,
                                 max_memory_gb=50,
                             )
                             if success:
