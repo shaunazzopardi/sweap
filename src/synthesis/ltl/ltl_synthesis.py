@@ -25,7 +25,9 @@ def ltl_synthesis(synthesis_problem: LTLSynthesisProblem, symbol_table) -> Wrapp
             if backend == "strix":
                 cmd = f"{strix_path} {tmp.name} -m both --onthefly none"
             elif backend == "semml":
-                cmd = f"{semml_py_path} {semml_path} --tlsf {tmp.name}"
+                cmd = f"{semml_path} --tlsf {tmp.name}"
+                if os.path.exists(semml_py_path):
+                    cmd = f"{semml_py_path} {cmd}"
             else:
                 raise Exception("Unrecognised synthesis backend " + str(backend))
 
