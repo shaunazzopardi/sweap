@@ -37,8 +37,6 @@ class ToolInfo:
     err: Optional[re.Pattern] = None
 
 
-raboniel_real_re = re.compile(r"^Result: realizable", re.MULTILINE)
-raboniel_unreal_re = re.compile(r"^Result: [Uu]nrealizable", re.MULTILINE)
 rpg_real_re = re.compile(r"^[Rr]ealizable", re.MULTILINE)
 rpg_unreal_re = re.compile(r"^[Uu]nrealizable", re.MULTILINE)
 sweap_real_re = re.compile(r"^Realisable$", re.MULTILINE)
@@ -56,12 +54,12 @@ class CheckMissing:
         return self.s not in string
 
 tools = {
-    # "raboniel": ToolInfo(name="raboniel", latex_name="Rab", real=raboniel_real_re, unreal=raboniel_unreal_re, err=CheckMissing("Result")),
-    # "temos": ToolInfo(name="temos", latex_name="Tem", real=strix_real_re, unreal=strix_unreal_re),
     # "rpgsolve": ToolInfo(name="rpgsolve", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
     # "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
     "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-rpg": ToolInfo(name="sweap-rpg", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "sweap-tsl": ToolInfo(name="sweap-tsl", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "sweap-semml": ToolInfo(name="sweap-semml", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     # "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     # "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     # "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
@@ -348,10 +346,10 @@ with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
         for tool, tool_info in tools.items():
             runtime, verdict = get_result(tool, tool_info, b, bench_info)
             results[b][tool] = runtime
-            update_stats(verdict, tool, b)
             row = (b, bench_info, tool, abs(runtime), verdict)
             writer.writerow(row)
             stdout_writer.writerow(row)
+            update_stats(verdict, tool, bench_info)
 
     # for i, b in enumerate(infinite_benchs, start=2):
     #     print(i-1, b, "...", file=sys.stderr)
@@ -373,7 +371,6 @@ sys.exit(0)
 latex_order = (
     # "rpgsolve", "tslmt2rpg", "rpg-stela",
     # "rpgsolve-syn", "tslmt2rpg-syn",
-    # "raboniel", "temos",
     "sweap", 
     # "sweap-noacc"
     )
@@ -402,7 +399,7 @@ def fmt_result(x: int, real: bool=False):
     return f"{x/1000:.2f}{'$_r$' if real else ''}"
 
 
-syn_tools = ("raboniel", "temos", "rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
+syn_tools = ("rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
 r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap-noacc")
 
 def do_latex_body(benchs, source):
@@ -410,10 +407,6 @@ def do_latex_body(benchs, source):
 
         # Sort & Format results for this benchmark b
         r = {x: fmt_result(results[b].get(x, 0), False) for x in latex_order}
-
-        # Temos' unrealizability verdicts cannot be trusted
-        if not is_realizable and 1 < results[b].get("temos", 0) < timeout:
-            r["temos"] = r"\ERR"
 
         # Highlight best (synthesis) time
         positive_results = {
