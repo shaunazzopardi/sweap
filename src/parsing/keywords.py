@@ -9,6 +9,7 @@ regex_keywords = list(
             r"false$",
             r"in_loop[0-9]+_[0-9]+",
             r"prog$",
+            r"process$",
             r"cs$",
             r"pred_.*",
             r"bin_.*",
