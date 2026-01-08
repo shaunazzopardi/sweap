@@ -302,7 +302,6 @@ def get_result(tool, tool_info, bench, bench_info):
     for name in (bench, *aliases.get(bench, [])):
         log = list(Path(base_dir).rglob(f"{name}.{tool}.log"))
         if log:
-            print(log)
             break
     if not log:
         return 0, "missing"
