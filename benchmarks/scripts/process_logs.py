@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import csv
+import math
 import os
 import re
 from subprocess import CalledProcessError, check_output
@@ -20,7 +21,7 @@ SUMM_LATEX = "table-summ.tex"
 MACROS_LATEX = "macros-experiments.tex"
 bullet = r"$\bullet$"
 
-timeout = 1200000
+timeout = 60_000  # 1_200_000
 popl24 = r"\cite{10.1145/3632899}"
 cav24 = r"\cite{DBLP:conf/cav/SchmuckHDN24}"
 popl25 = r"\cite{DBLP:journals/pacmpl/HeimD25}"
@@ -40,8 +41,8 @@ raboniel_real_re = re.compile(r"^Result: realizable", re.MULTILINE)
 raboniel_unreal_re = re.compile(r"^Result: [Uu]nrealizable", re.MULTILINE)
 rpg_real_re = re.compile(r"^[Rr]ealizable", re.MULTILINE)
 rpg_unreal_re = re.compile(r"^[Uu]nrealizable", re.MULTILINE)
-sweap_real_re = re.compile(r"^Realizable\.", re.MULTILINE)
-sweap_unreal_re = re.compile(r"^Unrealizable\.", re.MULTILINE)
+sweap_real_re = re.compile(r"^Realisable$", re.MULTILINE)
+sweap_unreal_re = re.compile(r"^Unrealisable$", re.MULTILINE)
 strix_real_re = re.compile(r"^REALIZABLE", re.MULTILINE)
 strix_unreal_re = re.compile(r"^UNREALIZABLE", re.MULTILINE)
 err_re = re.compile(r"^Result:\s*$", re.MULTILINE)
@@ -55,16 +56,17 @@ class CheckMissing:
         return self.s not in string
 
 tools = {
-    "raboniel": ToolInfo(name="raboniel", latex_name="Rab", real=raboniel_real_re, unreal=raboniel_unreal_re, err=CheckMissing("Result")),
-    "temos": ToolInfo(name="temos", latex_name="Tem", real=strix_real_re, unreal=strix_unreal_re),
-    "rpgsolve": ToolInfo(name="rpgsolve", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
-    "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
+    # "raboniel": ToolInfo(name="raboniel", latex_name="Rab", real=raboniel_real_re, unreal=raboniel_unreal_re, err=CheckMissing("Result")),
+    # "temos": ToolInfo(name="temos", latex_name="Tem", real=strix_real_re, unreal=strix_unreal_re),
+    # "rpgsolve": ToolInfo(name="rpgsolve", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
+    # "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
     "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
-    "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
-    "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
-    "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
-    "tslmt2rpg": ToolInfo(name="tslmt2rpg", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re),
-    "tslmt2rpg-syn": ToolInfo(name="tslmt2rpg-syn", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
+    "sweap-rpg": ToolInfo(name="sweap-rpg", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    # "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
+    # "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
+    # "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
+    # "tslmt2rpg": ToolInfo(name="tslmt2rpg", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re),
+    # "tslmt2rpg-syn": ToolInfo(name="tslmt2rpg-syn", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
 }
 # These dictionaries map each benchmark
 # to its expected realisability (True<->realisable)
@@ -300,89 +302,82 @@ def get_result(tool, tool_info, bench, bench_info):
     for name in (bench, *aliases.get(bench, [])):
         log = list(Path(base_dir).rglob(f"{name}.{tool}.log"))
         if log:
+            print(log)
             break
     if not log:
-        if tool == "tslmt2rpg":
-            # Some benchmarks are not available in tslmt format.
-            # So we use the time obtained by rpgsolve (or rpgsolve-syn below)
-            # and assume the "translation" time from tslmt to be zero
-            return get_result("rpgsolve", tools["rpgsolve"], bench, bench_info)
-        if tool == "tslmt2rpg-syn":
-            return get_result("rpgsolve-syn", tools["rpgsolve-syn"], bench, bench_info)
-        # 0 means no log found
-        return 0
-    if tool in ("sweap", "sweap-noacc"):
-        refinements[b][tool] = get_refinements(log[0])
+        return 0, "missing"
+    #if tool.startswith("sweap"):
+    #    refinements[b][tool] = get_refinements(log[0])
 
     with open(log[0], "r") as log_file:
         raw_result = log_file.read()
     runtime = int(raw_result.splitlines()[-1])
-    # Scan file for realizability/unrealizability verdict
-    # and compare it to the expected one
-    if runtime < timeout:
-        right_match, wrong_match = (
-            (tool_info.real, tool_info.unreal)
-            if bench_info.real
-            else (tool_info.unreal, tool_info.real))
-        # Time is positive/negative if verdict was correct/incorrect
-        if right_match.search(raw_result):
-            if tool == "temos" and not bench_info.real:
-                # Temos' unrealizability verdicts cannot be trusted
-                return 1
-            result = max(runtime, 2)
-        elif wrong_match.search(raw_result):
-            result = -runtime
-        else:
-            # No outcome found = we assume an error and ignore runtime
-            result = 1
-    else:
-        result = runtime
-    if result is None:
-        # Should never happen
-        raise ValueError(f"{bench=}, {tool=}")
-    return result
+    if runtime >= timeout:
+        return runtime, "timeout"
+
+    verdict_real = tool_info.real.search(raw_result)
+    verdict_unreal = tool_info.unreal.search(raw_result)
+    if verdict_real and not verdict_unreal:
+        return runtime, "realizable"
+    elif verdict_unreal and not verdict_real:
+        return runtime, "unrealizable"
+    return runtime, "error"
 
 
 results = defaultdict(dict)
 refinements = defaultdict(dict)
 
-def update_stats(result: int, tool: str, bench: str):
-    if 1 < result < timeout:
-        if tool == "temos" and not infinite_benchs[b]:
-            # Temos' unrealizability verdicts cannot be trusted
-            STATS[tool]["err"] += 1
-        else:
-            STATS[tool]["right"] += 1
-    elif result == 1:
-        STATS[tool]["err"] += 1
-    elif result >= timeout:
+def update_stats(verdict: str, tool: str, bench_real: bool):
+    if verdict == "missing":
+        pass
+    elif verdict == "timeout":
         STATS[tool]["to"] += 1
-    elif result < 0:
-        STATS[tool]["wrong"] += 1
+    elif verdict == "realizable":
+        STATS[tool]["right" if bench_real else "wrong"] += 1
+    elif verdict == "unrealizable":
+        STATS[tool]["wrong" if bench_real else "right"] += 1
+    elif verdict == "error":
+        STATS[tool]["err"] += 1
 
 with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
     writer = csv.writer(csv_file, dialect="excel", lineterminator="\n")
-    writer.writerow(["row-id", "benchmark", *tools])
-    for i, b in enumerate(infinite_benchs, start=2):
-        print(i-1, b, "...", file=sys.stderr)
-        row = [i, b]
-        bench_info = infinite_benchs[b]
+    stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
+    writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
+    stdout_writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
+    # writer.writerow(["row-id", "benchmark", *tools])
+    for b, bench_info in infinite_benchs.items():
         for tool, tool_info in tools.items():
-            result = get_result(tool, tool_info, b, bench_info)
-            results[b][tool] = result
-            update_stats(result, tool, b)
-            row.append(result)
-        writer.writerow(row)
+            runtime, verdict = get_result(tool, tool_info, b, bench_info)
+            results[b][tool] = runtime
+            update_stats(verdict, tool, b)
+            row = (b, bench_info, tool, abs(runtime), verdict)
+            writer.writerow(row)
+            stdout_writer.writerow(row)
+
+    # for i, b in enumerate(infinite_benchs, start=2):
+    #     print(i-1, b, "...", file=sys.stderr)
+    #     row = [i, b]
+    #     bench_info = infinite_benchs[b]
+    #     for tool, tool_info in tools.items():
+    #         result = get_result(tool, tool_info, b, bench_info)
+    #         results[b][tool] = result
+    #         update_stats(result, tool, b)
+    #         row.append(result)
+    #     writer.writerow(row)
 
 for k, v in STATS.items():
     print(k, ":", v, file=sys.stderr)
 
+sys.exit(0)
+
 # Results (latex) #############################################################
 latex_order = (
-    "rpgsolve", "tslmt2rpg", "rpg-stela",
-    "rpgsolve-syn", "tslmt2rpg-syn",
-    "raboniel", "temos",
-    "sweap", "sweap-noacc")
+    # "rpgsolve", "tslmt2rpg", "rpg-stela",
+    # "rpgsolve-syn", "tslmt2rpg-syn",
+    # "raboniel", "temos",
+    "sweap", 
+    # "sweap-noacc"
+    )
 fmt_names = " & ".join(tools[x].latex_name for x in latex_order)
 
 
@@ -467,10 +462,11 @@ with open(out_dir / LTL_LATEX, "w") as latex:
     for b in ltl_benchs:
         latex.write(dedent(rf"""
             \textsf{{{b.replace("_", "-")}}} & {{{"" if ltl_benchs[b] else bullet}}}"""[1:]))
-        best = min(("sweap", "sweap-noacc"), key=results[b].get)
-        if not 1 < results[b].get(best, 0) < timeout:
-            best = None
-        for tool in ("sweap", "sweap-noacc"):
+        best = None 
+        # best = min(("sweap", "sweap-noacc"), key=results[b].get)
+        # if not 1 < results[b].get(best, 0) < timeout:
+        #     best = None
+        for tool in ("sweap",):
             latex.write(" & ")
             latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
         latex.write(r"\\\hline" "\n")
@@ -523,77 +519,6 @@ for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11
             uniq_tool, *_ = good_times.keys()
             uniq[uniq_tool] += 1
 
-def fmt_summ_data(summ_dict: dict, tools: Sequence[str], real: bool=False):
-    max_tool = max(summ_dict, key=summ_dict.get)
-    if real:
-        tools = [t.replace("-syn", "") for t in tools]
-    fmt_summ_dict = " & ".join(
-        rf"\textbf{{{summ_dict.get(k, 0)}}}"
-        if k == max_tool else str(summ_dict.get(k, 0))
-        for k in tools)
-    return fmt_summ_dict
-
-with open(out_dir / SUMM_LATEX, "w") as latex:
-    syn_header = " & ".join(tools[x].latex_name for x in syn_tools)
-    r11y_header = " & ".join(tools[x].latex_name for x in r11y_tools)
-
-    all_solved = {
-        t: sum(
-            int(1 < results[b].get(t, 0) < timeout)
-            for b in results if b not in ltl_benchs)
-            for t in tools}
-
-    syn_solved = {t: d for t, d in all_solved.items() if t in syn_tools}
-
-    fmt_syn_solved = fmt_summ_data(syn_solved, syn_tools)
-    fmt_syn_best = fmt_summ_data(syn_best, syn_tools)
-    fmt_syn_uniq = fmt_summ_data(syn_uniq, syn_tools)
-
-    fmt_r11y_solved = fmt_summ_data(all_solved, r11y_tools, real=True)
-    fmt_r11y_best = fmt_summ_data(r11y_best, r11y_tools, real=True)
-    fmt_r11y_uniq = fmt_summ_data(r11y_uniq, r11y_tools, real=True)
 
 
-    latex.write(dedent(rf"""
-    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in range(len(syn_tools)-2))}||c|c|}}\hline
-    Synthesis & {syn_header} \\\hline
-        solved & {fmt_syn_solved}\\
-        best & {fmt_syn_best}\\
-        unique & {fmt_syn_uniq}\\\hline
-    \end{{tabular}}\\
-    \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in range(len(r11y_tools)-2))}||c|c|}}\hline
-    Realisability & {r11y_header} \\\hline
-        solved & {fmt_r11y_solved}\\
-        best & {fmt_r11y_best}\\
-        unique & {fmt_r11y_uniq}\\\hline
-    \end{{tabular}}
-    """[1:]))
 
-ltl_times = {
-    t: {b: results[b].get(t, 0)
-        for b in results 
-        if b in ltl_benchs and 1 < results[b].get(t, 0) < timeout}
-    for t in tools if "sweap" in t}
-
-# In how many benchmarks the lazy approach was the best
-lazy_best = sum(
-    ltl_times["sweap-noacc"][b] < ltl_times["sweap"].get(b, 0)
-    for b in ltl_times["sweap-noacc"])
-
-no_refinements = sum(
-    int(refinements[b]["sweap"][2]) == 0
-    and int(refinements[b]["sweap"][3]) == 0
-    for b in ltl_benchs)
-
-## Macros
-with open(out_dir / MACROS_LATEX, "w") as latex:
-    latex.write(rf"\newcommand*{{\COMPEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)}}}" "\n")
-    latex.write(rf"\newcommand*{{\LITERATUREEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)-len(reach_benchs_novel)}}}" "\n")
-    latex.write(rf"\newcommand*{{\LTLEXPERIMENTS}}{{{len(ltl_benchs)}}}" "\n")
-    best_competitor = sorted([k for k in syn_solved if "sweap" not in k], key=syn_solved.get, reverse=True)
-    latex.write(rf"\newcommand*{{\SWEAPSCORE}}{{{syn_solved['sweap']}}}" "\n")
-    latex.write(rf"\newcommand*{{\SWEAPLAZYSCORE}}{{{syn_solved['sweap-noacc']}}}" "\n")
-    latex.write(rf"\newcommand*{{\SECONDBEST}}{{{best_competitor[0].replace('-syn', '')}}}" "\n")
-    latex.write(rf"\newcommand*{{\SECONDBESTSCORE}}{{{syn_solved[best_competitor[0]]}}}" "\n")
-    latex.write(rf"\newcommand*{{\LAZYBEST}}{{{lazy_best}}}" "\n")
-    latex.write(rf"\newcommand*{{\NOREFINEMENTS}}{{{no_refinements}}}" "\n")
