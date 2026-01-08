@@ -1,7 +1,7 @@
 # Shortnames we give to the tools
-TOOLS := raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noac sweap-nobin temos tslmt2rpg tslmt2rpg-syn
+TOOLS := rpgsolve rpgsolve-syn rpg-stela sweap sweap-noac sweap-nobin tslmt2rpg tslmt2rpg-syn sweap-rpg sweap-tsl sweap-semml
 # Timeout for each benchmark, in seconds
-TIMEOUT := 1200
+TIMEOUT := 60
 
 # Directory that contains this Makefile
 ROOT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -23,44 +23,49 @@ SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/tasks/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/thermostat/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/full-ltl/*.prog))
 SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/full-ltl/hard/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/non-det-inputs/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/non-det-inputs/cav24/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/non-det-inputs/popl25/basic/*.prog))
 RPG_BENCHS :=		$(basename $(wildcard benchmarks/rpgsolve/*.rpg))
 RABONIEL_BENCHS :=	$(basename $(wildcard benchmarks/raboniel/*.tslmt))
-TEMOS_BENCHS := 	$(basename $(wildcard benchmarks/temos/*.tslt))
 TSLMT2RPG_BENCHS :=	$(basename $(wildcard benchmarks/tslmt2rpg/*.tslmt))
 
 
 SWEAP_LOGS :=			$(addsuffix .sweap.log, 			$(SWEAP_BENCHS))
-SWEAP_LAZY_LOGS :=		$(addsuffix .sweap-noacc.log, 		$(SWEAP_BENCHS))
+SWEAP_SEMML_LOGS :=		$(addsuffix .sweap-semml.log, 			$(SWEAP_BENCHS))
+SWEAP_RPG_LOGS :=		$(addsuffix .sweap-rpg.log, 			$(RPG_BENCHS))
+SWEAP_TSL_LOGS :=		$(addsuffix .sweap-tsl.log, 			$(RABONIEL_BENCHS))
+SWEAP_LAZY_LOGS :=		$(addsuffix .sweap-lazy.log, 		$(SWEAP_BENCHS))
 SWEAP_NOBIN_LOGS :=		$(addsuffix .sweap-nobin.log,       $(SWEAP_BENCHS))
 RPG_STELA_LOGS :=		$(addsuffix .rpg-stela.log,			$(RPG_BENCHS))
 RPG_SYN_LOGS :=			$(addsuffix .rpgsolve-syn.log,		$(RPG_BENCHS))
 RPG_LOGS :=				$(addsuffix .rpgsolve.log,			$(RPG_BENCHS))
-RABONIEL_LOGS :=		$(addsuffix .raboniel.log,			$(RABONIEL_BENCHS))
-TEMOS_LOGS :=			$(addsuffix .temos.log,				$(TEMOS_BENCHS))
 TSLMT2RPG_LOGS :=		$(addsuffix .tslmt2rpg.log,			$(TSLMT2RPG_BENCHS))
 TSLMT2RPG_SYN_LOGS :=	$(addsuffix .tslmt2rpg-syn.log,		$(TSLMT2RPG_BENCHS))
 
 # Tool command-line invocation
-$(SWEAP_LOGS): cmd = 			python3 src/main.py --synthesise --p
+$(SWEAP_LOGS): cmd = 			python3 src/main.py --synthesise --synthesis_backend strix --p
+$(SWEAP_SEMML_LOGS): cmd = 			python3 src/main.py --synthesise --synthesis_backend semml --p
+$(SWEAP_RPG_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend strix --rpg
+$(SWEAP_TSL_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend strix --tsl
 $(SWEAP_LAZY_LOGS): cmd =		python3 src/main.py --synthesise --lazy --p
 $(SWEAP_NOBIN_LOGS): cmd =		python3 src/main.py --synthesise --no_binary_enc --p
 $(RPG_STELA_LOGS): cmd = 		rpg-stela solve --enable-no-pruning <
 $(RPG_SYN_LOGS): cmd =			rpgsolve --generate-program --disable-log <
 $(RPG_LOGS): cmd =				rpgsolve --disable-log <
-$(RABONIEL_LOGS): cmd =			./raboniel --spec
-$(TEMOS_LOGS): cmd = 			temos.sh
 $(TSLMT2RPG_LOGS): cmd =		run-pruned.sh
 $(TSLMT2RPG_SYN_LOGS): cmd =	run-pruned-syn.sh
 
 # paths that the tool needs in $PATH
-path =							binaries
-$(SWEAP_LOGS) : path =			binaries:binaries/CPAchecker-2.3-unix/scripts
-$(SWEAP_LAZY_LOGS): path =		binaries:binaries/CPAchecker-2.3-unix/scripts
-$(RPG_SYN_LOGS): path =			binaries/z3-4-8:binaries
-$(TSLMT2RPG_LOGS): path =		binaries/z3-4-8:binaries
+path =				binaries
+$(SWEAP_LOGS) : path =		binaries:binaries/CPAchecker-2.3-unix/scripts
+$(SWEAP_LAZY_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
+$(SWEAP_RPG_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
+$(SWEAP_TSL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
+$(SWEAP_SEMML_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
+$(RPG_SYN_LOGS): path =		binaries/z3-4-8:binaries
+$(TSLMT2RPG_LOGS): path =	binaries/z3-4-8:binaries
 $(TSLMT2RPG_SYN_LOGS): path =	binaries/z3-4-8:binaries
-# Because Raboniel will run from binaries/
-$(RABONIEL_LOGS): path = 		.
 
 # Set up environment variables, create temporary log file, record start time
 define HEADER
@@ -80,17 +85,18 @@ define FOOTER
 	mv $$FILE $(ROOT_DIR)/$@
 endef
 
-all: raboniel rpgsolve rpgsolve-syn rpg-stela sweap sweap-noacc tslmt2rpg tslmt2rpg-syn
-everything: all temos sweap-nobin
+all: sweap sweap-rpg sweap-tsl sweap-semml
+everything: all sweap-nobin
 
 sweap:          check-ulimit $(SWEAP_LOGS)
-sweap-noacc:    check-ulimit $(SWEAP_LAZY_LOGS)
+sweap-semml:    $(SWEAP_SEMML_LOGS)
+sweap-lazy:    	check-ulimit $(SWEAP_LAZY_LOGS)
 sweap-nobin:    check-ulimit $(SWEAP_NOBIN_LOGS)
+sweap-rpg:    	check-ulimit $(SWEAP_RPG_LOGS)
+sweap-tsl:    	check-ulimit $(SWEAP_TSL_LOGS)
 rpg-stela:      check-ulimit $(RPG_STELA_LOGS)
 rpgsolve-syn:   check-ulimit $(RPG_SYN_LOGS)
 rpgsolve:       check-ulimit $(RPG_LOGS)
-raboniel:       check-ulimit $(RABONIEL_LOGS)
-temos:          check-ulimit $(TEMOS_LOGS)
 tslmt2rpg:      check-ulimit $(TSLMT2RPG_LOGS)
 tslmt2rpg-syn:  check-ulimit $(TSLMT2RPG_SYN_LOGS)
 
@@ -104,7 +110,19 @@ $(SWEAP_LOGS): %.sweap.log: %.prog
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
 
-$(SWEAP_LAZY_LOGS): %.sweap-noacc.log: %.prog
+$(SWEAP_SEMML_LOGS): %.sweap-semml.log: %.prog
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
+
+$(SWEAP_RPG_LOGS): %.sweap-rpg.log: %.rpg
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
+
+$(SWEAP_TSL_LOGS): %.sweap-tsl.log: %.tslmt
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
+
+$(SWEAP_LAZY_LOGS): %.sweap-lazy.log: %.prog
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
 
@@ -124,15 +142,6 @@ $(RPG_LOGS): %.rpgsolve.log : %.rpg
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
 
-$(RABONIEL_LOGS): %.raboniel.log : %.tslmt
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@cd binaries ; $(HEADER) ;\
-	timeout $(TIMEOUT) $(cmd) $(addprefix ../, $<) >> $$FILE 2>&1 ; $(FOOTER)
-
-$(TEMOS_LOGS): %.temos.log : %.tslt
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
-
 $(TSLMT2RPG_LOGS): %.tslmt2rpg.log : %.tslmt
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$FILE 2>&1 ; $(FOOTER)
@@ -148,12 +157,13 @@ $(TSLMT2RPG_SYN_LOGS): %.tslmt2rpg-syn.log : %.tslmt
 clean: clean-aux
 	@echo "Cleaning up all logs..."
 	-@rm $(SWEAP_LOGS) 2>/dev/null || true
+	-@rm $(SWEAP_SEMML_LOGS) 2>/dev/null || true
+	-@rm $(SWEAP_RPG_LOGS) 2>/dev/null || true
+	-@rm $(SWEAP_TSL_LOGS) 2>/dev/null || true
 	-@rm $(SWEAP_LAZY_LOGS) 2>/dev/null || true
 	-@rm $(RPG_LOGS) 2>/dev/null || true
 	-@rm $(RPG_SYN_LOGS) 2>/dev/null || true
 	-@rm $(RPG_STELA_LOGS) 2>/dev/null || true
-	-@rm $(RABONIEL_LOGS) 2>/dev/null || true
-	-@rm $(TEMOS_LOGS) 2>/dev/null || true
 	-@rm $(TSLMT2RPG_LOGS) 2>/dev/null || true
 	-@rm $(TSLMT2RPG_SYN_LOGS) 2>/dev/null || true
 
@@ -167,9 +177,10 @@ clean-aux: confirm
 
 clean-timeouts: confirm
 	@echo "Cleaning up logs for experiments that timed out..."
-	-@tail -n2 $(RABONIEL_LOGS) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
-	-@tail -n2 $(TEMOS_LOGS) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
 	-@tail -n2 $(SWEAP_LOGS) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
+	-@tail -n2 $(SWEAP_SEMML_LOGG) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
+	-@tail -n2 $(SWEAP_RPG_LOGG) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
+	-@tail -n2 $(SWEAP_TSL_LOGG) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
 	-@tail -n2 $(SWEAP_LAZY_LOGS) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
 	-@tail -n2 $(RPG_LOGS) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
 	-@tail -n2 $(RPG_SYN_LOGS) 2>/dev/null | grep -B1 124 | grep "==>" | cut -d ' ' -f2 | xargs rm -v 2>/dev/null || true
@@ -195,3 +206,4 @@ tables: #$(ALL_LOGS)
 plots:
 	cd benchmarks/scripts; \
 	./cactus.py ../results/results.csv
+
