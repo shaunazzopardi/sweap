@@ -27,6 +27,8 @@ from prop_lang.util import (
     X,
     neg,
     F,
+    should_be_math_expr,
+    strip_mathexpr,
     true,
     atomic_predicates,
 )
@@ -49,45 +51,9 @@ class ToProgram(NodeWalker):
         self.updates: dict[str, set[Update]] = defaultdict(set)
         self.vars_used_in_updates: set[Variable] = set()
         self.checks = {}
-        self.bool_vars: set[str] = set()
-        self.int_vars: set[str] = set()
-        self._context_stack: list[str] = []
-        self._update_edges: list[tuple[str, str]] = []
-
-    def _push_context(self, context: str) -> None:
-        self._context_stack.append(context)
-
-    def _pop_context(self) -> None:
-        if self._context_stack:
-            self._context_stack.pop()
-
-    def _current_context(self) -> str:
-        if self._context_stack:
-            return self._context_stack[-1]
-        return "bool"
-
-    def _mark_bool(self, name: str) -> None:
-        if name not in self.int_vars:
-            self.bool_vars.add(name)
-
-    def _mark_int(self, name: str) -> None:
-        self.int_vars.add(name)
-        self.bool_vars.discard(name)
-        self._propagate_int_from_updates()
-
-    def _propagate_int_from_updates(self) -> None:
-        changed = True
-        while changed:
-            changed = False
-            for left, right in self._update_edges:
-                if left in self.int_vars and right not in self.int_vars:
-                    self.int_vars.add(right)
-                    self.bool_vars.discard(right)
-                    changed = True
-                elif right in self.int_vars and left not in self.int_vars:
-                    self.int_vars.add(left)
-                    self.bool_vars.discard(left)
-                    changed = True
+        self.bool_vars: set[Variable] = set()
+        self.int_vars: set[Variable] = set()
+        self.related_vars: set[tuple[Variable, Variable]] = set()
 
     def _is_math_op(self, op) -> bool:
         return isinstance(op, (MathOps, MathRels)) or op in {
@@ -106,74 +72,77 @@ class ToProgram(NodeWalker):
 
     def walk_BiOp(self, node: BiOp):
         if self._is_math_op(node.op):
-            self._push_context("int")
-            self.walk(node.left)
-            self.walk(node.right)
-            self._pop_context()
+            if node.op == "=":
+                if isinstance(node.left, Value):
+                    if node.left.type() == BOOLEAN:
+                        self.bool_vars.update(node.right.variablesin())
+                    else:
+                        self.int_vars.update(node.right.variablesin())
+                elif isinstance(node.right, Value):
+                    if node.right.type() == BOOLEAN:
+                        self.bool_vars.update(node.left.variablesin())
+                    else:
+                        self.int_vars.update(node.left.variablesin())
+            else:
+                self.int_vars.update(node.variablesin())
+            for v in node.left.variablesin():
+                for vv in node.right.variablesin():
+                    self.related_vars.add((v, vv))
         else:
-            self._push_context("bool")
-            self.walk(node.left)
-            self.walk(node.right)
-            self._pop_context()
+            if isinstance(node.left, Variable):
+                self.bool_vars.add(node.left)
+            if isinstance(node.right, Variable):
+                self.bool_vars.add(node.right)
+        self.walk(node.left)
+        self.walk(node.right)
 
     def walk_UniOp(self, node: UniOp):
         if node.op == "!":
-            self._push_context("bool")
+            if isinstance(node.right, Value):
+                self.bool_vars.add(node.right)
             self.walk(node.right)
-            self._pop_context()
         else:
             self.walk(node.right)
 
     def walk_Variable(self, node: Variable):
-        self.vars.add(Variable(node.name))
-        if self._current_context() == "int":
-            self._mark_int(str(node))
-        else:
-            self._mark_bool(str(node))
+        self.vars.add(node)
 
     def walk_MathExpr(self, node: MathExpr):
-        if not isinstance(node.formula, Variable):
-            self._push_context("int")
         self.walk(node.formula)
-        self._pop_context()
 
     def walk_Update(self, node: Update):
         # always add a chance to stutter
         self.state_vars.add(node.left)
-        self.vars_used_in_updates.update([node.left] + node.right.variablesin())
+        self.vars.add(node.left)
+        vars_in_right = node.right.variablesin()
+        self.vars.update(vars_in_right)
+        self.vars_used_in_updates.update([node.left] + vars_in_right)
         stutter = Update(node.left, node.left)
         self.updates[node.left.name].add(stutter)
         # add actual update
         self.updates[node.left.name].add(node)
-        left_name = str(node.left)
+
+        for v in vars_in_right:
+            self.related_vars.add((node.left, v))
+
         if isinstance(node.right, Value):
             if node.right.type() == BOOLEAN:
-                self._mark_bool(left_name)
+                self.bool_vars.add(node.left)
             else:
-                self._mark_int(left_name)
-        elif isinstance(node.right, MathExpr):
-            self._mark_int(left_name)
-        elif left_name in self.bool_vars:
-            self._mark_bool(left_name)
-        elif isinstance(node.right, Variable):
-            right_name = str(node.right)
-            self._update_edges.append((left_name, right_name))
-            if right_name in self.int_vars:
-                self._mark_int(left_name)
-            elif right_name in self.bool_vars:
-                self._mark_bool(left_name)
+                self.int_vars.add(node.left)
+        elif not isinstance(node.right, Variable) and strip_mathexpr(node.right).op in {
+            "+",
+            "-",
+            "*",
+            "/",
+        }:
+            self.int_vars.add(node.left)
+            self.int_vars.update(node.right.variablesin())
+        else:
+            for v in node.right.variablesin():
+                self.related_vars.add((node.left, v))
 
         self.walk(node.left)
-        if left_name in self.int_vars:
-            if isinstance(node.right, Variable):
-                self._mark_int(str(node.right))
-            self._push_context("int")
-            self.walk(node.right)
-            self._pop_context()
-        else:
-            if isinstance(node.right, Variable) and left_name in self.bool_vars:
-                self._mark_bool(str(node.right))
-            self.walk(node.right)
 
     # TODO
     #   env should be able to choose partition it wants to be into, and only increment within it
@@ -271,12 +240,40 @@ class ToProgram(NodeWalker):
                     if v not in vars_to_preds.keys():
                         vars_to_preds[v] = set()
                     vars_to_preds[v].add(p)
+
         self.inputs = self.vars.difference(self.state_vars)
+        changed = True
+        while changed:
+            to_add_to_int = set()
+            to_add_to_bool = set()
+            changed = False
+            for v1, v2 in self.related_vars:
+                if v1 in self.int_vars and v2 not in self.int_vars:
+                    to_add_to_int.add(v2)
+                    changed = True
+                elif v1 in self.bool_vars and v2 not in self.bool_vars:
+                    to_add_to_bool.add(v2)
+                    changed = True
+                elif v1 not in self.int_vars and v2 in self.int_vars:
+                    to_add_to_int.add(v1)
+                    changed = True
+                elif v1 not in self.bool_vars and v2 in self.bool_vars:
+                    to_add_to_bool.add(v1)
+                    changed = True
+            self.int_vars.update(to_add_to_int)
+            self.bool_vars.update(to_add_to_bool)
+
+        if len(self.int_vars.intersection(self.bool_vars)) > 0:
+            raise Exception(
+                "Could not infer variable types consistently. Conflicting variables: "
+                + str(self.int_vars.intersection(self.bool_vars))
+            )
+
         # TODO: to make this more complete, first normalise each predicate
         for v, ps in vars_to_preds.items():
             if (
                 len(ps) == 1
-                and str(v) not in self.bool_vars
+                and v not in self.bool_vars
                 and not v in self.vars_used_in_updates
             ):
                 print("Booleanised input variable " + str(v))
@@ -289,8 +286,8 @@ class ToProgram(NodeWalker):
                 for g in guarantees:
                     new_guarantees.append(g.replace_formulas(to_replace))
                 guarantees = new_guarantees
-                self.bool_vars.add(str(v))
-                self.int_vars.remove(str(v))
+                self.bool_vars.add(v)
+                self.int_vars.remove(v)
                 self.inputs.add(v)
 
         # TODO: for output vars that are assigned only constants,
@@ -307,8 +304,8 @@ class ToProgram(NodeWalker):
 
         partitions = partition_updates(self.updates, self.inputs)
 
-        types = {v: BOOLEAN for v in self.bool_vars}
-        types.update({v: INTEGER for v in self.int_vars})
+        types = {v.name: BOOLEAN for v in self.bool_vars}
+        types.update({v.name: INTEGER for v in self.int_vars})
         # TODO: when controller transitions for a certain partition/var are just two,
         #  then var could be turned into a boolean (if irrelevant for init assumptions)
 
@@ -425,6 +422,7 @@ class ToProgram(NodeWalker):
         formula = implies(
             conjunct_formula_set(assumptions), conjunct_formula_set(guarantees)
         )
+        print(len(con_t))
 
         prog = Program(
             name,
@@ -631,151 +629,6 @@ def update_combinations(updates: Iterator[Iterator[str]]) -> list[tuple[str, ...
     if not updates:
         return []
     return list(product(*[list(ups) for ups in updates if len(ups) > 0]))
-
-
-def infer_type_of_vars(updates: dict[str, set[BiOp]], partitions, formula) -> dict:
-    """
-    Infer the type of variables based on their updates.
-    :param updates: A dictionary mapping variables to their updates.
-    :return: A string representing the type of the variables.
-    """
-    types = {}
-    preds = atomic_predicates(formula)
-    for p in preds:
-        if isinstance(p, MathExpr):
-            for v in p.variablesin():
-                # TODO this needs to change once we support reals
-                types[str(v)] = INTEGER
-        else:
-            for v in p.variablesin():
-                types[str(v)] = BOOLEAN
-
-    for var, ups in updates.items():
-        for u in ups:
-            if var not in types.keys():
-                if isinstance(u.right, Value):
-                    if u.right.type() == BOOLEAN:
-                        types[var] = BOOLEAN
-                    elif u.right.type() == INTEGER:
-                        types[var] = INTEGER
-                elif isinstance(u.right, MathExpr):
-                    types[var] = INTEGER
-
-            if var in types.keys():
-                for v in u.right.variablesin():
-                    if str(v) not in types.keys():
-                        types[str(v)] = types[var]
-
-    left = [v for v in updates.keys() if v not in types.keys()]
-    for v in left:
-        for p in partitions:
-            if v in p:
-                for vv in p:
-                    if vv in types.keys():
-                        types[v] = types[vv]
-                        break
-    left = [v for v in updates.keys() if v not in types.keys()]
-    if len(left) > 0:
-        raise Exception("Could not infer type of variables: " + str(left))
-    return types
-
-
-def infer_var_types_with_booleans(
-    state_vars: set[Variable],
-    input_vars: set[Variable],
-    updates: dict[str, set[Update]],
-    formula: Formula,
-) -> dict[str, object]:
-    """Infer types with boolean context awareness for state and input variables."""
-
-    bool_vars: set[str] = set()
-    int_vars: set[str] = set()
-    math_ops = {"+", "-", "*", "/", "<", ">", "<=", ">=", "=", "==", "!="}
-
-    def mark_bool(name: str) -> None:
-        if name not in int_vars:
-            bool_vars.add(name)
-
-    def mark_int(name: str) -> None:
-        int_vars.add(name)
-        bool_vars.discard(name)
-
-    def is_math_op(op) -> bool:
-        return isinstance(op, (MathOps, MathRels)) or op in math_ops
-
-    def visit(node: Formula, context: str = "bool") -> None:
-        if isinstance(node, Value):
-            return
-        if isinstance(node, Variable):
-            if context == "int":
-                mark_int(str(node))
-            else:
-                mark_bool(str(node))
-            return
-        if isinstance(node, MathExpr):
-            for v in node.variablesin():
-                mark_int(str(v))
-            return
-        if isinstance(node, Update):
-            left_name = str(node.left)
-            if isinstance(node.right, Value):
-                if node.right.type() == BOOLEAN:
-                    mark_bool(left_name)
-                else:
-                    if left_name not in bool_vars:
-                        mark_int(left_name)
-            else:
-                if left_name in bool_vars:
-                    mark_bool(left_name)
-                elif isinstance(node.right, MathExpr):
-                    mark_int(left_name)
-            visit(node.right, "int" if left_name in int_vars else "bool")
-            return
-        if isinstance(node, UniOp):
-            if node.op == "!":
-                visit(node.right, "bool")
-            else:
-                visit(node.right, "bool")
-            return
-        if isinstance(node, BiOp):
-            if is_math_op(node.op):
-                visit(node.left, "int")
-                visit(node.right, "int")
-            elif isinstance(node.op, (BoolBiOps, LTLBiOps)) or node.op in {
-                "&",
-                "&&",
-                "|",
-                "||",
-                "->",
-                "<->",
-                "U",
-                "W",
-                "R",
-                "M",
-            }:
-                visit(node.left, "bool")
-                visit(node.right, "bool")
-            else:
-                visit(node.left, "bool")
-                visit(node.right, "bool")
-            return
-
-    visit(formula, "bool")
-    for updates_for_var in updates.values():
-        for update in updates_for_var:
-            visit(update, "bool")
-
-    types: dict[str, object] = {}
-    for name in bool_vars:
-        types[name] = BOOLEAN
-    for name in int_vars:
-        types[name] = INTEGER
-
-    unknown = {str(v) for v in (state_vars | input_vars)} - set(types.keys())
-    if unknown:
-        raise Exception("Could not infer type of variables: " + str(sorted(unknown)))
-
-    return types
 
 
 # TODO HEURISTIC:
