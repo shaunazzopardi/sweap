@@ -195,10 +195,14 @@ def test_parsing():
             with open(os.path.join(benchmarks_dir, file), "r") as f:
                 content = f.read()
                 with Environment() as env:
-                    f = string_to_ltlmt(content)
+                    try:
+                        f = string_to_ltlmt(content)
+                    except Exception as e:
+                        print(f"Error parsing {file}: {e}")
+                        raise (e)
                     ToProgram().ltlmt2prog(f, file)
     print(f"Finished parsing with {cnt} errors.")
 
 
 if __name__ == "__main__":
-    test_synthesis()
+    test_parsing()

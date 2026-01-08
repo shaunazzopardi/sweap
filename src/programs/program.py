@@ -414,6 +414,9 @@ class Program:
         def fmt_valuation(name, value, var_type):
             return f"{name} : {var_type} := {str(value).lower()}"
 
+        def fmt_valuation_no_init(name, var_type):
+            return f"{name} : {var_type}"
+
         def tr_to_str(t, is_env):
             def remove_paren(s):
                 s1 = str(s)
@@ -430,6 +433,9 @@ class Program:
         valuations = [
             fmt_valuation(name, value, self.symbol_table[name])
             for name, value in self.init_var_values.items()
+        ] + [
+            fmt_valuation_no_init(name, self.symbol_table[name])
+            for name in self.unset_init_vars
         ]
 
         other_states = ", ".join(

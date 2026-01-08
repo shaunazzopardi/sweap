@@ -11,6 +11,7 @@ from pysmt.typing import INT
 
 from analysis.smt_checker import bdd_simplify, quantifier_elimination
 import config
+from parsing.string_to_ltlmt import massage_ltl
 from parsing.string_to_rpg import parity_objective
 from programs.program import Program, program_cross_product, fill_in_minigames
 from programs.transition import Transition
@@ -910,6 +911,11 @@ def process(
         program, formula_objectives, to_exclude_from_minigame
     )
 
+    not_in_minigame = neg(disjunct_formula_set(minigame_states))
+    formula_objectives = list(
+        map(lambda x: massage_ltl(x, not_in_minigame, {}), formula_objectives)
+    )
+
     if len(minigame_states) > 0:
         minigame_safety = G(F(neg(disjunct_formula_set(minigame_states))))
         new_game_objectives = [minigame_safety]
@@ -929,7 +935,7 @@ def process(
     game_objectives = new_game_objectives
 
     game_objectives_f = conjunct_formula_set(game_objectives)
-    massage_ltl = lambda f: (
+    replace_in_ltl = lambda f: (
         f.replace_formulas(preds_to_replace) if len(preds_to_replace.keys()) > 0 else f
     )
 
@@ -937,7 +943,7 @@ def process(
         new_objective = game_objectives_f
     else:
         new_objective = conjunct_formula_set(
-            [massage_ltl(o) for o in formula_objectives]
+            [replace_in_ltl(o) for o in formula_objectives]
             + [game_objectives_f]
             # [
             #     BiOp(
@@ -956,7 +962,7 @@ def process(
         _, fixed_values = extract_initial_values(
             set(Variable(v) for v in program.unset_init_vars),
             f,
-            symbol_table,
+            program.symbol_table,
         )
         for var, val in fixed_values.items():
             program.init_var_values[str(var)] = val

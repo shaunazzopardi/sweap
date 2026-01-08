@@ -183,4 +183,4 @@ def test_parsing():
 
 
 if __name__ == "__main__":
-    test_synthesis()
+    test_parsing()

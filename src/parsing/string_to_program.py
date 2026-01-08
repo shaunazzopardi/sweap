@@ -80,6 +80,7 @@ def program_parser():
     ltl_spec = ltl_spec.replace_formulas(
         {Variable(s): Value(BoolAtoms.FALSE) for s in states if s not in program.states}
     )
+    print(program.to_prog(ltl_spec))
     return program, ltl_spec
 
 

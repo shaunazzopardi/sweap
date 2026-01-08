@@ -453,7 +453,7 @@ class ToProgram(NodeWalker):
         return prog, formula
 
 
-def massage_ltl(formula: Formula, controller_state: Variable, to_replace):
+def massage_ltl(formula: Formula, controller_state: Formula, to_replace):
     if not (unary_LTL_operators | binary_LTL_operators).intersection(
         set(formula.ops_used())
     ):

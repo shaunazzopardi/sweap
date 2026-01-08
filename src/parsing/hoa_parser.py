@@ -4,7 +4,7 @@ import config
 from multiprocessing import Pool
 
 from config import strix, semml
-from parsing.string_to_prop_logic import string_to_prop
+from parsing.string_to_ltl import string_to_prop
 from prop_lang.variable import Variable
 
 

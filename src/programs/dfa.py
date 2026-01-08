@@ -96,14 +96,6 @@ def program_dfs(
     return visited
 
 
-def _base_var_name(var: Variable | str) -> str:
-    name = str(var)
-    # Strip repeated "_prev" suffixes to get the underlying variable name.
-    while name.endswith("_prev"):
-        name = name[: -len("_prev")]
-    return name
-
-
 def initial_value_dependencies(program) -> Set[Variable]:
     """Return uninitialised variables whose initial values affect control flow.
 
@@ -113,7 +105,7 @@ def initial_value_dependencies(program) -> Set[Variable]:
     stops on the current branch to avoid redundant exploration.
     """
 
-    uninitialised = {_base_var_name(v) for v in program.unset_init_vars}
+    uninitialised = {v for v in program.unset_init_vars}
     if not uninitialised:
         return set()
 
@@ -123,18 +115,25 @@ def initial_value_dependencies(program) -> Set[Variable]:
         updated, seen_in_guard = context
 
         guard_vars = {
-            _base_var_name(v)
+            v.name
             for v in transition.condition.variablesin()
-            if _base_var_name(v) in uninitialised
+            if v.name in uninitialised
         }
-        guard_before_update = guard_vars - updated
+        used_in_variable_update = {
+            v.name
+            for action in transition.action
+            for v in action.right.variablesin()
+            if action.left != action.right and v.name in uninitialised
+        }
+        guard_before_update = (guard_vars | used_in_variable_update) - updated
+
         if guard_before_update:
             matters.update(guard_before_update)
 
         updated_now = updated | {
-            _base_var_name(action.left)
+            action.left.name
             for action in transition.action
-            if _base_var_name(action.left) in uninitialised
+            if action.left.name in uninitialised and action.left != action.right
         }
 
         return updated_now, seen_in_guard | guard_before_update
@@ -173,7 +172,7 @@ def classify_initial_values(program) -> tuple[Set[Variable], Set[Variable]]:
     """
 
     relevant = initial_value_dependencies(program)
-    uninitialised = {Variable(_base_var_name(v)) for v in program.unset_init_vars}
+    uninitialised = {Variable(v) for v in program.unset_init_vars}
     irrelevant = uninitialised - relevant
     return relevant, irrelevant
 

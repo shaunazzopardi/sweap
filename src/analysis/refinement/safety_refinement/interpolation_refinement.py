@@ -112,15 +112,7 @@ def safety_refinement_seq_int(
                     }
                 )
                 g_i = g.replace_vars(ith_vars(i))
-                act = tran.action + [
-                    BiOp(e, "=", Value(cs_state[str(e)])) for e in program.num_in_out
-                ]
-                #     [
-                #     u.replace_vars(
-                #         {e: Value(cs_state[str(e)]) for e in program.inp_out_puts}
-                #     )
-                #     for u in tran.action
-                # ]
+                act = tran.action
                 us_i = [
                     BiOp(
                         Variable(str(u.left) + "_" + str(i + 1)),
@@ -251,6 +243,7 @@ def qe_refinement(
         RHS = And(*neg(right).to_smt(new_symbol_table))
         formula = ForAll(typed_vars, Implies(LHS, RHS))
         qe = quantifier_elimination(formula)
+        print(serialize(qe))
         neg_f = fnode_to_formula(qe)
         preds_in_res.update(atomic_predicates(neg_f))
 

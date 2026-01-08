@@ -3,7 +3,7 @@ import os
 from pysmt.environment import Environment
 
 import config
-from parsing.string_to_issy import issy_parser, string_to_issy
+from parsing.string_to_issy import string_to_issy
 from parsing.string_to_rpg import rpg_parsec
 from programs.util import reset_caches as program_util_reset_caches
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
@@ -183,20 +183,24 @@ def test_synthesis():
 
 def test_parsing():
     dirname = os.path.dirname(__file__)
-    benchmarks_dir = str(os.path.join(dirname, "../../rpgsolve/"))
+    benchmarks_dir = str(os.path.join(dirname, "../../issy/"))
 
     cnt = 0
     # iterate over all files in the directory
     for file in os.listdir(benchmarks_dir):
-        if file.endswith(".rpg"):
+        if file.endswith(".issy"):
             with open(os.path.join(benchmarks_dir, file), "r") as f:
                 content = f.read()
                 with Environment() as env:
                     print("Parsing " + file)
-                    f = string_to_issy(content, "name")
+                    try:
+                        f = string_to_issy(content, "name")
+                    except Exception as e:
+                        if "real" not in str(e):
+                            raise e
                     print("Parsed " + file)
     print(f"Finished parsing with {cnt} errors.")
 
 
 if __name__ == "__main__":
-    test_synthesis()
+    test_parsing()

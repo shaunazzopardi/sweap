@@ -32,6 +32,7 @@ from prop_lang.types.values import BoolAtoms
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
+from prop_lang.factory import _mult
 
 
 def true():
@@ -360,13 +361,16 @@ def only_dis_or_con_junctions(f: Formula):
 dnf_cache = {}
 
 
-def fnode_to_formula(fnode: FNode) -> Formula:
+def fnode_to_formula_indirect(fnode: FNode) -> Formula:
     return string_to_prop(serialize(fnode))
 
 
-def fnode_to_formula_direct(fnode: FNode) -> Formula:
+def fnode_to_formula(fnode: FNode) -> Formula:
     if fnode.is_constant():
-        return Value(fnode.constant_value())
+        val = fnode.constant_value()
+        if isinstance(val, bool):
+            return Value(BoolAtoms.TRUE) if val else Value(BoolAtoms.FALSE)
+        return Value(val)
     elif fnode.is_symbol():
         return Variable(fnode.symbol_name())
     else:
@@ -382,7 +386,7 @@ def fnode_to_formula_direct(fnode: FNode) -> Formula:
         elif fnode.is_div():
             return MathExpr(BiOp(args[0], "/", args[1]))
         elif fnode.is_times():
-            return MathExpr(BiOp(args[0], "*", args[1]))
+            return _mult(args[0], args[1])
         elif fnode.is_and():
             return conjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
         elif fnode.is_or():
@@ -399,6 +403,49 @@ def fnode_to_formula_direct(fnode: FNode) -> Formula:
             return Variable(fnode.symbol_name())
         else:
             return string_to_prop(serialize(fnode))
+
+
+# def fnode_to_formula_recursive(fnode: FNode) -> Formula:
+#     if fnode.is_constant():
+#         val = fnode.constant_value()
+#         if isinstance(val, bool):
+#             return Value(BoolAtoms.TRUE) if val else Value(BoolAtoms.FALSE)
+#         return Value(val)
+#     elif fnode.is_symbol():
+#         return Variable(fnode.symbol_name())
+#     else:
+#         args = [fnode_to_formula_recursive(x) for x in fnode.args()]
+#         if fnode.is_le():
+#             return create_mathrel(args[0], "<=", args[1])
+#         if fnode.is_lt():
+#             return create_mathrel(args[0], "<", args[1])
+#         if hasattr(fnode, "is_ge") and fnode.is_ge():
+#             return create_mathrel(args[0], ">=", args[1])
+#         if hasattr(fnode, "is_gt") and fnode.is_gt():
+#             return create_mathrel(args[0], ">", args[1])
+#         if fnode.is_plus():
+#             return create_mathrel(args[0], "+", args[1])
+#         if fnode.is_minus():
+#             return create_mathrel(args[0], "-", args[1])
+#         if fnode.is_div():
+#             return create_mathrel(args[0], "/", args[1])
+#         if fnode.is_times():
+#             return create_mathrel(args[0], "*", args[1])
+#         if hasattr(fnode, "is_equals") and fnode.is_equals():
+#             return create_mathrel(args[0], "=", args[1])
+#         if hasattr(fnode, "is_not_equals") and fnode.is_not_equals():
+#             return create_mathrel(args[0], "!=", args[1])
+#         if fnode.is_and():
+#             return conjunct_formula_set({arg for arg in args})
+#         if fnode.is_or():
+#             return disjunct_formula_set({arg for arg in args})
+#         if fnode.is_not():
+#             return neg(args[0])
+#         if fnode.is_implies():
+#             return implies(args[0], args[1])
+#         if fnode.is_iff():
+#             return iff(args[0], args[1])
+#         return string_to_prop(serialize(fnode))
 
 
 def sympi_to_formula(basic: Basic):

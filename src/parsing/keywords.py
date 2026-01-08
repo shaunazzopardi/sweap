@@ -39,6 +39,6 @@ def is_keyword(s: str):
                 + s
                 + "'"
                 + " matches a reserved keyword/pattern "
-                + str(k).replace("re.compile", "")
+                + str(k)
                 + ", rename."
             )
