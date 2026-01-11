@@ -57,9 +57,11 @@ tools = {
     # "rpgsolve": ToolInfo(name="rpgsolve", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
     # "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
     "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "sweap-dual": ToolInfo(name="sweap-dual", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-rpg": ToolInfo(name="sweap-rpg", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-tsl": ToolInfo(name="sweap-tsl", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-semml": ToolInfo(name="sweap-semml", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "issy-rpg": ToolInfo(name="issy-rpg", latex_name="issy-rpg", real=rpg_real_re, unreal=rpg_unreal_re),
     # "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     # "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     # "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
@@ -295,7 +297,7 @@ def get_refinements(fname):
     return init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr
 
 
-def get_result(tool, tool_info, bench, bench_info):
+def get_result(tool, tool_info, bench, b_real):
     result = None
     for name in (bench, *aliases.get(bench, [])):
         log = list(Path(base_dir).rglob(f"{name}.{tool}.log"))
@@ -342,21 +344,23 @@ with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
     writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
     stdout_writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
     # writer.writerow(["row-id", "benchmark", *tools])
-    for b, bench_info in infinite_benchs.items():
+    for b, b_real in infinite_benchs.items():
         for tool, tool_info in tools.items():
-            runtime, verdict = get_result(tool, tool_info, b, bench_info)
+            runtime, verdict = get_result(tool, tool_info, b, b_real)
             results[b][tool] = runtime
-            row = (b, bench_info, tool, abs(runtime), verdict)
+            if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
+                verdict += "___wrong"
+            row = (b, b_real, tool, abs(runtime), verdict)
             writer.writerow(row)
             stdout_writer.writerow(row)
-            update_stats(verdict, tool, bench_info)
+            update_stats(verdict, tool, b_real)
 
     # for i, b in enumerate(infinite_benchs, start=2):
     #     print(i-1, b, "...", file=sys.stderr)
     #     row = [i, b]
-    #     bench_info = infinite_benchs[b]
+    #     b_real = infinite_benchs[b]
     #     for tool, tool_info in tools.items():
-    #         result = get_result(tool, tool_info, b, bench_info)
+    #         result = get_result(tool, tool_info, b, b_real)
     #         results[b][tool] = result
     #         update_stats(result, tool, b)
     #         row.append(result)
