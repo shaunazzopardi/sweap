@@ -147,12 +147,6 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.program.symbol_table,
             )
         }
-        for t in self.init_program_trans:
-            gu = t.formula()
-            if gu in self.gu_to_trans.keys():
-                self.gu_to_trans[gu].append(t)
-            else:
-                self.gu_to_trans[gu] = [t]
 
         self.init_program_gus = {t.formula() for t in self.init_program_trans}
         self.init_program_gus_to_t = {t.formula(): t for t in self.init_program_trans}

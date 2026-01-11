@@ -1,0 +1,25 @@
+// counters
+state int x0
+state int x1
+state int d
+
+//input 
+input int i
+
+game Reachability from linit {
+   loc linit 0
+   loc l0 0
+   loc l1 1
+
+   from linit to l1 with (![x0 = 0] || ![x1 = 0]) 
+   from linit to l0 with keep(x0 x1)
+   from l0 to l0 with (
+         ([d'= 0] || [d' = 1])
+         && (![x1 = 10] -> ([x0' = x0 + 1] && ([d'=1] || [i > 1] || [i < -1]) || [x0' = x0 + 1 + i] && [d'=0]))
+         && ([x1 = 10] -> [x0' = 0])
+         && ([x1' = x1 + 1] && ([d'=0] || [i > 1] || [i < -1]) || [x1' = x1 + 1 + i] && [d'=1])
+   )
+   from l0 to l1 with [x0 > 10]
+   from l1 to l1 with true
+    
+}

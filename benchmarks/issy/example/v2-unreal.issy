@@ -1,0 +1,44 @@
+input real add
+input real rem
+
+state real load1
+state real load2
+state real rem1
+state real rem2
+
+formula {
+    assume F G [add <= 0] 
+    assert F G ([load1 = 0] && [load2 = 0])
+ }
+
+
+def balanced  = [load1 >= load2] && [load1 <= 2 * load2] || [load2 >= load1] && [load2 <= 2 * load1]
+def addtoone = [load1' = load1 + add] && [load2'=load2] || [load2' = load2 + add] && [load1'=load1]
+def validrem = [rem >= 0.1] && [rem <= load1 + 2/3 * load2]
+def decrease  = [rem1' + rem2' = rem] && [load1' = load1 - rem1'] && [load2' = load2 - 3/2 * rem2']  && [rem1' < (1/2) * rem2']
+
+game Safety from linit {
+    loc linit 1
+    loc lbal 1
+    loc lrem 1
+    loc done 1
+    loc err 0
+   
+    from linit to done with [load1 < 0] || [load2 < 0]
+    from linit to lbal with [load1 >= 0] && [load2 >= 0] && keep(load1 load2)
+    from lbal to lrem with [load1' + load2' = load1 + load2] 
+    
+    from lrem to err with !balanced 
+    from lrem to done with balanced && (!validrem || ([load1 = 0] && [load2 = 0]))
+    from lrem to lbal with balanced && [add > 0] && addtoone
+    from lrem to lrem with balanced && [add <= 0] && validrem && decrease
+
+    from done to done with true 
+    from err to err with keep(load1 load2)
+ } 
+
+
+
+
+
+

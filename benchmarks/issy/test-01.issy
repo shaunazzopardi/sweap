@@ -1,0 +1,32 @@
+input int i1
+input int i2
+state int x1
+state int x2
+state bool active1
+state bool active2
+
+
+
+formula {
+    assume [x1 = 0] && [x2 = 0]
+    assert G F (active1 && active2)
+}
+
+game Safety from l0 {
+    loc l0 1
+    loc l1 1
+    
+    from l0 to l0 with [x1 <= 10] && [x1' = x1 + i1] && [active1' = true]
+    from l0 to l1 with [x1 > 10] && [x1' = x1] && [active1' = false]
+    from l1 to l1 with [x1' = x1] && [active1' = active1]
+}
+
+
+game Safety from l0 {
+    loc l0 1
+    loc l1 1
+    
+    from l0 to l0 with [x2 <= 10] && [x2' = x2 + i2] && [active2' = true]
+    from l0 to l1 with [x2 > 10] && [x2' = x2] && [active2' = false]
+    from l1 to l1 with [x2' = x2] && [active2' = active2]
+}

@@ -1,0 +1,18 @@
+state int x
+state int y
+
+game Buechi from l0{
+
+    loc l0 0
+    loc l1 1
+    loc l2 1
+
+
+    from l0 to l1 with [x' = 2] && [y' = 0]
+
+    from l1 to l2 with [x' = x - 1] && [y' = y + 1]
+ 
+    from l2 to l1 with ([x > 0] && [y < 2])   && [x' = x] && [y' = y]
+    from l2 to l2 with ([x <= 0] || [y >= 2]) && [x' = x] && [y' = y]
+
+}

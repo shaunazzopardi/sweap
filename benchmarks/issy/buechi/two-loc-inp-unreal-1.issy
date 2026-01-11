@@ -1,0 +1,23 @@
+input int i
+
+state int x
+
+game Buechi from l0{
+
+    loc l0 0
+    loc l1 1
+    loc l2 1
+    loc l3 0
+
+    from l0 to l1 with [i >= 0] && [x' = x]
+    from l0 to l2 with [i < 0]  && [x' = x]
+
+    from l1 to l0 with [x >= 0] && [x' = x]
+    from l1 to l3 with [x < 0]  && [x' = x]
+
+    from l2 to l0 with [x <= 0] && [x' = x + 1] 
+    from l2 to l3 with [x > 0]  && [x' = x]
+
+    from l3 to l3 with [x' = x]
+
+}

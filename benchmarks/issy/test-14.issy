@@ -1,0 +1,32 @@
+state int x
+state int y
+state int z
+state int sched
+
+formula {
+    assume ([x = 0] && [y = 0] && [z = 0])
+    assert G (![y = 2] || ![z = 1])
+}
+
+game Safety from l0 {
+    loc l0 1
+
+    from l0 to l0 with    [sched' = 1] && [x' = z + 1] ||
+                         ![sched' = 1] && [x' = x]
+}
+
+
+game Safety from l0 {
+    loc l0 1
+
+    from l0 to l0 with    [sched' = 2] && [y' = x + 1] ||
+                         ![sched' = 2] && [x' = y]
+}
+
+
+game Safety from l0 {
+    loc l0 1
+
+    from l0 to l0 with    [sched' = 3] && [z' = y + 1] ||
+                         ![sched' = 3] && [z' = z]
+}

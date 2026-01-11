@@ -1,0 +1,32 @@
+input int i
+
+state int x1
+state int x2
+
+game ParityMaxOdd from l0{
+
+    loc l0 1
+    loc l1 2
+    loc l2 3
+    loc l3 4
+    loc l4 5
+    loc l5 5
+
+    from l0 to l1 with [i > 0] && [x1' = i] && [x2' = i]
+    from l0 to l5 with [i <= 0] && [x1' = x1] && [x2' = x2]
+
+    from l1 to l1 with [i > 0] && [x1 >= 0] && [x1' = x1 + 1] && [x2' = x2]
+    from l1 to l2 with [i <= 0] && [x1' = x1 - 1] && [x2' = x2]
+    from l1 to l3 with [i > 0] && [x1 < 0] && [x1' = x1] && [x2' = x2]
+
+    from l2 to l1 with [x1' = x1] && [x2' = x2]
+
+    from l3 to l3 with [i > 0] && [x2 >= 0] && [x1' =  x1] && [x2' = x2 + 3]
+    from l3 to l4 with [i <= 0] && [x1' = x1] && [x2' = x2 - 1]
+    from l3 to l5 with [i > 0] && [x2 < 0] && [x1' = x1] && [x2' = x2]
+
+    from l4 to l3 with [x1' = x1] && [x2' = x2]
+
+    from l5 to l0 with [x1' = x1] && [x2' = x2]
+
+}

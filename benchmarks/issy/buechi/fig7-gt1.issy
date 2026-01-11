@@ -1,0 +1,26 @@
+state int x
+
+game Buechi from linit{
+
+    loc linit 0
+    loc l0 1
+    loc l1 0
+    loc l2 0
+    loc l3 0
+    loc l4 1
+
+    from linit to l0 with [x > 1]  && [x' = x]
+    from linit to l4 with [x <= 1] && [x' = x]
+
+    from l0 to l1 with [x' = x]
+
+    from l1 to l1 with [x' = x]
+    from l1 to l2 with [x' = x - 1]
+
+    from l2 to l0 with [x > 0]  && [x' = x]
+    from l2 to l3 with [x <= 0] && [x' = x]
+
+    from l3 to l3 with [x' = x]
+
+    from l4 to l4 with [x' = x]
+}

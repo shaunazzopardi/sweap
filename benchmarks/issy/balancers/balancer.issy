@@ -1,0 +1,54 @@
+input int i0
+input int i1
+
+state int x0
+state int x1
+state int y0
+state int y1
+state int sumin
+state bool r0
+state bool r1
+
+
+formula {
+
+    // state initialized with 0 counters
+    assume ([x0 = 0] && [x1 = 0] && [y0 = 0] && [y1 = 0] && [sumin = 0])
+    
+    // total number of tokens arrived
+    assert G ([sumin' = sumin + i0 + i1])
+    assert G X ([x0 + x1 + y0 + y1 = sumin])
+
+    // read from one line only
+    assert G (!r0' || !r1')
+    assert G (r0' -> [x0 + i0 >= 1])
+    assert G (r1' -> [x1 + i1 >= 1])
+    
+    // behavior of ballancer -- reading from line 0
+    assert G (r0' -> ([x0' = x0 + i0 -1] && [x1'=x1] && ([y0' = y0+1] && [y1' = y1]  || [y1' = y1+1] && [y0' = y0])))
+    // behavior of ballancer -- reading from line 1
+    assert G (r1' -> ([x1' = x1 + i1 -1] && [x0'=x0] && ([y0' = y0+1] && [y1' = y1]  || [y1' = y1+1] && [y0' = y0])))
+    // behavior of ballancer -- not reading
+    assert G (!r0' && !r1' -> ([x0' = x0 + i0] && [x1' = x1 + i1] && [y0' = y0] && [y1' = y1] ))
+ }
+
+formula {
+   
+    // tokens arrive one at a time -- not necessary assumption
+    //assume G ([i0 = 0] || [i0 = 1])
+    //assume G ([i1 = 0] || [i1 = 1])
+
+    // state initialized with 0 counters
+    assume ([x0 = 0] && [x1 = 0] && [y0 = 0] && [y1 = 0] && [sumin = 0])
+    
+    // every token should eventually be processed
+    assert G (![i0 = 0] -> F r0)
+    assert G (![i1 = 0] -> F r1)   
+
+    // properties of ballancer
+    assert G ([y0 <= y1] && [y1 - y0 <= 1])
+    assert (F G [i0 = 0]) -> (F G [x0 = 0])
+    assert (F G [i1 = 0]) -> (F G [x1 = 0])
+   
+}
+ 
