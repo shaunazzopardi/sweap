@@ -348,12 +348,12 @@ with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
         for tool, tool_info in tools.items():
             runtime, verdict = get_result(tool, tool_info, b, b_real)
             results[b][tool] = runtime
+            update_stats(verdict, tool, b_real)
             if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
                 verdict += "___wrong"
             row = (b, b_real, tool, abs(runtime), verdict)
             writer.writerow(row)
             stdout_writer.writerow(row)
-            update_stats(verdict, tool, b_real)
 
     # for i, b in enumerate(infinite_benchs, start=2):
     #     print(i-1, b, "...", file=sys.stderr)
