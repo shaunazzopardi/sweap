@@ -50,8 +50,9 @@ from prop_lang.util import (
     all_sat_models,
     fnode_to_formula,
     atomic_predicates,
-    normalise_pred_multiple_vars,
+    normalise_pred_multiple_vars, implies,
 )
+from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 logger = logging.getLogger(__name__)
@@ -281,7 +282,12 @@ class EffectsAbstraction(PredicateAbstraction):
                     new_init_abs = []
                     for p in v_chain_pred.chain:
                         for m in self.init_state_abstraction:
-                            m_with_p = m + [p]
+                            m_with_p = (
+                                m + [p]
+                                if len(m) > 0
+                                and not (isinstance(m[0], Value) and m[0].is_true())
+                                else [p]
+                            )
                             if sat(
                                 conjunct_formula_set(m_with_p + [self.init_conf]),
                                 self.symbol_table,
@@ -293,11 +299,13 @@ class EffectsAbstraction(PredicateAbstraction):
                     # TODO if transition pred do not update
                     new_init_abs = []
                     for m in self.init_state_abstraction:
+                        no_old_p = True
                         for old_p in old_to_new.keys():
                             if old_p in m:
-                                m.remove(old_p)
+                                no_old_p = False
+                                new_m = [_p for _p in m if _p != old_p]
                                 for p in old_to_new[old_p]:
-                                    m_with_p = m + [p]
+                                    m_with_p = new_m + [p]
                                     if sat(
                                         conjunct_formula_set(
                                             m_with_p + [self.init_conf]
@@ -305,8 +313,8 @@ class EffectsAbstraction(PredicateAbstraction):
                                         self.symbol_table,
                                     ):
                                         new_init_abs.append(m_with_p)
-                            else:
-                                new_init_abs.append(m)
+                        if no_old_p:
+                            new_init_abs.append(m)
                     self.init_state_abstraction = new_init_abs
                     # TODO: to avoid having to learn init values, re-introduce second state abstraction
                     #       do it for each model? second_state_abs: dom(init_state_abs) -> [[preds]]
@@ -344,7 +352,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     continue
                 if "_prev" in str(p):
                     if is_tautology(
-                        conjunct(
+                        implies(
                             conjunct_formula_set(
                                 [
                                     BiOp(v, "=", v.prev_rep())

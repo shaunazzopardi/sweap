@@ -365,7 +365,7 @@ class Semantics:
             return ast
 
     def bool_vals(self, ast):
-        if ast == "true":
+        if ast.lower() == "true":
             return Value(BoolAtoms.TRUE)
         else:
             return Value(BoolAtoms.FALSE)

@@ -196,9 +196,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     # TODO: inspect why there is repetition in init_transtion_ltl
     init_transition_ltl = disjunct_formula_set(set(init_transition_ltl))
 
-    abs = (
-        [init_explicit_state] + init_constants + [init_transition_ltl] + _transition_ltl
-    )
+    abs = [init_explicit_state] + init_constants + _transition_ltl
 
     return None, abs, init
 
