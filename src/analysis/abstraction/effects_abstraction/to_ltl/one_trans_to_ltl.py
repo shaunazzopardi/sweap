@@ -87,7 +87,15 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         init_preds = [
             conjunct_formula_set(
                 [
-                    rename_pred(p)
+                    (
+                        rename_pred(p)
+                        if not dualise
+                        else (
+                            X(rename_pred(p))
+                            if not strix_backend
+                            else propagate_nexts(X(rename_pred(p)))
+                        )
+                    )
                     for p in f
                     if not (isinstance(p, Value) and p.is_true())
                 ]
@@ -196,7 +204,9 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     # TODO: inspect why there is repetition in init_transtion_ltl
     init_transition_ltl = disjunct_formula_set(set(init_transition_ltl))
 
-    abs = [init_explicit_state] + init_constants + _transition_ltl
+    abs = (
+        [init_explicit_state] + init_constants + [init_transition_ltl] + _transition_ltl
+    )
 
     return None, abs, init
 
