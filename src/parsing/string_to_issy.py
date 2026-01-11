@@ -652,44 +652,54 @@ def process(
             # create binary variables to distinguish them, and give them to controller
             for src, trans in raw_transitions.items():
                 print("trans: " + "\n".join(map(str, trans)))
-                equiv_map, sat_map, _ = condition_choices(trans, symbol_table)
+                equiv_map, sat_map, equiv_parts, _ = condition_choices(
+                    trans, symbol_table
+                )
+                new_src_trans = []
+                equiv_index = 0
 
-                eq_trigger_to_add_to_others = {}
-                sat_trigger_to_add_to_others = {t: [] for t in trans}
-                for t in sat_map.keys():
-                    trigger_conditions = []
-
-                    if t in eq_trigger_to_add_to_others.keys():
-                        trigger_conditions.append(eq_trigger_to_add_to_others[t])
-                    elif (n := len(equiv_map[t])) > 0:
-                        raw_equiv_triggers = [
-                            Variable("equiv_" + str(no)) for no in range(0, n + 1)
-                        ]
-                        eq_con_events, equiv_binary_map = binary_rep(
-                            raw_equiv_triggers,
-                            "eq_con_" + str(game_index) + "_",
-                            printing=False,
+                eq_trigger_to_add = {t: [] for t in trans}
+                sat_trigger_to_add = {t: [] for t in trans}
+                for t, equiv_part_minus_t in equiv_map.items():
+                    raw_equiv_triggers = [
+                        Variable("equiv_" + str(no))
+                        for no in range(0, len(equiv_part_minus_t) + 1)
+                    ]
+                    eq_con_events, equiv_binary_map = binary_rep(
+                        raw_equiv_triggers,
+                        "eq_con_" + str(game_index) + "_" + str(equiv_index) + "_",
+                        printing=False,
+                    )
+                    equiv_index += 1
+                    con_vars.update(eq_con_events)
+                    eq_trigger_to_add[t].append(equiv_binary_map[raw_equiv_triggers[0]])
+                    for i, tt in enumerate(equiv_part_minus_t):
+                        eq_trigger_to_add[tt].append(
+                            equiv_binary_map[raw_equiv_triggers[i + 1]]
                         )
-                        con_vars.update(eq_con_events)
-                        trigger_conditions.append(
-                            equiv_binary_map[raw_equiv_triggers[0]]
-                        )
-                        for i, tt in enumerate(equiv_map[t]):
-                            eq_trigger_to_add_to_others[tt] = equiv_binary_map[
-                                raw_equiv_triggers[i + 1]
-                            ]
 
-                    trigger_conditions.extend(sat_trigger_to_add_to_others[t])
+                # order is important here
+                # for t = trans[n], sat_map[t] only contains sat tt in trans[n + 1:]
+                for t in trans:
+                    if t in sat_map.keys():
+                        if len(sat_map[t]) == 0 or t in equiv_parts.keys():
+                            continue
 
-                    ts_to_distinguish = sat_map[t]
-                    if t in already_distinguishable.keys():
-                        ts_to_distinguish -= already_distinguishable[t]
-                    if (n := len(ts_to_distinguish)) > 0:
-                        # TODO: OPTIMISATION there may be elements of sat_map[t] that have equivalent conditions
-                        #       for each such equivalence classes, we can use one binary variable, since there
-                        #       is already a way for the controller to distinguish between them
+                        ts_to_distinguish = sat_map[t]
+                        if t in equiv_map.keys():
+                            for tt in equiv_map[t]:
+                                if tt in sat_map.keys():
+                                    sat_map[tt] = [
+                                        _t
+                                        for _t in sat_map[tt]
+                                        if _t not in ts_to_distinguish
+                                    ]
+                                    if len(sat_map[tt]) == 0:
+                                        del sat_map[tt]
+
                         raw_sat_triggers = [
-                            Variable("sat_" + str(no)) for no in range(0, n + 1)
+                            Variable("sat_" + str(no))
+                            for no in range(0, len(sat_map[t]) + 1)
                         ]
                         sat_con_events, sat_binary_map = binary_rep(
                             raw_sat_triggers,
@@ -699,70 +709,104 @@ def process(
                         con_vars.update(sat_con_events)
 
                         one_of_the_rest = disjunct_formula_set(
-                            [tt.condition for tt in ts_to_distinguish]
+                            {tt.condition for tt in ts_to_distinguish}
                         )
 
-                        if not is_tautology(one_of_the_rest, symbol_table):
+                        # need to add below trans also to equiv transitions
+                        equiv_to_t = [t]
+                        if t in equiv_map.keys():
+                            equiv_to_t.extend(equiv_map[t])
+                        elif t in equiv_parts.keys():
+                            equiv_to_t.extend(equiv_map[equiv_parts[t]])
 
-                            none_of_the_rest = neg(one_of_the_rest)
-                            trigger_conditions.append(
-                                disjunct(
+                        if not is_tautology(one_of_the_rest, symbol_table):
+                            if not sat(
+                                conjunct(t.condition, neg(one_of_the_rest)),
+                                symbol_table,
+                            ):
+                                for eq_t in equiv_to_t:
+                                    sat_trigger_to_add[eq_t].append(
+                                        sat_binary_map[raw_sat_triggers[0]]
+                                    )
+                            else:
+                                none_of_the_rest = neg(one_of_the_rest)
+                                trigger_cond = disjunct(
                                     none_of_the_rest,
                                     conjunct(
                                         one_of_the_rest,
                                         sat_binary_map[raw_sat_triggers[0]],
                                     ),
                                 )
-                            )
+                                for eq_t in equiv_to_t:
+                                    sat_trigger_to_add[eq_t].append(trigger_cond)
                         else:
-                            trigger_conditions.append(
-                                sat_binary_map[raw_sat_triggers[0]]
-                            )
+                            for eq_t in equiv_to_t:
+                                sat_trigger_to_add[eq_t].append(
+                                    sat_binary_map[raw_sat_triggers[0]]
+                                )
 
                         for i, tt in enumerate(ts_to_distinguish):
+                            equiv_to_tt = [tt]
+                            if tt in equiv_map.keys():
+                                equiv_to_tt.extend(equiv_map[tt])
+                            elif tt in equiv_parts.keys():
+                                equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
+
                             one_of_the_rest = disjunct_formula_set(
-                                [
+                                {
                                     ttt.condition
                                     for ttt in ts_to_distinguish
                                     if ttt != tt
-                                ]
-                                + [t.condition]
+                                }
+                                | {t.condition}
                             )
                             if not is_tautology(one_of_the_rest, symbol_table):
-                                none_of_the_rest = neg(one_of_the_rest)
-                                trigger_condition = disjunct(
-                                    none_of_the_rest,
-                                    conjunct(
-                                        one_of_the_rest,
-                                        sat_binary_map[raw_sat_triggers[i + 1]],
-                                    ),
-                                )
+                                if not sat(
+                                    conjunct(tt.condition, neg(one_of_the_rest)),
+                                    symbol_table,
+                                ):
+                                    for eq_tt in equiv_to_tt:
+                                        sat_trigger_to_add[eq_tt].append(
+                                            sat_binary_map[raw_sat_triggers[i + 1]]
+                                        )
+                                else:
+                                    none_of_the_rest = neg(one_of_the_rest)
+                                    trigger_cond = disjunct(
+                                        none_of_the_rest,
+                                        conjunct(
+                                            one_of_the_rest,
+                                            sat_binary_map[raw_sat_triggers[i + 1]],
+                                        ),
+                                    )
+                                    for eq_tt in equiv_to_tt:
+                                        sat_trigger_to_add[eq_tt].append(trigger_cond)
                             else:
-                                trigger_condition = sat_binary_map[
-                                    raw_sat_triggers[i + 1]
-                                ]
-                            sat_trigger_to_add_to_others[tt].append(trigger_condition)
+                                for eq_tt in equiv_to_tt:
+                                    sat_trigger_to_add[eq_tt].append(
+                                        sat_binary_map[raw_sat_triggers[i + 1]]
+                                    )
+
+                for t in trans:
+                    trigger_condition = conjunct_formula_set(
+                        eq_trigger_to_add[t] + sat_trigger_to_add[t]
+                    )
 
                     new_t = Transition(
                         t.src,
                         conjunct(
                             t.condition,
-                            conjunct_formula_set(trigger_conditions),
+                            trigger_condition,
                         ),
                         t.action,
                         [],
                         t.tgt,
                     )
                     new_t.set_predicate_upgrades(t.pred_upgrades)
-                    new_transitions.append(new_t)
-                    for tt in sat_map[t]:
-                        if tt not in already_distinguishable.keys():
-                            already_distinguishable[tt] = set(sat_map[t]) | {t}
-                        else:
-                            already_distinguishable[tt].update(set(sat_map[t]) | {t})
+                    new_src_trans.append(new_t)
 
+                new_transitions.extend(new_src_trans)
                 no_trans_triggered = neg(
-                    disjunct_formula_set(t.condition for t in new_transitions)
+                    disjunct_formula_set(t.condition for t in new_src_trans)
                 )
                 if sat(
                     no_trans_triggered,
@@ -774,6 +818,23 @@ def process(
                     lose_transitions.append(
                         Transition(src, no_trans_triggered, [], [], "lose")
                     )
+
+                for t in new_transitions + lose_transitions:
+                    for tt in new_transitions + lose_transitions:
+                        if t == tt or t.src != tt.src:
+                            continue
+                        if sat(
+                            conjunct(t.condition, tt.condition),
+                            symbol_table | {str(v): BOOLEAN for v in con_vars},
+                        ):
+                            raise Exception(
+                                "After processing, transitions from state "
+                                + str(src)
+                                + " still have non-distinguishable conditions: \n"
+                                + str(t)
+                                + "\n"
+                                + str(tt)
+                            )
             # Now, we have processed the transitions, and added nondets
             # we need to build programs
             # do cross product, while taking into account predicate upgrades, and accordingly add mini-games
@@ -852,10 +913,13 @@ def process(
     #   2. Create cross-product of programs
     #   3. Figure out objective for combined program
     to_replace = {}
+    lose_var = None
     if len(parts_to_sub_programs) == 1:
         program = parts_to_sub_programs[0][0]
         game_objectives = [parts_to_sub_programs[0][1]]
         losing_states = {0: parts_to_sub_programs[0][2]}
+        if len(losing_states[0]) > 0:
+            lose_var = "lose"
         preds_to_replace = {}
         to_exclude_from_minigame = states_to_exclude_minigame[0]
     else:
@@ -911,16 +975,17 @@ def process(
         program, formula_objectives, to_exclude_from_minigame
     )
 
-    not_in_minigame = neg(disjunct_formula_set(minigame_states))
-    formula_objectives = list(
-        map(lambda x: massage_ltl(x, not_in_minigame, {}), formula_objectives)
-    )
-
     if len(minigame_states) > 0:
+        not_in_minigame = neg(disjunct_formula_set(minigame_states))
+        formula_objectives = list(
+            map(lambda x: massage_ltl(x, not_in_minigame, {}), formula_objectives)
+        )
         minigame_safety = G(F(neg(disjunct_formula_set(minigame_states))))
         new_game_objectives = [minigame_safety]
     else:
         new_game_objectives = []
+
+    there_is_safety_game = False
     for game_obj in game_objectives:
         if (
             isinstance(game_obj, UniOp)
@@ -930,8 +995,13 @@ def process(
             f = game_obj.right
             f = disjunct_formula_set([f] + minigame_states)
             new_game_objectives.append(G(f))
+            there_is_safety_game = True
         else:
             new_game_objectives.append(game_obj)
+
+    if not there_is_safety_game and lose_var:
+        new_game_objectives.append(G(neg(Variable(lose_var))))
+
     game_objectives = new_game_objectives
 
     game_objectives_f = conjunct_formula_set(game_objectives)
@@ -972,8 +1042,9 @@ def process(
 
 
 def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
-    dict[Transition, set[Transition]],
-    dict[Transition, set[Transition]],
+    dict[Transition, list[Transition]],
+    dict[Transition, list[Transition]],
+    dict[Transition, Transition],
     Optional[Formula],
 ]:
     # returns two mappings and an optional condition:
@@ -982,33 +1053,35 @@ def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
     # 3) an optional condition returned when the transitions are not complete w.r.t. pre-state,
     # the condition describes when no transition is triggerable
 
-    equiv_map: dict[Transition, set[Transition]] = {t: set() for t in transitions}
-    compat_map: dict[Transition, set[Transition]] = {t: set() for t in transitions}
+    equiv_map: dict[Transition, list[Transition]] = {}
+    compat_map: dict[Transition, list[Transition]] = {}
 
+    equiv_parts: dict[Transition, Transition] = {}
     n = len(transitions)
     found_equiv = set()
     for i in range(n):
         t_i = transitions[i]
         cond_i = t_i.condition
+        # if we already found equivalent transitions for t_i, skip
+        # it's satisfiability and equivalence with others has already been handled
+        if t_i in found_equiv:
+            continue
         for j in range(i + 1, n):
             t_j = transitions[j]
-            if t_j in found_equiv:
-                continue
             cond_j = t_j.condition
             if sat(conjunct(cond_i, cond_j), symbol_table):
                 if sat(conjunct(cond_i, neg(cond_j)), symbol_table) or sat(
                     conjunct(cond_j, neg(cond_i)), symbol_table
                 ):
-                    compat_map[t_i].add(t_j)
-                    compat_map[t_j].add(t_i)
+                    compat_map.setdefault(t_i, list()).append(t_j)
                 else:
-                    equiv_map[t_i].add(t_j)
-                    equiv_map[t_j].add(t_i)
+                    equiv_map.setdefault(t_i, list()).append(t_j)
                     found_equiv.add(t_j)
+                    equiv_parts[t_j] = t_i
     no_trans_triggered = neg(disjunct_formula_set(t.condition for t in transitions))
     if not sat(no_trans_triggered, symbol_table):
         no_trans_triggered = None
-    return equiv_map, compat_map, no_trans_triggered
+    return equiv_map, compat_map, equiv_parts, no_trans_triggered
 
 
 def independent_games(vars, games):

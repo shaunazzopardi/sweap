@@ -2,7 +2,7 @@ import time
 from unittest import TestCase
 
 from parsing.hoa_parser import hoa_to_transitions
-from parsing.string_to_ltl_iter import string_to_ltl_with_predicates, string_to_prop
+from parsing.string_to_ltl import string_to_ltl_with_predicates, string_to_prop
 
 
 class Test(TestCase):

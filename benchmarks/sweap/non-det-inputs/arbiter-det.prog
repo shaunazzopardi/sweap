@@ -1,6 +1,6 @@
 program arbiter-det {
     STATES {
-        q0 : init, q1
+        q1 : init
     }
 
     ENVIRONMENT EVENTS {
@@ -16,7 +16,6 @@ program arbiter-det {
     }
 
     TRANSITIONS {
-        q0 -> q1 [$ cnt := i;],
         q1 -> q1 [!finished $ cnt := cnt - 1],
         q1 -> q0 [cnt == 0 & finished $]
     }

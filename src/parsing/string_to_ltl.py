@@ -19,10 +19,11 @@ from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
 from prop_lang.uniop import UniOp
 
+from prop_lang.util import fnode_to_formula
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-sys.setrecursionlimit(2000)
+sys.setrecursionlimit(20000)
 GRAMMAR = r"""
     @@grammar::LTL
     
@@ -140,9 +141,8 @@ GRAMMAR = r"""
         ;
 
     math_0_issy
-        = boolean_term
-        | atom 
-        | issy_keep
+        = issy_keep
+        | atom
         | number
         | '(' @:math_expression_ltl ')'
         ;
@@ -572,9 +572,9 @@ def string_to_issy_ltl(text: str) -> Formula:
 
 
 def fnode_to_issy_formula(fnode: FNode) -> Formula:
-    fnode_str = serialize(fnode).replace("True", "true").replace("False", "false")
-    fnode_str = re.sub(r"\\?'(?![ |)])", "", fnode_str)
-    to_ret = string_to_issy_ltl(fnode_str)
+    # fnode_str = serialize(fnode).replace("True", "true").replace("False", "false")
+    # fnode_str = re.sub(r"\\?'(?![ |)])", "", fnode_str)
+    to_ret = fnode_to_formula(fnode)
 
     return to_ret
 

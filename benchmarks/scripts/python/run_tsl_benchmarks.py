@@ -32,7 +32,7 @@ def test_synthesis():
     ignore = """"""
 
     # verifies controller
-    config.Config.getConfig()._set_v_c(False)
+    config.Config.getConfig()._set_v_c(True)
 
     # Read existing results to avoid reprocessing
     processed_files = set()
@@ -191,11 +191,17 @@ def test_parsing():
     cnt = 0
     # iterate over all files in the directory
     for file in os.listdir(benchmarks_dir):
+        import gc
+
+        gc.collect()
+        program_util_reset_caches()
+        prop_lang_util_reset_caches()
         if file.endswith(".tslmt"):
             with open(os.path.join(benchmarks_dir, file), "r") as f:
                 content = f.read()
                 with Environment() as env:
                     try:
+                        print("parsing " + file)
                         f = string_to_ltlmt(content)
                     except Exception as e:
                         print(f"Error parsing {file}: {e}")

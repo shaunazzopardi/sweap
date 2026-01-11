@@ -98,6 +98,10 @@ class StatePredicate(Predicate):
             new_nexts = self.refine_nexts_with_p(
                 conjunct(gu, now.prev_rep()), nexts, symbol_table
             )
+            if len(new_nexts) == 0:
+                raise Exception(
+                    "Is this guard update formula unsatisfiable?\n" + str(gu)
+                )
             new_effects.append((now, new_nexts))
         return new_effects
 

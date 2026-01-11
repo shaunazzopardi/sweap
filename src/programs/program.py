@@ -1121,7 +1121,9 @@ def fill_in_minigames(
     ts_to_remove = []
 
     mini_game_counter = 0
-    existing_mini_games_from_with = {}
+    existing_mini_games_from_with: dict[
+        str, dict[tuple[frozenset[Variable], Formula], str]
+    ] = {}
     to_exclude_from_minigame = list(to_exclude_from_minigame)
     for t in program.transitions:
         non_determined_updates = [
@@ -1155,12 +1157,16 @@ def fill_in_minigames(
                 "We do not support minigames with numerical inputs/outputs yet."
             )
 
-        undetermined_vars = frozenset(u.left for u in non_determined_updates)
+        undetermined_vars: frozenset[Variable] = frozenset(
+            u.left for u in non_determined_updates
+        )
+        mg_preds_key = conjunct_formula_set(p.prev_rep() for p in t.pred_upgrades)
+        minigame_params = (undetermined_vars, mg_preds_key)
         if (
             t.tgt in existing_mini_games_from_with.keys()
-            and undetermined_vars in existing_mini_games_from_with[t.tgt].keys()
+            and minigame_params in existing_mini_games_from_with[t.tgt].keys()
         ):
-            start_state = existing_mini_games_from_with[t.tgt][undetermined_vars]
+            start_state = existing_mini_games_from_with[t.tgt][minigame_params]
             new_t = Transition(
                 t.src,
                 t.condition,
@@ -1207,6 +1213,7 @@ def fill_in_minigames(
             start_state,
         )
         mg_preds = t.pred_upgrades
+        mg_preds_key = conjunct_formula_set(t.pred_upgrades)
         undet_vars = []
 
         to_replace_preds = {}
@@ -1222,17 +1229,18 @@ def fill_in_minigames(
             p.prev_rep().replace_formulas(to_replace_preds) for p in mg_preds
         )
 
+        minigame_params: tuple[frozenset[Variable], Formula] = (
+            undetermined_vars,
+            mg_preds_key,
+        )
         if end_state in existing_mini_games_from_with.keys():
-            if undetermined_vars in existing_mini_games_from_with[end_state].keys():
-                existing_mini_games_from_with[end_state][
-                    undetermined_vars
-                ] = start_state
+            if minigame_params in existing_mini_games_from_with[end_state].keys():
+                start_state = existing_mini_games_from_with[end_state][minigame_params]
             else:
-                existing_mini_games_from_with[end_state][
-                    undetermined_vars
-                ] = start_state
+                existing_mini_games_from_with[end_state][minigame_params] = start_state
         else:
-            existing_mini_games_from_with[end_state] = {undetermined_vars: start_state}
+            existing_mini_games_from_with[end_state] = {minigame_params: start_state}
+
         for u in non_determined_updates:
             no_mini_games_added = False
             v = u.left

@@ -187,7 +187,9 @@ def process_args(args: Namespace) -> (Program, Formula):
 
     conf.finite_synthesis = args.finite_synthesise
 
-    if args.synthesis_backend not in config.synthesis_backends:
+    if not args.synthesis_backend:
+        raise Exception("--synthesis_backend present without an argument.")
+    elif args.synthesis_backend not in config.synthesis_backends:
         raise Exception(args.synthesis_backend + " is not a valid synthesis backend.")
     else:
         conf.backend = args.synthesis_backend

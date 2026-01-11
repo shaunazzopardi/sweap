@@ -125,7 +125,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         if dualise:
             cond = X(cond)
             if strix_backend:
-                cond = propagate_nexts(X(cond))
+                cond = propagate_nexts(cond)
         # effects comes with X already applied, and propagated in case of using strix
         effect = predicate_abstraction.abstract_effect_ltl[gu]
 

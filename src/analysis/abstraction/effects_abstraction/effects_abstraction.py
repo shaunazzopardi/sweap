@@ -388,6 +388,7 @@ class EffectsAbstraction(PredicateAbstraction):
     ):
         if len(new_state_predicates) == 0:
             return
+        new_state_predicates = sorted(new_state_predicates, key=lambda p: str(p))
         # assuming input state predicates have been normalised (all of type < or <=, and vars on LHS and constants on RHS)
 
         logger.info("Adding predicates to predicate abstraction:")
@@ -869,12 +870,15 @@ def update_effects(
     new_now_preds.difference_update(common_preds)
     new_next_preds.difference_update(common_preds)
 
+    new_now_preds = sorted(list(new_now_preds), key=lambda p: str(p))
     for p in new_now_preds:
         effects = p.extend_effect_now(gu, effects, symbol_table)
 
+    new_next_preds = sorted(list(new_next_preds), key=lambda p: str(p))
     for p in new_next_preds:
         effects = p.extend_effect_next(gu, effects, symbol_table)
 
+    common_preds = sorted(list(common_preds), key=lambda p: str(p))
     for p in common_preds:
         # this is adding tran preds, don t need them if only safety
         if isinstance(p, TransitionPredicate):
@@ -1057,7 +1061,7 @@ def compute_abstract_effect_for_guard_update(arg):
             invars.add(p.bool_var)
 
     gu_ltl = effects_to_ltl(
-        new_effects, constants, invars, conf, dual_env_props, vars_relabelling
+        gu, new_effects, constants, invars, conf, dual_env_props, vars_relabelling
     )
 
     if conf.debug:
@@ -1090,7 +1094,13 @@ def debug_check_sat(gu, now_nexts, invars, constants, symbol_table):
 
 
 def effects_to_ltl(
-    effects, constants, invars, conf: config.Config, dual_env_props, vars_relabelling
+    gu,
+    effects,
+    constants,
+    invars,
+    conf: config.Config,
+    dual_env_props,
+    vars_relabelling,
 ):
     parts_ltl = []
     for part in effects.keys():
@@ -1118,10 +1128,12 @@ def effects_to_ltl(
         if len(part_ltl) != 0:
             parts_ltl.append(disjunct_formula_set(part_ltl))
 
+    parts_ltl = sorted(parts_ltl, key=lambda f: str(f))
     effects_ltl = conjunct_formula_set(parts_ltl)
 
     invar_preds_effects = set()
-    for p in set(invars):
+    invars = sorted(set(invars), key=lambda p: str(p))
+    for p in invars:
         if isinstance(p, ChainPredicate):
             if conf.dual:
                 invar_preds_effects.update(iff(X(b), X(X(b))) for b in p.bin_vars)
@@ -1135,7 +1147,8 @@ def effects_to_ltl(
                     invar_preds_effects.add(iff(p, X(p)))
 
     constant_effects = []
-    for p in set(constants):
+    constants = sorted(set(constants), key=lambda p: str(p))
+    for p in constants:
         const = p.replace_formulas(vars_relabelling)
         if conf.dual:
             const = X(const)

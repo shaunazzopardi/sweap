@@ -69,8 +69,6 @@ class WrappedHOA:
                 init_st,
                 env_props,
                 con_props,
-                {},
-                {},
             )
             mm.add_transitions(trans)
 

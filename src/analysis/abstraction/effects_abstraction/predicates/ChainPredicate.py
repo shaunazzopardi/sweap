@@ -283,6 +283,13 @@ class ChainPredicate(Predicate):
                     )
                     if len(new_nexts) > 0:
                         new_effects.append((new_now, new_nexts))
+                    else:
+                        print(
+                            "new_nexts is empty for gu: "
+                            + str(gu)
+                            + " and now: "
+                            + str(new_now)
+                        )
         if len(new_effects) == 0:
             raise Exception("Is gu unsatisfiable? " + str(gu))
         return new_effects

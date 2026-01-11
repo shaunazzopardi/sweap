@@ -8,10 +8,9 @@ from pysmt.environment import Environment
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And, simplify, serialize
 from sympy import Basic
-from sympy.logic.boolalg import to_dnf, to_cnf
+from sympy.logic.boolalg import BooleanAtom, BooleanTrue, to_dnf, to_cnf, BooleanFalse
 
 from analysis.smt_checker import check, bdd_simplify, find_unsat_core
-from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -278,13 +277,16 @@ def propagate_minuses(formula, init=False):
         return formula
 
 
-def propagate_nexts(formula, init=False):
+def propagate_nexts(formula, init=0):
     if isinstance(formula, Value) or isinstance(formula, Variable):
-        if init:
-            return X(formula)
+        if init > 0:
+            for _ in range(init):
+                formula = X(formula)
+        return formula
     if isinstance(formula, UniOp):
         if formula.op == "X":
-            return propagate_nexts(formula.right, True)
+            init += 1
+            return propagate_nexts(formula.right, init)
         else:
             return UniOp(formula.op, propagate_nexts(formula.right, init))
     elif isinstance(formula, BiOp):
@@ -297,17 +299,18 @@ def propagate_nexts(formula, init=False):
         return formula
 
 
-def propagate_nexts_and_atomize(formula, init=False):
+def propagate_nexts_and_atomize(formula, init=0):
     if isinstance(formula, Value):
         return formula
     elif isinstance(formula, Variable):
-        if init:
-            return Variable(str(formula) + "_next")
-        else:
-            return formula
+        if init > 0:
+            for _ in range(init):
+                formula = Variable(str(formula) + "_next")
+        return formula
     elif isinstance(formula, UniOp):
         if formula.op == "X":
-            return propagate_nexts_and_atomize(formula.right, True)
+            init += 1
+            return propagate_nexts_and_atomize(formula.right, init)
         else:
             return UniOp(formula.op, propagate_nexts_and_atomize(formula.right, init))
     elif isinstance(formula, BiOp):
@@ -361,8 +364,8 @@ def only_dis_or_con_junctions(f: Formula):
 dnf_cache = {}
 
 
-def fnode_to_formula_indirect(fnode: FNode) -> Formula:
-    return string_to_prop(serialize(fnode))
+# def fnode_to_formula_indirect(fnode: FNode) -> Formula:
+#     return string_to_prop(serialize(fnode))
 
 
 def fnode_to_formula(fnode: FNode) -> Formula:
@@ -399,10 +402,17 @@ def fnode_to_formula(fnode: FNode) -> Formula:
             )
         elif fnode.is_iff():
             return iff(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+        elif fnode.is_equals():
+            return MathExpr(
+                BiOp(
+                    fnode_to_formula(fnode.arg(0)), "=", fnode_to_formula(fnode.arg(1))
+                )
+            )
         elif fnode.is_symbol():
             return Variable(fnode.symbol_name())
         else:
-            return string_to_prop(serialize(fnode))
+            raise Exception("Could not parse FNode: " + serialize(fnode))
+            # string_to_prop(serialize(fnode))
 
 
 # def fnode_to_formula_recursive(fnode: FNode) -> Formula:
@@ -459,8 +469,21 @@ def sympi_to_formula(basic: Basic):
         return implies(sympi_to_formula(basic.args[0]), sympi_to_formula(basic.args[1]))
     elif isinstance(basic, sympy.logic.boolalg.Equivalent):
         return iff(sympi_to_formula(basic.args[0]), sympi_to_formula(basic.args[1]))
+    elif isinstance(basic, sympy.Symbol):
+        return Variable(str(basic))
+    elif isinstance(basic, BooleanAtom):
+        if basic == BooleanTrue:
+            return Value(BoolAtoms.TRUE)
+        elif basic == BooleanFalse:
+            return Value(BoolAtoms.FALSE)
+        else:
+            raise Exception("Could not parse Sympy BooleanAtom: " + str(basic))
     else:
-        return string_to_prop(str(basic))
+        raise Exception("Could not parse Sympy Basic: " + str(basic))
+        # string_to_prop(str(basic))
+
+
+sympy.logic.boolalg.BooleanAtom
 
 
 def simplify_formula_with_math(formula, symbol_table):
@@ -511,40 +534,34 @@ def formula_with_next_to_without(formula):
     return X_propagated_to_atoms
 
 
-def simplify_formula_with_next(formula, symbol_table=None):
+def simplify_formula_with_next(formula):
     with Environment() as environ:
-        if not symbol_table:
-            symbol_table = {str(v): BOOLEAN for v in formula.variablesin()}
-
         formula_with_no_nexts = formula_with_next_to_without(formula)
 
-        replacings = {
-            Variable("next_" + v.name): X(Variable(v.name))
-            for v in formula.variablesin()
-        }
-        replacings[Variable("next_true")] = X(true())
-        replacings[Variable("next_false")] = X(false())
+        add_n_nexts = lambda f, n: f if n <= 0 else add_n_nexts(X(f), n - 1)
+        add_back_nexts = lambda f: add_n_nexts(f, len(str(f).split("_next")) - 1)
 
-        symbol_table |= {str(r.left): BOOLEAN for r in replacings}
+        symbol_table = {
+            str(v.name): BOOLEAN for v in formula_with_no_nexts.variablesin()
+        }
 
         simplified = environ.simplifier.simplify(
             And(*formula_with_no_nexts.to_smt(symbol_table))
         )
         to_formula = fnode_to_formula(simplified)
-        to_formula = to_formula.replace(replacings)
+        to_formula = to_formula.replace(add_back_nexts)
         return to_formula
 
 
 def bdd_simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = propagate_nexts_and_atomize(formula)
 
-    keys = list(symbol_table.keys())
-    for v in keys:
+    for v in ltl_to_prop.variablesin():
         symbol_table[str(v) + "_next"] = BOOLEAN
 
     simplified_ltl = bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])
     if simplified_ltl is not None:
-        simplified = string_to_prop(serialize(simplified_ltl))
+        simplified = fnode_to_formula(simplified_ltl)
 
         simplified_ltl = simplified.replace(
             {
@@ -561,9 +578,7 @@ def bdd_simplify_ltl_formula(formula, symbol_table=None):
 def simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = ltl_to_propositional(formula)
 
-    simplified = string_to_prop(
-        serialize(simplify(And(*ltl_to_prop.to_smt(symbol_table))))
-    )
+    simplified = fnode_to_formula(simplify(And(*ltl_to_prop.to_smt(symbol_table))))
 
     simplified_ltl = simplified.replace(
         {
@@ -2001,167 +2016,6 @@ def normalise_predicate_old(pred, signatures, symbol_table) -> (Formula, [Formul
             pred, signatures, symbol_table
         )
         return p, [(signature, preds)]
-
-
-def normalise_pred_with_var_on_one_side(pred, v):
-    try:
-        sympy_pred = sympy.solve(pred.to_sympy(), v.to_sympy())
-    except Exception as e:
-        raise Exception(e)
-    preds = str(sympy_pred).split(" & ")
-    if len(preds) > 1:
-        preds = [
-            string_to_prop(p)
-            for p in preds
-            if "oo <" not in p
-            and "oo >" not in p
-            and "> oo" not in p
-            and "< oo" not in p
-            and "> -oo" not in p
-            and "< -oo" not in p
-        ]
-    if len(preds) > 1:
-        raise Exception(
-            "Predicate " + ", ".join(map(str, preds)) + " has more than one conjunct"
-        )
-    elif len(preds) == 0:
-        raise Exception("Sympy predicate " + str(sympy_pred) + " is not well-formed")
-
-    pred_with_var_on_one_side = strip_outer_mathexpr(string_to_prop(str(preds[0])))
-
-    if isinstance(pred_with_var_on_one_side, BiOp):
-        if pred_with_var_on_one_side.op == "<":
-            # x < c is good already
-            if pred_with_var_on_one_side.left == v:
-                return pred_with_var_on_one_side, [pred_with_var_on_one_side]
-            else:
-                # of form c < x -> x > c -> ! x <= c
-                new_pred = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<=",
-                    pred_with_var_on_one_side.left,
-                )
-                return neg(new_pred), [new_pred]
-        elif pred_with_var_on_one_side.op == "<=":
-            # x < c is good already
-            if pred_with_var_on_one_side.left == v:
-                return pred_with_var_on_one_side, [pred_with_var_on_one_side]
-            else:
-                # c <= x -> x >= c -> ! x < c
-                new_pred = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<",
-                    pred_with_var_on_one_side.left,
-                )
-                return neg(new_pred), [new_pred]
-        elif pred_with_var_on_one_side.op == ">":
-            # x > c -> !(x <= c)
-            if pred_with_var_on_one_side.left == v:
-                new_pred = BiOp(
-                    pred_with_var_on_one_side.left,
-                    "<=",
-                    pred_with_var_on_one_side.right,
-                )
-                return neg(new_pred), [new_pred]
-            else:
-                # of form c > x, then can represent as x < c
-                new_pred = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<",
-                    pred_with_var_on_one_side.left,
-                )
-                return new_pred, [new_pred]
-        elif pred_with_var_on_one_side.op == ">=":
-            if pred_with_var_on_one_side.left == v:
-                # x >= c -> ! x < c
-                new_pred = BiOp(
-                    pred_with_var_on_one_side.left,
-                    "<",
-                    pred_with_var_on_one_side.right,
-                )
-                return neg(new_pred), [new_pred]
-            else:
-                # c >= x -> x <= c
-                new_pred = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<=",
-                    pred_with_var_on_one_side.left,
-                )
-                return new_pred, [new_pred]
-        elif pred_with_var_on_one_side.op == "=":
-            if pred_with_var_on_one_side.right == v:
-                # c == x -> c <= x and c >= x
-                new_pred1 = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<=",
-                    pred_with_var_on_one_side.left,
-                )
-                new_pred2 = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<",
-                    pred_with_var_on_one_side.left,
-                )
-                return conjunct(new_pred1, neg(new_pred2)), [
-                    new_pred1,
-                    new_pred2,
-                ]
-            else:
-                new_pred1 = BiOp(
-                    pred_with_var_on_one_side.left,
-                    "<=",
-                    pred_with_var_on_one_side.right,
-                )
-                new_pred2 = BiOp(
-                    pred_with_var_on_one_side.left,
-                    "<",
-                    pred_with_var_on_one_side.right,
-                )
-                return conjunct(new_pred1, neg(new_pred2)), [
-                    new_pred1,
-                    new_pred2,
-                ]
-        elif pred_with_var_on_one_side.op == "!=":
-            if pred_with_var_on_one_side.right == v:
-                # c == x -> c <= x and c >= x
-                new_pred1 = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<=",
-                    pred_with_var_on_one_side.left,
-                )
-                new_pred2 = BiOp(
-                    pred_with_var_on_one_side.right,
-                    "<",
-                    pred_with_var_on_one_side.left,
-                )
-                return conjunct(new_pred1, neg(new_pred2)), [
-                    new_pred1,
-                    new_pred2,
-                ]
-            else:
-                new_pred1 = BiOp(
-                    pred_with_var_on_one_side.left,
-                    "<=",
-                    pred_with_var_on_one_side.right,
-                )
-                new_pred2 = BiOp(
-                    pred_with_var_on_one_side.left,
-                    "<",
-                    pred_with_var_on_one_side.right,
-                )
-                return conjunct(new_pred1, neg(new_pred2)), [
-                    new_pred1,
-                    new_pred2,
-                ]
-        else:
-            raise Exception(
-                "Predicate "
-                + str(pred_with_var_on_one_side)
-                + " has an unexpected relational operator"
-            )
-    else:
-        raise Exception(
-            "Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp"
-        )
 
 
 def normalise_pred_multiple_vars(pred, signatures, symbol_table):
