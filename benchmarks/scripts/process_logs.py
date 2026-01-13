@@ -21,7 +21,7 @@ SUMM_LATEX = "table-summ.tex"
 MACROS_LATEX = "macros-experiments.tex"
 bullet = r"$\bullet$"
 
-timeout = 60_000  # 1_200_000
+timeout = 600_000  # 1_200_000
 popl24 = r"\cite{10.1145/3632899}"
 cav24 = r"\cite{DBLP:conf/cav/SchmuckHDN24}"
 popl25 = r"\cite{DBLP:journals/pacmpl/HeimD25}"
@@ -37,8 +37,8 @@ class ToolInfo:
     err: Optional[re.Pattern] = None
 
 
-rpg_real_re = re.compile(r"^[Rr]ealizable", re.MULTILINE)
-rpg_unreal_re = re.compile(r"^[Uu]nrealizable", re.MULTILINE)
+rpg_real_re = re.compile(r"Game realizable => True", re.MULTILINE)
+rpg_unreal_re = re.compile(r"Game realizable => False", re.MULTILINE)
 sweap_real_re = re.compile(r"^Realisable$", re.MULTILINE)
 sweap_unreal_re = re.compile(r"^Unrealisable$", re.MULTILINE)
 strix_real_re = re.compile(r"^REALIZABLE", re.MULTILINE)
@@ -46,6 +46,9 @@ strix_unreal_re = re.compile(r"^UNREALIZABLE", re.MULTILINE)
 err_re = re.compile(r"^Result:\s*$", re.MULTILINE)
 stela_real_re = re.compile(r"^Realizable: True", re.MULTILINE)
 stela_unreal_re = re.compile(r"^Realizable: False", re.MULTILINE)
+
+oom1_re = re.compile(r"memory allocation of [0-9]+ bytes failed")
+oom2_re = re.compile(r"java.lang.OutOfMemoryError")
 
 class CheckMissing:
     def __init__(self, s) -> None:
@@ -60,8 +63,11 @@ tools = {
     "sweap-dual": ToolInfo(name="sweap-dual", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-rpg": ToolInfo(name="sweap-rpg", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-tsl": ToolInfo(name="sweap-tsl", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "sweap-issy": ToolInfo(name="sweap-issy", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-semml": ToolInfo(name="sweap-semml", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "issy-rpg": ToolInfo(name="issy-rpg", latex_name="issy-rpg", real=rpg_real_re, unreal=rpg_unreal_re),
+    "issy-tsl": ToolInfo(name="issy-tsl", latex_name="issy-tsl", real=rpg_real_re, unreal=rpg_unreal_re),
+    "issy": ToolInfo(name="issy", latex_name="issy", real=rpg_real_re, unreal=rpg_unreal_re),
     # "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     # "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
     # "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
@@ -117,7 +123,7 @@ buechi_benchs_cav24 = {
     "robot_analyze": True,
     **{f"robot_collect_v{i}": True for i in (1, 2, 3)},
     **{f"robot_deliver_v{i}": True for i in (1, 2, 3, 4, 5)},
-    "robot_repair": True,
+    "robot_repair": False,
     "robot_running": True,
     "scheduler": True,
 }
@@ -180,6 +186,77 @@ reach_benchs_isola24 = {
     "sort5": True,
 }
 
+nondet_input_benchs = {
+    "nd-robot-resource-2d": True,
+    "nd-gf-real": True,
+    "nd-robot-to-target": True,
+    "nd-infinite-race-u": False,
+    "nd-heim-fig7": False,
+    "nd-arbiter-nodet": False,
+    "nd-arbiter-det": True,
+    "nd-helipad": True,
+    "nd-chain-4": True,
+    "nd-chain-5": True,
+    "nd-arbiter": True,
+}
+
+issy_benchs = {
+    "balancer-bool-simplified-1": True,
+    "balancer-bool-simplified-2": True,
+    "balancer-bool-simplified-3": True,
+    "balancer": True,
+    "fig7-gt1": False,
+    "two-loc-inp-real": True,
+    "two-loc-inp-unreal-0": False,
+    "two-loc-inp-unreal-1": False,
+    "two-loc-real-1": True,
+    "two-loc-real-2": True,
+    "two-vars-real": True,
+    "two-vars-unreal": False,
+    "counter-10-10-formula": True,
+    "counter-10-10-game": True,
+    "counter-2-10-2-formula": True,
+    "counter-2-10-2-game": True,
+    "counter-2-10-formula": True,
+    "counter-2-10-game": True,
+    "counter-3-10-formula": True,
+    "counter-3-10-game": True,
+    "counter-3-7-formula": True,
+    "counter-3-7-game": True,
+    "v1": True,
+    "v2-unreal": False,
+    "parity-two-vars-real": True,
+    "parity-two-vars-unreal-0": False,
+    "parity-two-vars-unreal-1": False,
+    "parity-two-vars-unreal-2": False,
+    "balance-add-rem-2-2-8": True,
+    "balance-add-rem-8-1-16": True,
+    "balance-add-rem-8-1-7": False,
+    "balance-add-rem-8-2-16": True,
+    "empty-add-rem-2-1-unreal": False,
+    "empty-add-rem-2-1": True,
+    "empty-balance-add-rem-2-1-2": True,
+    "test-01": False,
+    "test-02": True,
+    "test-03": True,
+    "test-04": True,
+    "test-05": True,
+    "test-06": False,
+    "test-07": True,
+    "test-08": True,
+    "test-09": True,
+    "test-10": False,
+    "test-11": True,
+    "test-12": True,
+    "test-13": True,
+    "test-14": True,
+    "test-15": True,
+    "test-16": False,
+    "test-17": True,
+    "test-extract-input": True,
+    "test-extract-lemma": True
+}
+
 infinite_benchs = {
     **safety_benchs_popl24,
     **safety_benchs_popl25,
@@ -190,7 +267,9 @@ infinite_benchs = {
     **buechi_benchs_cav24,
     **buechi_benchs_popl24,
     **buechi_benchs_popl25,
-    **ltl_benchs
+    **ltl_benchs,
+    **nondet_input_benchs,
+    **issy_benchs,
 }
 
 other_benchs = {
@@ -222,7 +301,7 @@ aliases = {
     "elevator": ("elevator-paper", ),
     "evasion": ("neider-evasion", ),
     "follow": ("neider-follow", ),
-    "heim-fig7": ("heim-buechi-u", "heim-buchi-u" ),
+    "heim-fig7": ("heim-buechi-u", "heim-buchi-u", "fig7"),
     "rep-reach-obst-1d": ("robot-grid-reach-repeated-with-obstacles-1d", ),
     "rep-reach-obst-2d": ("robot-grid-reach-repeated-with-obstacles-2d", ),
     "rep-reach-obst-6d": ("robot-grid-reach-repeated-with-obstacles-6d", ),
@@ -310,9 +389,14 @@ def get_result(tool, tool_info, bench, b_real):
 
     with open(log[0], "r") as log_file:
         raw_result = log_file.read()
-    runtime = int(raw_result.splitlines()[-1])
+    log_lines = raw_result.splitlines()
+    runtime = int(log_lines[-1])
     if runtime >= timeout:
         return runtime, "timeout"
+
+    return_code = int(log_lines[-2])
+    if return_code == 137:
+        return runtime, "oom"
 
     verdict_real = tool_info.real.search(raw_result)
     verdict_unreal = tool_info.unreal.search(raw_result)
@@ -320,6 +404,21 @@ def get_result(tool, tool_info, bench, b_real):
         return runtime, "realizable"
     elif verdict_unreal and not verdict_real:
         return runtime, "unrealizable"
+    elif any((
+        oom1_re.search(raw_result),
+        oom2_re.search(raw_result),
+        "You may be using a special nuXmv keyword" in raw_result,
+        "Finite synthesis engine did not return any output." in raw_result,
+        "issy-bin: out of memory" in raw_result
+    )):
+        return runtime, "oom"
+    elif any((
+        "currently unsupported" in raw_result,
+        "We do not handle yet ISSY problems with no games." in raw_result,
+        "We do not yet handle objectives" in raw_result
+    )):
+        return runtime, "unsupported"
+
     return runtime, "error"
 
 
@@ -327,16 +426,12 @@ results = defaultdict(dict)
 refinements = defaultdict(dict)
 
 def update_stats(verdict: str, tool: str, bench_real: bool):
-    if verdict == "missing":
-        pass
-    elif verdict == "timeout":
-        STATS[tool]["to"] += 1
-    elif verdict == "realizable":
+    if verdict == "realizable":
         STATS[tool]["right" if bench_real else "wrong"] += 1
     elif verdict == "unrealizable":
         STATS[tool]["wrong" if bench_real else "right"] += 1
-    elif verdict == "error":
-        STATS[tool]["err"] += 1
+    elif verdict != "missing":
+        STATS[tool][verdict] += 1
 
 with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
     writer = csv.writer(csv_file, dialect="excel", lineterminator="\n")
@@ -352,8 +447,9 @@ with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
             if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
                 verdict += "___wrong"
             row = (b, b_real, tool, abs(runtime), verdict)
-            writer.writerow(row)
-            stdout_writer.writerow(row)
+            if runtime > 0:
+                writer.writerow(row)
+                stdout_writer.writerow(row)
 
     # for i, b in enumerate(infinite_benchs, start=2):
     #     print(i-1, b, "...", file=sys.stderr)
