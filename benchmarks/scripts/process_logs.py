@@ -47,8 +47,8 @@ err_re = re.compile(r"^Result:\s*$", re.MULTILINE)
 stela_real_re = re.compile(r"^Realizable: True", re.MULTILINE)
 stela_unreal_re = re.compile(r"^Realizable: False", re.MULTILINE)
 
-oom1_re = re.compile(r"memory allocation of [0-9]+ bytes failed")
-oom2_re = re.compile(r"java.lang.OutOfMemoryError")
+oom_re = re.compile(r"memory allocation of [0-9]+ bytes failed")
+
 
 class CheckMissing:
     def __init__(self, s) -> None:
@@ -229,7 +229,7 @@ issy_benchs = {
     "parity-two-vars-unreal-0": False,
     "parity-two-vars-unreal-1": False,
     "parity-two-vars-unreal-2": False,
-    "balance-add-rem-2-2-8": True,
+    "balance-add-rem-2-2-8": False,
     "balance-add-rem-8-1-16": True,
     "balance-add-rem-8-1-7": False,
     "balance-add-rem-8-2-16": True,
@@ -375,11 +375,12 @@ def get_refinements(fname):
     add_tr = int(all_tr) - init_tr
     return init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr
 
+all_logs = set(Path(base_dir).rglob("*.*.log"))
 
 def get_result(tool, tool_info, bench, b_real):
     result = None
     for name in (bench, *aliases.get(bench, [])):
-        log = list(Path(base_dir).rglob(f"{name}.{tool}.log"))
+        log = [p for p in all_logs if p.name == f"{name}.{tool}.log"]
         if log:
             break
     if not log:
@@ -405,8 +406,8 @@ def get_result(tool, tool_info, bench, b_real):
     elif verdict_unreal and not verdict_real:
         return runtime, "unrealizable"
     elif any((
-        oom1_re.search(raw_result),
-        oom2_re.search(raw_result),
+        oom_re.search(raw_result),
+        "java.lang.OutOfMemoryError" in raw_result,
         "You may be using a special nuXmv keyword" in raw_result,
         "Finite synthesis engine did not return any output." in raw_result,
         "issy-bin: out of memory" in raw_result
@@ -433,23 +434,20 @@ def update_stats(verdict: str, tool: str, bench_real: bool):
     elif verdict != "missing":
         STATS[tool][verdict] += 1
 
-with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
-    writer = csv.writer(csv_file, dialect="excel", lineterminator="\n")
-    stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
-    writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
-    stdout_writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
-    # writer.writerow(["row-id", "benchmark", *tools])
-    for b, b_real in infinite_benchs.items():
-        for tool, tool_info in tools.items():
-            runtime, verdict = get_result(tool, tool_info, b, b_real)
-            results[b][tool] = runtime
-            update_stats(verdict, tool, b_real)
-            if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
-                verdict += "___wrong"
-            row = (b, b_real, tool, abs(runtime), verdict)
-            if runtime > 0:
-                writer.writerow(row)
-                stdout_writer.writerow(row)
+stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
+stdout_writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
+# writer.writerow(["row-id", "benchmark", *tools])
+for b, b_real in infinite_benchs.items():
+    for tool, tool_info in tools.items():
+        runtime, verdict = get_result(tool, tool_info, b, b_real)
+        results[b][tool] = runtime
+        update_stats(verdict, tool, b_real)
+        if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
+            verdict += "___wrong"
+        row = (b, b_real, tool, abs(runtime), verdict)
+        if runtime > 0:
+            stdout_writer.writerow(row)
+            sys.stdout.flush()
 
     # for i, b in enumerate(infinite_benchs, start=2):
     #     print(i-1, b, "...", file=sys.stderr)
@@ -462,8 +460,12 @@ with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
     #         row.append(result)
     #     writer.writerow(row)
 
+VERDICTS = ("right", "wrong", "timeout", "oom", "unsupported", "error")
+
+stderr_writer = csv.writer(sys.stderr, dialect="excel", lineterminator="\n")
+stderr_writer.writerow(["tool", *VERDICTS])
 for k, v in STATS.items():
-    print(k, ":", v, file=sys.stderr)
+    stderr_writer.writerow([k] + [v.get(x, 0) for x in VERDICTS])
 
 sys.exit(0)
 

@@ -49,6 +49,8 @@ ISSY_LOGS :=			$(addsuffix .issy.log, 				$(ISSY_BENCHS))
 ISSY_RPG_LOGS :=		$(addsuffix .issy-rpg.log,			$(RPG_BENCHS))
 ISSY_TSL_LOGS :=		$(addsuffix .issy-tsl.log,			$(TSLMT2RPG_BENCHS))
 
+ALL_LOGS := $(SWEAP_LOGS) $(SWEAP_DUAL_LOGS) $(SWEAP_SEMML_LOGS) $(SWEAP_RPG_LOGS) $(SWEAP_TSL_LOGS) $(SWEAP_ISSY_LOGS) $(ISSY_LOGS) $(ISSY_RPG_LOGS) $(ISSY_TSL_LOGS)
+
 
 SWEAP_LAZY_LOGS :=		$(addsuffix .sweap-lazy.log, 		$(SWEAP_BENCHS))
 SWEAP_NOBIN_LOGS :=		$(addsuffix .sweap-nobin.log,       $(SWEAP_BENCHS))
@@ -67,7 +69,7 @@ $(SWEAP_TSL_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend 
 $(SWEAP_ISSY_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --issy
 $(ISSY_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podman run --timeout $(TIMEOUT) --rm -i issy-runner /usr/bin/issy --pruning 2 --synt <
 $(ISSY_RPG_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podman run --timeout $(TIMEOUT) --rm -i issy-runner /usr/bin/issy --pruning 2 --synt --rpg <
-$(ISSY_TSL_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podman run --timeout $(TIMEOUT) --rm issy-runner /usr/bin/issy --pruning 2 --synt --tslmt <
+$(ISSY_TSL_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podman run --timeout $(TIMEOUT) --rm -i issy-runner /usr/bin/issy --pruning 2 --synt --tslmt <
 
 
 $(SWEAP_LAZY_LOGS): cmd =		python3 src/main.py --synthesise --lazy --p
@@ -79,7 +81,7 @@ $(TSLMT2RPG_LOGS): cmd =		run-pruned.sh
 $(TSLMT2RPG_SYN_LOGS): cmd =	run-pruned-syn.sh
 
 # paths that the tool needs in $PATH
-path =				binaries/issy:binaries
+path =				binaries
 $(SWEAP_LOGS) : path =		binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_LAZY_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_DUAL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
@@ -245,8 +247,9 @@ ifeq ("$(ULIM)", "unlimited")
 	@echo -n "memory unlimited! Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 endif
 
-tables: #$(ALL_LOGS)
-	@benchmarks/scripts/process_logs.py benchmarks
+
+tables:
+	benchmarks/scripts/process_logs.py benchmarks > >(tee benchmarks/results/results.csv) 2> >(tee benchmarks/results/stats.csv)
 
 plots:
 	cd benchmarks/scripts; \
