@@ -94,6 +94,7 @@ safety_benchs_popl25 = {
 }
 
 reach_benchs_popl24 = {
+    "heim-normal": True,
     "heim-double-x": True,
     "robot-cat-real-1d": True,
     "robot-cat-unreal-1d": False,
@@ -257,6 +258,11 @@ issy_benchs = {
     "test-extract-lemma": True
 }
 
+other_benchs = {
+    "repeated-robot-resource-1d": True,
+    "arbiter-unreal": False,
+}
+
 infinite_benchs = {
     **safety_benchs_popl24,
     **safety_benchs_popl25,
@@ -268,15 +274,11 @@ infinite_benchs = {
     **buechi_benchs_popl24,
     **buechi_benchs_popl25,
     **ltl_benchs,
+    # **other_benchs,
     **nondet_input_benchs,
     **issy_benchs,
 }
 
-other_benchs = {
-    "repeated-robot-resource-1d": True,
-    "heim-normal": True,
-    "arbiter-unreal": False,
-}
 
 finite_benchs = {
     **{f"bloem-elevator-simple-{i}": True for i in (3, 5, 10, 50)},
@@ -305,6 +307,7 @@ aliases = {
     "rep-reach-obst-1d": ("robot-grid-reach-repeated-with-obstacles-1d", ),
     "rep-reach-obst-2d": ("robot-grid-reach-repeated-with-obstacles-2d", ),
     "rep-reach-obst-6d": ("robot-grid-reach-repeated-with-obstacles-6d", ),
+    "reversible-lane-r": ("road", ),
     "robot_analyze": ("robot_analyze_samples", "robot_analyze_samples_v1", ),
     "robot-commute-1d": ("robot-grid-comute-1d", "robot-grid-commute-1d", ),
     "robot-commute-2d": ("robot-grid-comute-2d", "robot-grid-commute-2d", ),
@@ -330,7 +333,7 @@ try:
 except FileExistsError:
     pass
 
-STATS = {t: defaultdict(int) for t in tools}
+STATS = defaultdict(lambda: defaultdict(int))
 GET_TR_PREDS = (
     """tr '" ()!' '\n' | tr "'" '\n' | """
     "grep prev | grep pred | sort | uniq | wc -l")
@@ -436,6 +439,9 @@ def update_stats(verdict: str, tool: str, bench_real: bool):
 
 stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
 stdout_writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
+
+
+
 # writer.writerow(["row-id", "benchmark", *tools])
 for b, b_real in infinite_benchs.items():
     for tool, tool_info in tools.items():
@@ -459,6 +465,28 @@ for b, b_real in infinite_benchs.items():
     #         update_stats(result, tool, b)
     #         row.append(result)
     #     writer.writerow(row)
+
+# Portfolio: sweap-semml, sweap-dual
+for b, b_real in infinite_benchs.items():
+    _, semml = get_result("sweap-semml", tools["sweap-semml"], b, b_real)
+    _, dual = get_result("sweap-dual", tools["sweap-dual"], b, b_real)
+    portfolio = "error"
+    results = set((semml, dual))
+    if len(results) == 1:  # Tools agree
+        portfolio = results.pop()
+    elif "realizable" in results and "unrealizable" in results:  # Tools disagree
+        portfolio = "error"
+    elif "timeout" in results and "oom" in results:
+        portfolio = "oom"
+    else: 
+        results -= set(("error", "timeout", "oom", "missing"))
+        if len(results) == 1:
+            portfolio = results.pop()
+        else:
+            # print(f"Portfolio inconclusive on {b}: {semml}, {dual}", file=sys.stderr)
+            # input()
+            portfolio = "error"
+    update_stats(portfolio, "sweap-pf", b_real)
 
 VERDICTS = ("right", "wrong", "timeout", "oom", "unsupported", "error")
 
