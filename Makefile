@@ -6,7 +6,7 @@ TIMEOUT := 600
 # Directory that contains this Makefile
 ROOT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-.PHONY: all others everything clean clean-aux clean-timeouts confirm check-ulimit tables plots count $(TOOLS)
+.PHONY: all others everything clean clean-timeouts confirm check-ulimit tables plots count $(TOOLS)
 
 # Paths to benchmark files
 SWEAP_BENCHS :=		$(basename $(wildcard benchmarks/sweap/*.prog))
@@ -52,14 +52,6 @@ ISSY_TSL_LOGS :=		$(addsuffix .issy-tsl.log,			$(TSLMT2RPG_BENCHS))
 ALL_LOGS := $(SWEAP_LOGS) $(SWEAP_DUAL_LOGS) $(SWEAP_SEMML_LOGS) $(SWEAP_RPG_LOGS) $(SWEAP_TSL_LOGS) $(SWEAP_ISSY_LOGS) $(ISSY_LOGS) $(ISSY_RPG_LOGS) $(ISSY_TSL_LOGS)
 
 
-SWEAP_LAZY_LOGS :=		$(addsuffix .sweap-lazy.log, 		$(SWEAP_BENCHS))
-SWEAP_NOBIN_LOGS :=		$(addsuffix .sweap-nobin.log,       $(SWEAP_BENCHS))
-RPG_STELA_LOGS :=		$(addsuffix .rpg-stela.log,			$(RPG_BENCHS))
-RPG_SYN_LOGS :=			$(addsuffix .rpgsolve-syn.log,		$(RPG_BENCHS))
-RPG_LOGS :=				$(addsuffix .rpgsolve.log,			$(RPG_BENCHS))
-TSLMT2RPG_LOGS :=		$(addsuffix .tslmt2rpg.log,			$(TSLMT2RPG_BENCHS))
-TSLMT2RPG_SYN_LOGS :=	$(addsuffix .tslmt2rpg-syn.log,		$(TSLMT2RPG_BENCHS))
-
 # Tool command-line invocation
 $(SWEAP_LOGS): cmd = 			python3 src/main.py --synthesise --synthesis_backend strix --p
 $(SWEAP_DUAL_LOGS): cmd =		python3 src/main.py --synthesise --dual --synthesis_backend semml --p
@@ -72,26 +64,14 @@ $(ISSY_RPG_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podm
 $(ISSY_TSL_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podman run --timeout $(TIMEOUT) --rm -i issy-runner /usr/bin/issy --pruning 2 --synt --tslmt <
 
 
-$(SWEAP_LAZY_LOGS): cmd =		python3 src/main.py --synthesise --lazy --p
-$(SWEAP_NOBIN_LOGS): cmd =		python3 src/main.py --synthesise --no_binary_enc --p
-$(RPG_STELA_LOGS): cmd = 		rpg-stela solve --enable-no-pruning <
-$(RPG_SYN_LOGS): cmd =			rpgsolve --generate-program --disable-log <
-$(RPG_LOGS): cmd =				rpgsolve --disable-log <
-$(TSLMT2RPG_LOGS): cmd =		run-pruned.sh
-$(TSLMT2RPG_SYN_LOGS): cmd =	run-pruned-syn.sh
-
 # paths that the tool needs in $PATH
 path =				binaries
 $(SWEAP_LOGS) : path =		binaries:binaries/CPAchecker-2.3-unix/scripts
-$(SWEAP_LAZY_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_DUAL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_RPG_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_TSL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_ISSY_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_SEMML_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
-$(RPG_SYN_LOGS): path =		binaries/z3-4-8:binaries
-$(TSLMT2RPG_LOGS): path =	binaries/z3-4-8:binaries
-$(TSLMT2RPG_SYN_LOGS): path =	binaries/z3-4-8:binaries
 
 # Set up environment variables, create temporary log file, record start time
 define HEADER
@@ -126,14 +106,6 @@ issy:		check-ulimit $(ISSY_LOGS)
 issy-rpg:	check-ulimit $(ISSY_RPG_LOGS)
 issy-tsl:	check-ulimit $(ISSY_TSL_LOGS)
 
-sweap-lazy:		check-ulimit $(SWEAP_LAZY_LOGS)
-sweap-nobin:	check-ulimit $(SWEAP_NOBIN_LOGS)
-rpg-stela:      check-ulimit $(RPG_STELA_LOGS)
-rpgsolve-syn:   check-ulimit $(RPG_SYN_LOGS)
-rpgsolve:       check-ulimit $(RPG_LOGS)
-tslmt2rpg:      check-ulimit $(TSLMT2RPG_LOGS)
-tslmt2rpg-syn:  check-ulimit $(TSLMT2RPG_SYN_LOGS)
-
 
 ################################################################################
 # Here are the core commands that run a tool on a benchmark <bench>.<ext>
@@ -165,26 +137,6 @@ $(SWEAP_ISSY_LOGS): %.sweap-issy.log: %.issy
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
-$(SWEAP_LAZY_LOGS): %.sweap-lazy.log: %.prog
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
-$(SWEAP_NOBIN_LOGS): %.sweap-nobin.log: %.prog
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
-$(RPG_STELA_LOGS): %.rpg-stela.log : %.rpg
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
-$(RPG_SYN_LOGS): %.rpgsolve-syn.log : %.rpg
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
-$(RPG_LOGS): %.rpgsolve.log : %.rpg
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
 $(ISSY_LOGS): %.issy.log : %.issy
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
@@ -197,43 +149,18 @@ $(ISSY_TSL_LOGS): %.issy-tsl.log : %.tslmt
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
-$(TSLMT2RPG_LOGS): %.tslmt2rpg.log : %.tslmt
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
-$(TSLMT2RPG_SYN_LOGS): %.tslmt2rpg-syn.log : %.tslmt
-	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
-
 ################################################################################
 
 ################################################################################
 # Cleanup commands
-clean: clean-aux
+clean: confirm
 	@echo "Cleaning up all logs..."
-	@find
-	-@rm $(SWEAP_LOGS) 2>/dev/null || true
-	-@rm $(SWEAP_SEMML_LOGS) 2>/dev/null || true
-	-@rm $(SWEAP_RPG_LOGS) 2>/dev/null || true
-	-@rm $(SWEAP_TSL_LOGS) 2>/dev/null || true
-	-@rm $(SWEAP_ISSY_LOGS) 2>/dev/null || true
-	-@rm $(SWEAP_LAZY_LOGS) 2>/dev/null || true
-	-@rm $(RPG_STELA_LOGS) 2>/dev/null || true
-	-@rm $(TSLMT2RPG_LOGS) 2>/dev/null || true
-	-@rm $(TSLMT2RPG_SYN_LOGS) 2>/dev/null || true
-	-@rm $(ISSY_RPG_LOGS) 2>/dev/null || true
-
-clean-aux: confirm
-	@echo "Cleaning up auxiliary files..."
-	-@rm -rf benchmarks/raboniel/*.t 2>/dev/null || true
-	-@rm -rf benchmarks/raboniel/*.tsl 2>/dev/null || true
-	-@rm -rf benchmarks/raboniel/*.py 2>/dev/null || true
-	-@rm -rf benchmarks/raboniel/*.t_R*.tlsf 2>/dev/null || true
-	-@rm -rf benchmarks/raboniel/*.t_R*.kiss 2>/dev/null || true
+	@find benchmarks/ -iname "*.*.log" -delete || true
 
 clean-timeouts: confirm
 	@echo "Cleaning up logs for experiments that timed out..."
 	-@find benchmarks/ -iname "*.log" | xargs tail -n2 | grep -B1 -e '^124$$' -e '^255$$' | grep "==>" | xargs rm -v 2>/dev/null || true
+
 confirm:
 	@echo -n "Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 ################################################################################
