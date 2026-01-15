@@ -62,6 +62,7 @@ tools = {
     "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-dual": ToolInfo(name="sweap-dual", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-rpg": ToolInfo(name="sweap-rpg", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
+    "sweap-rpg-dual": ToolInfo(name="sweap-rpg-dual", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-tsl": ToolInfo(name="sweap-tsl", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-issy": ToolInfo(name="sweap-issy", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
     "sweap-semml": ToolInfo(name="sweap-semml", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
@@ -441,8 +442,6 @@ stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
 stdout_writer.writerow(["benchmark","real","tool","time(ms)","verdict"])
 
 
-
-# writer.writerow(["row-id", "benchmark", *tools])
 for b, b_real in infinite_benchs.items():
     for tool, tool_info in tools.items():
         runtime, verdict = get_result(tool, tool_info, b, b_real)
@@ -483,8 +482,6 @@ for b, b_real in infinite_benchs.items():
         if len(results) == 1:
             portfolio = results.pop()
         else:
-            # print(f"Portfolio inconclusive on {b}: {semml}, {dual}", file=sys.stderr)
-            # input()
             portfolio = "error"
     update_stats(portfolio, "sweap-pf", b_real)
 
