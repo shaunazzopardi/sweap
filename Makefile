@@ -1,5 +1,5 @@
 # Shortnames we give to the tools
-TOOLS := rpgsolve rpgsolve-syn rpg-stela sweap sweap-lazy sweap-nobin tslmt2rpg tslmt2rpg-syn sweap-rpg sweap-tsl sweap-semml issy-rpg sweap-dual issy-tsl sweap-issy issy
+TOOLS := sweap sweap-dual sweap-issy sweap-rpg sweap-rpg-dual sweap-tsl sweap-semml issy-rpg  issy-tsl issy
 # Timeout for each benchmark, in seconds
 TIMEOUT := 600
 
@@ -43,20 +43,20 @@ SWEAP_LOGS :=			$(addsuffix .sweap.log, 			$(SWEAP_BENCHS))
 SWEAP_DUAL_LOGS :=		$(addsuffix .sweap-dual.log, 		$(SWEAP_BENCHS))
 SWEAP_SEMML_LOGS :=		$(addsuffix .sweap-semml.log, 		$(SWEAP_BENCHS))
 SWEAP_RPG_LOGS :=		$(addsuffix .sweap-rpg.log, 		$(RPG_BENCHS))
+SWEAP_RPG_DUAL_LOGS :=	$(addsuffix .sweap-rpg-dual.log, 		$(RPG_BENCHS))
 SWEAP_TSL_LOGS :=		$(addsuffix .sweap-tsl.log, 		$(RABONIEL_BENCHS))
 SWEAP_ISSY_LOGS :=		$(addsuffix .sweap-issy.log, 		$(ISSY_BENCHS))
 ISSY_LOGS :=			$(addsuffix .issy.log, 				$(ISSY_BENCHS))
 ISSY_RPG_LOGS :=		$(addsuffix .issy-rpg.log,			$(RPG_BENCHS))
 ISSY_TSL_LOGS :=		$(addsuffix .issy-tsl.log,			$(TSLMT2RPG_BENCHS))
 
-ALL_LOGS := $(SWEAP_LOGS) $(SWEAP_DUAL_LOGS) $(SWEAP_SEMML_LOGS) $(SWEAP_RPG_LOGS) $(SWEAP_TSL_LOGS) $(SWEAP_ISSY_LOGS) $(ISSY_LOGS) $(ISSY_RPG_LOGS) $(ISSY_TSL_LOGS)
-
 
 # Tool command-line invocation
 $(SWEAP_LOGS): cmd = 			python3 src/main.py --synthesise --synthesis_backend strix --p
-$(SWEAP_DUAL_LOGS): cmd =		python3 src/main.py --synthesise --dual --synthesis_backend semml --p
 $(SWEAP_SEMML_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --p
+$(SWEAP_DUAL_LOGS): cmd =		python3 src/main.py --synthesise --dual --synthesis_backend semml --p
 $(SWEAP_RPG_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --rpg
+$(SWEAP_RPG_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual --synthesis_backend semml --rpg
 $(SWEAP_TSL_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --tsl
 $(SWEAP_ISSY_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --issy
 $(ISSY_LOGS): cmd =			rm -rf /home/luca.di.stefano/.local/libpod/tmp && podman run --timeout $(TIMEOUT) --rm -i issy-runner /usr/bin/issy --pruning 2 --synt <
@@ -69,6 +69,7 @@ path =				binaries
 $(SWEAP_LOGS) : path =		binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_DUAL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_RPG_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
+$(SWEAP_RPG_DUAL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_TSL_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_ISSY_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
 $(SWEAP_SEMML_LOGS): path =	binaries:binaries/CPAchecker-2.3-unix/scripts
@@ -92,13 +93,13 @@ define FOOTER
 	mv $$LOGFILE $(ROOT_DIR)/$@
 endef
 
-all: sweap sweap-rpg sweap-tsl sweap-semml
-everything: all sweap-nobin
+all: $(TOOLS)
 
 sweap:			check-ulimit $(SWEAP_LOGS)
-sweap-dual:		$(SWEAP_DUAL_LOGS)
 sweap-semml:	$(SWEAP_SEMML_LOGS) # SemML does not work well under ulimit
+sweap-dual:		$(SWEAP_DUAL_LOGS)
 sweap-rpg:		$(SWEAP_RPG_LOGS)
+sweap-rpg-dual:	$(SWEAP_RPG_DUAL_LOGS)
 sweap-tsl:		$(SWEAP_TSL_LOGS)
 sweap-issy:		$(SWEAP_ISSY_LOGS)
 
@@ -128,6 +129,11 @@ $(SWEAP_SEMML_LOGS): %.sweap-semml.log: %.prog
 $(SWEAP_RPG_LOGS): %.sweap-rpg.log: %.rpg
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
+
+$(SWEAP_RPG_DUAL_LOGS): %.sweap-rpg-dual.log: %.rpg
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
+
 
 $(SWEAP_TSL_LOGS): %.sweap-tsl.log: %.tslmt
 	@echo "$(cmd) $< $(TIMEOUT)"
