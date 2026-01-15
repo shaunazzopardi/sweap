@@ -248,7 +248,7 @@ endif
 
 
 tables:
-	benchmarks/scripts/process_logs.py benchmarks > >(tee benchmarks/results/results.csv) 2> >(tee benchmarks/results/stats.csv)
+	(benchmarks/scripts/process_logs.py benchmarks | tee benchmarks/results/results.csv) 2> >(tee benchmarks/results/stats.csv)
 
 plots:
 	cd benchmarks/scripts; \
