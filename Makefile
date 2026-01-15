@@ -6,7 +6,7 @@ TIMEOUT := 600
 # Directory that contains this Makefile
 ROOT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-.PHONY: all others everything clean clean-aux clean-timeouts confirm check-ulimit tables plots $(TOOLS)
+.PHONY: all others everything clean clean-aux clean-timeouts confirm check-ulimit tables plots count $(TOOLS)
 
 # Paths to benchmark files
 SWEAP_BENCHS :=		$(basename $(wildcard benchmarks/sweap/*.prog))
@@ -211,14 +211,13 @@ $(TSLMT2RPG_SYN_LOGS): %.tslmt2rpg-syn.log : %.tslmt
 # Cleanup commands
 clean: clean-aux
 	@echo "Cleaning up all logs..."
+	@find
 	-@rm $(SWEAP_LOGS) 2>/dev/null || true
 	-@rm $(SWEAP_SEMML_LOGS) 2>/dev/null || true
 	-@rm $(SWEAP_RPG_LOGS) 2>/dev/null || true
 	-@rm $(SWEAP_TSL_LOGS) 2>/dev/null || true
 	-@rm $(SWEAP_ISSY_LOGS) 2>/dev/null || true
 	-@rm $(SWEAP_LAZY_LOGS) 2>/dev/null || true
-	-@rm $(RPG_LOGS) 2>/dev/null || true
-	-@rm $(RPG_SYN_LOGS) 2>/dev/null || true
 	-@rm $(RPG_STELA_LOGS) 2>/dev/null || true
 	-@rm $(TSLMT2RPG_LOGS) 2>/dev/null || true
 	-@rm $(TSLMT2RPG_SYN_LOGS) 2>/dev/null || true
@@ -254,4 +253,10 @@ tables:
 plots:
 	cd benchmarks/scripts; \
 	./cactus.py ../results/results.csv
+
+count:
+	@echo -n "sweap: " && echo $(SWEAP_BENCHS) | wc -w
+	@echo -n "issy: " && echo $(ISSY_BENCHS) | wc -w
+	@echo -n "rpg: " && echo $(RPG_BENCHS) | wc -w
+	@echo -n "tslmt: " && echo $(TSLMT2RPG_BENCHS) | wc -w
 
