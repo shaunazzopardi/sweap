@@ -177,7 +177,7 @@ translate_ops = {
     "ge": ">=",
     "add": "+",
     "sub": "-",
-    "mul": "-",
+    "mul": "*",
 }
 
 unary_operators = {"!", "-"}

@@ -102,14 +102,14 @@ def _mult(lhs, rhs):
     # handle positive multiplication by unrolling
     elif val > 0:
         c = val
-        result = rhs
+        result = var
         for _ in range(c - 1):
             result = BiOp(result, "+", var)
         return result
     # hangle negative multiplication by unrolling
     elif val < 0:
         c = abs(val)
-        result = rhs
+        result = var
         for _ in range(c - 1):
             result = BiOp(result, "+", var)
         return UniOp("-", result)
