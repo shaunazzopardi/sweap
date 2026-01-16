@@ -101,8 +101,18 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
             ):
                 # reduce predicate mismatch to the actually mismatched predicates
                 for p in pred_state:
+                    # TODO: here using (incompatible_state[1] | incompatible_state[2])
+                    #       since program variable state may be split between them
+                    #       instead of just incompatible_state[1], in error
+                    #       this is a bandaid fix, should be fixed properly later
                     var_state = [
-                        BiOp(v, "=", Value(incompatible_state[1][str(v)]))
+                        BiOp(
+                            v,
+                            "=",
+                            Value(
+                                (incompatible_state[1] | incompatible_state[2])[str(v)]
+                            ),
+                        )
                         for v in p.variablesin()
                     ]
                     if not sat(
