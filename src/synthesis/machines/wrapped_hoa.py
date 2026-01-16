@@ -44,6 +44,20 @@ class WrappedHOA:
 
         con_props = synthesis_problem.get_con_props()
 
+        for k in trans.keys():
+            (src, env, tgt) = k
+            con = trans[k]
+            if any(v for v in env.variablesin() if v not in env_props):
+                raise Exception(
+                    "Transition condition uses environment variable not in synthesis problem: "
+                    + str(env)
+                )
+            if any(v for c in con for v in c.variablesin() if v not in con_props):
+                raise Exception(
+                    "Transition condition uses controller variable not in synthesis problem: "
+                    + str(con)
+                )
+
         dual = config.Config.getConfig().dual
         if dual:
             if self.is_controller:

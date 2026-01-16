@@ -454,7 +454,7 @@ def bdd_simplify_guards(program, guard):
 
 
 def bdd_simplify_native(guard, symbol_table):
-    fnode = And(*guard.to_smt(symbol_table))
+    fnode = guard.to_smt(symbol_table)[0]
     condition_simplified = bdd_simplify(fnode)
     if condition_simplified is not None:
         condition_simplified = fnode_to_formula(condition_simplified)
@@ -933,9 +933,10 @@ def binary_rep(vars, label, printing=True):
 
     if i > 1 and i < 2**bin - 1:
         rep[v] = neg(disjunct_formula_set(f for vv, f in rep.items() if vv != v))
-        rep[v] = dnf_safe(
-            propagate_negations(rep[v]), {str(vv): BOOLEAN for vv in bin_vars}
-        )
+        rep[v] = bdd_simplify_native(rep[v], {str(vv): BOOLEAN for vv in bin_vars})
+        # rep[v] = dnf_safe(
+        #     propagate_negations(rep[v]), {str(vv): BOOLEAN for vv in bin_vars}
+        # )
 
     if printing:
         for v, f in rep.items():

@@ -2,6 +2,7 @@ import itertools
 from bisect import bisect_left
 from types import NotImplementedType
 
+import config
 from analysis.abstraction.effects_abstraction.predicates.Predicate import (
     Predicate,
 )
@@ -99,8 +100,8 @@ class ChainPredicate(Predicate):
         self.init_now = set()
         self.init_next = set()
 
-        self.accelerate = accelerate and any(
-            v for v in self.vars if v not in program.inp_out_puts
+        self.accelerate = accelerate and not any(
+            v for v in self.vars if v in program.inp_out_puts
         )
         self.is_input = is_input
 
@@ -167,6 +168,18 @@ class ChainPredicate(Predicate):
                 }
 
         self.old_to_new = old_to_new_pos
+        if config.Config.getConfig().debug and isinstance(self.old_to_new, dict):
+            print(
+                "old to new for "
+                + str(self.term)
+                + ": "
+                + "\n".join(
+                    [
+                        str(k) + " -> " + ", ".join(map(str, v))
+                        for k, v in self.old_to_new.items()
+                    ]
+                )
+            )
 
         new_chain = []
         self.pred_to_chain = {}
@@ -313,6 +326,7 @@ class ChainPredicate(Predicate):
                     if len(new_nexts) > 0:
                         new_effects.append((new_now, new_nexts))
                     else:
+                        new_nexts = recheck_nexts(prev_state, nexts, symbol_table)
                         raise Exception("Is gu unsatisfiable? " + str(gu))
 
         return new_effects

@@ -4,6 +4,7 @@ import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
+from analysis.smt_checker import choose_model
 from programs.util import binary_rep
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -46,16 +47,12 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     ]
 
     if dualise:
-        init_explicit_state = X(init_explicit_state)
+        init_explicit_state = conjunct(init_explicit_state, X(init_explicit_state))
         if strix_backend:
             init_explicit_state = propagate_nexts(init_explicit_state)
 
     # TODO: can perhaps reduce number of vars needed by focusing on unset init vars only
-    if (
-        dualise
-        and len(program.unset_init_vars) > 0
-        and len(predicate_abstraction.init_state_abstraction) > 1
-    ):
+    if dualise and len(predicate_abstraction.init_state_abstraction) > 1:
         # TODO: we need to skip the fucking first state because of these
         #       this means compatibility checking needs to change too
         raw_env_vars = [
@@ -64,17 +61,19 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         new_env_vars, bin_map = binary_rep(raw_env_vars, "env_init_")
 
         init_preds = [
-            [bin_map[raw_env_vars[i]]]
-            + [
-                (
-                    X(rename_pred(p))
-                    if not strix_backend
-                    else propagate_nexts(X(rename_pred(p)))
-                )
-                for p in f
-                if not (isinstance(p, Value) and p.is_true())
-                if not predicate_abstraction.has_input_vars(p)
-            ]
+            (
+                [bin_map[raw_env_vars[i]]]
+                + [
+                    (
+                        X(rename_pred(p))
+                        if not strix_backend
+                        else propagate_nexts(X(rename_pred(p)))
+                    )
+                    for p in f
+                    if not (isinstance(p, Value) and p.is_true())
+                    if not predicate_abstraction.has_input_vars(p)
+                ]
+            )
             for i, f in enumerate(predicate_abstraction.init_state_abstraction)
         ]
 
@@ -83,6 +82,19 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             disjunct_formula_set(init_preds),
             new_env_vars,
         )
+        if config.Config.getConfig().debug:
+            f = disjunct_formula_set(
+                [
+                    bin_map[raw_env_vars[i]]
+                    for i in range(0, len(predicate_abstraction.init_state_abstraction))
+                ]
+            )
+            if sat(neg(f), {str(v): BOOLEAN for v in f.variablesin()}):
+                model = choose_model(
+                    neg(f).to_smt({str(v): BOOLEAN for v in f.variablesin()})[0]
+                )
+                print(model)
+                raise Exception("Init abstraction is unsat!")
     else:
         init_preds = [
             conjunct_formula_set(
@@ -110,7 +122,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             rename_pred(p)
             if not dualise
             else (
-                X(rename_pred(p))
+                conjunct(rename_pred(p), X(rename_pred(p)))
                 if not strix_backend
                 else propagate_nexts(X(rename_pred(p)))
             )
@@ -121,8 +133,8 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     init_transition_ltl = []
     transition_ltl = {}
     for gu in predicate_abstraction.gu_to_trans.keys():
-        t = predicate_abstraction.gu_to_trans[gu][0]
-        cond = t.condition
+        tt = predicate_abstraction.gu_to_trans[gu][0]
+        cond = tt.condition
 
         if dualise:
             cond: Formula = massage_ltl_for_dual(
@@ -142,7 +154,8 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             if dualise:
                 if env_lose:
                     bin_src = X(
-                        conjunct(models_are_sane, conjunct(neg(env_lose), bin_src))
+                        # conjunct(neg(F(env_lose)), bin_src)
+                        conjunct(conjunct(neg(env_lose), X(neg(env_lose))), bin_src)
                     )
                 else:
                     bin_src = X(bin_src)
@@ -183,18 +196,18 @@ def to_ltl_organised_by_pred_effects_guard_updates(
                     g,
                     (
                         transition_ltl[g]
-                        if not models_are_sane
-                        else disjunct(
-                            conjunct(
-                                neg(
-                                    X(models_are_sane)
-                                    if not strix_backend
-                                    else propagate_nexts(X(models_are_sane))
-                                ),
-                                X(X(env_lose)),
-                            ),
-                            transition_ltl[g],
-                        )
+                        # if not models_are_sane
+                        # else disjunct(
+                        #     conjunct(
+                        #         neg(
+                        #             X(models_are_sane)
+                        #             if not strix_backend
+                        #             else propagate_nexts(X(models_are_sane))
+                        #         ),
+                        #         X(X(env_lose)),
+                        #     ),
+                        #     conjunct(X(X(neg(env_lose))), transition_ltl[g]),
+                        # )
                     ),
                 )
             )
@@ -205,7 +218,10 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     init_transition_ltl = disjunct_formula_set(set(init_transition_ltl))
 
     abs = (
-        [init_explicit_state] + init_constants + [init_transition_ltl] + _transition_ltl
+        [init_explicit_state]
+        + init_constants
+        # + ([init_transition_ltl] if not env_lose else [])
+        + _transition_ltl
     )
 
     return None, abs, init
@@ -357,14 +373,19 @@ def abstract_ltl_problem(
 
     if model_f:
         if dualise:
-            guarantees += [model_f]
-            if env_lose:
-                env_props.append(env_lose)
-                assumptions += [
-                    neg(env_lose),
-                    G(iff(X(neg(env_lose)), models_are_sane)),
-                ]
-                guarantees += [G(neg(env_lose))]
+            # guarantees += [model_f]
+            # if env_lose:
+            env_props.append(env_lose)
+            assumptions += [
+                neg(env_lose),
+                neg(X(env_lose)),
+                (
+                    X(G(iff(neg(X(env_lose)), models_are_sane)))
+                    if not strix_backend
+                    else propagate_nexts(X(G(iff(neg(X(env_lose)), models_are_sane))))
+                ),
+            ]
+            guarantees += [G(neg(env_lose))]
         else:
             assumptions += [model_f]
 
@@ -400,12 +421,9 @@ def massage_models_for_dual(models, abstraction):
                     )
                 ]
             )
-            for m in abstraction.input_models
+            for m in abstraction.sat_input_models
         ]
     )
-
-    if not sat(neg(sane_model), abstraction.symbol_table):
-        sane_model = None
 
     new_models = [
         conjunct_formula_set(

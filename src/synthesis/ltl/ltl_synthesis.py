@@ -60,7 +60,7 @@ def ltl_synthesis(synthesis_problem: LTLSynthesisProblem, symbol_table) -> Wrapp
                 logging.info(err)
                 if "Killed" in str(err):
                     raise Exception(
-                        "OutOfMemory: Finite synthesis engine was killed. Try increasing the memory limit."
+                        "OutOfMemory: Finite synthesis engine ran out of memory."
                     )
                 else:
                     raise err
@@ -78,6 +78,10 @@ def ltl_synthesis(synthesis_problem: LTLSynthesisProblem, symbol_table) -> Wrapp
             else:
                 logging.info("\n".join(synthesis_problem.tlsf))
                 logging.info(output)
+                if "java.lang.OutOfMemoryError" in output:
+                    raise Exception(
+                        "OutOfMemory: Finite synthesis engine ran out of memory."
+                    )
                 raise Exception(
                     "Finite synthesis engine not returning appropriate value.\n\n"
                     + cmd

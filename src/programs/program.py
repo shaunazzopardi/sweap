@@ -396,7 +396,6 @@ class Program:
             #     implies(transition.condition, constraints), self.symbol_table
             # ):
             ts.append(transition.add_condition(conjunct_formula_set(constraints)))
-            ts.append(transition.add_condition(neg(conjunct_formula_set(constraints))))
         # else:
         #     return transition
 
@@ -1031,7 +1030,11 @@ def program_cross_product(
             if "lose" in tgt_tuple:
                 combined_tgt = lose_var
                 new_states.add(combined_tgt)
-            if losing := [
+                for i in range(len(tgt_tuple)):
+                    prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                        Variable(combined_tgt)
+                    )
+            elif losing := [
                 i for i in range(len(tgt_tuple)) if tgt_tuple[i] in losing_states[i]
             ]:
                 combined_tgt = lose_var

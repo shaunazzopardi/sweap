@@ -50,7 +50,8 @@ from prop_lang.util import (
     all_sat_models,
     fnode_to_formula,
     atomic_predicates,
-    normalise_pred_multiple_vars, implies,
+    normalise_pred_multiple_vars,
+    implies,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -261,6 +262,9 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     v_chain_pred = self.v_to_chain_pred[term]
 
+                for old_p in v_chain_pred.boolean_rep().keys():
+                    self.var_relabellings.pop(old_p)
+
                 v_chain_pred.add_predicate(preds)
 
                 self.symbol_table |= {str(b): BOOLEAN for b in v_chain_pred.bin_vars}
@@ -313,6 +317,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                         self.symbol_table,
                                     ):
                                         new_init_abs.append(m_with_p)
+                                continue
                         if no_old_p:
                             new_init_abs.append(m)
                     self.init_state_abstraction = new_init_abs
@@ -380,6 +385,22 @@ class EffectsAbstraction(PredicateAbstraction):
                         print("")
                     self.init_state_abstraction = new_init_abs
 
+        if config.Config.getConfig().debug:
+            f = conjunct(
+                self.init_conf,
+                neg(
+                    disjunct_formula_set(
+                        map(
+                            conjunct_formula_set,
+                            self.init_state_abstraction,
+                        )
+                    )
+                ),
+            )
+            if sat(f, self.symbol_table):
+                raise Exception(
+                    "Error updating init state abstraction with chain preds"
+                )
         return new_preds
 
     def has_input_vars(self, x):
@@ -401,15 +422,17 @@ class EffectsAbstraction(PredicateAbstraction):
         logger.info("Tagging abstract transitions with predicates..")
         start = time.time()
 
-        new_preds = self.process_preds(new_state_predicates)
-
         no_of_workers = config.Config.getConfig().workers if parallelise else 1
-
-        all_preds = self.state_predicates | set(self.v_to_chain_pred.values())
 
         # new_preds = list(new_preds)
         # # we do this sorting to ensure deterministic behaviour in abstraction, in case of bugs
         # new_preds.sort(key=lambda x: str(x))
+
+        new_input_preds = [p for p in new_state_predicates if self.has_input_vars(p)]
+        new_state_predicates = [
+            p for p in new_state_predicates if p not in new_input_preds
+        ]
+        new_input_preds = self.process_preds(new_input_preds)
 
         # TODO: do below incrementally
         self.input_preds = []
@@ -426,11 +449,9 @@ class EffectsAbstraction(PredicateAbstraction):
 
         if len(self.input_preds) > 0:
             new_qe_preds = set()
-            self.input_models = all_sat_models(
-                self.input_preds, self.program.symbol_table
-            )
+            input_models = all_sat_models(self.input_preds, self.program.symbol_table)
             new_models = []
-            for m in self.input_models:
+            for m in input_models:
                 exist_vars = [Symbol(str(v), INT) for v in self.program.num_in_out]
                 quant_formula = Exists(
                     exist_vars,
@@ -466,10 +487,22 @@ class EffectsAbstraction(PredicateAbstraction):
                 else:
                     new_models.append(m)
 
+            if config.Config.getConfig().debug:
+                if sat(
+                    neg(disjunct_formula_set(new_models)), self.program.symbol_table
+                ):
+                    raise Exception("QE produced unsat models for input preds")
+
             self.sat_input_models = new_models
             print("Adding preds for input models: " + ", ".join(map(str, new_qe_preds)))
-            new_new_preds = self.process_preds(new_qe_preds)
-            new_preds.update(new_new_preds)
+            new_state_predicates.extend(new_qe_preds)
+
+        # NOTE: important that process_preds for state predicates is done after new_qe_preds are discovered
+        #       otherwise ChainPredicate.old_to_new will not be in a sane state
+        #       and will leave dangling old preds in self.abstract_effects
+        new_preds = self.process_preds(new_state_predicates)
+        new_preds.update(new_input_preds)
+        all_preds = self.state_predicates | set(self.v_to_chain_pred.values())
 
         gus = []
         gu_invars = []
@@ -762,6 +795,9 @@ def join_parts(effects, parts_to_join, us_part_to_pred):
     if len(parts_to_join) == 0:
         raise Exception("join_parts called on empty parts_to_join")
     emptyNowNexts = [(true(), [true()])]
+    for old_part in parts_to_join:
+        if old_part not in effects.keys():
+            print()
 
     parts_to_join_red = [
         (effects[old_part], us_part_to_pred[old_part])
@@ -872,6 +908,10 @@ def update_effects(
     new_now_preds.difference_update(common_preds)
     new_next_preds.difference_update(common_preds)
 
+    # old_effects = []
+    # for now, nexts in effects:
+    #     old_effects.append(conjunct(now, disjunct_formula_set(nexts)))
+
     new_now_preds = sorted(list(new_now_preds), key=lambda p: str(p))
     for p in new_now_preds:
         effects = p.extend_effect_now(gu, effects, symbol_table)
@@ -918,6 +958,9 @@ def compute_abstract_effect_for_guard_update(arg):
     pres = {}
     posts = {}
 
+    # ignore_in_nows = ignore_in_nows.difference(new_preds)
+    # ignore_in_nexts = ignore_in_nexts.difference(new_preds)
+
     # for new preds, compute at transition level if:
     # - it is a precondition
     # - it is a postcondition
@@ -958,6 +1001,7 @@ def compute_abstract_effect_for_guard_update(arg):
             else:
                 if p in ignore_in_nexts and not is_post:
                     ignore_in_nexts.remove(p)
+    old_us_part = list(effects.keys())
 
     curr_us_to_ignore = set()
     new_us_part = []
@@ -1027,6 +1071,24 @@ def compute_abstract_effect_for_guard_update(arg):
     new_effects = {}
     new_us_part_to_pred = {}
     for us_part, old_parts in new_part_to_curr_parts.items():
+        try:
+            join_parts(effects, list(old_parts), old_us_part_to_pred)
+        except Exception as e:
+            print()
+    for us_part, old_parts in new_part_to_curr_parts.items():
+        if config.Config.getConfig().debug:
+            print(
+                f"Updating effects for us_part for gu "
+                + str(gu)
+                + ": \nold: ["
+                + ",".join(
+                    ["[" + ",".join(map(str, old_part)) + "]" for old_part in old_parts]
+                )
+                + "]\nnew: "
+                + "["
+                + ",".join(map(str, us_part))
+                + "]"
+            )
         us_part_effects_joined, curr_preds = join_parts(
             effects, list(old_parts), old_us_part_to_pred
         )
@@ -1043,6 +1105,7 @@ def compute_abstract_effect_for_guard_update(arg):
             ignore_in_nexts,
             symbol_table,
         )
+
         new_effects[us_part] = us_part_effects
         new_us_part_to_pred[us_part] = curr_preds
         all_relevant_next_preds.update(curr_preds[1])
@@ -1065,6 +1128,10 @@ def compute_abstract_effect_for_guard_update(arg):
     gu_ltl = effects_to_ltl(
         gu, new_effects, constants, invars, conf, dual_env_props, vars_relabelling
     )
+    if config.Config.getConfig().debug:
+        effects_to_ltl_non_bin(
+            gu, new_effects, constants, invars, conf, dual_env_props, symbol_table
+        )
 
     if conf.debug:
         print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
@@ -1108,22 +1175,27 @@ def effects_to_ltl(
     for part in effects.keys():
         part_ltl = []
         for now, nexts in effects[part]:
-            if len(nexts) == 1 and nexts[0] == true():
-                continue
+            if isinstance(now, Value) and now.is_true():
+                if (
+                    len(nexts) == 1
+                    and isinstance(nexts[0], Value)
+                    and nexts[0].is_true()
+                ):
+                    continue
             E_now = now.replace_formulas(vars_relabelling)
             if conf.dual:
-                E_now = X(massage_ltl_for_dual(E_now, dual_env_props))
+                E_now = X(E_now)
                 if conf.backend == "strix":
                     E_now = propagate_nexts(E_now)
             next_disjuncts = []
-            if not (len(nexts) == 1 and nexts[0] == true()):
-                for next in nexts:
-                    next_f = X(next.replace_formulas(vars_relabelling))
-                    if conf.dual:
-                        next_f = X(next_f)
-                    if conf.backend == "strix":
-                        next_f = propagate_nexts(next_f)
-                    next_disjuncts.append(next_f)
+            # if not (len(nexts) == 1 and nexts[0] == true()):
+            for next in nexts:
+                next_f = X(next.replace_formulas(vars_relabelling))
+                if conf.dual:
+                    next_f = X(next_f)
+                if conf.backend == "strix":
+                    next_f = propagate_nexts(next_f)
+                next_disjuncts.append(next_f)
 
             E_next = disjunct_formula_set(next_disjuncts)
             part_ltl.append(conjunct(E_now, E_next))
@@ -1166,39 +1238,68 @@ def effects_to_ltl(
     return gu_ltl
 
 
-def effects_to_ltl_non_bin(effects, constants, invars):
+def effects_to_ltl_non_bin(
+    gu, effects, constants, invars, conf: config.Config, dual_env_props, symbol_table
+):
     parts_ltl = []
+    parts_ltl_wo_next = []
     for part in effects.keys():
         part_ltl = []
+        part_ltl_wo_next = []
         for now, nexts in effects[part]:
-            if len(nexts) == 1 and nexts[0] == true():
-                continue
-
             E_now = now
+            if conf.dual:
+                E_now = X(massage_ltl_for_dual(E_now, dual_env_props))
             next_disjuncts = []
+            # if not (len(nexts) == 1 and nexts[0] == true()):
             for next in nexts:
-                next_disjuncts.append(next)
+                next_f = X(next)
+                if conf.dual:
+                    next_f = X(next_f)
+                next_disjuncts.append(next_f)
 
             E_next = disjunct_formula_set(next_disjuncts)
-            part_ltl.append(conjunct(E_now, (X(E_next))))
+            part_ltl.append(conjunct(E_now, E_next))
+            part_ltl_wo_next.append(
+                conjunct(now.prev_rep(), disjunct_formula_set(nexts))
+            )
         if len(part_ltl) != 0:
             parts_ltl.append(disjunct_formula_set(part_ltl))
+            parts_ltl_wo_next.append(disjunct_formula_set(part_ltl_wo_next))
 
+    parts_ltl = sorted(parts_ltl, key=lambda f: str(f))
     effects_ltl = conjunct_formula_set(parts_ltl)
 
+    effects_ltl_wo_nexts = conjunct_formula_set(parts_ltl_wo_next)
+    if sat(conjunct(gu, neg(effects_ltl_wo_nexts)), symbol_table):
+        raise Exception("Neg of effects sat with gu: " + str(gu))
+    else:
+        print("Effects ok for gu: " + str(gu))
+
     invar_preds_effects = set()
-    for p in set(invars):
+    invars = sorted(set(invars), key=lambda p: str(p))
+    for p in invars:
         if isinstance(p, ChainPredicate):
-            invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
+            if conf.dual:
+                invar_preds_effects.update(iff(X(b), X(X(b))) for b in p.choices())
+            else:
+                invar_preds_effects.update(iff(b, X(b)) for b in p.choices())
         else:
             if "prev" not in str(p):
-                invar_preds_effects.add(iff(p, X(p)))
+                if conf.dual:
+                    invar_preds_effects.add(iff(X(p), X(X(p))))
+                else:
+                    invar_preds_effects.add(iff(p, X(p)))
 
     constant_effects = []
-    for p in set(constants):
-        constant_effects.append((p))
+    constants = sorted(set(constants), key=lambda p: str(p))
+    for p in constants:
+        const = p
+        if conf.dual:
+            const = X(const)
+        constant_effects.append(const)
 
     gu_ltl = conjunct_formula_set(
         [effects_ltl] + list(invar_preds_effects) + constant_effects
     )
-    print(gu_ltl)
+    print(str(gu_ltl))
