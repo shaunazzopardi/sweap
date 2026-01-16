@@ -12,7 +12,7 @@ from tatsu.tool import compile
 
 from parsing.keywords import regex_keywords, is_keyword
 from prop_lang.biop import BiOp
-from prop_lang.factory import create_mathrel
+from prop_lang.factory import create_mathrel, _mult
 from prop_lang.formula import Formula
 from prop_lang.mathexpr import MathExpr
 from prop_lang.types.values import BoolAtoms
@@ -254,7 +254,7 @@ class Semantics:
             op = ast[i]
             rhs = ast[i + 1]
             if op == "*":
-                lhs = self._mult(lhs, rhs)
+                lhs = _mult(lhs, rhs)
                 continue
             try:
                 lhs = BiOp(lhs, op, rhs)
