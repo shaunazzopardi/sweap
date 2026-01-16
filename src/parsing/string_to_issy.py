@@ -483,9 +483,6 @@ def process(
     con_vars = set()
     lose_var = None
 
-    if len(games) == 0:
-        raise Exception("We do not handle yet ISSY problems with no games.")
-
     # process vars
     # build symbol table
     # separate inputs and state vars
@@ -495,15 +492,23 @@ def process(
     macros = [v for v in vars_or_macros if len(v) == 2]
 
     macros = {Variable(k): v for k, v in macros}
+    macros = {k: saturate_macros(v, macros) for k, v in macros.items()}
 
     formula_objectives = list(
         map(lambda a: a.replace_formulas(macros), formula_objectives)
     )
+    new_formula_objectives = []
     for a in formula_objectives:
-        if any(v for v in a.variablesin() if v.is_next()):
-            raise Exception(
-                "We do not yet handle objectives with next-state variables: " + str(a)
-            )
+        preds = atomic_predicates(a)
+        to_replace = {}
+        for p in preds:
+            if any(v for v in p.variablesin() if v.is_next()):
+                to_replace[p] = p.prev_rep()
+        if len(to_replace.keys()) > 0:
+            formula_objectives.append(a.replace_formulas(to_replace))
+        else:
+            new_formula_objectives.append(a)
+    formula_objectives = new_formula_objectives
 
     vars = [v for v in vars_or_macros if len(v) == 3]
     symbol_table = {}
@@ -521,253 +526,239 @@ def process(
             case _:
                 raise Exception("Unknown var kind: " + str(kind))
 
-    game_parts = independent_games(inputs + state_vars, games)
-
     parts_to_sub_programs = []
-    added_non_det = False
     states_to_exclude_minigame = {}
-    for i, game_part in enumerate(game_parts):
-        # process games separately, treat common variables as internal state vars
-        # problem: program will complete action sets automatically
-        # then combine trans
-        # and add mini-games to handle unset vars
-        # maybe add feature to program, so that we have x := * as actions
-        # this triggers adding mini-game to set x to any value.
-        # and x := cond(x), such that mini-game always ends in a state with cond(x) true
-        # NOTE: if unset var not used in guard then no need to add mini-game
-        for game in game_part:
-            game_index = len(parts_to_sub_programs)
-            states_to_exclude_minigame[game_index] = set()
-            vars_updates_depend_on_in_game = set()
-            game_type, init, locs_in_game, transitions = game
-
-            marked_states = {}
-            locs = set()
-            for v, kind, type in locs_in_game:
-                locs.add(v.name)
-                if type in marked_states.keys():
-                    marked_states[type].append(v)
-                else:
-                    marked_states[type] = [v]
-
-            vars_in_game = {
-                v if not v.is_next() else v.prev_rep()
-                for _, f, _ in transitions
-                for v in f.variablesin()
-                if v not in inputs
-            }
-
-            raw_transitions = {src: [] for src, _, _ in transitions}
-            for src, orig_formula, tgt in transitions:
-                cond_updates = []
-
-                print(str(orig_formula))
-                formula = only_dis_or_con_junctions(
-                    propagate_negations(strip_mathexpr(orig_formula))
+    if len(games) == 0:
+        program = Program(
+            name_str,
+            {"init"},
+            "init",
+            [(str(v), symbol_table[str(v)]) for v in state_vars],
+            [
+                Transition(
+                    "init",
+                    true(),
+                    [BiOp(v, "=", NonDeterministic()) for v in state_vars],
+                    [],
+                    "init",
                 )
-                print(str(formula))
+            ],
+            [(v, symbol_table[str(v)]) for v in inputs],
+            [],
+        )
+        states_to_exclude_minigame[0] = []
+        objective = true()
+        losing_states = []
+        parts_to_sub_programs.append((program, objective, losing_states))
+    else:
+        game_parts = independent_games(inputs + state_vars, games)
+        for i, game_part in enumerate(game_parts):
+            # process games separately, treat common variables as internal state vars
+            # problem: program will complete action sets automatically
+            # then combine trans
+            # and add mini-games to handle unset vars
+            # maybe add feature to program, so that we have x := * as actions
+            # this triggers adding mini-game to set x to any value.
+            # and x := cond(x), such that mini-game always ends in a state with cond(x) true
+            # NOTE: if unset var not used in guard then no need to add mini-game
+            for game in game_part:
+                game_index = len(parts_to_sub_programs)
+                states_to_exclude_minigame[game_index] = set()
+                vars_updates_depend_on_in_game = set()
+                game_type, init, locs_in_game, transitions = game
 
-                if is_dnf(formula) and any(
-                    v for v in formula.variablesin() if v.is_next()
-                ):
-                    if isinstance(formula, BiOp) and formula.op == "|":
-                        for f in formula.sub_formulas_up_to_associativity():
-                            cond_updates_f = formula_to_transitions(
-                                f, inputs, symbol_table
+                marked_states = {}
+                locs = set()
+                for v, kind, type in locs_in_game:
+                    locs.add(v.name)
+                    if type in marked_states.keys():
+                        marked_states[type].append(v)
+                    else:
+                        marked_states[type] = [v]
+
+                vars_in_game = {
+                    v if not v.is_next() else v.prev_rep()
+                    for _, f, _ in transitions
+                    for v in f.variablesin()
+                    if v not in inputs
+                }
+
+                raw_transitions = {src: [] for src, _, _ in transitions}
+                for src, orig_formula, tgt in transitions:
+                    cond_updates = []
+                    orig_formula = orig_formula.replace_formulas(macros)
+
+                    print(str(orig_formula))
+                    formula = only_dis_or_con_junctions(
+                        propagate_negations(strip_mathexpr(orig_formula))
+                    )
+                    print(str(formula))
+
+                    if is_dnf(formula) and any(
+                        v for v in formula.variablesin() if v.is_next()
+                    ):
+                        if isinstance(formula, BiOp) and formula.op == "|":
+                            for f in formula.sub_formulas_up_to_associativity():
+                                cond_updates_f = formula_to_transitions(
+                                    f, inputs, symbol_table
+                                )
+                                cond_updates.extend(cond_updates_f)
+                        else:
+                            cond_updates = formula_to_transitions(
+                                formula, inputs, symbol_table
                             )
-                            cond_updates.extend(cond_updates_f)
                     else:
                         cond_updates = formula_to_transitions(
                             formula, inputs, symbol_table
                         )
-                else:
-                    cond_updates = formula_to_transitions(formula, inputs, symbol_table)
 
-                for res in cond_updates:
-                    if res is None:
-                        continue
-                    cond, raw_update_sets = res
-                    for raw_updates in raw_update_sets:
-                        predicate_upgrades = []
-                        updates = []
-                        for raw_update in raw_updates:
-                            f = strip_mathexpr(raw_update)
-                            if isinstance(f, BiOp) and f.op == "=":
-                                # TODO: normalise to prime variables on left and others on right
-                                left, right = f.left, f.right
-                                if (
-                                    isinstance(left, Variable)
-                                    and left.is_next()
-                                    and not any(
-                                        v for v in right.variablesin() if v.is_next()
-                                    )
-                                ):
-                                    updates.append(
-                                        create_update(left.prev_rep(), right)
-                                    )
-                                    vars_updates_depend_on_in_game.update(
-                                        right.variablesin()
-                                    )
-                                    continue
-
-                            next_vars_in_update = [
-                                v for v in raw_update.variablesin() if v.is_next()
-                            ]
-                            if len(next_vars_in_update) > 1:
-                                raise Exception(
-                                    "We do not yet handle updates with multiple next-state variables: "
-                                    + str(raw_update)
-                                )
-                            predicate_upgrades.append(raw_update)
-
-                        # Before adding, need to resolve determinism in transitions in favour of controller
-                        # Maybe, this should be a feature added at program level? Would also need to allow updates at LTL level
-                        # So that LTLMT formulas can be replaced appropriately
-                        # Would prevent replication of this logic in multiple parsers
-                        # For now we do it here
-                        vars_updated_in_transition = {u.left for u in updates}
-
-                        vars_not_updated = vars_in_game - vars_updated_in_transition
-
-                        # need to add keep updates for vars not in combination
-                        for v in vars_not_updated:
-                            added_non_det = True
-                            updates.append(BiOp(v, "=", NonDeterministic()))
-
-                        t = Transition(
-                            src,
-                            cond,
-                            updates,
-                            [],
-                            tgt,
-                        )
-                        t.set_predicate_upgrades(predicate_upgrades)
-                        raw_transitions[src].append(t)
-
-            new_transitions = []
-            lose_transitions = []
-
-            already_distinguishable = {}
-            # need to detect when transitions from same src have non-mutually exclusive conditions, and in that case
-            # create binary variables to distinguish them, and give them to controller
-            for src, trans in raw_transitions.items():
-                print("trans: " + "\n".join(map(str, trans)))
-                equiv_map, sat_map, equiv_parts, _ = condition_choices(
-                    trans, symbol_table
-                )
-                new_src_trans = []
-                equiv_index = 0
-
-                eq_trigger_to_add = {t: [] for t in trans}
-                sat_trigger_to_add = {t: [] for t in trans}
-                for t, equiv_part_minus_t in equiv_map.items():
-                    raw_equiv_triggers = [
-                        Variable("equiv_" + str(no))
-                        for no in range(0, len(equiv_part_minus_t) + 1)
-                    ]
-                    eq_con_events, equiv_binary_map = binary_rep(
-                        raw_equiv_triggers,
-                        "eq_con_" + str(game_index) + "_" + str(equiv_index) + "_",
-                        printing=False,
-                    )
-                    equiv_index += 1
-                    con_vars.update(eq_con_events)
-                    eq_trigger_to_add[t].append(equiv_binary_map[raw_equiv_triggers[0]])
-                    for i, tt in enumerate(equiv_part_minus_t):
-                        eq_trigger_to_add[tt].append(
-                            equiv_binary_map[raw_equiv_triggers[i + 1]]
-                        )
-
-                # order is important here
-                # for t = trans[n], sat_map[t] only contains sat tt in trans[n + 1:]
-                for t in trans:
-                    if t in sat_map.keys():
-                        if len(sat_map[t]) == 0 or t in equiv_parts.keys():
+                    for res in cond_updates:
+                        if res is None:
                             continue
+                        cond, raw_update_sets = res
+                        for raw_updates in raw_update_sets:
+                            predicate_upgrades = []
+                            updates = []
+                            for raw_update in raw_updates:
+                                f = strip_mathexpr(raw_update)
+                                if isinstance(f, BiOp) and f.op == "=":
+                                    # TODO: normalise to prime variables on left and others on right
+                                    left, right = f.left, f.right
+                                    if (
+                                        isinstance(left, Variable)
+                                        and left.is_next()
+                                        and not any(
+                                            v
+                                            for v in right.variablesin()
+                                            if v.is_next()
+                                        )
+                                    ):
+                                        updates.append(
+                                            create_update(left.prev_rep(), right)
+                                        )
+                                        vars_updates_depend_on_in_game.update(
+                                            right.variablesin()
+                                        )
+                                        continue
 
-                        ts_to_distinguish = sat_map[t]
-                        if t in equiv_map.keys():
-                            for tt in equiv_map[t]:
-                                if tt in sat_map.keys():
-                                    sat_map[tt] = [
-                                        _t
-                                        for _t in sat_map[tt]
-                                        if _t not in ts_to_distinguish
-                                    ]
-                                    if len(sat_map[tt]) == 0:
-                                        del sat_map[tt]
+                                next_vars_in_update = [
+                                    v for v in raw_update.variablesin() if v.is_next()
+                                ]
+                                if len(next_vars_in_update) > 1:
+                                    raise Exception(
+                                        "We do not yet handle updates with multiple next-state variables: "
+                                        + str(raw_update)
+                                    )
+                                predicate_upgrades.append(raw_update)
 
-                        raw_sat_triggers = [
-                            Variable("sat_" + str(no))
-                            for no in range(0, len(sat_map[t]) + 1)
+                            # Before adding, need to resolve determinism in transitions in favour of controller
+                            # Maybe, this should be a feature added at program level? Would also need to allow updates at LTL level
+                            # So that LTLMT formulas can be replaced appropriately
+                            # Would prevent replication of this logic in multiple parsers
+                            # For now we do it here
+                            vars_updated_in_transition = {u.left for u in updates}
+
+                            vars_not_updated = vars_in_game - vars_updated_in_transition
+
+                            # need to add keep updates for vars not in combination
+                            for v in vars_not_updated:
+                                updates.append(BiOp(v, "=", NonDeterministic()))
+
+                            t = Transition(
+                                src,
+                                cond,
+                                updates,
+                                [],
+                                tgt,
+                            )
+                            t.set_predicate_upgrades(predicate_upgrades)
+                            raw_transitions[src].append(t)
+
+                new_transitions = []
+                lose_transitions = []
+
+                already_distinguishable = {}
+                # need to detect when transitions from same src have non-mutually exclusive conditions, and in that case
+                # create binary variables to distinguish them, and give them to controller
+                for src, trans in raw_transitions.items():
+                    print("trans: " + "\n".join(map(str, trans)))
+                    equiv_map, sat_map, equiv_parts, _ = condition_choices(
+                        trans, symbol_table
+                    )
+                    new_src_trans = []
+                    equiv_index = 0
+
+                    eq_trigger_to_add = {t: [] for t in trans}
+                    sat_trigger_to_add = {t: [] for t in trans}
+                    for t, equiv_part_minus_t in equiv_map.items():
+                        raw_equiv_triggers = [
+                            Variable("equiv_" + str(no))
+                            for no in range(0, len(equiv_part_minus_t) + 1)
                         ]
-                        sat_con_events, sat_binary_map = binary_rep(
-                            raw_sat_triggers,
-                            "sat_con_" + str(game_index) + "_",
+                        eq_con_events, equiv_binary_map = binary_rep(
+                            raw_equiv_triggers,
+                            "eq_con_" + str(game_index) + "_" + str(equiv_index) + "_",
                             printing=False,
                         )
-                        con_vars.update(sat_con_events)
-
-                        one_of_the_rest = disjunct_formula_set(
-                            {tt.condition for tt in ts_to_distinguish}
+                        equiv_index += 1
+                        con_vars.update(eq_con_events)
+                        eq_trigger_to_add[t].append(
+                            equiv_binary_map[raw_equiv_triggers[0]]
                         )
+                        for i, tt in enumerate(equiv_part_minus_t):
+                            eq_trigger_to_add[tt].append(
+                                equiv_binary_map[raw_equiv_triggers[i + 1]]
+                            )
 
-                        # need to add below trans also to equiv transitions
-                        equiv_to_t = [t]
-                        if t in equiv_map.keys():
-                            equiv_to_t.extend(equiv_map[t])
-                        elif t in equiv_parts.keys():
-                            equiv_to_t.extend(equiv_map[equiv_parts[t]])
+                    # order is important here
+                    # for t = trans[n], sat_map[t] only contains sat tt in trans[n + 1:]
+                    for t in trans:
+                        if t in sat_map.keys():
+                            if len(sat_map[t]) == 0 or t in equiv_parts.keys():
+                                continue
 
-                        if not is_tautology(one_of_the_rest, symbol_table):
-                            if not sat(
-                                conjunct(t.condition, neg(one_of_the_rest)),
-                                symbol_table,
-                            ):
-                                for eq_t in equiv_to_t:
-                                    sat_trigger_to_add[eq_t].append(
-                                        sat_binary_map[raw_sat_triggers[0]]
-                                    )
-                            else:
-                                none_of_the_rest = neg(one_of_the_rest)
-                                trigger_cond = disjunct(
-                                    none_of_the_rest,
-                                    conjunct(
-                                        one_of_the_rest,
-                                        sat_binary_map[raw_sat_triggers[0]],
-                                    ),
-                                )
-                                for eq_t in equiv_to_t:
-                                    sat_trigger_to_add[eq_t].append(trigger_cond)
-                        else:
-                            for eq_t in equiv_to_t:
-                                sat_trigger_to_add[eq_t].append(
-                                    sat_binary_map[raw_sat_triggers[0]]
-                                )
+                            ts_to_distinguish = sat_map[t]
+                            if t in equiv_map.keys():
+                                for tt in equiv_map[t]:
+                                    if tt in sat_map.keys():
+                                        sat_map[tt] = [
+                                            _t
+                                            for _t in sat_map[tt]
+                                            if _t not in ts_to_distinguish
+                                        ]
+                                        if len(sat_map[tt]) == 0:
+                                            del sat_map[tt]
 
-                        for i, tt in enumerate(ts_to_distinguish):
-                            equiv_to_tt = [tt]
-                            if tt in equiv_map.keys():
-                                equiv_to_tt.extend(equiv_map[tt])
-                            elif tt in equiv_parts.keys():
-                                equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
+                            raw_sat_triggers = [
+                                Variable("sat_" + str(no))
+                                for no in range(0, len(sat_map[t]) + 1)
+                            ]
+                            sat_con_events, sat_binary_map = binary_rep(
+                                raw_sat_triggers,
+                                "sat_con_" + str(game_index) + "_",
+                                printing=False,
+                            )
+                            con_vars.update(sat_con_events)
 
                             one_of_the_rest = disjunct_formula_set(
-                                {
-                                    ttt.condition
-                                    for ttt in ts_to_distinguish
-                                    if ttt != tt
-                                }
-                                | {t.condition}
+                                {tt.condition for tt in ts_to_distinguish}
                             )
+
+                            # need to add below trans also to equiv transitions
+                            equiv_to_t = [t]
+                            if t in equiv_map.keys():
+                                equiv_to_t.extend(equiv_map[t])
+                            elif t in equiv_parts.keys():
+                                equiv_to_t.extend(equiv_map[equiv_parts[t]])
+
                             if not is_tautology(one_of_the_rest, symbol_table):
                                 if not sat(
-                                    conjunct(tt.condition, neg(one_of_the_rest)),
+                                    conjunct(t.condition, neg(one_of_the_rest)),
                                     symbol_table,
                                 ):
-                                    for eq_tt in equiv_to_tt:
-                                        sat_trigger_to_add[eq_tt].append(
-                                            sat_binary_map[raw_sat_triggers[i + 1]]
+                                    for eq_t in equiv_to_t:
+                                        sat_trigger_to_add[eq_t].append(
+                                            sat_binary_map[raw_sat_triggers[0]]
                                         )
                                 else:
                                     none_of_the_rest = neg(one_of_the_rest)
@@ -775,135 +766,178 @@ def process(
                                         none_of_the_rest,
                                         conjunct(
                                             one_of_the_rest,
-                                            sat_binary_map[raw_sat_triggers[i + 1]],
+                                            sat_binary_map[raw_sat_triggers[0]],
                                         ),
                                     )
-                                    for eq_tt in equiv_to_tt:
-                                        sat_trigger_to_add[eq_tt].append(trigger_cond)
+                                    for eq_t in equiv_to_t:
+                                        sat_trigger_to_add[eq_t].append(trigger_cond)
                             else:
-                                for eq_tt in equiv_to_tt:
-                                    sat_trigger_to_add[eq_tt].append(
-                                        sat_binary_map[raw_sat_triggers[i + 1]]
+                                for eq_t in equiv_to_t:
+                                    sat_trigger_to_add[eq_t].append(
+                                        sat_binary_map[raw_sat_triggers[0]]
                                     )
 
-                for t in trans:
-                    trigger_condition = conjunct_formula_set(
-                        eq_trigger_to_add[t] + sat_trigger_to_add[t]
-                    )
+                            for i, tt in enumerate(ts_to_distinguish):
+                                equiv_to_tt = [tt]
+                                if tt in equiv_map.keys():
+                                    equiv_to_tt.extend(equiv_map[tt])
+                                elif tt in equiv_parts.keys():
+                                    equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
 
-                    new_t = Transition(
-                        t.src,
-                        conjunct(
-                            t.condition,
-                            trigger_condition,
-                        ),
-                        t.action,
-                        [],
-                        t.tgt,
-                    )
-                    new_t.set_predicate_upgrades(t.pred_upgrades)
-                    new_src_trans.append(new_t)
+                                one_of_the_rest = disjunct_formula_set(
+                                    {
+                                        ttt.condition
+                                        for ttt in ts_to_distinguish
+                                        if ttt != tt
+                                    }
+                                    | {t.condition}
+                                )
+                                if not is_tautology(one_of_the_rest, symbol_table):
+                                    if not sat(
+                                        conjunct(tt.condition, neg(one_of_the_rest)),
+                                        symbol_table,
+                                    ):
+                                        for eq_tt in equiv_to_tt:
+                                            sat_trigger_to_add[eq_tt].append(
+                                                sat_binary_map[raw_sat_triggers[i + 1]]
+                                            )
+                                    else:
+                                        none_of_the_rest = neg(one_of_the_rest)
+                                        trigger_cond = disjunct(
+                                            none_of_the_rest,
+                                            conjunct(
+                                                one_of_the_rest,
+                                                sat_binary_map[raw_sat_triggers[i + 1]],
+                                            ),
+                                        )
+                                        for eq_tt in equiv_to_tt:
+                                            sat_trigger_to_add[eq_tt].append(
+                                                trigger_cond
+                                            )
+                                else:
+                                    for eq_tt in equiv_to_tt:
+                                        sat_trigger_to_add[eq_tt].append(
+                                            sat_binary_map[raw_sat_triggers[i + 1]]
+                                        )
 
-                new_transitions.extend(new_src_trans)
-                no_trans_triggered = neg(
-                    disjunct_formula_set(t.condition for t in new_src_trans)
-                )
-                if sat(
-                    no_trans_triggered,
-                    symbol_table | {str(v): BOOLEAN for v in con_vars},
-                ):
-                    locs.add("lose")
-                    lose_var = "lose"
-                    states_to_exclude_minigame[game_index].add("lose")
-                    lose_transitions.append(
-                        Transition(src, no_trans_triggered, [], [], "lose")
-                    )
-
-                for t in new_transitions + lose_transitions:
-                    for tt in new_transitions + lose_transitions:
-                        if t == tt or t.src != tt.src:
-                            continue
-                        if sat(
-                            conjunct(t.condition, tt.condition),
-                            symbol_table | {str(v): BOOLEAN for v in con_vars},
-                        ):
-                            raise Exception(
-                                "After processing, transitions from state "
-                                + str(src)
-                                + " still have non-distinguishable conditions: \n"
-                                + str(t)
-                                + "\n"
-                                + str(tt)
-                            )
-            # Now, we have processed the transitions, and added nondets
-            # we need to build programs
-            # do cross product, while taking into account predicate upgrades, and accordingly add mini-games
-
-            # build program for this game
-            # need to massage vars according to expected format
-            program = Program(
-                name_str + "_part_" + str(i),
-                locs,
-                init,
-                [(str(v), symbol_table[str(v)]) for v in vars_in_game],
-                new_transitions + lose_transitions,
-                [(v, symbol_table[str(v)]) for v in inputs],
-                [(v, BOOLEAN) for v in con_vars],
-            )
-
-            print(program.to_prog(""))
-
-            marked_states = {
-                i: {ss for ss in s if str(ss) in program.states}
-                for i, s in marked_states.items()
-            }
-
-            losing_states = []
-
-            match game_type:
-                case "Buechi":
-                    objective_states = disjunct_formula_set(marked_states[1])
-                    objective = G(F(objective_states))
-                case "Safety":
-                    objective_states = disjunct_formula_set(marked_states[1])
-                    if len(marked_states[1]) == (
-                        len(program.states)
-                        if len(lose_transitions) == 0
-                        else len(program.states) - 1
-                    ):
-                        objective = true()
-                    else:
-                        objective = G(objective_states)
-                        losing_states_here = [
-                            s
-                            for s in program.states
-                            if Variable(s) not in marked_states[1]
-                        ]
-                        losing_states.extend(losing_states_here)
-                        states_to_exclude_minigame[game_index].update(
-                            losing_states_here
+                    for t in trans:
+                        trigger_condition = conjunct_formula_set(
+                            eq_trigger_to_add[t] + sat_trigger_to_add[t]
                         )
-                case "Reachability":
-                    objective_states = disjunct_formula_set(marked_states[1])
-                    objective = F(objective_states)
-                case "ParityMaxOdd":
-                    objective = parity_objective(marked_states)
-                case _:
-                    raise Exception("Unknown game type: " + str(game_type))
 
-            if len(lose_transitions) > 0:
-                objective = conjunct(
-                    objective,
-                    G(neg(Variable("lose"))),
+                        new_t = Transition(
+                            t.src,
+                            conjunct(
+                                t.condition,
+                                trigger_condition,
+                            ),
+                            t.action,
+                            [],
+                            t.tgt,
+                        )
+                        new_t.set_predicate_upgrades(t.pred_upgrades)
+                        new_src_trans.append(new_t)
+
+                    new_transitions.extend(new_src_trans)
+                    no_trans_triggered = neg(
+                        disjunct_formula_set(t.condition for t in new_src_trans)
+                    )
+                    if sat(
+                        no_trans_triggered,
+                        symbol_table | {str(v): BOOLEAN for v in con_vars},
+                    ):
+                        locs.add("lose")
+                        lose_var = "lose"
+                        states_to_exclude_minigame[game_index].add("lose")
+                        lose_transitions.append(
+                            Transition(src, no_trans_triggered, [], [], "lose")
+                        )
+
+                    for t in new_transitions + lose_transitions:
+                        for tt in new_transitions + lose_transitions:
+                            if t == tt or t.src != tt.src:
+                                continue
+                            if sat(
+                                conjunct(t.condition, tt.condition),
+                                symbol_table | {str(v): BOOLEAN for v in con_vars},
+                            ):
+                                raise Exception(
+                                    "After processing, transitions from state "
+                                    + str(src)
+                                    + " still have non-distinguishable conditions: \n"
+                                    + str(t)
+                                    + "\n"
+                                    + str(tt)
+                                )
+                # Now, we have processed the transitions, and added nondets
+                # we need to build programs
+                # do cross product, while taking into account predicate upgrades, and accordingly add mini-games
+
+                # build program for this game
+                # need to massage vars according to expected format
+                program = Program(
+                    name_str + "_part_" + str(i),
+                    locs,
+                    init,
+                    [(str(v), symbol_table[str(v)]) for v in vars_in_game],
+                    new_transitions + lose_transitions,
+                    [(v, symbol_table[str(v)]) for v in inputs],
+                    [(v, BOOLEAN) for v in con_vars],
                 )
-            # if there are multiple games in a part, here need to add the cross product of transitions (and combine objectives)
-            parts_to_sub_programs.append(
-                (
-                    program,
-                    objective,
-                    losing_states,
+
+                print(program.to_prog(""))
+
+                marked_states = {
+                    i: {ss for ss in s if str(ss) in program.states}
+                    for i, s in marked_states.items()
+                }
+
+                losing_states = []
+
+                match game_type:
+                    case "Buechi":
+                        objective_states = disjunct_formula_set(marked_states[1])
+                        objective = G(F(objective_states))
+                    case "Safety":
+                        objective_states = disjunct_formula_set(marked_states[1])
+                        if len(marked_states[1]) == (
+                            len(program.states)
+                            if len(lose_transitions) == 0
+                            else len(program.states) - 1
+                        ):
+                            objective = true()
+                        else:
+                            objective = G(objective_states)
+                            losing_states_here = [
+                                s
+                                for s in program.states
+                                if Variable(s) not in marked_states[1]
+                            ]
+                            losing_states.extend(losing_states_here)
+                            states_to_exclude_minigame[game_index].update(
+                                losing_states_here
+                            )
+                    case "Reachability":
+                        objective_states = disjunct_formula_set(marked_states[1])
+                        objective = F(objective_states)
+                    case "ParityMaxOdd":
+                        objective = parity_objective(marked_states)
+                    case _:
+                        raise Exception("Unknown game type: " + str(game_type))
+
+                if len(lose_transitions) > 0:
+                    objective = conjunct(
+                        objective,
+                        G(neg(Variable("lose"))),
+                    )
+                # if there are multiple games in a part, here need to add the cross product of transitions (and combine objectives)
+                parts_to_sub_programs.append(
+                    (
+                        program,
+                        objective,
+                        losing_states,
+                    )
                 )
-            )
 
     # when len(parts_to_sub_programs) > 1, we either:
     #   1. perform cross-product of games (and combine objectives)
@@ -913,13 +947,14 @@ def process(
     #   2. Create cross-product of programs
     #   3. Figure out objective for combined program
     to_replace = {}
-    lose_var = None
     if len(parts_to_sub_programs) == 1:
         program = parts_to_sub_programs[0][0]
         game_objectives = [parts_to_sub_programs[0][1]]
         losing_states = {0: parts_to_sub_programs[0][2]}
         if len(losing_states[0]) > 0:
             lose_var = "lose"
+        else:
+            lose_var = None
         preds_to_replace = {}
         to_exclude_from_minigame = states_to_exclude_minigame[0]
     else:
@@ -1026,7 +1061,7 @@ def process(
         )
 
     refine_init_values(program, conjunct_formula_set(formula_objectives))
-    if True or len(game_objectives) == 0:
+    if len(game_objectives) == 0:
         f = neg(conjunct_formula_set(formula_objectives))
         f = normalize_ltl(propagate_negations(f))
         _, fixed_values = extract_initial_values(
@@ -1490,3 +1525,14 @@ def sat_multi(arg):
     else:
         print("unsat: " + str(f))
     return formulas if issat else None
+
+
+def saturate_macros(f, macros):
+    changed = True
+    while changed:
+        changed = False
+        new_f = f.replace_formulas(macros)
+        if new_f != f:
+            changed = True
+        f = new_f
+    return f

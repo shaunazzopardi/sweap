@@ -203,4 +203,4 @@ def test_parsing():
 
 
 if __name__ == "__main__":
-    test_parsing()
+    test_synthesis()

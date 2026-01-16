@@ -73,7 +73,9 @@ class UniOp(Formula):
 
     @functools.lru_cache()
     def to_nuxmv(self):
-        return self.op + "(" + self.right.to_nuxmv() + ")"
+        return (
+            (self.op if self.op != "X" else "next") + "(" + self.right.to_nuxmv() + ")"
+        )
 
     @functools.lru_cache()
     def to_strix(self):

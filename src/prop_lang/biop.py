@@ -56,7 +56,7 @@ class BiOp(Formula):
 
     @functools.lru_cache()
     def __str__(self):
-        if len(self.sub_formulas_up_to_associativity()) == 1:
+        if len(self.sub_formulas) == 1:
             return (
                 "(" + str(self.left) + " " + str(self.op) + " " + str(self.right) + ")"
             )
@@ -176,15 +176,24 @@ class BiOp(Formula):
         # if self.op == "%":
         #     return "toint(unsigned word[8](" + self.left.to_nuxmv() + ") mod unsigned word[8](" + self.right.to_nuxmv() + "))"
         # else:
-        return (
-            "(("
-            + self.left.to_nuxmv()
-            + ") "
-            + self.op.to_nuxmv()
-            + " ("
-            + self.right.to_nuxmv()
-            + "))"
-        )
+        if len(self.sub_formulas) == 1:
+            return (
+                "(("
+                + self.left.to_nuxmv()
+                + ") "
+                + self.op.to_nuxmv()
+                + " ("
+                + self.right.to_nuxmv()
+                + "))"
+            )
+        else:
+            return (
+                    "("
+                    + (" " + str(self.op) + " ").join(
+                [c.to_nuxmv() for c in self.sub_formulas_up_to_associativity()]
+            )
+                    + ")"
+            )
 
     @functools.lru_cache()
     def to_strix(self):

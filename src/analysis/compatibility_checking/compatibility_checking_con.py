@@ -57,8 +57,12 @@ def compatibility_checking_con(
     ) = there_is_mismatch_between_program_and_controller(
         system,
         original_ltl_spec,
-        abstract_ltl_problem,
         predicate_abstraction.structural_loop_constraints,
+        (
+            True
+            if any(v for v in moore_nuxmv.vars if re.match(r"^env_lose *:?$", v))
+            else False
+        ),
         bound,
     )
 
@@ -250,15 +254,32 @@ def create_nuxmv_model_for_compatibility_checking(
         "INIT\n"
         + "\t("
         + ")\n\t& (".join(
-            program_model.init + strategy_model.init + ["init_state", "compatible"]
+            (
+                program_model.init
+                + strategy_model.init
+                + ["init_state", "compatible"]
+                # + (
+                #     []
+                #     if not abstract_ltl_problem.init_choice_logic
+                #     else [abstract_ltl_problem.init_choice_logic.to_nuxmv()]
+                # )
+            )
         )
         + ")\n"
     )
+
+    if any(v for v in strategy_model.vars if "env_lose" in v):
+        env_lose = True
+    else:
+        env_lose = False
     text += (
         "INVAR\n"
         + "\t(("
         + ")\n\t& (".join(
-            program_model.invar + strategy_model.invar + ["compatible_inputs"]
+            program_model.invar
+            + strategy_model.invar
+            + ["compatible_inputs", "compatible"]
+            + ([] if not env_lose else ["!env_lose"])
         )
         + "))\n"
     )
@@ -266,6 +287,10 @@ def create_nuxmv_model_for_compatibility_checking(
     turn_logic = ["!next(init_state)"]
 
     if config.Config.getConfig().dual:
+        init_choice_logic = abstract_ltl_problem.init_choice_logic
+        if init_choice_logic:
+            init_choice_logic = init_choice_logic.to_nuxmv()
+        env_lose_logic = None
         normal_trans = (
             "(("
             + ")\n\t| (".join(strategy_model.trans)
@@ -274,10 +299,12 @@ def create_nuxmv_model_for_compatibility_checking(
             + "(("
             + ")\n\t\t& (".join(program_model.trans + turn_logic)
             + ")))) & next(!init_state)) &\n"
-            + "(init_state -> ("
+            + "(init_state -> (next(!init_state) & "
             + " next("
             + (" & ".join(program_model.init) if program_model.init else "TRUE")
             + ")"
+            + (" & (" + init_choice_logic + ")" if init_choice_logic else "")
+            + (" & (" + env_lose_logic + ")" if env_lose_logic else "")
             + ")"
             + ")"
         )
@@ -352,7 +379,7 @@ def there_is_mismatch_between_program_and_strategy(
 
 
 def there_is_mismatch_between_program_and_controller(
-    system, ltlspec, abstract_ltl_problem, loop_constraints, bound
+    system, ltlspec, loop_constraints, env_lose, bound
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
@@ -372,13 +399,8 @@ def there_is_mismatch_between_program_and_controller(
         "(G(compatible"
         + loop_constraints_str
         + ")"
-        + (
-            " & " + abstract_ltl_problem.init_choice_logic.to_nuxmv()
-            if abstract_ltl_problem.init_choice_logic
-            else ""
-        )
         + ") -> ("
-        + normalize_ltl(ltlspec).to_nuxmv()
+        + str(normalize_ltl(ltlspec))
         + ")"
     )
     if config.getConfig().dual:
