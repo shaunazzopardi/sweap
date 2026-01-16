@@ -75,45 +75,45 @@ def create_neg_no(v: Formula) -> UniOp:
 
 
 def _mult(lhs, rhs):
-    lhs_str = str(lhs)
-    rhs_str = str(rhs)
-    if lhs_str == "-1":
-        return UniOp("-", rhs)
-    elif rhs_str == "-1":
-        return UniOp("-", lhs)
-    elif lhs_str == "1":
-        return rhs
-    elif rhs_str == "1":
-        return lhs
-    elif lhs_str == "0" or rhs_str == "0":
+    if isinstance(lhs, Value):
+        if isinstance(rhs, Value):
+            return Value(int(lhs.val) * int(rhs.val))
+
+        val = int(lhs.val)
+        var = rhs
+    elif isinstance(rhs, Value):
+        if isinstance(lhs, Value):
+            return Value(int(lhs.val) * int(rhs.val))
+        val = int(rhs.val)
+        var = lhs
+    else:
+        raise Exception(
+            "We cannot handle multiplication between variables: "
+            + str(lhs)
+            + " * "
+            + str(rhs)
+        )
+    if val == -1:
+        return UniOp("-", var)
+    elif val == 1:
+        return var
+    elif val == 0:
         return Value(0)
-    elif lhs_str.isdigit() and rhs_str.isdigit():
-        return Value(int(lhs_str) * int(rhs_str))
     # handle positive multiplication by unrolling
-    elif lhs_str.isdigit() and int(lhs_str) > 1:
-        c = int(lhs_str)
+    elif val > 0:
+        c = val
         result = rhs
         for _ in range(c - 1):
-            result = BiOp(result, "+", rhs)
-        return result
-    elif rhs_str.isdigit() and int(rhs_str) > 1:
-        c = int(rhs_str)
-        result = lhs
-        for _ in range(c - 1):
-            result = BiOp(result, "+", lhs)
+            result = BiOp(result, "+", var)
         return result
     # hangle negative multiplication by unrolling
-    elif lhs_str.isdigit() and int(lhs_str) < 0:
-        c = abs(int(lhs_str))
+    elif val < 0:
+        c = abs(val)
         result = rhs
         for _ in range(c - 1):
-            result = BiOp(result, "+", rhs)
-        return UniOp("-", result)
-    elif rhs_str.isdigit() and int(rhs_str) < 0:
-        c = abs(int(rhs_str))
-        result = lhs
-        for _ in range(c - 1):
-            result = BiOp(result, "+", lhs)
+            result = BiOp(result, "+", var)
         return UniOp("-", result)
     else:
-        raise Exception("Multiplication by non negative value: " + str((lhs, rhs)))
+        raise Exception(
+            "I cannot resolve this multiplication: " + str(lhs) + ", " + str(rhs)
+        )
