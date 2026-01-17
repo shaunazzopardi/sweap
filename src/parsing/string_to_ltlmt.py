@@ -1,3 +1,4 @@
+import itertools
 import logging
 from collections import defaultdict
 from itertools import product
@@ -313,7 +314,6 @@ class ToProgram(NodeWalker):
         # TODO any input var that appears only in actions that have no temporal operators only need to set once (can just ignore them and set the prog var instead)
         # TODO identify bool state preds (and if not constant, i.e. controller can set to true and false, then just turn them into controller var)
 
-        eval_state = None
         con_t = []
 
         # TODO: need to find a better way to limit the number of controller action variables
@@ -341,11 +341,10 @@ class ToProgram(NodeWalker):
         partition_updates_items = list(partition_to_updates.items())
         to_replace = {}
 
+        eval_state = None
+
         states = set()
         if len(partition_updates_items) > 0:
-            partition_updates_items = sorted(
-                partition_updates_items, key=lambda x: x[0]
-            )
             con_act_vars_no = max(len(v) for v in partition_to_updates.values())
             con_act_vars, binary_map = binary_rep(
                 [Variable(str(v)) for v in range(0, con_act_vars_no)], "con_act_"
@@ -388,11 +387,14 @@ class ToProgram(NodeWalker):
                         )
                     )
                 for act, fs in to_replace_here.items():
-                    to_replace[act] = BiOp(
-                        neg(Variable(state)),
-                        "U",
-                        conjunct(Variable(state), disjunct_formula_set(fs)),
-                    )
+                    if state != eval_state:
+                        to_replace[act] = BiOp(
+                            neg(Variable(state)),
+                            "U",
+                            conjunct(Variable(state), disjunct_formula_set(fs)),
+                        )
+                    else:
+                        to_replace[act] = disjunct_formula_set(fs)
         else:
             eval_state = "eval"
             con_act_vars = []
@@ -406,18 +408,22 @@ class ToProgram(NodeWalker):
                 )
             )
         states.add(eval_state)
-        assumptions = list(
-            map(
-                lambda x: massage_ltl(x, Variable(eval_state), to_replace),
-                assumptions,
+        if len(states) > 1:
+            assumptions = list(
+                map(
+                    lambda x: massage_ltl(x, Variable(eval_state), to_replace),
+                    assumptions,
+                )
             )
-        )
-        guarantees = list(
-            map(
-                lambda x: massage_ltl(x, Variable(eval_state), to_replace),
-                guarantees,
+            guarantees = list(
+                map(
+                    lambda x: massage_ltl(x, Variable(eval_state), to_replace),
+                    guarantees,
+                )
             )
-        )
+        else:
+            assumptions = [a.replace_formulas(to_replace) for a in assumptions]
+            guarantees = [g.replace_formulas(to_replace) for g in guarantees]
 
         formula = implies(
             conjunct_formula_set(assumptions), conjunct_formula_set(guarantees)
@@ -472,6 +478,17 @@ def massage_ltl(formula: Formula, controller_state: Formula, to_replace):
         else:
             return BiOp(new_left, formula.op, new_right)
     elif isinstance(formula, UniOp):
+        if formula.op in {"G", "F"} and not (
+            unary_LTL_operators | binary_LTL_operators
+        ).intersection(set(formula.right.ops_used())):
+            new_formula = formula.right.replace_formulas(to_replace)
+            if formula.op == "G":
+                new_formula = BiOp(controller_state, "->", new_formula)
+                return G(new_formula)
+            elif formula.op == "F":
+                new_formula = BiOp(controller_state, "&", new_formula)
+                return F(new_formula)
+
         new_formula = massage_ltl(formula.right, controller_state, to_replace)
         if formula.op == "G":
             return G(new_formula)
@@ -507,7 +524,7 @@ def partition_updates(updates: dict[str, set[BiOp]], inputs) -> list[set[Variabl
                 input_dependent.add(var)
                 break
 
-    remaining = update_vars - input_dependent
+    remaining = update_vars
     adjacency: dict[str, set[str]] = {v: set() for v in remaining}
 
     # need to add updates to same partition if they depend on each other,
@@ -592,30 +609,47 @@ def partition_updates(updates: dict[str, set[BiOp]], inputs) -> list[set[Variabl
 
     ordered = [partitions[i] for i in ordered_indices]
 
-    if input_dependent:
-        merged = set(input_dependent)
-        remaining_parts = ordered
-        changed = True
-        while changed:
-            changed = False
-            next_remaining = []
-            for part in remaining_parts:
-                depends_on_merged = False
-                for var in part:
-                    for u in updates.get(var, []):
-                        if any(str(v) in merged for v in u.right.variablesin()):
-                            depends_on_merged = True
-                            break
-                    if depends_on_merged:
-                        break
-                if depends_on_merged:
-                    merged.update(part)
-                    changed = True
-                else:
-                    next_remaining.append(part)
-            remaining_parts = next_remaining
+    # put input dependent parition first
+    if input_dependent and len(ordered) > 1:
+        first = None
+        for i, p in enumerate(ordered):
+            if input_dependent.issubset(p):
+                first = i
+                break
+        if first:
+            first_part = ordered[first]
+            remaining_parts = ordered[:first] + ordered[first + 1 :]
+        else:
+            input_parts = {
+                i: p for i, p in enumerate(ordered) if not p.isdisjoint(input_dependent)
+            }
+            first_part = list(
+                itertools.chain.from_iterable(p for p in input_parts.values())
+            )
+            remaining_parts = [
+                p for i, p in enumerate(ordered) if i not in input_parts.keys()
+            ]
+        # changed = True
+        # while changed:
+        #     changed = False
+        #     next_remaining = []
+        #     for part in remaining_parts:
+        #         depends_on_merged = False
+        #         for var in part:
+        #             for u in updates.get(var, []):
+        #                 if any(str(v) in merged for v in u.right.variablesin()):
+        #                     depends_on_merged = True
+        #                     break
+        #             if depends_on_merged:
+        #                 break
+        #         if depends_on_merged:
+        #             merged.update(part)
+        #             changed = True
+        #         else:
+        #             next_remaining.append(part)
+        #     remaining_parts = next_remaining
 
-        return [merged] + remaining_parts
+        return [first_part] + remaining_parts
 
     return ordered
 

@@ -186,6 +186,15 @@ def abstract_synthesis_loop(
     out_acts: list[Variable],
     bound: int,
 ) -> WrappedHOA:
+    logging.info(
+        program.to_prog(
+            implies(
+                conjunct_formula_set(ltl_assumptions),
+                conjunct_formula_set(ltl_guarantees),
+            )
+        )
+    )
+
     allow_user_input: bool = False
     prefer_lasso_counterexamples: bool = False
 

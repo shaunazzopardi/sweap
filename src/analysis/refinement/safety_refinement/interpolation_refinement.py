@@ -228,7 +228,7 @@ def qe_refinement(
                 typed_var_to_pysmt_type(str(v), new_symbol_table[str(v)])[0]
                 for f in formulas
                 for v in f.variablesin()
-                if str(v).split("_")[-1] != str(i) and Variable(str(v).split("_")[-1])
+                if str(v).split("_")[-1] != str(i)
             }
         )
         left = conjunct_formula_set(formulas[0:-1])
@@ -284,7 +284,7 @@ def qe_refinement_only_inputs(
             typed_var_to_pysmt_type(str(v), new_symbol_table[str(v)])[0]
             for f in formulas
             for v in f.variablesin()
-            if Variable(str(v).split("_")[0]) not in program.num_in_out
+            if Variable("_".join(str(v).split("_")[0:-1])) not in program.num_in_out
         }
     )
     left = conjunct_formula_set(formulas[0:-1])

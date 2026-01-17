@@ -280,8 +280,6 @@ def _main(args: Namespace):
             datefmt="%Y-%m-%d %H:%M:%S",
             force=True,
         )
-
-        logging.info(program.to_dot())
     else:
         logging.disable(logging.CRITICAL)
 
