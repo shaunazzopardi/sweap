@@ -470,7 +470,8 @@ class EffectsAbstraction(PredicateAbstraction):
                             p, signatures, self.symbol_table
                         )
                         if isinstance(result, Variable):
-                            normalised_state_preds.add(result)
+                            if result not in self.program.bool_in_out:
+                                normalised_state_preds.add(result)
                         else:
                             sig, new_p, preds = result
                             old_to_new[p] = new_p
@@ -908,10 +909,6 @@ def update_effects(
     new_now_preds.difference_update(common_preds)
     new_next_preds.difference_update(common_preds)
 
-    # old_effects = []
-    # for now, nexts in effects:
-    #     old_effects.append(conjunct(now, disjunct_formula_set(nexts)))
-
     new_now_preds = sorted(list(new_now_preds), key=lambda p: str(p))
     for p in new_now_preds:
         effects = p.extend_effect_now(gu, effects, symbol_table)
@@ -1126,7 +1123,13 @@ def compute_abstract_effect_for_guard_update(arg):
             invars.add(p.bool_var)
 
     gu_ltl = effects_to_ltl(
-        gu, new_effects, constants, invars, conf, dual_env_props, vars_relabelling
+        new_effects,
+        constants,
+        invars,
+        conf,
+        dual_env_props,
+        symbol_table,
+        vars_relabelling,
     )
     if config.Config.getConfig().debug:
         effects_to_ltl_non_bin(
@@ -1163,12 +1166,12 @@ def debug_check_sat(gu, now_nexts, invars, constants, symbol_table):
 
 
 def effects_to_ltl(
-    gu,
     effects,
     constants,
     invars,
     conf: config.Config,
     dual_env_props,
+    symbol_table,
     vars_relabelling,
 ):
     parts_ltl = []
@@ -1203,6 +1206,24 @@ def effects_to_ltl(
             parts_ltl.append(disjunct_formula_set(part_ltl))
 
     parts_ltl = sorted(parts_ltl, key=lambda f: str(f))
+    # ignoring stutters since these will already be handled in invars
+    # ignoring assignment to values since these will already be handled in constants
+    bool_updates = [
+        u
+        for part in effects.keys()
+        for u in part
+        if u.left != u.right
+        and not isinstance(u.right, Value)
+        and symbol_table[str(u.left)] == BOOLEAN
+    ]
+    for u in bool_updates:
+        if conf.dual:
+            part = iff(X(massage_ltl_for_dual(u.right, dual_env_props)), X(X(u.left)))
+        else:
+            part = iff(u.right, X(u.left))
+        if conf.backend == "strix":
+            part = propagate_nexts(part)
+        parts_ltl.append(part.replace_formulas(vars_relabelling))
     effects_ltl = conjunct_formula_set(parts_ltl)
 
     invar_preds_effects = set()
@@ -1268,6 +1289,22 @@ def effects_to_ltl_non_bin(
             parts_ltl_wo_next.append(disjunct_formula_set(part_ltl_wo_next))
 
     parts_ltl = sorted(parts_ltl, key=lambda f: str(f))
+    bool_updates = [
+        u
+        for part in effects.keys()
+        for u in part
+        if u.left != u.right
+        and not isinstance(u.right, Value)
+        and symbol_table[str(u.left)] == BOOLEAN
+    ]
+    for u in bool_updates:
+        if conf.dual:
+            part = iff(X(massage_ltl_for_dual(u.right, dual_env_props)), X(X(u.left)))
+        else:
+            part = iff(u.right, X(u.left))
+        if conf.backend == "strix":
+            part = propagate_nexts(part)
+        parts_ltl.append(part)
     effects_ltl = conjunct_formula_set(parts_ltl)
 
     effects_ltl_wo_nexts = conjunct_formula_set(parts_ltl_wo_next)

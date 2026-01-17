@@ -122,6 +122,27 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                         incompatibility_formula.append(p)
 
                 if len(incompatibility_formula) == 0:
+                    for p in pred_state:
+                        # TODO: here using (incompatible_state[1] | incompatible_state[2])
+                        #       since program variable state may be split between them
+                        #       instead of just incompatible_state[1], in error
+                        #       this is a bandaid fix, should be fixed properly later
+                        var_state = [
+                            BiOp(
+                                v,
+                                "=",
+                                Value(
+                                    (incompatible_state[1] | incompatible_state[2])[str(v)]
+                                ),
+                            )
+                            for v in p.variablesin()
+                        ]
+                        if not sat(
+                                conjunct_formula_set([p] + var_state),
+                                program.symbol_table,
+                        ):
+                            incompatibility_formula.append(p)
+
                     raise Exception(
                         "Incompatibility formula is not correct; no predicate mismatches found."
                     )

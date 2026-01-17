@@ -455,7 +455,7 @@ def there_is_mismatch_between_program_and_strategy(
             return True, None, out
 
     # hack: if env_lose is used in system, i.e. it appears as a word
-    env_lose_logic = " | env_lose" if re.match("\benv_lose\b", system) else ""
+    env_lose_logic = " | env_lose" if "\tenv_lose :" in system else ""
 
     if not controller:
         if not mismatch_condition:

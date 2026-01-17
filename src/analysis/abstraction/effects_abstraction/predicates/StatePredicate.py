@@ -30,6 +30,7 @@ class StatePredicate(Predicate):
         self.last_pre = {}
         self.last_post = {}
         self.is_input = is_input
+        self.is_bool = isinstance(pred, Variable)
 
     def __str__(self):
         return str(self.pred)
@@ -47,6 +48,8 @@ class StatePredicate(Predicate):
         self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
     ) -> [(Formula, [Formula])]:
         new_effects = []
+        if self.is_bool:
+            return old_effects
         if self.is_input and "_prev" in str(self.pred):
             return old_effects
 
@@ -91,6 +94,8 @@ class StatePredicate(Predicate):
         old_effects: [(Formula, dict[Variable, [Formula]])],
         symbol_table,
     ) -> [(Formula, dict[Variable, [Formula]])]:
+        if self.is_bool:
+            return old_effects
         if self.is_input and "_prev" not in str(self.pred):
             return old_effects
         new_effects = []
@@ -123,6 +128,8 @@ class StatePredicate(Predicate):
     def extend_effect(
         self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
     ) -> [(Formula, [Formula])]:
+        if self.is_bool:
+            return old_effects
         if self.is_input:
             if "_prev" not in str(self.pred):
                 return self.extend_effect_now(gu, old_effects, symbol_table)

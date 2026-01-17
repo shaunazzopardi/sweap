@@ -201,7 +201,10 @@ def var_num_type_parser():
 def num_decl_parser():
     var = yield name << spaces() << string(":") << spaces()
     raw_type = yield regex(number_regex) << spaces()
-    type = parse_type(raw_type)
+    try:
+        type = parse_type(raw_type)
+    except Exception as e:
+        yield parsec.fail_with(str(e))
     yield spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;}]+") << spaces()

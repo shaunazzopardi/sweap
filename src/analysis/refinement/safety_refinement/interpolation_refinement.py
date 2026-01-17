@@ -351,9 +351,8 @@ def normalise_and_filter_preds(
     normalised_state_preds = set()
     for p in new_state_preds:
         result = normalise_pred_multiple_vars(p, signatures, symbol_table)
-        if isinstance(result, Variable):
-            normalised_state_preds.add(result)
-        else:
+        # ignore boolean variables, these will already have been handled
+        if not isinstance(result, Variable):
             sig, _, preds = result
             signatures.add(sig)
             normalised_state_preds.update(preds)

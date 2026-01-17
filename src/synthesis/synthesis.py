@@ -449,8 +449,11 @@ def extract_init_preds(
         new_state_preds.update(in_outs_in_act)
 
         for act in t.action:
+            # if updating a boolean, add atomic predicates of the right-hand side
+            if program.symbol_table[str(act.left)] == BOOLEAN:
+                new_state_preds.update(atomic_predicates(act.right))
             # exclude constant assignments for minigame intermediate values
-            if len(act.right.variablesin()) == 0 and not re.match(
+            elif len(act.right.variablesin()) == 0 and not re.match(
                 r"int_.*", str(act.left)
             ):
                 if program.symbol_table[str(act.left)] == BOOLEAN:
@@ -477,6 +480,7 @@ def extract_init_preds(
     new_state_preds.update(
         itertools.chain.from_iterable([atomic_predicates(f) for f in ltl_guarantees])
     )
+
     # TODO don't normalise here; normalise inside of effectsabstraction
     # rankings should also be added inside of abstraction, based on normalised preds?
     old_to_new_st_preds = {}

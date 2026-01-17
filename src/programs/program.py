@@ -583,6 +583,8 @@ class Program:
         identity = []
         for var in self.local_vars:
             identity.append("next(" + str(var) + ") = " + str(var))
+        for var in self.num_in_out:
+            identity.append("next(" + str(var) + ") = " + str(var))
         for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
 

@@ -1191,6 +1191,8 @@ def formula_to_transitions(formula, inputs, symbol_table):
 
     formula = formula.replace_formulas(to_replace)
 
+    # TODO: this can be optimized further by not generating all combinations
+    #       but only equality updates, and reduced up to negation
     update_list = list(updates)
     if len(update_list) == 0:
         return [(formula, [[]])]
