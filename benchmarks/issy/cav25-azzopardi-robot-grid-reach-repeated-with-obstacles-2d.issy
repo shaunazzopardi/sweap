@@ -1,0 +1,142 @@
+// Environment moves
+input bool einc
+input bool estay
+input bool exory
+
+// System moves (should only appear as primed next-states)
+state bool cinc
+state bool cstay
+state bool cxory
+
+// Program variables
+state int x
+state int y
+
+// Variables to track the location
+state bool setvars
+state bool move
+state bool goal
+
+// Temporal specifcation
+formula {
+  assert X ( (G F !estay) -> G F goal )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc setvars 1
+  loc move 1
+  loc goal 1
+
+// Init variables and go to inital state
+  from init_location to setvars with
+    setvars'
+    && (!move')
+    && (!goal')
+    && [x' = 0]
+    && [y' = 0]
+
+  from setvars to setvars with
+    setvars' 
+    && (!move')
+    && (!goal')
+  && (false
+    || ( // setvars -> setvars [estay && einc && exory $ x := x + 1]
+         estay && einc && exory 
+      && [x' = ( x + 1)]
+      && [y' = y]
+    )
+    || ( // setvars -> setvars [estay && !einc && exory $ x := x - 1]
+         estay && !einc && exory 
+      && [x' = ( x - 1)]
+      && [y' = y]
+    )
+    || ( // setvars -> setvars [estay && einc && !exory $ y := y + 1]
+         estay && einc && !exory 
+      && [x' = x]
+      && [y' = ( y + 1)]
+    )
+    || ( // setvars -> setvars [estay && !einc && !exory $ y := y - 1]
+         estay && !einc && !exory 
+      && [x' = x]
+      && [y' = ( y - 1)]
+    )
+  )
+
+  from setvars to move with
+    move' 
+    && (!setvars')
+    && (!goal')
+  && (false
+    || ( // setvars -> move [!estay]
+         !estay
+      && [x' = x]
+      && [y' = y]
+    )
+  )
+
+  from move to move with
+    move' 
+    && (!setvars')
+    && (!goal')
+  && (false
+    || ( // move -> move [!(x = 0 && y = 0) && (!cstay || estay)]
+         !([x = 0] && [y = 0]) && (!cstay' || estay)
+      && [x' = x]
+      && [y' = y]
+    )
+    || ( // move -> move [!(x = 0 && y = 0) && cstay && !estay && cinc && cxory $ x := x + 1]
+         !([x = 0] && [y = 0]) && cstay' && !estay && cinc' && cxory' 
+      && [x' = ( x + 1)]
+      && [y' = y]
+    )
+    || ( // move -> move [!(x = 0 && y = 0) && cstay && !estay && !cinc && cxory $ x := x - 1]
+         !([x = 0] && [y = 0]) && cstay' && !estay && !cinc' && cxory' 
+      && [x' = ( x - 1)]
+      && [y' = y]
+    )
+    || ( // move -> move [!(x = 0 && y = 0) && cstay && !estay && cinc && !cxory $ y := y + 1]
+         !([x = 0] && [y = 0]) && cstay' && !estay && cinc' && !cxory' 
+      && [x' = x]
+      && [y' = ( y + 1)]
+    )
+    || ( // move -> move [!(x = 0 && y = 0) && cstay && !estay && !cinc && !cxory $ y := y - 1]
+         !([x = 0] && [y = 0]) && cstay' && !estay && !cinc' && !cxory' 
+      && [x' = x]
+      && [y' = ( y - 1)]
+    )
+  )
+
+  from move to goal with
+    goal' 
+    && (!setvars')
+    && (!move')
+  && (false
+    || ( // move -> goal [x = 0 && y = 0]
+         [x = 0] && [y = 0]
+      && [x' = x]
+      && [y' = y]
+    )
+  )
+
+  from goal to setvars with
+    setvars' 
+    && (!move')
+    && (!goal')
+  && (false
+    || ( // goal -> setvars []
+         true
+      && [x' = x]
+      && [y' = y]
+    )
+  )
+
+
+// Ensure not-blocking
+  from setvars to unsafe_sink with true
+  from move to unsafe_sink with true
+  from goal to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

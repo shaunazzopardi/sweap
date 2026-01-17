@@ -1,0 +1,65 @@
+// Environment moves
+input bool entry_l
+input bool entry_r
+input bool exit_l
+input bool exit_r
+input bool l2r
+
+// System moves (should only appear as primed next-states)
+state bool stop_l
+state bool stop_r
+
+// Program variables
+state int cl
+state int cr
+
+// Variables to track the location
+state bool q0
+
+// Temporal specifcation
+formula {
+  assert X ( (!entry_l && !exit_r && !entry_r && !exit_l && G(stop_l' -> X !entry_l) && G(stop_r' -> X !entry_r) && G (![(cr = 0)] -> F exit_l) && G (![(cl = 0)] -> F exit_r)) -> (G(!([(cl > 0)] && [(cr > 0)])) && G((!stop_l' && l2r) -> X !stop_l') && G((!stop_r' && !l2r) -> X !stop_r') && G((stop_l' && l2r) -> F (!l2r || !stop_l')) && G((stop_r' && !l2r) -> F (l2r || !stop_r'))) )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc q0 1
+
+// Init variables and go to inital state
+  from init_location to q0 with
+    q0'
+    && [cl' = 0]
+    && [cr' = 0]
+
+  from q0 to q0 with
+    q0' 
+  && (false
+    || ( // q0 -> q0 [entry_l && !exit_r $ cl := cl + 1]
+         entry_l && !exit_r 
+      && [cl' = ( cl + 1)]
+      && [cr' = cr]
+    )
+    || ( // q0 -> q0 [!entry_l && exit_r && cl > 0 $ cl := cl - 1]
+         !entry_l && exit_r && [cl > 0] 
+      && [cl' = ( cl - 1)]
+      && [cr' = cr]
+    )
+    || ( // q0 -> q0 [entry_r && !exit_l $ cr := cr + 1]
+         entry_r && !exit_l 
+      && [cl' = cl]
+      && [cr' = ( cr + 1)]
+    )
+    || ( // q0 -> q0 [!entry_r && exit_l && cr > 0 $ cr := cr - 1]
+         !entry_r && exit_l && [cr > 0] 
+      && [cl' = cl]
+      && [cr' = ( cr - 1)]
+    )
+  )
+
+
+// Ensure not-blocking
+  from q0 to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

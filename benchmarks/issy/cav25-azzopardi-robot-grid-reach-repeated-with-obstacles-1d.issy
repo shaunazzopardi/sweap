@@ -1,0 +1,110 @@
+// Environment moves
+input bool einc
+input bool estay
+
+// System moves (should only appear as primed next-states)
+state bool cinc
+state bool cstay
+
+// Program variables
+state int x
+
+// Variables to track the location
+state bool setvars
+state bool move
+state bool goal
+
+// Temporal specifcation
+formula {
+  assert X ( (G F !estay) -> G F goal )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc setvars 1
+  loc move 1
+  loc goal 1
+
+// Init variables and go to inital state
+  from init_location to setvars with
+    setvars'
+    && (!move')
+    && (!goal')
+    && [x' = 0]
+
+  from setvars to setvars with
+    setvars' 
+    && (!move')
+    && (!goal')
+  && (false
+    || ( // setvars -> setvars [estay && einc $ x := x + 1]
+         estay && einc 
+      && [x' = ( x + 1)]
+    )
+    || ( // setvars -> setvars [estay && !einc $ x := x - 1]
+         estay && !einc 
+      && [x' = ( x - 1)]
+    )
+  )
+
+  from setvars to move with
+    move' 
+    && (!setvars')
+    && (!goal')
+  && (false
+    || ( // setvars -> move [!estay]
+         !estay
+      && [x' = x]
+    )
+  )
+
+  from move to move with
+    move' 
+    && (!setvars')
+    && (!goal')
+  && (false
+    || ( // move -> move [!(x = 0) && (!cstay || estay)]
+         ![(x = 0)] && (!cstay' || estay)
+      && [x' = x]
+    )
+    || ( // move -> move [!(x = 0) && cstay && !estay && cinc $ x := x + 1]
+         ![(x = 0)] && cstay' && !estay && cinc' 
+      && [x' = ( x + 1)]
+    )
+    || ( // move -> move [!(x = 0) && cstay && !estay && !cinc $ x := x - 1]
+         ![(x = 0)] && cstay' && !estay && !cinc' 
+      && [x' = ( x - 1)]
+    )
+  )
+
+  from move to goal with
+    goal' 
+    && (!setvars')
+    && (!move')
+  && (false
+    || ( // move -> goal [x = 0]
+         [x = 0]
+      && [x' = x]
+    )
+  )
+
+  from goal to setvars with
+    setvars' 
+    && (!move')
+    && (!goal')
+  && (false
+    || ( // goal -> setvars []
+         true
+      && [x' = x]
+    )
+  )
+
+
+// Ensure not-blocking
+  from setvars to unsafe_sink with true
+  from move to unsafe_sink with true
+  from goal to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

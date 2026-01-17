@@ -1,0 +1,149 @@
+// Environment moves
+input bool inc
+input bool xory
+input bool start
+input bool obstacle
+
+// System moves (should only appear as primed next-states)
+state bool cinc
+state bool cdec
+state bool cxory
+
+// Program variables
+state int target_x
+state int target_y
+state int car_x
+state int car_y
+
+// Variables to track the location
+state bool q0
+state bool q1
+
+// Temporal specifcation
+formula {
+  assert X ( ((G F start) && (G F !obstacle)) -> (G F ([(car_x = target_x)] && [(car_y = target_y)])) )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc q0 1
+  loc q1 1
+
+// Init variables and go to inital state
+  from init_location to q0 with
+    q0'
+    && (!q1')
+    && [target_x' = 0]
+    && [target_y' = 0]
+    && [car_x' = 0]
+    && [car_y' = 0]
+
+  from q0 to q0 with
+    q0' 
+    && (!q1')
+  && (false
+    || ( // q0 -> q0 [!start && xory && inc $ target_x := target_x + 1]
+         !start && xory && inc 
+      && [target_x' = ( target_x + 1)]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+    || ( // q0 -> q0 [!start && xory && !inc $ target_x := target_x - 1]
+         !start && xory && !inc 
+      && [target_x' = ( target_x - 1)]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+    || ( // q0 -> q0 [!start && !xory && inc $ target_y := target_y + 1]
+         !start && !xory && inc 
+      && [target_x' = target_x]
+      && [target_y' = ( target_y + 1)]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+    || ( // q0 -> q0 [!start && !xory && !inc $ target_y := target_y - 1]
+         !start && !xory && !inc 
+      && [target_x' = target_x]
+      && [target_y' = ( target_y - 1)]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+  )
+
+  from q0 to q1 with
+    q1' 
+    && (!q0')
+  && (false
+    || ( // q0 -> q1 [start]
+         start
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+  )
+
+  from q1 to q0 with
+    q0' 
+    && (!q1')
+  && (false
+    || ( // q1 -> q0 [(car_x = target_x) && (car_y = target_y) $]
+         [(car_x = target_x)] && [(car_y = target_y)] 
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+  )
+
+  from q1 to q1 with
+    q1' 
+    && (!q0')
+  && (false
+    || ( // q1 -> q1 [((cinc <-> cdec) || obstacle) && !((car_x = target_x) && (car_y = target_y)) $]
+         ((cinc' <-> cdec') || obstacle) && !([(car_x = target_x)] && [(car_y = target_y)]) 
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = car_y]
+    )
+    || ( // q1 -> q1 [!obstacle && !((car_x = target_x) && (car_y = target_y)) && cinc && !cdec && cxory $ car_x := car_x + 1]
+         !obstacle && !([(car_x = target_x)] && [(car_y = target_y)]) && cinc' && !cdec' && cxory' 
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = ( car_x + 1)]
+      && [car_y' = car_y]
+    )
+    || ( // q1 -> q1 [!obstacle && !((car_x = target_x) && (car_y = target_y)) && !cinc && cdec && cxory $ car_x := car_x - 1]
+         !obstacle && !([(car_x = target_x)] && [(car_y = target_y)]) && !cinc' && cdec' && cxory' 
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = ( car_x - 1)]
+      && [car_y' = car_y]
+    )
+    || ( // q1 -> q1 [!obstacle && !((car_x = target_x) && (car_y = target_y)) && cinc && !cdec && !cxory $ car_y := car_y + 1]
+         !obstacle && !([(car_x = target_x)] && [(car_y = target_y)]) && cinc' && !cdec' && !cxory' 
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = ( car_y + 1)]
+    )
+    || ( // q1 -> q1 [!obstacle && !((car_x = target_x) && (car_y = target_y)) && !cinc && cdec && !cxory $ car_y := car_y - 1]
+         !obstacle && !([(car_x = target_x)] && [(car_y = target_y)]) && !cinc' && cdec' && !cxory' 
+      && [target_x' = target_x]
+      && [target_y' = target_y]
+      && [car_x' = car_x]
+      && [car_y' = ( car_y - 1)]
+    )
+  )
+
+
+// Ensure not-blocking
+  from q0 to unsafe_sink with true
+  from q1 to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

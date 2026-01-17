@@ -1,0 +1,83 @@
+// Environment moves
+input bool ince
+
+// System moves (should only appear as primed next-states)
+state bool incc
+
+// Program variables
+state int e
+state int c
+
+// Variables to track the location
+state bool q
+state bool q1
+
+// Temporal specifcation
+formula {
+  assert X ( (G F q1) -> (G F (q && [c > e])) )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc q 1
+  loc q1 1
+
+// Init variables and go to inital state
+  from init_location to q with
+    q'
+    && (!q1')
+    && [e' = 0]
+    && [c' = 0]
+
+  from q to q with
+    q' 
+    && (!q1')
+  && (false
+    || ( // q -> q [ince $ e := e + 1]
+         ince 
+      && [e' = ( e + 1)]
+      && [c' = c]
+    )
+  )
+
+  from q to q1 with
+    q1' 
+    && (!q')
+  && (false
+    || ( // q -> q1 [!ince]
+         !ince
+      && [e' = e]
+      && [c' = c]
+    )
+  )
+
+  from q1 to q with
+    q' 
+    && (!q1')
+  && (false
+    || ( // q1 -> q [!incc]
+         !incc'
+      && [e' = e]
+      && [c' = c]
+    )
+  )
+
+  from q1 to q1 with
+    q1' 
+    && (!q')
+  && (false
+    || ( // q1 -> q1 [incc $ c := c + 1]
+         incc' 
+      && [e' = e]
+      && [c' = ( c + 1)]
+    )
+  )
+
+
+// Ensure not-blocking
+  from q to unsafe_sink with true
+  from q1 to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}
