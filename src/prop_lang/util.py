@@ -1,3 +1,4 @@
+import itertools
 import logging
 import re
 from typing import Optional
@@ -1151,6 +1152,60 @@ def is_disjunction_of_atoms(formula):
         return False
 
 
+def almost_dnf(formula):
+    # detect formuls of form (CONJ & CONJ) & (DISJ | DISJ | ...)
+    # and put them in DNF
+    if isinstance(formula, BiOp):
+        if formula.op == "&":
+            for f in formula.sub_formulas_up_to_associativity():
+                if isinstance(f, BiOp) and f.op == "|":
+                    for disj in f.sub_formulas_up_to_associativity():
+                        if not is_conjunction_of_atoms(disj):
+                            return False
+                elif not is_conjunction_of_atoms(f):
+                    return False
+            return True
+        elif formula.op == "|":
+            return is_disjunction_of_atoms(formula)
+        else:
+            return is_atomic(formula)
+    elif isinstance(formula, UniOp):
+        if formula.op == "!":
+            return is_atomic(formula.right)
+        else:
+            return False
+    else:
+        return is_atomic(formula)
+
+
+def almost_dnf_to_dnf(formula, depth):
+    if isinstance(formula, BiOp):
+        if formula.op == "&":
+            new_conjuncts = []
+            disjuncts = []
+            for f in formula.sub_formulas_up_to_associativity():
+                if isinstance(f, BiOp) and f.op == "|":
+                    disjuncts.append([d for d in f.sub_formulas_up_to_associativity() if d != false()])
+                else:
+                    new_conjuncts.append(f)
+            if len(disjuncts) == 0:
+                return formula
+            combinations = itertools.product(*disjuncts)
+            new_disjuncts = []
+            for combination in combinations:
+                new_disj = conjunct_formula_set(list(combination) + new_conjuncts)
+                if depth > 0:
+                    new_disj = almost_dnf_to_dnf(new_disj, depth - 1)
+                new_disjuncts.append(
+                    new_disj
+                )
+            return disjunct_formula_set(new_disjuncts)
+        else:
+            return formula
+    else:
+        return formula
+
+
 def is_dnf(formula):
     if isinstance(formula, BiOp):
         if formula.op == "|":
@@ -1780,6 +1835,7 @@ def stringify_pred(p):
         "pred_"
         + str(p)
         .replace(" ", "")
+        .replace("'", "")
         .replace("_", "")
         .replace("(", "_")
         .replace(")", "_")

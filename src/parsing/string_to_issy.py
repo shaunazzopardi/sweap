@@ -634,18 +634,21 @@ def process(
                     )
                     print(str(formula))
 
-                    formula = almost_dnf_to_dnf(formula)
-                    if sat(
-                        conjunct(neg(formula), almost_dnf_to_dnf(formula)), symbol_table
-                    ) and sat(
-                        conjunct(formula, neg(almost_dnf_to_dnf(formula))), symbol_table
-                    ):
-                        raise Exception(
-                            "Wrong translation from almost dnf to dnf: "
-                            + str(formula)
-                            + " vs "
-                            + str(almost_dnf_to_dnf(formula))
-                        )
+                    formula = almost_dnf_to_dnf(formula, 3)
+                    if config.Config.getConfig().debug:
+                        if sat(
+                            conjunct(neg(formula), almost_dnf_to_dnf(formula)),
+                            symbol_table,
+                        ) and sat(
+                            conjunct(formula, neg(almost_dnf_to_dnf(formula))),
+                            symbol_table,
+                        ):
+                            raise Exception(
+                                "Wrong translation from almost dnf to dnf: "
+                                + str(formula)
+                                + " vs "
+                                + str(almost_dnf_to_dnf(formula))
+                            )
 
                     # TODO: also handle almost-DNF formulas of form (CONJ & CONJ) & (DISJ | DISJ | ...)
                     if (
