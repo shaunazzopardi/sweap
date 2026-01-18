@@ -632,9 +632,10 @@ def process(
                     print(str(formula))
 
                     # TODO: also handle almost-DNF formulas of form (CONJ & CONJ) & (DISJ | DISJ | ...)
-                    if is_dnf(formula) and any(
-                        v for v in formula.variablesin() if v.is_next()
-                    ):
+                    if (
+                        is_dnf(formula)
+                        or (isinstance(formula, BiOp) and formula.op == "|")
+                    ) and any(v for v in formula.variablesin() if v.is_next()):
                         if isinstance(formula, BiOp) and formula.op == "|":
                             for f in formula.sub_formulas_up_to_associativity():
                                 cond_updates_f = formula_to_transitions(
