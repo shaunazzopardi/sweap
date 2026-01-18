@@ -53,7 +53,13 @@ def ltl_synthesis(synthesis_problem: LTLSynthesisProblem, symbol_table) -> Wrapp
                             out_lines.append(l)
                 else:
                     out_lines = output.split("\n")
-
+                if len(out_lines) < 2:
+                    raise Exception(
+                        f"""Finite synthesis engine did not return any output.
+                        {cmd=}
+                        {output=}
+                        return code={so[0]}
+                        """.replace("\n                        ", "\n"))
                 real = out_lines[0]
                 hoa = "\n".join(out_lines[1:])
             except Exception as err:
