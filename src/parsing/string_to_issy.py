@@ -1437,6 +1437,7 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
                     # TODO: if sum over variables we can deal with this
                     continue
                 if isinstance(val.val, BoolAtoms):
+                    v_to_type[v] = BOOLEAN
                     if val.val == BoolAtoms.TRUE:
                         preds_to_replace[original_p] = var.prev_rep()
                         old_to_new.setdefault(v, set()).add(
@@ -1449,6 +1450,7 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
                         )
                     new_con_props.add(var.prev_rep())
                 else:
+                    v_to_type[v] = INTEGER
                     # here we have assignments to constants, e.g. x' = 0
                     var = Variable("game_con_" + stringify_pred(p).name)
                     preds_to_replace[original_p] = var
@@ -1459,9 +1461,13 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
     more_than_one_update_vars = {
         v: old_to_new[v] for v in old_to_new.keys() if len(old_to_new[v]) > 1
     }
+
     for v, change in more_than_one_update_vars.items():
+        old_vars = list(map(lambda x: x[1], change))
+        if v_to_type[v] == INTEGER:
+            old_vars.append(neg(conjunct_formula_set(old_vars)))
         bin_vars, rep = binary_rep(
-            list(map(lambda x: x[1], change)),
+            old_vars,
             "game_con_" + v.prev_rep().name,
             printing=True,
         )
