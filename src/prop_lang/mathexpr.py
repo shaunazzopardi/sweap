@@ -13,14 +13,18 @@ class MathExpr(Formula):
             if f.op in MathOps or f.op in MathRels:
                 self.formula = f
             else:
-                raise Exception("Unsupported math operator: " + str(f.op))
+                raise Exception(
+                    "Unsupported math operator: " + str(f.op) + " in " + str(f)
+                )
         elif isinstance(f, UniOp):
             if f.op in MathOps:
                 self.formula = f
             else:
-                raise Exception("Unsupported math operator: " + str(f.op))
+                raise Exception(
+                    "Unsupported math operator: " + str(f.op) + " in " + str(f)
+                )
         else:
-            raise Exception("Unsupported math operator: " + str(f.op))
+            raise Exception("Unsupported math operator: " + str(f.op) + " in " + str(f))
         self.formula = f
         self.prev_representation = None
         self.hsh = self.formula.__hash__()

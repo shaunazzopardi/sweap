@@ -101,17 +101,24 @@ GRAMMAR = r"""
         | bool_vals
         | atom
         | '!' boolean_term_issy
+        | '(' @:boolean_term_issy ')'
         ;
 
     bool_vals = 'true' | 'false' | 'TRUE' | 'FALSE' | 'True' | 'False' ;
 
-    math_predicate_issy = '[' (math_predicate_ltl | boolean_term) ']'
+    math_predicate_issy = '[' predicate_issy ']'
                         | issy_keep
                         | math_predicate_ltl;
 
     math_predicate_ltl
         = math_expression_ltl ('>=' | '<=' | '>' | '<' | '==' | '=' | '!=') math_expression_ltl;
 
+    predicate_issy
+        = (math_predicate_ltl)
+        | (boolean_term_ltl) ('>=' | '<=' | '>' | '<' | '==' | '=' | '!=') (boolean_term_ltl)
+        | '(' predicate_issy ')'
+        | atom;
+        
     math_predicate_ltlmt
         = ('lt' | 'le' | 'gt' | 'ge' | 'eq' | 'neq') math_expression_ltlmt math_expression_ltlmt;
 
@@ -141,10 +148,10 @@ GRAMMAR = r"""
         ;
 
     math_0_issy
-        = issy_keep
-        | atom
+        =  '(' @:(math_expression_ltl | boolean_term_ltl) ')'
         | number
-        | '(' @:math_expression_ltl ')'
+        | atom
+        | issy_keep
         ;
     
     issy_keep
@@ -370,11 +377,18 @@ class Semantics:
         else:
             return Value(BoolAtoms.FALSE)
 
+    def predicate_issy(self, ast):
+        if isinstance(ast, Formula):
+            return ast
+        if ast[0] == "(":
+            return ast[1]
+        return BiOp(ast[0], ast[1], ast[2])
+
     def math_predicate_issy(self, ast):
         if isinstance(ast, Formula):
             return ast
-        if len(ast) >= 2 and ast[0] == "[" and isinstance(ast[1], Formula):
-            return ast[1]
+        if len(ast) == 4 and ast[0] == "[":
+            return BiOp(ast[1], ast[2], ast[3])
         if (
             len(ast) >= 3
             and ast[0] == "!"
