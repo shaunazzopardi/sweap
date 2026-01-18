@@ -35,6 +35,7 @@ from prop_lang.uniop import UniOp
 from prop_lang.util import (
     atomic_predicates,
     fnode_to_formula,
+    is_conjunction_of_atoms,
     is_tautology,
     only_dis_or_con_junctions,
     propagate_negations,
@@ -58,6 +59,8 @@ from prop_lang.util import (
     normalize_ltl,
     X,
     stringify_pred,
+    almost_dnf_to_dnf,
+    iff,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -630,6 +633,19 @@ def process(
                         propagate_negations(strip_mathexpr(orig_formula))
                     )
                     print(str(formula))
+
+                    formula = almost_dnf_to_dnf(formula)
+                    if sat(
+                        conjunct(neg(formula), almost_dnf_to_dnf(formula)), symbol_table
+                    ) and sat(
+                        conjunct(formula, neg(almost_dnf_to_dnf(formula))), symbol_table
+                    ):
+                        raise Exception(
+                            "Wrong translation from almost dnf to dnf: "
+                            + str(formula)
+                            + " vs "
+                            + str(almost_dnf_to_dnf(formula))
+                        )
 
                     # TODO: also handle almost-DNF formulas of form (CONJ & CONJ) & (DISJ | DISJ | ...)
                     if (
@@ -1233,6 +1249,9 @@ def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
             continue
         for j in range(i + 1, n):
             t_j = transitions[j]
+            if t_j in found_equiv:
+                continue
+
             cond_j = t_j.condition
             if sat(conjunct(cond_i, cond_j), symbol_table):
                 if sat(conjunct(cond_i, neg(cond_j)), symbol_table) or sat(
@@ -1398,6 +1417,7 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
     preds_to_replace = {}
     new_con_props = set()
     old_to_new = {}
+    v_to_type = {}
 
     preds = atomic_predicates(conjunct_formula_set(trans_in_all_games))
     all_updates = {p for p in preds if any(v for v in p.variablesin() if v.is_next())}
@@ -1496,6 +1516,18 @@ def formula_to_transitions(formula, inputs, symbol_table):
     updates, to_replace = extract_updates_from_formula(formula)
 
     formula = formula.replace_formulas(to_replace)
+
+    if is_conjunction_of_atoms(formula):
+        preds = (
+            formula.sub_formulas_up_to_associativity()
+            if isinstance(formula, BiOp)
+            else [formula]
+        )
+        update_preds = {
+            p for p in preds if any(v for v in p.variablesin() if v.is_next())
+        }
+        cond_preds = conjunct_formula_set(p for p in preds if p not in update_preds)
+        return [(cond_preds, [update_preds])]
 
     # TODO: this can be optimized further by not generating all combinations
     #       but only equality updates, and reduced up to negation
