@@ -61,6 +61,7 @@ from prop_lang.util import (
     stringify_pred,
     almost_dnf_to_dnf,
     iff,
+    cancel_double_negations,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -532,18 +533,19 @@ def process(
     parts_to_sub_programs = []
     states_to_exclude_minigame = {}
     if len(games) == 0:
+        raise Exception("We do not handle ISSY files without game arenas yet.")
         program = Program(
             name_str,
-            {"init"},
-            "init",
+            {"eval"},
+            "eval",
             [(str(v), symbol_table[str(v)]) for v in state_vars],
             [
                 Transition(
-                    "init",
+                    "eval",
                     true(),
                     [BiOp(v, "=", NonDeterministic()) for v in state_vars],
                     [],
-                    "init",
+                    "eval",
                 )
             ],
             [(v, symbol_table[str(v)]) for v in inputs],
@@ -626,7 +628,6 @@ def process(
                 for old_src, orig_formula, old_tgt in transitions:
                     src = state_to_new_state[old_src]
                     tgt = state_to_new_state[old_tgt]
-                    cond_updates = []
                     orig_formula = orig_formula.replace_formulas(macros)
 
                     print(str(orig_formula))
@@ -698,287 +699,16 @@ def process(
                             t.set_predicate_upgrades(predicate_upgrades)
                             raw_transitions[src].append(t)
 
-                new_transitions = []
-                lose_transitions = []
-
-                already_distinguishable = {}
                 # need to detect when transitions from same src have non-mutually exclusive conditions, and in that case
                 # create binary variables to distinguish them, and give them to controller
-                for src, trans in raw_transitions.items():
-                    print("trans: " + "\n".join(map(str, trans)))
-                    equiv_map, sat_map, equiv_parts, _ = condition_choices(
-                        trans, symbol_table
-                    )
-                    new_src_trans = []
-                    equiv_index = 0
-
-                    eq_trigger_to_add = {t: [] for t in trans}
-                    sat_trigger_to_add = {t: [] for t in trans}
-                    for t, equiv_part_minus_t in equiv_map.items():
-                        raw_equiv_triggers = [
-                            Variable("equiv_" + str(no))
-                            for no in range(0, len(equiv_part_minus_t) + 1)
-                        ]
-                        eq_con_events, equiv_binary_map = binary_rep(
-                            raw_equiv_triggers,
-                            "eq_con_" + str(game_index) + "_" + str(equiv_index) + "_",
-                            printing=False,
-                        )
-                        equiv_index += 1
-                        con_vars.update(eq_con_events)
-                        eq_trigger_to_add[t].append(
-                            equiv_binary_map[raw_equiv_triggers[0]]
-                        )
-                        for i, tt in enumerate(equiv_part_minus_t):
-                            eq_trigger_to_add[tt].append(
-                                equiv_binary_map[raw_equiv_triggers[i + 1]]
-                            )
-
-                    # order is important here
-                    # for t = trans[n], sat_map[t] only contains sat tt in trans[n + 1:]
-                    for t in trans:
-                        if t in sat_map.keys():
-                            if len(sat_map[t]) == 0 or t in equiv_parts.keys():
-                                continue
-
-                            ts_to_distinguish = sat_map[t]
-                            if t in equiv_map.keys():
-                                for tt in equiv_map[t]:
-                                    if tt in sat_map.keys():
-                                        sat_map[tt] = [
-                                            _t
-                                            for _t in sat_map[tt]
-                                            if _t not in ts_to_distinguish
-                                        ]
-                                        if len(sat_map[tt]) == 0:
-                                            del sat_map[tt]
-
-                            raw_sat_triggers = [
-                                Variable("sat_" + str(no))
-                                for no in range(0, len(sat_map[t]) + 1)
-                            ]
-                            sat_con_events, sat_binary_map = binary_rep(
-                                raw_sat_triggers,
-                                "sat_con_" + str(game_index) + "_",
-                                printing=False,
-                            )
-                            con_vars.update(sat_con_events)
-
-                            one_of_the_rest = disjunct_formula_set(
-                                {tt.condition for tt in ts_to_distinguish}
-                            )
-
-                            # need to add below trans also to equiv transitions
-                            equiv_to_t = [t]
-                            if t in equiv_map.keys():
-                                equiv_to_t.extend(equiv_map[t])
-                            elif t in equiv_parts.keys():
-                                equiv_to_t.extend(equiv_map[equiv_parts[t]])
-
-                            if len(equiv_to_t) > 1:
-                                if not is_tautology(one_of_the_rest, symbol_table):
-                                    if not sat(
-                                        conjunct(t.condition, neg(one_of_the_rest)),
-                                        symbol_table,
-                                    ):
-                                        for eq_t in equiv_to_t:
-                                            sat_trigger_to_add[eq_t].append(
-                                                sat_binary_map[raw_sat_triggers[0]]
-                                            )
-                                            if debug and not sat(
-                                                conjunct_formula_set(
-                                                    sat_trigger_to_add[eq_t]
-                                                ),
-                                                symbol_table
-                                                | {str(v): BOOLEAN for v in con_vars},
-                                            ):
-                                                raise Exception(
-                                                    "In processing transitions from state "
-                                                    + str(src)
-                                                    + ", could not distinguish transition: \n"
-                                                    + str(t)
-                                                )
-                                    else:
-                                        none_of_the_rest = neg(one_of_the_rest)
-                                        trigger_cond = disjunct(
-                                            none_of_the_rest,
-                                            conjunct(
-                                                one_of_the_rest,
-                                                sat_binary_map[raw_sat_triggers[0]],
-                                            ),
-                                        )
-                                        for eq_t in equiv_to_t:
-                                            sat_trigger_to_add[eq_t].append(
-                                                trigger_cond
-                                            )
-                                else:
-                                    for eq_t in equiv_to_t:
-                                        sat_trigger_to_add[eq_t].append(
-                                            sat_binary_map[raw_sat_triggers[0]]
-                                        )
-                                        if debug and not sat(
-                                            conjunct_formula_set(
-                                                sat_trigger_to_add[eq_t]
-                                            ),
-                                            symbol_table
-                                            | {str(v): BOOLEAN for v in con_vars},
-                                        ):
-                                            raise Exception(
-                                                "In processing transitions from state "
-                                                + str(src)
-                                                + ", could not distinguish transition: \n"
-                                                + str(t)
-                                            )
-
-                            if len(ts_to_distinguish) > 0:
-                                if len(equiv_to_t) == 1:
-                                    sat_trigger_to_add[t].append(
-                                        sat_binary_map[raw_sat_triggers[0]]
-                                    )
-                                for i, tt in enumerate(ts_to_distinguish):
-                                    equiv_to_tt = [tt]
-                                    if tt in equiv_map.keys():
-                                        equiv_to_tt.extend(equiv_map[tt])
-                                    elif tt in equiv_parts.keys():
-                                        equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
-
-                                    one_of_the_rest = disjunct_formula_set(
-                                        {
-                                            ttt.condition
-                                            for ttt in ts_to_distinguish
-                                            if ttt != tt
-                                        }
-                                        | {t.condition}
-                                    )
-                                    if not is_tautology(one_of_the_rest, symbol_table):
-                                        if not sat(
-                                            conjunct(
-                                                tt.condition, neg(one_of_the_rest)
-                                            ),
-                                            symbol_table,
-                                        ):
-                                            for eq_tt in equiv_to_tt:
-                                                sat_trigger_to_add[eq_tt].append(
-                                                    sat_binary_map[
-                                                        raw_sat_triggers[i + 1]
-                                                    ]
-                                                )
-                                                if debug and not sat(
-                                                    conjunct_formula_set(
-                                                        sat_trigger_to_add[eq_tt]
-                                                    ),
-                                                    symbol_table
-                                                    | {
-                                                        str(v): BOOLEAN
-                                                        for v in con_vars
-                                                    },
-                                                ):
-                                                    raise Exception(
-                                                        "In processing transitions from state "
-                                                        + str(src)
-                                                        + ", could not distinguish transition: \n"
-                                                        + str(t)
-                                                    )
-                                        else:
-                                            none_of_the_rest = neg(one_of_the_rest)
-                                            trigger_cond = disjunct(
-                                                none_of_the_rest,
-                                                conjunct(
-                                                    one_of_the_rest,
-                                                    sat_binary_map[
-                                                        raw_sat_triggers[i + 1]
-                                                    ],
-                                                ),
-                                            )
-                                            for eq_tt in equiv_to_tt:
-                                                sat_trigger_to_add[eq_tt].append(
-                                                    trigger_cond
-                                                )
-                                                if debug and not sat(
-                                                    conjunct_formula_set(
-                                                        sat_trigger_to_add[eq_tt]
-                                                    ),
-                                                    symbol_table
-                                                    | {
-                                                        str(v): BOOLEAN
-                                                        for v in con_vars
-                                                    },
-                                                ):
-                                                    raise Exception(
-                                                        "In processing transitions from state "
-                                                        + str(src)
-                                                        + ", could not distinguish transition: \n"
-                                                        + str(t)
-                                                    )
-                                    else:
-                                        for eq_tt in equiv_to_tt:
-                                            sat_trigger_to_add[eq_tt].append(
-                                                sat_binary_map[raw_sat_triggers[i + 1]]
-                                            )
-                                            if debug and not sat(
-                                                conjunct_formula_set(
-                                                    sat_trigger_to_add[eq_tt]
-                                                ),
-                                                symbol_table
-                                                | {str(v): BOOLEAN for v in con_vars},
-                                            ):
-                                                raise Exception(
-                                                    "In processing transitions from state "
-                                                    + str(src)
-                                                    + ", could not distinguish transition: \n"
-                                                    + str(t)
-                                                )
-
-                    for t in trans:
-                        trigger_condition = conjunct_formula_set(
-                            eq_trigger_to_add[t] + sat_trigger_to_add[t]
-                        )
-
-                        new_t = Transition(
-                            t.src,
-                            conjunct(
-                                t.condition,
-                                trigger_condition,
-                            ),
-                            t.action,
-                            [],
-                            t.tgt,
-                        )
-                        new_t.set_predicate_upgrades(t.pred_upgrades)
-                        new_src_trans.append(new_t)
-
-                    new_transitions.extend(new_src_trans)
-                    no_trans_triggered = neg(
-                        disjunct_formula_set(t.condition for t in new_src_trans)
-                    )
-                    if sat(
-                        no_trans_triggered,
-                        symbol_table | {str(v): BOOLEAN for v in con_vars},
-                    ):
-                        locs.add("lose")
-                        lose_var = "lose"
-                        states_to_exclude_minigame[game_index].add("lose")
-                        lose_transitions.append(
-                            Transition(src, no_trans_triggered, [], [], "lose")
-                        )
-
-                    if debug:
-                        for t in new_transitions + lose_transitions:
-                            for tt in new_transitions + lose_transitions:
-                                if t == tt or t.src != tt.src:
-                                    continue
-                                if sat(
-                                    conjunct(t.condition, tt.condition),
-                                    symbol_table | {str(v): BOOLEAN for v in con_vars},
-                                ):
-                                    raise Exception(
-                                        "After processing, transitions from state "
-                                        + str(src)
-                                        + " still have non-distinguishable conditions: \n"
-                                        + str(t)
-                                        + "\n"
-                                        + str(tt)
-                                    )
+                new_transitions, lose_transitions, new_con_vars = determinise(
+                    raw_transitions, game_index, symbol_table
+                )
+                symbol_table.update({str(v): BOOLEAN for v in new_con_vars})
+                con_vars.update(new_con_vars)
+                if len(lose_transitions) > 0:
+                    lose_var = "lose"
+                    states_to_exclude_minigame[game_index].add(lose_var)
                 # Now, we have processed the transitions, and added nondets
                 # we need to build programs
                 # do cross product, while taking into account predicate upgrades, and accordingly add mini-games
@@ -1275,6 +1005,261 @@ def extract_formula_updates(program, formula_objective):
                 to_add_non_det_trans.update(unk_next_vars_in_p)
 
     return preds_to_replace, to_add_non_det_trans, new_con_props
+
+
+def determinise(raw_transitions: dict[str, list[Transition]], game_index, symbol_table):
+    con_vars = set()
+    debug = config.Config.getConfig().debug
+    new_transitions = []
+    lose_transitions = []
+    for src, trans in raw_transitions.items():
+        print("trans: " + "\n".join(map(str, trans)))
+        equiv_map, sat_map, equiv_parts, _ = condition_choices(trans, symbol_table)
+        new_src_trans = []
+        equiv_index = 0
+        sat_index = 0
+
+        eq_trigger_to_add = {t: [] for t in trans}
+        sat_trigger_to_add = {t: [] for t in trans}
+        for t, equiv_part_minus_t in equiv_map.items():
+            raw_equiv_triggers = [
+                Variable("equiv_" + str(no))
+                for no in range(0, len(equiv_part_minus_t) + 1)
+            ]
+            eq_con_events, equiv_binary_map = binary_rep(
+                raw_equiv_triggers,
+                "eq_con_" + str(game_index) + "_" + str(equiv_index) + "_",
+                printing=False,
+            )
+            equiv_index += 1
+            con_vars.update(eq_con_events)
+            eq_trigger_to_add[t].append(equiv_binary_map[raw_equiv_triggers[0]])
+            for i, tt in enumerate(equiv_part_minus_t):
+                eq_trigger_to_add[tt].append(
+                    equiv_binary_map[raw_equiv_triggers[i + 1]]
+                )
+
+        # order is important here
+        # for t = trans[n], sat_map[t] only contains sat tt in trans[n + 1:]
+        for t in trans:
+            if t in sat_map.keys():
+                if len(sat_map[t]) == 0 or t in equiv_parts.keys():
+                    continue
+
+                ts_to_distinguish = set()
+                for _t in sat_map[t]:
+                    if _t in equiv_parts.keys():
+                        ts_to_distinguish.add(equiv_parts[_t])
+                    else:
+                        ts_to_distinguish.add(_t)
+                ts_to_distinguish = list(ts_to_distinguish)
+
+                if debug:
+                    if t in equiv_map.keys():
+                        for tt in equiv_map[t]:
+                            if tt in sat_map.keys():
+                                raise Exception(
+                                    "Later equiv transition also in sat map"
+                                )
+                                # sat_map[tt] = [
+                                #     _t
+                                #     for _t in sat_map[tt]
+                                #     if _t not in ts_to_distinguish
+                                # ]
+                                # if len(sat_map[tt]) == 0:
+                                del sat_map[tt]
+
+                raw_sat_triggers = [
+                    Variable("sat_" + str(no))
+                    for no in range(0, len(ts_to_distinguish) + 1)
+                ]
+                sat_con_events, sat_binary_map = binary_rep(
+                    raw_sat_triggers,
+                    "sat_con_" + str(game_index) + "_" + str(sat_index) + "_",
+                    printing=False,
+                )
+                sat_index += 1
+                con_vars.update(sat_con_events)
+
+                one_of_the_rest = disjunct_formula_set(
+                    {tt.condition for tt in ts_to_distinguish}
+                )
+
+                # need to add below trans also to equiv transitions
+                equiv_to_t = [t]
+                if t in equiv_map.keys():
+                    equiv_to_t.extend(equiv_map[t])
+                elif t in equiv_parts.keys():
+                    equiv_to_t.extend(equiv_map[equiv_parts[t]])
+
+                if len(equiv_to_t) > 1:
+                    if not is_tautology(one_of_the_rest, symbol_table):
+                        if not sat(
+                            conjunct(t.condition, neg(one_of_the_rest)),
+                            symbol_table,
+                        ):
+                            for eq_t in equiv_to_t:
+                                sat_trigger_to_add[eq_t].append(
+                                    sat_binary_map[raw_sat_triggers[0]]
+                                )
+                                if debug and not sat(
+                                    conjunct_formula_set(sat_trigger_to_add[eq_t]),
+                                    symbol_table | {str(v): BOOLEAN for v in con_vars},
+                                ):
+                                    raise Exception(
+                                        "In processing transitions from state "
+                                        + str(src)
+                                        + ", could not distinguish transition: \n"
+                                        + str(t)
+                                    )
+                        else:
+                            none_of_the_rest = neg(one_of_the_rest)
+                            trigger_cond = disjunct(
+                                none_of_the_rest,
+                                conjunct(
+                                    one_of_the_rest,
+                                    sat_binary_map[raw_sat_triggers[0]],
+                                ),
+                            )
+                            for eq_t in equiv_to_t:
+                                sat_trigger_to_add[eq_t].append(trigger_cond)
+                    else:
+                        for eq_t in equiv_to_t:
+                            sat_trigger_to_add[eq_t].append(
+                                sat_binary_map[raw_sat_triggers[0]]
+                            )
+                            if debug and not sat(
+                                conjunct_formula_set(sat_trigger_to_add[eq_t]),
+                                symbol_table | {str(v): BOOLEAN for v in con_vars},
+                            ):
+                                raise Exception(
+                                    "In processing transitions from state "
+                                    + str(src)
+                                    + ", could not distinguish transition: \n"
+                                    + str(t)
+                                )
+
+                if len(ts_to_distinguish) > 0:
+                    if len(equiv_to_t) == 1:
+                        sat_trigger_to_add[t].append(
+                            sat_binary_map[raw_sat_triggers[0]]
+                        )
+                    for i, tt in enumerate(ts_to_distinguish):
+                        equiv_to_tt = [tt]
+                        if tt in equiv_map.keys():
+                            equiv_to_tt.extend(equiv_map[tt])
+                        elif tt in equiv_parts.keys():
+                            equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
+
+                        one_of_the_rest = disjunct_formula_set(
+                            {ttt.condition for ttt in ts_to_distinguish if ttt != tt}
+                            | {t.condition}
+                        )
+                        if not is_tautology(one_of_the_rest, symbol_table):
+                            if not sat(
+                                conjunct(tt.condition, neg(one_of_the_rest)),
+                                symbol_table,
+                            ):
+                                for eq_tt in equiv_to_tt:
+                                    sat_trigger_to_add[eq_tt].append(
+                                        sat_binary_map[raw_sat_triggers[i + 1]]
+                                    )
+                                    if debug and not sat(
+                                        conjunct_formula_set(sat_trigger_to_add[eq_tt]),
+                                        symbol_table
+                                        | {str(v): BOOLEAN for v in con_vars},
+                                    ):
+                                        raise Exception(
+                                            "In processing transitions from state "
+                                            + str(src)
+                                            + ", could not distinguish transition: \n"
+                                            + str(t)
+                                        )
+                            else:
+                                none_of_the_rest = neg(one_of_the_rest)
+                                trigger_cond = disjunct(
+                                    none_of_the_rest,
+                                    conjunct(
+                                        one_of_the_rest,
+                                        sat_binary_map[raw_sat_triggers[i + 1]],
+                                    ),
+                                )
+                                for eq_tt in equiv_to_tt:
+                                    sat_trigger_to_add[eq_tt].append(trigger_cond)
+                                    if debug and not sat(
+                                        conjunct_formula_set(sat_trigger_to_add[eq_tt]),
+                                        symbol_table
+                                        | {str(v): BOOLEAN for v in con_vars},
+                                    ):
+                                        raise Exception(
+                                            "In processing transitions from state "
+                                            + str(src)
+                                            + ", could not distinguish transition: \n"
+                                            + str(t)
+                                        )
+                        else:
+                            for eq_tt in equiv_to_tt:
+                                sat_trigger_to_add[eq_tt].append(
+                                    sat_binary_map[raw_sat_triggers[i + 1]]
+                                )
+                                if debug and not sat(
+                                    conjunct_formula_set(sat_trigger_to_add[eq_tt]),
+                                    symbol_table | {str(v): BOOLEAN for v in con_vars},
+                                ):
+                                    raise Exception(
+                                        "In processing transitions from state "
+                                        + str(src)
+                                        + ", could not distinguish transition: \n"
+                                        + str(t)
+                                    )
+
+        for t in trans:
+            trigger_condition = conjunct_formula_set(
+                eq_trigger_to_add[t] + sat_trigger_to_add[t]
+            )
+
+            new_t = Transition(
+                t.src,
+                conjunct(
+                    t.condition,
+                    trigger_condition,
+                ),
+                t.action,
+                [],
+                t.tgt,
+            )
+            new_t.set_predicate_upgrades(t.pred_upgrades)
+            new_src_trans.append(new_t)
+
+        new_transitions.extend(new_src_trans)
+        no_trans_triggered = neg(
+            disjunct_formula_set(t.condition for t in new_src_trans)
+        )
+        if sat(
+            no_trans_triggered,
+            symbol_table | {str(v): BOOLEAN for v in con_vars},
+        ):
+            lose_transitions.append(Transition(src, no_trans_triggered, [], [], "lose"))
+
+        if debug:
+            for t in new_transitions + lose_transitions:
+                for tt in new_transitions + lose_transitions:
+                    if t == tt or t.src != tt.src:
+                        continue
+                    if sat(
+                        conjunct(t.condition, tt.condition),
+                        symbol_table | {str(v): BOOLEAN for v in con_vars},
+                    ):
+                        raise Exception(
+                            "After processing, transitions from state "
+                            + str(src)
+                            + " still have non-distinguishable conditions: \n"
+                            + str(t)
+                            + "\n"
+                            + str(tt)
+                        )
+
+    return new_transitions, lose_transitions, con_vars
 
 
 def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
@@ -1620,23 +1605,14 @@ def formula_to_transitions(formula, inputs, symbol_table):
         else:
             # TODO: this can be optimized further by not generating all combinations
             #       but only equality updates, and reduced up to negation
-            update_list = list(updates)
-            if len(updates) == 0:
-                results.append((d, frozenset([])))
-            update_combinations = handle_update_partition(updates, symbol_table)
-            # update_combinations = powerset(update_list)
-            print("Number of update combinations: " + str(len(update_combinations)))
+            results.extend(
+                generate_update_combinations(d, updates, inputs, symbol_table)
+            )
 
-            with Pool(config.Config.getConfig().workers) as pool:
-                rs = pool.map(
-                    handle_update_combination,
-                    [
-                        (combination, d, update_list, inputs, symbol_table)
-                        for combination in update_combinations
-                    ],
-                )
-            results.extend(rs)
+    return process_cond_updates(results, inputs, symbol_table)
 
+
+def process_cond_updates(results, inputs, symbol_table):
     trans = {}
     cond_to_u = {}
     for r in results:
@@ -1717,6 +1693,25 @@ def formula_to_transitions(formula, inputs, symbol_table):
         )
 
     return results
+
+
+def generate_update_combinations(cond, updates, inputs, symbol_table):
+    update_list = list(updates)
+    if len(updates) == 0:
+        return [(cond, frozenset([]))]
+    update_combinations = handle_update_partition(updates, symbol_table)
+    # update_combinations = powerset(update_list)
+    print("Number of update combinations: " + str(len(update_combinations)))
+
+    with Pool(config.Config.getConfig().workers) as pool:
+        rs = pool.map(
+            handle_update_combination,
+            [
+                (combination, cond, update_list, inputs, symbol_table)
+                for combination in update_combinations
+            ],
+        )
+    return rs
 
 
 def add_pred_upgrades_as_conds(us):
@@ -1903,7 +1898,7 @@ def clean_updates(
     # then we keep only of them: if there is one with input vars, keep the one with least input vars
     # else keep the one with the least vars on the RHS
     eq_updates: dict[Variable, set[Formula]] = {}
-    updates = [strip_mathexpr(u) for u in updates]
+    updates = [cancel_double_negations(strip_mathexpr(u)) for u in updates]
     for u in updates:
         if isinstance(u, BiOp) and u.op == "=":
             left = u.left

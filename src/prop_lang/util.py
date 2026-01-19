@@ -886,6 +886,25 @@ def type_constraint(variable, symbol_table):
         raise Exception(f"{str(variable)} not a variable.")
 
 
+def cancel_double_negations(formula: Formula):
+    if isinstance(formula, UniOp):
+        if formula.op == "!":
+            if isinstance(formula.right, UniOp) and formula.right.op == "!":
+                return cancel_double_negations(formula.right.right)
+            else:
+                return UniOp("!", cancel_double_negations(formula.right))
+        else:
+            return UniOp(formula.op, cancel_double_negations(formula.right))
+    elif isinstance(formula, BiOp):
+        return BiOp(
+            cancel_double_negations(formula.left),
+            formula.op,
+            cancel_double_negations(formula.right),
+        )
+    else:
+        return formula
+
+
 def propagate_negations(formula: Formula):
     if isinstance(formula, UniOp):
         if formula.op == "!":
@@ -1185,7 +1204,13 @@ def almost_dnf_to_dnf(formula, depth):
             disjuncts = []
             for f in formula.sub_formulas_up_to_associativity():
                 if isinstance(f, BiOp) and f.op == "|":
-                    disjuncts.append([d for d in f.sub_formulas_up_to_associativity() if d != false()])
+                    disjuncts.append(
+                        [
+                            d
+                            for d in f.sub_formulas_up_to_associativity()
+                            if d != false()
+                        ]
+                    )
                 else:
                     new_conjuncts.append(f)
             if len(disjuncts) == 0:
@@ -1196,9 +1221,7 @@ def almost_dnf_to_dnf(formula, depth):
                 new_disj = conjunct_formula_set(list(combination) + new_conjuncts)
                 if depth > 0:
                     new_disj = almost_dnf_to_dnf(new_disj, depth - 1)
-                new_disjuncts.append(
-                    new_disj
-                )
+                new_disjuncts.append(new_disj)
             return disjunct_formula_set(new_disjuncts)
         else:
             return formula

@@ -48,6 +48,7 @@ class Transition:
                 and self.condition == other.condition
                 and frozenset(self.action) == frozenset(other.action)
                 and frozenset(self.output) == frozenset(other.output)
+                and frozenset(self.pred_upgrades) == frozenset(other.pred_upgrades)
             )
         return NotImplemented
 
