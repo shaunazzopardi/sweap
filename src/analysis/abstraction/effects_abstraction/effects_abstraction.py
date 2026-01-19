@@ -661,7 +661,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     new_init_abs.append(m_with_p)
                 else:
                     matters = True
-        if config.Config.getConfig().dual and matters:
+        if config.Config.getConfig().dual or matters:
             return new_init_abs
         else:
             return self.init_state_abstraction
@@ -683,7 +683,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     new_init_abs.append(m_with_p)
                 else:
                     matters = True
-        if not config.Config.getConfig().dual and matters:
+        if config.Config.getConfig().dual or matters:
             return new_init_abs
         else:
             return self.init_state_abstraction
