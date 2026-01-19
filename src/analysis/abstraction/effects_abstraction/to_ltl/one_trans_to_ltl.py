@@ -218,10 +218,9 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     init_transition_ltl = disjunct_formula_set(set(init_transition_ltl))
 
     abs = (
-        [init_explicit_state]
-        + init_constants
-        # + ([init_transition_ltl] if not env_lose else [])
+        [conjunct_formula_set([init_explicit_state] + init_constants)]
         + _transition_ltl
+        # + ([init_transition_ltl] if not env_lose else [])
     )
 
     return None, abs, init
