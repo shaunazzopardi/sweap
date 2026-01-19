@@ -7,6 +7,7 @@ assume {
 
 always assume {
     (eq success i0()) || (eq success i1())
+    (ge enc_cnt i0())
 }
 
 always guarantee {
