@@ -1131,21 +1131,23 @@ def compute_abstract_effect_for_guard_update(arg):
         us_part_effects_joined, curr_preds = join_parts(
             effects, list(old_parts), old_us_part_to_pred
         )
-        us_part_effects = update_effects(
-            us_part_effects_joined,
-            us_part,
-            gu,
-            curr_preds,
-            new_preds,
-            partitions,
-            v_to_partition,
-            v_to_preds,
-            ignore_in_nows,
-            ignore_in_nexts,
-            symbol_table,
-        )
-
-        new_effects[us_part] = us_part_effects
+        if any(u for u in us_part if u.left != u.right):
+            us_part_effects = update_effects(
+                us_part_effects_joined,
+                us_part,
+                gu,
+                curr_preds,
+                new_preds,
+                partitions,
+                v_to_partition,
+                v_to_preds,
+                ignore_in_nows,
+                ignore_in_nexts,
+                symbol_table,
+            )
+            new_effects[us_part] = us_part_effects
+        else:
+            new_effects[us_part] = us_part_effects_joined
         new_us_part_to_pred[us_part] = curr_preds
         all_relevant_next_preds.update(curr_preds[1])
         init_nows.extend(curr_preds[0])
