@@ -11,8 +11,8 @@ assume {
 }
 
 always assume {
-    (eq success i0()) || (eq success i1())
-    (gte enc_cnt i0())
+    (eq success i0()) || (eq success i1());
+    (gte env_cnt i0())
 }
 
 always guarantee {
