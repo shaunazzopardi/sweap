@@ -1,7 +1,7 @@
 var Int i_x
 var Int i_y
 var Int i_resource
-var Int Loc
+var Int loc
 
 inp Int i_ntx
 inp Int i_nty
