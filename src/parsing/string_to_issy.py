@@ -1616,13 +1616,13 @@ def formula_to_transitions(formula, inputs, symbol_table):
                 p for p in preds if any(v for v in p.variablesin() if v.is_next())
             }
             cond_preds = conjunct_formula_set(p for p in preds if p not in update_preds)
-            results.append((cond_preds, true(), frozenset(update_preds)))
+            results.append((cond_preds, frozenset(update_preds)))
         else:
             # TODO: this can be optimized further by not generating all combinations
             #       but only equality updates, and reduced up to negation
             update_list = list(updates)
             if len(updates) == 0:
-                results.append((d, true(), frozenset([])))
+                results.append((d, frozenset([])))
             update_combinations = handle_update_partition(updates, symbol_table)
             # update_combinations = powerset(update_list)
             print("Number of update combinations: " + str(len(update_combinations)))
@@ -1642,8 +1642,11 @@ def formula_to_transitions(formula, inputs, symbol_table):
     for r in results:
         if r is None:
             continue
-        cond, new_cond, u = r
-        cond_to_u.setdefault(cond, set()).add((u, new_cond))
+        cond, u = r
+        if not sat(cond, symbol_table):
+            continue
+        new_cond, new_u = clean_updates(u, inputs, symbol_table)
+        cond_to_u.setdefault(cond, set()).add((new_u, new_cond))
 
     for cond, us in trans.items():
         if len(us) > 1:
@@ -1875,7 +1878,8 @@ def handle_update_combination(arg):
             conjunct(
                 new_f,
                 conjunct_formula_set(
-                    set(combination) | {neg(u) for u in update_list if u not in combination}
+                    set(combination)
+                    | {neg(u) for u in update_list if u not in combination}
                 ),
             ),
             formula,
@@ -1884,11 +1888,10 @@ def handle_update_combination(arg):
     ):
         return None
     dnfed_new_f = dnf(new_f, symbol_table)
-    new_cond, new_comb = clean_updates(combination, inputs, symbol_table)
     # if new_cond:
     #     dnfed_new_f = conjunct(new_cond, dnfed_new_f)
 
-    return dnfed_new_f, new_cond, new_comb
+    return dnfed_new_f, frozenset(combination)
 
 
 def clean_updates(
@@ -1900,6 +1903,7 @@ def clean_updates(
     # then we keep only of them: if there is one with input vars, keep the one with least input vars
     # else keep the one with the least vars on the RHS
     eq_updates: dict[Variable, set[Formula]] = {}
+    updates = [strip_mathexpr(u) for u in updates]
     for u in updates:
         if isinstance(u, BiOp) and u.op == "=":
             left = u.left
@@ -1926,6 +1930,7 @@ def clean_updates(
             ret = quantifier_elimination(quant_formula)
             rett = fnode_to_formula(ret)
             new_conds.append(rett)
+
             reduced_us = [
                 u
                 for u in us
