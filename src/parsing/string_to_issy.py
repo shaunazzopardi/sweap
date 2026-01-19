@@ -1384,9 +1384,9 @@ def normalise_update(f):
         updates.append(BiOp(u, "=", true()))
         updates.append(BiOp(u, "=", false()))
         to_replace[u] = BiOp(u, "=", true())
-        to_replace[neg(u)] = BiOp(u, "=", true())
+        to_replace[neg(u)] = BiOp(u, "=", false())
     elif isinstance(u, UniOp):
-        return normalise_update(u.right)
+        return normalise_update(u)
     elif isinstance(u, BiOp):
         if (
             isinstance(u.left, Variable)
@@ -1599,7 +1599,16 @@ def formula_to_transitions(formula, inputs, symbol_table):
     results = []
     for d in disjuncts:
         updates, to_replace = extract_updates_from_formula(d)
-        d = d.replace_formulas(to_replace)
+        new_d = d.replace_formulas(to_replace)
+        if config.Config.getConfig().debug:
+            if not is_tautology(iff(new_d, d), symbol_table):
+                raise Exception(
+                    "Update extraction produced non-equivalent formula.\n\n"
+                    + str(d)
+                    + "\n vs \n"
+                    + str(new_d)
+                )
+        d = new_d
 
         if is_conjunction_of_atoms(d):
             preds = d.sub_formulas_up_to_associativity() if isinstance(d, BiOp) else [d]
