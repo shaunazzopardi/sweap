@@ -1060,7 +1060,10 @@ def program_cross_product(
 
             left_to_u = {}
             # sorting ensures deterministic choice for which update to add to combined condition
-            combined_actions = sorted(combined_actions, key=lambda x: str(x))
+            # preferring to keep updates with less variables in case of conflict
+            combined_actions = sorted(
+                combined_actions, key=lambda x: len(x.variablesin())
+            )
             for u in combined_actions:
                 if u.left in left_to_u.keys():
                     # conflict, keep deterministic one
