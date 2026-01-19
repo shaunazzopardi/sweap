@@ -11,7 +11,7 @@ from pysmt.typing import INT
 
 from analysis.smt_checker import bdd_simplify, quantifier_elimination
 import config
-from parsing.string_to_ltlmt import massage_ltl
+from parsing.string_to_ltlmt import massage_ltl, partition_updates, update_combinations
 from parsing.string_to_rpg import parity_objective
 from programs.program import Program, program_cross_product, fill_in_minigames
 from programs.transition import Transition
@@ -35,6 +35,7 @@ from prop_lang.uniop import UniOp
 from prop_lang.util import (
     atomic_predicates,
     fnode_to_formula,
+    is_conjunction_of_atoms,
     is_tautology,
     only_dis_or_con_junctions,
     propagate_negations,
@@ -56,6 +57,10 @@ from prop_lang.util import (
     is_dnf,
     is_contradictory,
     normalize_ltl,
+    X,
+    stringify_pred,
+    almost_dnf_to_dnf,
+    iff,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -486,6 +491,7 @@ def process(
     # process vars
     # build symbol table
     # separate inputs and state vars
+    debug = config.Config.getConfig().debug
     inputs = []
     state_vars = []
     next_state_vars = []
@@ -501,9 +507,6 @@ def process(
     for a in formula_objectives:
         preds = atomic_predicates(a)
         to_replace = {}
-        for p in preds:
-            if any(v for v in p.variablesin() if v.is_next()):
-                to_replace[p] = p.prev_rep()
         if len(to_replace.keys()) > 0:
             formula_objectives.append(a.replace_formulas(to_replace))
         else:
@@ -552,6 +555,16 @@ def process(
         parts_to_sub_programs.append((program, objective, losing_states))
     else:
         game_parts = independent_games(inputs + state_vars, games)
+
+        # TODO:
+        #   get all predicates in each game transition
+        #   filter out updates
+        #   filter out updates that are only ever assigned values
+        #   and are never used in normal predicates in the game, or in the formula
+        #   then we turn these into boolean propositions an give them to controller directly
+        #   this can be done at level of program too in general,
+        #   but doing it here reduces update combination explosion
+
         for i, game_part in enumerate(game_parts):
             # process games separately, treat common variables as internal state vars
             # problem: program will complete action sets automatically
@@ -561,6 +574,14 @@ def process(
             # this triggers adding mini-game to set x to any value.
             # and x := cond(x), such that mini-game always ends in a state with cond(x) true
             # NOTE: if unset var not used in guard then no need to add mini-game
+
+            all_trans_conds = [t[1] for g in game_part for t in g[3]]
+            updates_to_con_props, new_con_props = booleanise_strict_updates(
+                all_trans_conds, formula_objectives
+            )
+            symbol_table.update({str(v): BOOLEAN for v in new_con_props})
+            con_vars.update(new_con_props)
+
             for game in game_part:
                 game_index = len(parts_to_sub_programs)
                 states_to_exclude_minigame[game_index] = set()
@@ -569,12 +590,31 @@ def process(
 
                 marked_states = {}
                 locs = set()
+                state_to_new_state = {}
                 for v, kind, type in locs_in_game:
-                    locs.add(v.name)
+                    new_state = "game_" + str(game_index) + "_state_" + v.name
+                    state_to_new_state[v.name] = new_state
+                    locs.add(new_state)
                     if type in marked_states.keys():
-                        marked_states[type].append(v)
+                        marked_states[type].append(Variable(new_state))
                     else:
-                        marked_states[type] = [v]
+                        marked_states[type] = [Variable(new_state)]
+
+                init = state_to_new_state[init]
+
+                raw_transitions = {
+                    state_to_new_state[src]: [] for src, _, _ in transitions
+                }
+                transitions = [
+                    (
+                        src,
+                        f.replace_formulas(macros).replace_formulas(
+                            updates_to_con_props
+                        ),
+                        tgt,
+                    )
+                    for src, f, tgt in transitions
+                ]
 
                 vars_in_game = {
                     v if not v.is_next() else v.prev_rep()
@@ -582,9 +622,10 @@ def process(
                     for v in f.variablesin()
                     if v not in inputs
                 }
-
-                raw_transitions = {src: [] for src, _, _ in transitions}
-                for src, orig_formula, tgt in transitions:
+                vars_in_game.difference_update(con_vars)
+                for old_src, orig_formula, old_tgt in transitions:
+                    src = state_to_new_state[old_src]
+                    tgt = state_to_new_state[old_tgt]
                     cond_updates = []
                     orig_formula = orig_formula.replace_formulas(macros)
 
@@ -593,24 +634,7 @@ def process(
                         propagate_negations(strip_mathexpr(orig_formula))
                     )
                     print(str(formula))
-
-                    if is_dnf(formula) and any(
-                        v for v in formula.variablesin() if v.is_next()
-                    ):
-                        if isinstance(formula, BiOp) and formula.op == "|":
-                            for f in formula.sub_formulas_up_to_associativity():
-                                cond_updates_f = formula_to_transitions(
-                                    f, inputs, symbol_table
-                                )
-                                cond_updates.extend(cond_updates_f)
-                        else:
-                            cond_updates = formula_to_transitions(
-                                formula, inputs, symbol_table
-                            )
-                    else:
-                        cond_updates = formula_to_transitions(
-                            formula, inputs, symbol_table
-                        )
+                    cond_updates = formula_to_transitions(formula, inputs, symbol_table)
 
                     for res in cond_updates:
                         if res is None:
@@ -751,74 +775,159 @@ def process(
                             elif t in equiv_parts.keys():
                                 equiv_to_t.extend(equiv_map[equiv_parts[t]])
 
-                            if not is_tautology(one_of_the_rest, symbol_table):
-                                if not sat(
-                                    conjunct(t.condition, neg(one_of_the_rest)),
-                                    symbol_table,
-                                ):
-                                    for eq_t in equiv_to_t:
-                                        sat_trigger_to_add[eq_t].append(
-                                            sat_binary_map[raw_sat_triggers[0]]
-                                        )
-                                else:
-                                    none_of_the_rest = neg(one_of_the_rest)
-                                    trigger_cond = disjunct(
-                                        none_of_the_rest,
-                                        conjunct(
-                                            one_of_the_rest,
-                                            sat_binary_map[raw_sat_triggers[0]],
-                                        ),
-                                    )
-                                    for eq_t in equiv_to_t:
-                                        sat_trigger_to_add[eq_t].append(trigger_cond)
-                            else:
-                                for eq_t in equiv_to_t:
-                                    sat_trigger_to_add[eq_t].append(
-                                        sat_binary_map[raw_sat_triggers[0]]
-                                    )
-
-                            for i, tt in enumerate(ts_to_distinguish):
-                                equiv_to_tt = [tt]
-                                if tt in equiv_map.keys():
-                                    equiv_to_tt.extend(equiv_map[tt])
-                                elif tt in equiv_parts.keys():
-                                    equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
-
-                                one_of_the_rest = disjunct_formula_set(
-                                    {
-                                        ttt.condition
-                                        for ttt in ts_to_distinguish
-                                        if ttt != tt
-                                    }
-                                    | {t.condition}
-                                )
+                            if len(equiv_to_t) > 1:
                                 if not is_tautology(one_of_the_rest, symbol_table):
                                     if not sat(
-                                        conjunct(tt.condition, neg(one_of_the_rest)),
+                                        conjunct(t.condition, neg(one_of_the_rest)),
                                         symbol_table,
                                     ):
-                                        for eq_tt in equiv_to_tt:
-                                            sat_trigger_to_add[eq_tt].append(
-                                                sat_binary_map[raw_sat_triggers[i + 1]]
+                                        for eq_t in equiv_to_t:
+                                            sat_trigger_to_add[eq_t].append(
+                                                sat_binary_map[raw_sat_triggers[0]]
                                             )
+                                            if debug and not sat(
+                                                conjunct_formula_set(
+                                                    sat_trigger_to_add[eq_t]
+                                                ),
+                                                symbol_table
+                                                | {str(v): BOOLEAN for v in con_vars},
+                                            ):
+                                                raise Exception(
+                                                    "In processing transitions from state "
+                                                    + str(src)
+                                                    + ", could not distinguish transition: \n"
+                                                    + str(t)
+                                                )
                                     else:
                                         none_of_the_rest = neg(one_of_the_rest)
                                         trigger_cond = disjunct(
                                             none_of_the_rest,
                                             conjunct(
                                                 one_of_the_rest,
-                                                sat_binary_map[raw_sat_triggers[i + 1]],
+                                                sat_binary_map[raw_sat_triggers[0]],
                                             ),
                                         )
-                                        for eq_tt in equiv_to_tt:
-                                            sat_trigger_to_add[eq_tt].append(
+                                        for eq_t in equiv_to_t:
+                                            sat_trigger_to_add[eq_t].append(
                                                 trigger_cond
                                             )
                                 else:
-                                    for eq_tt in equiv_to_tt:
-                                        sat_trigger_to_add[eq_tt].append(
-                                            sat_binary_map[raw_sat_triggers[i + 1]]
+                                    for eq_t in equiv_to_t:
+                                        sat_trigger_to_add[eq_t].append(
+                                            sat_binary_map[raw_sat_triggers[0]]
                                         )
+                                        if debug and not sat(
+                                            conjunct_formula_set(
+                                                sat_trigger_to_add[eq_t]
+                                            ),
+                                            symbol_table
+                                            | {str(v): BOOLEAN for v in con_vars},
+                                        ):
+                                            raise Exception(
+                                                "In processing transitions from state "
+                                                + str(src)
+                                                + ", could not distinguish transition: \n"
+                                                + str(t)
+                                            )
+
+                            if len(ts_to_distinguish) > 0:
+                                if len(equiv_to_t) == 1:
+                                    sat_trigger_to_add[t].append(
+                                        sat_binary_map[raw_sat_triggers[0]]
+                                    )
+                                for i, tt in enumerate(ts_to_distinguish):
+                                    equiv_to_tt = [tt]
+                                    if tt in equiv_map.keys():
+                                        equiv_to_tt.extend(equiv_map[tt])
+                                    elif tt in equiv_parts.keys():
+                                        equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
+
+                                    one_of_the_rest = disjunct_formula_set(
+                                        {
+                                            ttt.condition
+                                            for ttt in ts_to_distinguish
+                                            if ttt != tt
+                                        }
+                                        | {t.condition}
+                                    )
+                                    if not is_tautology(one_of_the_rest, symbol_table):
+                                        if not sat(
+                                            conjunct(
+                                                tt.condition, neg(one_of_the_rest)
+                                            ),
+                                            symbol_table,
+                                        ):
+                                            for eq_tt in equiv_to_tt:
+                                                sat_trigger_to_add[eq_tt].append(
+                                                    sat_binary_map[
+                                                        raw_sat_triggers[i + 1]
+                                                    ]
+                                                )
+                                                if debug and not sat(
+                                                    conjunct_formula_set(
+                                                        sat_trigger_to_add[eq_tt]
+                                                    ),
+                                                    symbol_table
+                                                    | {
+                                                        str(v): BOOLEAN
+                                                        for v in con_vars
+                                                    },
+                                                ):
+                                                    raise Exception(
+                                                        "In processing transitions from state "
+                                                        + str(src)
+                                                        + ", could not distinguish transition: \n"
+                                                        + str(t)
+                                                    )
+                                        else:
+                                            none_of_the_rest = neg(one_of_the_rest)
+                                            trigger_cond = disjunct(
+                                                none_of_the_rest,
+                                                conjunct(
+                                                    one_of_the_rest,
+                                                    sat_binary_map[
+                                                        raw_sat_triggers[i + 1]
+                                                    ],
+                                                ),
+                                            )
+                                            for eq_tt in equiv_to_tt:
+                                                sat_trigger_to_add[eq_tt].append(
+                                                    trigger_cond
+                                                )
+                                                if debug and not sat(
+                                                    conjunct_formula_set(
+                                                        sat_trigger_to_add[eq_tt]
+                                                    ),
+                                                    symbol_table
+                                                    | {
+                                                        str(v): BOOLEAN
+                                                        for v in con_vars
+                                                    },
+                                                ):
+                                                    raise Exception(
+                                                        "In processing transitions from state "
+                                                        + str(src)
+                                                        + ", could not distinguish transition: \n"
+                                                        + str(t)
+                                                    )
+                                    else:
+                                        for eq_tt in equiv_to_tt:
+                                            sat_trigger_to_add[eq_tt].append(
+                                                sat_binary_map[raw_sat_triggers[i + 1]]
+                                            )
+                                            if debug and not sat(
+                                                conjunct_formula_set(
+                                                    sat_trigger_to_add[eq_tt]
+                                                ),
+                                                symbol_table
+                                                | {str(v): BOOLEAN for v in con_vars},
+                                            ):
+                                                raise Exception(
+                                                    "In processing transitions from state "
+                                                    + str(src)
+                                                    + ", could not distinguish transition: \n"
+                                                    + str(t)
+                                                )
 
                     for t in trans:
                         trigger_condition = conjunct_formula_set(
@@ -853,22 +962,23 @@ def process(
                             Transition(src, no_trans_triggered, [], [], "lose")
                         )
 
-                    for t in new_transitions + lose_transitions:
-                        for tt in new_transitions + lose_transitions:
-                            if t == tt or t.src != tt.src:
-                                continue
-                            if sat(
-                                conjunct(t.condition, tt.condition),
-                                symbol_table | {str(v): BOOLEAN for v in con_vars},
-                            ):
-                                raise Exception(
-                                    "After processing, transitions from state "
-                                    + str(src)
-                                    + " still have non-distinguishable conditions: \n"
-                                    + str(t)
-                                    + "\n"
-                                    + str(tt)
-                                )
+                    if debug:
+                        for t in new_transitions + lose_transitions:
+                            for tt in new_transitions + lose_transitions:
+                                if t == tt or t.src != tt.src:
+                                    continue
+                                if sat(
+                                    conjunct(t.condition, tt.condition),
+                                    symbol_table | {str(v): BOOLEAN for v in con_vars},
+                                ):
+                                    raise Exception(
+                                        "After processing, transitions from state "
+                                        + str(src)
+                                        + " still have non-distinguishable conditions: \n"
+                                        + str(t)
+                                        + "\n"
+                                        + str(tt)
+                                    )
                 # Now, we have processed the transitions, and added nondets
                 # we need to build programs
                 # do cross product, while taking into account predicate upgrades, and accordingly add mini-games
@@ -884,8 +994,9 @@ def process(
                     [(v, symbol_table[str(v)]) for v in inputs],
                     [(v, BOOLEAN) for v in con_vars],
                 )
-
                 print(program.to_prog(""))
+                if not program.deterministic:
+                    raise Exception("Program from ISSY parsing is not deterministic.")
 
                 marked_states = {
                     i: {ss for ss in s if str(ss) in program.states}
@@ -1003,6 +1114,38 @@ def process(
         config.Config.getConfig().dual = old_dual
         print(str(config.Config.getConfig().dual))
 
+    preds_to_replace_in_ltl, non_det_v, new_con_props = extract_formula_updates(
+        program, conjunct_formula_set(formula_objectives)
+    )
+    if len(non_det_v) > 0:
+        new_trans = []
+        for t in program.transitions:
+            new_actions = t.action
+            for v in non_det_v:
+                new_actions.append(BiOp(v.prev_rep(), "=", NonDeterministic()))
+            new_t = Transition(t.src, t.condition, new_actions, t.outputs, t.tgt)
+            new_trans.append(new_t)
+        program.transitions = new_trans
+
+    new_formula_objectives = []
+    for o in formula_objectives:
+        new_o = o.replace_formulas(preds_to_replace_in_ltl)
+        preds_in_new_o = atomic_predicates(new_o)
+        to_project_into_next = {}
+        for p in preds_in_new_o:
+            if any(v for v in p.variablesin() if v.is_next()):
+                to_project_into_next[p] = X(p.prev_rep())
+        new_o = new_o.replace_formulas(to_project_into_next)
+        new_formula_objectives.append(new_o)
+    formula_objectives = new_formula_objectives
+
+    to_replace.update(preds_to_replace_in_ltl)
+
+    if len(new_con_props) > 0:
+        for v in new_con_props:
+            program.symbol_table[str(v)] = BOOLEAN
+            program.con_events.append((v, BOOLEAN))
+
     # we do not need to add minigames at some states:
     # if goal is safety: no need to add minigames at unsafe states
     # (not handled yet) if goal is reachability: no need to add minigames from states that cannot reach goal
@@ -1076,6 +1219,64 @@ def process(
     return program, new_objective
 
 
+def extract_formula_updates(program, formula_objective):
+    preds_to_replace = {}
+    to_add_non_det_trans = set()
+    new_con_props = set()
+
+    preds = atomic_predicates(formula_objective)
+    for p in preds:
+        p = strip_mathexpr(p)
+        unk_next_vars_in_p = [
+            v
+            for v in p.variablesin()
+            if v.is_next() and v.prev_rep().name not in program.symbol_table.keys()
+        ]
+        if len(unk_next_vars_in_p) != 1:
+            to_add_non_det_trans.update(unk_next_vars_in_p)
+        else:
+            v = unk_next_vars_in_p[0]
+            # we are looking for two forms: variable, or assignment to constant
+            if isinstance(p, Variable):  ## i.e. p is a boolean
+                preds_to_replace[v] = X(v.prev_rep())
+                new_con_props.add(v.prev_rep())
+            elif isinstance(p, BiOp):
+                if p.op == "!=":
+                    new_p = BiOp(p.left, "=", p.right)
+                    preds_to_replace[p] = neg(new_p)
+                    p = new_p
+                elif p.op != "=":
+                    to_add_non_det_trans.update(unk_next_vars_in_p)
+                    continue
+
+                var = p.left if isinstance(p.left, Variable) else p.right
+                val = p.right if var == p.left else p.left
+                if isinstance(val.val, BoolAtoms):
+                    if val.val == BoolAtoms.TRUE:
+                        preds_to_replace[p] = X(var.prev_rep())
+                    else:
+                        preds_to_replace[p] = neg(X(var.prev_rep()))
+                    new_con_props.add(var.prev_rep())
+
+                elif any(
+                    p1
+                    for p1 in preds
+                    for v in unk_next_vars_in_p
+                    if v.prev_rep() in p1.variablesin()
+                ):
+                    to_add_non_det_trans.update(unk_next_vars_in_p)
+                else:
+                    # here we have assignments to constants, e.g. x' = 0
+                    var = Variable("game_con_" + stringify_pred(p).name)
+                    preds_to_replace[p] = X(var)
+                    preds_to_replace[MathExpr(p)] = X(var)
+                    new_con_props.add(var.prev_rep())
+            else:
+                to_add_non_det_trans.update(unk_next_vars_in_p)
+
+    return preds_to_replace, to_add_non_det_trans, new_con_props
+
+
 def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
     dict[Transition, list[Transition]],
     dict[Transition, list[Transition]],
@@ -1103,6 +1304,9 @@ def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
             continue
         for j in range(i + 1, n):
             t_j = transitions[j]
+            if t_j in found_equiv:
+                continue
+
             cond_j = t_j.condition
             if sat(conjunct(cond_i, cond_j), symbol_table):
                 if sat(conjunct(cond_i, neg(cond_j)), symbol_table) or sat(
@@ -1173,40 +1377,256 @@ def independent_games(vars, games):
     return list(map(lambda s: list(map(lambda g: games[g], s)), independent_game_sets))
 
 
-def formula_to_transitions(formula, inputs, symbol_table):
-    # TODO if already in dnf form, then just extract normally
-    #   else the below
+def normalise_update(f):
+    updates = []
+    to_replace = {}
+    if isinstance(u := f, Variable):
+        updates.append(BiOp(u, "=", true()))
+        updates.append(BiOp(u, "=", false()))
+        to_replace[u] = BiOp(u, "=", true())
+        to_replace[neg(u)] = BiOp(u, "=", true())
+    elif isinstance(u, UniOp):
+        return normalise_update(u.right)
+    elif isinstance(u, BiOp):
+        if (
+            isinstance(u.left, Variable)
+            and isinstance(u.right, Value)
+            and isinstance(u.right, BoolAtoms)
+        ):
+            return normalise_update(u.left)
+        elif (
+            isinstance(u.right, Variable)
+            and isinstance(u.left, Value)
+            and isinstance(u.left, BoolAtoms)
+        ):
+            return normalise_update(u.right)
+        elif u.op == "!=":
+            updates, to_replace = normalise_update(BiOp(u.left, "=", u.right))
+            to_replace[MathExpr(u)] = neg(BiOp(u.left, "=", u.right))
+            to_replace[u] = neg(BiOp(u.left, "=", u.right))
+        else:
+            updates.append(u)
+    return updates, to_replace
+
+
+def handle_update_partition(updates, symbol_table):
+    var_to_update = {}
+    for u in updates:
+        var = next(x for x in u.variablesin() if x.is_next())
+        var_to_update.setdefault(str(var), set()).add(u)
+
+    # TODO: some partitions may have to be separated further, given non equality updates
+    partitions = partition_updates(var_to_update, [])
+    new_partitions = []
+    for part in partitions:
+        refined_parts = refine_partition(part, var_to_update, symbol_table)
+        new_partitions.extend(refined_parts)
+    partitioned_updates = new_partitions
+    update_combinations = cross_product_of_partitions(partitioned_updates)
+    return update_combinations
+
+
+def cross_product_of_partitions(partitions):
+    # croos product of partitions, up to negation (non-inclusion)
+    if len(partitions) == 0:
+        return [[]]
+    update_combs = []
+    last_update_combs = [set()]
+    for part in partitions:
+        new_update_combs = []
+        for u in part:
+            for existing_comb in last_update_combs:
+                new_comb = set(existing_comb)
+                new_comb.add(u)
+                new_update_combs.append(new_comb)
+        last_update_combs = new_update_combs + [set()]
+        update_combs.extend(new_update_combs)
+    return update_combs
+
+
+def refine_partition(part, var_to_update, symbol_table):
+    # we refine partition based on mutual exclusivity of updates
+    refined_parts = []
+    updates_in_part = itertools.chain.from_iterable([var_to_update[v] for v in part])
+    # we check mutual exclusivity pairwise between each update in updates_in_part
+    # and partition them into partitions, such that partitions contain mutually exclusive updates
+    for u in updates_in_part:
+        placed = False
+        for rp in refined_parts:
+            if all(
+                not sat(
+                    conjunct(u, u2),
+                    symbol_table,
+                )
+                for u2 in rp
+            ):
+                rp.append(u)
+                placed = True
+                break
+        if not placed:
+            refined_parts.append([u])
+    return refined_parts
+
+
+def booleanise_strict_updates(trans_in_all_games, formula_objectives):
+    preds_to_replace = {}
+    new_con_props = set()
+    old_to_new = {}
+    v_to_type = {}
+
+    preds = atomic_predicates(conjunct_formula_set(trans_in_all_games))
+    all_updates = {p for p in preds if any(v for v in p.variablesin() if v.is_next())}
+    non_update_preds = (
+        preds | atomic_predicates(conjunct_formula_set(formula_objectives))
+    ).difference(all_updates)
+    vars_in_non_updates = {v for p in non_update_preds for v in p.variablesin()}
+    current_vars_in_updates = {
+        v for p in all_updates for v in p.variablesin() if not v.is_next()
+    }
+    for p in all_updates:
+        p = strip_mathexpr(p)
+        unk_next_vars_in_p = [v for v in p.variablesin() if v.is_next()]
+        if len(unk_next_vars_in_p) == 1:
+            v = unk_next_vars_in_p[0]
+            if (
+                v.prev_rep() in vars_in_non_updates
+                or v.prev_rep() in current_vars_in_updates
+            ):
+                continue
+            # we are looking for two forms: variable, or assignment to constant
+            if isinstance(p, Variable):  ## i.e. p is a boolean
+                preds_to_replace[v] = v.prev_rep()
+                new_con_props.add(v.prev_rep())
+            elif isinstance(p, BiOp):
+                original_p = p
+                if p.op == "!=":
+                    new_p = BiOp(p.left, "=", p.right)
+                    preds_to_replace[p] = neg(new_p)
+                    p = new_p
+                elif p.op != "=":
+                    continue
+
+                var = p.left if isinstance(p.left, Variable) else p.right
+                val = p.right if var == p.left else p.left
+                if not isinstance(val, Value):
+                    # TODO: if sum over variables we can deal with this
+                    continue
+                if isinstance(val.val, BoolAtoms):
+                    v_to_type[v] = BOOLEAN
+                    if val.val == BoolAtoms.TRUE:
+                        preds_to_replace[original_p] = var.prev_rep()
+                        old_to_new.setdefault(v, set()).add(
+                            (original_p, var.prev_rep())
+                        )
+                    else:
+                        preds_to_replace[original_p] = neg(var.prev_rep())
+                        old_to_new.setdefault(v, set()).add(
+                            (original_p, var.prev_rep())
+                        )
+                    new_con_props.add(var.prev_rep())
+                else:
+                    v_to_type[v] = INTEGER
+                    # here we have assignments to constants, e.g. x' = 0
+                    var = Variable("game_con_" + stringify_pred(p).name)
+                    preds_to_replace[original_p] = var
+                    preds_to_replace[MathExpr(original_p)] = var
+                    old_to_new.setdefault(v, set()).add((original_p, var))
+                    new_con_props.add(var)
+
+    more_than_one_update_vars = {
+        v: old_to_new[v] for v in old_to_new.keys() if len(old_to_new[v]) > 1
+    }
+
+    for v, change in more_than_one_update_vars.items():
+        old_vars = list(map(lambda x: x[1], change))
+        if v_to_type[v] == INTEGER:
+            old_vars.append(neg(conjunct_formula_set(old_vars)))
+        bin_vars, rep = binary_rep(
+            old_vars,
+            "game_con_" + v.prev_rep().name,
+            printing=True,
+        )
+        new_con_props.update(bin_vars)
+        for old_p, new_p in change:
+            new_con_props.difference_update(new_p.variablesin())
+            preds_to_replace[old_p] = new_p.replace_formulas(rep)
+            preds_to_replace[MathExpr(old_p)] = new_p.replace_formulas(rep)
+
+    return preds_to_replace, new_con_props
+
+
+def extract_updates_from_formula(formula):
     preds = atomic_predicates(formula)
     updates = set()
     to_replace = {}
     for f in preds:
         if any(v for v in f.variablesin() if v.is_next()):
-            if isinstance(f, Variable):
-                updates.add(BiOp(f, "=", true()))
-                updates.add(BiOp(f, "=", false()))
-                to_replace[f] = BiOp(f, "=", true())
-                to_replace[neg(f)] = BiOp(f, "=", true())
-            else:
-                updates.add(strip_mathexpr(f))
+            norm_updates, norm_to_replace = normalise_update(strip_mathexpr(f))
+            updates.update(norm_updates)
+            to_replace.update(norm_to_replace)
+    return updates, to_replace
 
-    formula = formula.replace_formulas(to_replace)
 
-    # TODO: this can be optimized further by not generating all combinations
-    #       but only equality updates, and reduced up to negation
-    update_list = list(updates)
-    if len(update_list) == 0:
-        return [(formula, [[]])]
-    update_combinations = powerset(update_list)
-    print("Number of update combinations: " + str(len(update_combinations)))
+def formula_to_transitions(formula, inputs, symbol_table):
+    formula = almost_dnf_to_dnf(formula, 3)
+    if config.Config.getConfig().debug:
+        if sat(
+            conjunct(neg(formula), almost_dnf_to_dnf(formula, 3)),
+            symbol_table,
+        ) and sat(
+            conjunct(formula, neg(almost_dnf_to_dnf(formula, 3))),
+            symbol_table,
+        ):
+            raise Exception(
+                "Wrong translation from almost dnf to dnf: "
+                + str(formula)
+                + " vs "
+                + str(almost_dnf_to_dnf(formula, 3))
+            )
 
-    with Pool(config.Config.getConfig().workers) as pool:
-        results = pool.map(
-            handle_update_combination,
-            [
-                (combination, formula, update_list, inputs, symbol_table)
-                for combination in update_combinations
-            ],
-        )
+    disjuncts = []
+    # TODO: also handle almost-DNF formulas of form (CONJ & CONJ) & (DISJ | DISJ | ...)
+    if (is_dnf(formula) or (isinstance(formula, BiOp) and formula.op == "|")) and any(
+        v for v in formula.variablesin() if v.is_next()
+    ):
+        if isinstance(formula, BiOp) and formula.op == "|":
+            disjuncts.extend(formula.sub_formulas_up_to_associativity())
+        else:
+            disjuncts.append(formula)
+    else:
+        disjuncts.append(formula)
+
+    results = []
+    for d in disjuncts:
+        updates, to_replace = extract_updates_from_formula(d)
+        d = d.replace_formulas(to_replace)
+
+        if is_conjunction_of_atoms(d):
+            preds = d.sub_formulas_up_to_associativity() if isinstance(d, BiOp) else [d]
+            update_preds = {
+                p for p in preds if any(v for v in p.variablesin() if v.is_next())
+            }
+            cond_preds = conjunct_formula_set(p for p in preds if p not in update_preds)
+            results.append((cond_preds, true(), frozenset(update_preds)))
+        else:
+            # TODO: this can be optimized further by not generating all combinations
+            #       but only equality updates, and reduced up to negation
+            update_list = list(updates)
+            if len(updates) == 0:
+                results.append((d, true(), frozenset([])))
+            update_combinations = handle_update_partition(updates, symbol_table)
+            # update_combinations = powerset(update_list)
+            print("Number of update combinations: " + str(len(update_combinations)))
+
+            with Pool(config.Config.getConfig().workers) as pool:
+                rs = pool.map(
+                    handle_update_combination,
+                    [
+                        (combination, d, update_list, inputs, symbol_table)
+                        for combination in update_combinations
+                    ],
+                )
+            results.extend(rs)
 
     trans = {}
     cond_to_u = {}

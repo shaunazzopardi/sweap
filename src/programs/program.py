@@ -820,8 +820,7 @@ class Program:
 
         transitions = guard_and_act
 
-        vars = ["turn : {prog, cs}"]
-        vars += sorted([s + " : boolean" for s in self.states])
+        vars = sorted([s + " : boolean" for s in self.states])
 
         prev_logic = []
 
@@ -1060,6 +1059,8 @@ def program_cross_product(
                 combined_outputs.extend(t.output)
 
             left_to_u = {}
+            # sorting ensures deterministic choice for which update to add to combined condition
+            combined_actions = sorted(combined_actions, key=lambda x: str(x))
             for u in combined_actions:
                 if u.left in left_to_u.keys():
                     # conflict, keep deterministic one
@@ -1071,7 +1072,7 @@ def program_cross_product(
                             BiOp(u.right, "=", left_to_u[u.left].right),
                         )
                     elif not isinstance(u.right, NonDeterministic) and isinstance(
-                        left_to_u[u.left], NonDeterministic
+                        left_to_u[u.left].right, NonDeterministic
                     ):
                         left_to_u[u.left] = u
                 else:

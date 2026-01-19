@@ -265,39 +265,55 @@ class MealyMachine(Machine):
             conjunct_formula_set([neg(Variable(t)) for t in trans_pred_acts]),
         )
 
+        debug = config.Config.getConfig().debug
         for src in self.transitions.keys():
-
-            c = disjunct_formula_set(
-                [
+            if debug:
+                ecs = [
                     ec
                     for env_con_behs in self.transitions[src].values()
                     for ec, _ in env_con_behs
                 ]
-            )
-            symbol_table = {str(v): BOOLEAN for v in c.variablesin()}
-            if not is_tautology(
-                c,
-                symbol_table,
-            ):
-                raise Exception(
-                    str(src)
-                    + " does not have complete transitions for environment behaviour."
-                )
-            for tgt, env_con_behs in self.transitions[src].items():
-                symbol_table = {}
-                for ec, _ in env_con_behs:
-                    for ecc, _ in env_con_behs:
-                        if ec != ecc:
-                            c = conjunct(ec, ecc)
-                            symbol_table |= {str(v): BOOLEAN for v in c.variablesin()}
+                c = disjunct_formula_set(ecs)
+                symbol_table = {str(v): BOOLEAN for v in c.variablesin()}
+                if not is_tautology(
+                    c,
+                    symbol_table,
+                ):
+                    raise Exception(
+                        str(src)
+                        + " does not have complete transitions for environment behaviour."
+                    )
+                for e1 in ecs:
+                    for e2 in ecs:
+                        if e1 != e2:
+                            c = conjunct(e1, e2)
+                            symbol_table = {str(v): BOOLEAN for v in c.variablesin()}
                             if sat(c, symbol_table):
                                 raise Exception(
                                     str(src)
-                                    + " has conflicting transitions: "
-                                    + str(ec)
+                                    + " has overlapping transitions for environment behaviour: "
+                                    + str(e1)
                                     + " and "
-                                    + str(ecc)
+                                    + str(e2)
                                 )
+            for tgt, env_con_behs in self.transitions[src].items():
+                if debug:
+                    symbol_table = {}
+                    for ec, _ in env_con_behs:
+                        for ecc, _ in env_con_behs:
+                            if ec != ecc:
+                                c = conjunct(ec, ecc)
+                                symbol_table |= {
+                                    str(v): BOOLEAN for v in c.variablesin()
+                                }
+                                if sat(c, symbol_table):
+                                    raise Exception(
+                                        str(src)
+                                        + " has conflicting transitions: "
+                                        + str(ec)
+                                        + " and "
+                                        + str(ecc)
+                                    )
                 for env_beh, con_beh in env_con_behs:
                     guard = str(src) + " & " + str(env_beh) + " & " + str(con_beh)
                     if guard not in guards_acts.keys():
