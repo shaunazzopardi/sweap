@@ -1875,7 +1875,7 @@ def handle_update_combination(arg):
             conjunct(
                 new_f,
                 conjunct_formula_set(
-                    combination | {neg(u) for u in update_list if u not in combination}
+                    set(combination) | {neg(u) for u in update_list if u not in combination}
                 ),
             ),
             formula,
