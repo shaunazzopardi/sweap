@@ -633,42 +633,7 @@ def process(
                         propagate_negations(strip_mathexpr(orig_formula))
                     )
                     print(str(formula))
-
-                    formula = almost_dnf_to_dnf(formula, 3)
-                    if config.Config.getConfig().debug:
-                        if sat(
-                            conjunct(neg(formula), almost_dnf_to_dnf(formula)),
-                            symbol_table,
-                        ) and sat(
-                            conjunct(formula, neg(almost_dnf_to_dnf(formula))),
-                            symbol_table,
-                        ):
-                            raise Exception(
-                                "Wrong translation from almost dnf to dnf: "
-                                + str(formula)
-                                + " vs "
-                                + str(almost_dnf_to_dnf(formula))
-                            )
-
-                    # TODO: also handle almost-DNF formulas of form (CONJ & CONJ) & (DISJ | DISJ | ...)
-                    if (
-                        is_dnf(formula)
-                        or (isinstance(formula, BiOp) and formula.op == "|")
-                    ) and any(v for v in formula.variablesin() if v.is_next()):
-                        if isinstance(formula, BiOp) and formula.op == "|":
-                            for f in formula.sub_formulas_up_to_associativity():
-                                cond_updates_f = formula_to_transitions(
-                                    f, inputs, symbol_table
-                                )
-                                cond_updates.extend(cond_updates_f)
-                        else:
-                            cond_updates = formula_to_transitions(
-                                formula, inputs, symbol_table
-                            )
-                    else:
-                        cond_updates = formula_to_transitions(
-                            formula, inputs, symbol_table
-                        )
+                    cond_updates = formula_to_transitions(formula, inputs, symbol_table)
 
                     for res in cond_updates:
                         if res is None:
@@ -818,6 +783,19 @@ def process(
                                         sat_trigger_to_add[eq_t].append(
                                             sat_binary_map[raw_sat_triggers[0]]
                                         )
+                                        if not sat(
+                                            conjunct_formula_set(
+                                                sat_trigger_to_add[eq_t]
+                                            ),
+                                            symbol_table
+                                            | {str(v): BOOLEAN for v in con_vars},
+                                        ):
+                                            raise Exception(
+                                                "In processing transitions from state "
+                                                + str(src)
+                                                + ", could not distinguish transition: \n"
+                                                + str(t)
+                                            )
                                 else:
                                     none_of_the_rest = neg(one_of_the_rest)
                                     trigger_cond = disjunct(
@@ -834,6 +812,17 @@ def process(
                                     sat_trigger_to_add[eq_t].append(
                                         sat_binary_map[raw_sat_triggers[0]]
                                     )
+                                    if not sat(
+                                        conjunct_formula_set(sat_trigger_to_add[eq_t]),
+                                        symbol_table
+                                        | {str(v): BOOLEAN for v in con_vars},
+                                    ):
+                                        raise Exception(
+                                            "In processing transitions from state "
+                                            + str(src)
+                                            + ", could not distinguish transition: \n"
+                                            + str(t)
+                                        )
 
                             for i, tt in enumerate(ts_to_distinguish):
                                 equiv_to_tt = [tt]
@@ -859,6 +848,19 @@ def process(
                                             sat_trigger_to_add[eq_tt].append(
                                                 sat_binary_map[raw_sat_triggers[i + 1]]
                                             )
+                                            if not sat(
+                                                conjunct_formula_set(
+                                                    sat_trigger_to_add[eq_tt]
+                                                ),
+                                                symbol_table
+                                                | {str(v): BOOLEAN for v in con_vars},
+                                            ):
+                                                raise Exception(
+                                                    "In processing transitions from state "
+                                                    + str(src)
+                                                    + ", could not distinguish transition: \n"
+                                                    + str(t)
+                                                )
                                     else:
                                         none_of_the_rest = neg(one_of_the_rest)
                                         trigger_cond = disjunct(
@@ -872,11 +874,37 @@ def process(
                                             sat_trigger_to_add[eq_tt].append(
                                                 trigger_cond
                                             )
+                                            if not sat(
+                                                conjunct_formula_set(
+                                                    sat_trigger_to_add[eq_tt]
+                                                ),
+                                                symbol_table
+                                                | {str(v): BOOLEAN for v in con_vars},
+                                            ):
+                                                raise Exception(
+                                                    "In processing transitions from state "
+                                                    + str(src)
+                                                    + ", could not distinguish transition: \n"
+                                                    + str(t)
+                                                )
                                 else:
                                     for eq_tt in equiv_to_tt:
                                         sat_trigger_to_add[eq_tt].append(
                                             sat_binary_map[raw_sat_triggers[i + 1]]
                                         )
+                                        if not sat(
+                                            conjunct_formula_set(
+                                                sat_trigger_to_add[eq_tt]
+                                            ),
+                                            symbol_table
+                                            | {str(v): BOOLEAN for v in con_vars},
+                                        ):
+                                            raise Exception(
+                                                "In processing transitions from state "
+                                                + str(src)
+                                                + ", could not distinguish transition: \n"
+                                                + str(t)
+                                            )
 
                     for t in trans:
                         trigger_condition = conjunct_formula_set(
@@ -1516,39 +1544,65 @@ def extract_updates_from_formula(formula):
 
 
 def formula_to_transitions(formula, inputs, symbol_table):
-    updates, to_replace = extract_updates_from_formula(formula)
+    formula = almost_dnf_to_dnf(formula, 3)
+    if config.Config.getConfig().debug:
+        if sat(
+            conjunct(neg(formula), almost_dnf_to_dnf(formula, 3)),
+            symbol_table,
+        ) and sat(
+            conjunct(formula, neg(almost_dnf_to_dnf(formula, 3))),
+            symbol_table,
+        ):
+            raise Exception(
+                "Wrong translation from almost dnf to dnf: "
+                + str(formula)
+                + " vs "
+                + str(almost_dnf_to_dnf(formula, 3))
+            )
 
-    formula = formula.replace_formulas(to_replace)
+    disjuncts = []
+    # TODO: also handle almost-DNF formulas of form (CONJ & CONJ) & (DISJ | DISJ | ...)
+    if (is_dnf(formula) or (isinstance(formula, BiOp) and formula.op == "|")) and any(
+        v for v in formula.variablesin() if v.is_next()
+    ):
+        if isinstance(formula, BiOp) and formula.op == "|":
+            disjuncts.extend(formula.sub_formulas_up_to_associativity())
+        else:
+            disjuncts.append(formula)
+    else:
+        disjuncts.append(formula)
 
-    if is_conjunction_of_atoms(formula):
-        preds = (
-            formula.sub_formulas_up_to_associativity()
-            if isinstance(formula, BiOp)
-            else [formula]
-        )
-        update_preds = {
-            p for p in preds if any(v for v in p.variablesin() if v.is_next())
-        }
-        cond_preds = conjunct_formula_set(p for p in preds if p not in update_preds)
-        return [(cond_preds, [update_preds])]
+    results = []
+    for d in disjuncts:
+        updates, to_replace = extract_updates_from_formula(d)
+        d = d.replace_formulas(to_replace)
 
-    # TODO: this can be optimized further by not generating all combinations
-    #       but only equality updates, and reduced up to negation
-    update_list = list(updates)
-    if len(updates) == 0:
-        return [(formula, [[]])]
-    update_combinations = handle_update_partition(updates, symbol_table)
-    # update_combinations = powerset(update_list)
-    print("Number of update combinations: " + str(len(update_combinations)))
+        if is_conjunction_of_atoms(d):
+            preds = d.sub_formulas_up_to_associativity() if isinstance(d, BiOp) else [d]
+            update_preds = {
+                p for p in preds if any(v for v in p.variablesin() if v.is_next())
+            }
+            cond_preds = conjunct_formula_set(p for p in preds if p not in update_preds)
+            results.append((cond_preds, true(), frozenset(update_preds)))
+        else:
+            # TODO: this can be optimized further by not generating all combinations
+            #       but only equality updates, and reduced up to negation
+            update_list = list(updates)
+            if len(updates) == 0:
+                results.append((d, true(), frozenset([])))
+            update_combinations = handle_update_partition(updates, symbol_table)
+            # update_combinations = powerset(update_list)
+            print("Number of update combinations: " + str(len(update_combinations)))
 
-    with Pool(config.Config.getConfig().workers) as pool:
-        results = pool.map(
-            handle_update_combination,
-            [
-                (combination, formula, update_list, inputs, symbol_table)
-                for combination in update_combinations
-            ],
-        )
+            with Pool(config.Config.getConfig().workers) as pool:
+                rs = pool.map(
+                    handle_update_combination,
+                    [
+                        (combination, d, update_list, inputs, symbol_table)
+                        for combination in update_combinations
+                    ],
+                )
+            results.extend(rs)
 
     trans = {}
     cond_to_u = {}
