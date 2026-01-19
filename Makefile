@@ -92,7 +92,7 @@ endef
 
 all: $(TOOLS)
 
-sweap-strix:	check-ulimit $(SWEAP_STRIX_LOGS)
+sweap-strix:	$(SWEAP_STRIX_LOGS)
 sweap-semml:	$(SWEAP_SEMML_LOGS) # SemML does not work well under ulimit
 sweap-dual:		$(SWEAP_DUAL_LOGS)
 sweap-rpg:		$(SWEAP_RPG_LOGS)
@@ -102,9 +102,9 @@ sweap-tsl-dual:	$(SWEAP_TSL_DUAL_LOGS)
 sweap-issy:		$(SWEAP_ISSY_LOGS)
 sweap-issy-dual:	$(SWEAP_ISSY_DUAL_LOGS)
 
-issy2:		check-ulimit $(ISSY2_LOGS)	
-issy2-rpg:	check-ulimit $(ISSY2_RPG_LOGS)
-issy2-tsl:	check-ulimit $(ISSY2_TSL_LOGS)
+issy2:		$(ISSY2_LOGS)
+issy2-rpg:	$(ISSY2_RPG_LOGS)
+issy2-tsl:	$(ISSY2_TSL_LOGS)
 
 
 ################################################################################
