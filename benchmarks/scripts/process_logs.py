@@ -21,7 +21,7 @@ SUMM_LATEX = "table-summ.tex"
 MACROS_LATEX = "macros-experiments.tex"
 bullet = r"$\bullet$"
 
-timeout = 600_000  # 1_200_000
+TIMEOUT = 600_000  # 1_200_000
 popl24 = r"\cite{10.1145/3632899}"
 cav24 = r"\cite{DBLP:conf/cav/SchmuckHDN24}"
 popl25 = r"\cite{DBLP:journals/pacmpl/HeimD25}"
@@ -196,14 +196,14 @@ nondet_input_benchs = {
 }
 
 issy_benchs = {
-    "balancer-bool-simplified-1": (True, "issy"),
-    "balancer-bool-simplified-2": (True, "issy"),
-    "balancer-bool-simplified-3": (True, "issy"),
-    "balancer": (True, "buechi"),
+    "balancer-bool-simplified-1": (True, "ltl"),
+    "balancer-bool-simplified-2": (True, "ltl"),
+    "balancer-bool-simplified-3": (True, "ltl"),
+    "balancer": (True, "ltl"),
     "fig7-gt1": (False, "buechi"),
-    "two-loc-inp-real": (True, "issy"),
-    "two-loc-inp-unreal-0": (False, "issy"),
-    "two-loc-inp-unreal-1": (False, "issy"),
+    "two-loc-inp-real": (True, "buechi"),
+    "two-loc-inp-unreal-0": (False, "buechi"),
+    "two-loc-inp-unreal-1": (False, "buechi"),
     "two-loc-real-1": (True, "buechi"),
     "two-loc-real-2": (True, "buechi"),
     "two-vars-real": (True, "buechi"),
@@ -383,13 +383,15 @@ def get_result(tool, tool_info, bench, b_real):
         if log:
             break
     if not log:
-        return 0, "missing"
+        return 0, 0, "missing"
     #if tool.startswith("sweap"):
     #    refinements[b][tool] = get_refinements(log[0])
 
     with open(log[0], "r") as log_file:
         raw_result = log_file.read()
     log_lines = raw_result.splitlines()
+    find_timeout = log_lines[0].find("timeout ")
+    timeout = 1_000 * int(log_lines[0][find_timeout+8:].split()[0]) if find_timeout != -1 else TIMEOUT
     try:
         runtime = int(log_lines[-1])
         return_code = int(log_lines[-2])
@@ -401,18 +403,18 @@ def get_result(tool, tool_info, bench, b_real):
         else:
             raise ValueError(f"Invalid or empty log file: {log[0]}")
     if runtime >= timeout:
-        return runtime, "timeout"
+        return runtime, timeout, "timeout"
 
     
     if return_code == 137:
-        return runtime, "oom"
+        return runtime, timeout, "oom"
 
     verdict_real = tool_info.real.search(raw_result)
     verdict_unreal = tool_info.unreal.search(raw_result)
     if verdict_real and not verdict_unreal:
-        return runtime, "realizable"
+        return runtime, timeout, "realizable"
     elif verdict_unreal and not verdict_real:
-        return runtime, "unrealizable"
+        return runtime, timeout, "unrealizable"
     elif any((
         oom_re.search(raw_result),
         "java.lang.OutOfMemoryError" in raw_result,
@@ -421,15 +423,16 @@ def get_result(tool, tool_info, bench, b_real):
         "Finite synthesis engine ran out of memory." in raw_result,
         "issy-bin: out of memory" in raw_result
     )):
-        return runtime, "oom"
+        return runtime, timeout, "oom"
     elif any((
         "currently unsupported" in raw_result,
+        "We do not handle ISSY files without game arenas yet." in raw_result,
         "We do not handle yet ISSY problems with no games." in raw_result,
         "We do not yet handle objectives" in raw_result
     )):
-        return runtime, "unsupported"
+        return runtime, timeout, "unsupported"
 
-    return runtime, "error"
+    return runtime, timeout, "error"
 
 
 results = defaultdict(dict)
@@ -449,8 +452,8 @@ stdout_writer.writerow(["benchmark", "goal", "real","tool","time(ms)","verdict"]
 
 for b, (b_real, b_goal) in infinite_benchs.items():
     for tool, tool_info in tools.items():
-        runtime, verdict = get_result(tool, tool_info, b, b_real)
-        results[b][tool] = (runtime, verdict)
+        runtime, timeout_val, verdict = get_result(tool, tool_info, b, b_real)
+        results[b][tool] = (runtime, timeout_val, verdict)
         update_stats(verdict, tool, b_real)
         if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
             verdict += "___wrong"
@@ -462,10 +465,10 @@ for b, (b_real, b_goal) in infinite_benchs.items():
 def get_portfolio_result(tool1, tool2, b, b_real):
     if b not in results or any(tool not in results[b] for tool in (tool1, tool2)):
         return 0, "missing"
-    t1, result1 = results[b][tool1]
-    t2, result2 = results[b][tool2]
-    t1 = t1 if t1 > 0 else timeout
-    t2 = t2 if t2 > 0 else timeout
+    t1, to1, result1 = results[b][tool1]
+    t2, to2, result2 = results[b][tool2]
+    t1 = t1 if t1 > 0 else max(to1, to2)
+    t2 = t2 if t2 > 0 else max(to1, to2)
     verdicts = set((result1, result2)) - {"missing"}
     time = min(t1, t2)
     if not verdicts:
