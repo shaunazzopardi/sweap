@@ -835,16 +835,19 @@ class Program:
             if var_type == BOOLEAN:
                 vars.append(var + " : " + "boolean")
                 vars.append(var + "_prev : " + "boolean")
+                vars.append(var + "_prev_prev : " + "boolean")
             elif (
                 isinstance(var_type, Number)
                 and var_type.number_type in countable_number_types
             ):
                 vars.append(var + " : " + "integer")
                 vars.append(var + "_prev : " + "integer")
+                vars.append(var + "_prev_prev : " + "integer")
             else:
                 raise Exception("Unsupported type for variable: " + str(var_type))
 
             prev_logic += ["next(" + str(var) + "_prev) = " + str(var)]
+            prev_logic += ["next(" + str(var) + "_prev_prev) = " + str(var + "_prev")]
 
         vars += [str(var) + " : boolean" for var in self.out_events + self.bool_in_out]
 
@@ -1094,6 +1097,13 @@ def program_cross_product(
                 combined_outputs,
                 combined_tgt,
             )
+            new_t.pred_upgrades = set(
+                itertools.chain.from_iterable(
+                    [tt.pred_upgrades for tt in transition_combination]
+                )
+            )
+            if len(new_t.pred_upgrades) > 0:
+                print("NEW T WITH PREDS: " + str(new_t))
             new_transitions.append(new_t)
 
     new_prog = Program(
@@ -1169,7 +1179,7 @@ def fill_in_minigames(
             if v in program.num_in_out
         ):
             raise Exception(
-                "We do not support minigames with numerical inputs/outputs yet."
+                "We do not support minigames with numerical inputs/outputs."
             )
 
         undetermined_vars: frozenset[Variable] = frozenset(

@@ -457,25 +457,31 @@ class ToProgram(NodeWalker):
         return prog, formula
 
 
-def massage_ltl(formula: Formula, controller_state: Formula, to_replace):
+def massage_ltl(formula: Formula, controller_state: Formula, to_replace, place=False):
     if not (unary_LTL_operators | binary_LTL_operators).intersection(
         set(formula.ops_used())
     ):
-        return BiOp(
-            neg(controller_state),
-            "U",
-            conjunct(controller_state, formula.replace_formulas(to_replace)),
-        )
+        if place:
+            return BiOp(
+                neg(controller_state),
+                "U",
+                conjunct(controller_state, formula.replace_formulas(to_replace)),
+            )
+        else:
+            return formula.replace_formulas(to_replace)
     if isinstance(formula, BiOp):
-        new_left = massage_ltl(formula.left, controller_state, to_replace)
-        new_right = massage_ltl(formula.right, controller_state, to_replace)
-        if formula.op == "U":
+        if formula.op in binary_LTL_operators:
+            new_left = massage_ltl(formula.left, controller_state, to_replace, True)
+            new_right = massage_ltl(formula.right, controller_state, to_replace, True)
             return BiOp(
                 new_left,
-                "U",
+                formula.op,
                 new_right,
             )
         else:
+            new_left = massage_ltl(formula.left, controller_state, to_replace, place)
+            new_right = massage_ltl(formula.right, controller_state, to_replace, place)
+
             return BiOp(new_left, formula.op, new_right)
     elif isinstance(formula, UniOp):
         if formula.op in {"G", "F"} and not (
@@ -489,7 +495,7 @@ def massage_ltl(formula: Formula, controller_state: Formula, to_replace):
                 new_formula = BiOp(controller_state, "&", new_formula)
                 return F(new_formula)
 
-        new_formula = massage_ltl(formula.right, controller_state, to_replace)
+        new_formula = massage_ltl(formula.right, controller_state, to_replace, True)
         if formula.op == "G":
             return G(new_formula)
         elif formula.op == "F":

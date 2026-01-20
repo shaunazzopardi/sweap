@@ -218,7 +218,7 @@ def create_nuxmv_model_for_compatibility_checking(
     # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
-        + "((!init_state) -> ("
+        + "(("
         + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -391,20 +391,17 @@ def there_is_mismatch_between_program_and_controller(
         return True, False, None
 
     if len(loop_constraints) > 0:
-        loop_constraints_str = "& (" + ") & (".join(map(str, loop_constraints)) + ")"
+        loop_constraints_str = (
+            "(G(" + ") & (".join(map(str, loop_constraints)) + ")) -> "
+        )
     else:
         loop_constraints_str = ""
 
-    objective = (
-        "(G(compatible"
-        + loop_constraints_str
-        + ")"
-        + ") -> ("
-        + str(normalize_ltl(ltlspec))
-        + ")"
-    )
+    objective = loop_constraints_str + " (" + str(normalize_ltl(ltlspec)) + ")"
     if config.getConfig().dual:
         objective = "X(" + objective + ")"
+
+    print(objective)
 
     there_is_no_mismatch, out = model_checker.invar_check(
         system,

@@ -32,6 +32,7 @@ from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import BOOLEAN, INTEGER
 from prop_lang.types.values import BoolAtoms
 from prop_lang.uniop import UniOp
+from prop_lang.update import Update
 from prop_lang.util import (
     atomic_predicates,
     fnode_to_formula,
@@ -533,7 +534,48 @@ def process(
     parts_to_sub_programs = []
     states_to_exclude_minigame = {}
     if len(games) == 0:
-        raise Exception("We do not handle ISSY files without game arenas yet.")
+        # raise Exception("We do not handle ISSY files without game arenas yet.")
+        # TODO, do as below:
+        # in general, replace every next var in LTL formula with corresponding int_v var
+        #  and add LTL stuff that checks it at boundary (just before leaving minigame)
+        all_updates_in_formula = {
+            u
+            for f in formula_objectives
+            for u in atomic_predicates(f)
+            if any(v for v in u.variablesin() if v.is_next())
+        }
+        updates_to_con_props, new_con_props, to_remove = booleanise_strict_updates(
+            all_updates_in_formula, formula_objectives
+        )
+        all_updates_in_formula.difference_update(updates_to_con_props.keys())
+        updated_vars = {
+            v.prev_rep()
+            for u in all_updates_in_formula
+            for v in u.variablesin()
+            if v.is_next()
+        }
+        for s in to_remove:
+            state_vars.remove(s.prev_rep())
+            symbol_table.pop(str(s.prev_rep()))
+        # TODO: need to do this also when there are games
+        inputs_updates_depend_on = {
+            i for u in all_updates_in_formula for i in u.variablesin() if i in inputs
+        }
+        state_vars += ["curr_" + i.name for i in inputs_updates_depend_on]
+        symbol_table.update(
+            {"curr_" + i.name: symbol_table[str(i)] for i in inputs_updates_depend_on}
+        )
+        updates_massaged = {
+            u: u.replace_formulas(
+                {i: Variable("curr_" + i.name) for i in inputs_updates_depend_on}
+            )
+            for u in all_updates_in_formula
+        }
+
+        formula_objectives = [
+            f.replace_formulas(updates_massaged | updates_to_con_props)
+            for f in formula_objectives
+        ]
         program = Program(
             name_str,
             {"eval"},
@@ -543,13 +585,17 @@ def process(
                 Transition(
                     "eval",
                     true(),
-                    [BiOp(v, "=", NonDeterministic()) for v in state_vars],
+                    [BiOp(v, "=", NonDeterministic()) for v in updated_vars]
+                    + [
+                        Update(Variable("curr_" + i.name), i)
+                        for i in inputs_updates_depend_on
+                    ],
                     [],
                     "eval",
                 )
             ],
             [(v, symbol_table[str(v)]) for v in inputs],
-            [],
+            [(v, BOOLEAN) for v in new_con_props],
         )
         states_to_exclude_minigame[0] = []
         objective = true()
@@ -578,13 +624,17 @@ def process(
             # NOTE: if unset var not used in guard then no need to add mini-game
 
             all_trans_conds = [t[1] for g in game_part for t in g[3]]
-            updates_to_con_props, new_con_props = booleanise_strict_updates(
+            updates_to_con_props, new_con_props, to_remove = booleanise_strict_updates(
                 all_trans_conds, formula_objectives
             )
+            for s in to_remove:
+                state_vars.remove(s.prev_rep())
+                symbol_table.pop(str(s.prev_rep()))
             symbol_table.update({str(v): BOOLEAN for v in new_con_props})
             con_vars.update(new_con_props)
 
             for game in game_part:
+                new_state_vars = set()
                 game_index = len(parts_to_sub_programs)
                 states_to_exclude_minigame[game_index] = set()
                 vars_updates_depend_on_in_game = set()
@@ -666,14 +716,14 @@ def process(
                                         )
                                         continue
 
-                                next_vars_in_update = [
-                                    v for v in raw_update.variablesin() if v.is_next()
-                                ]
-                                if len(next_vars_in_update) > 1:
-                                    raise Exception(
-                                        "We do not yet handle updates with multiple next-state variables: "
-                                        + str(raw_update)
-                                    )
+                                # next_vars_in_update = [
+                                #     v for v in raw_update.variablesin() if v.is_next()
+                                # ]
+                                # if len(next_vars_in_update) > 1:
+                                #     raise Exception(
+                                #         "We do not yet handle updates with multiple next-state variables: "
+                                #         + str(raw_update)
+                                #     )
                                 predicate_upgrades.append(raw_update)
 
                             # Before adding, need to resolve determinism in transitions in favour of controller
@@ -688,6 +738,27 @@ def process(
                             # need to add keep updates for vars not in combination
                             for v in vars_not_updated:
                                 updates.append(BiOp(v, "=", NonDeterministic()))
+
+                            inputs_updates_depend_on = {
+                                i
+                                for u in predicate_upgrades
+                                for i in u.variablesin()
+                                if i in inputs
+                            }
+
+                            to_replace = {}
+                            for inp in inputs_updates_depend_on:
+                                new_var = Variable("curr_" + inp.name)
+                                to_replace[inp] = new_var
+                                new_state_vars.add(new_var)
+                                symbol_table[str(new_var)] = symbol_table[str(inp)]
+                                updates.append(BiOp(new_var, "=", inp))
+                            predicate_upgrades = list(
+                                map(
+                                    lambda x: x.replace_formulas(to_replace),
+                                    predicate_upgrades,
+                                )
+                            )
 
                             t = Transition(
                                 src,
@@ -719,7 +790,10 @@ def process(
                     name_str + "_part_" + str(i),
                     locs,
                     init,
-                    [(str(v), symbol_table[str(v)]) for v in vars_in_game],
+                    [
+                        (str(v), symbol_table[str(v)])
+                        for v in vars_in_game | new_state_vars
+                    ],
                     new_transitions + lose_transitions,
                     [(v, symbol_table[str(v)]) for v in inputs],
                     [(v, BOOLEAN) for v in con_vars],
@@ -921,7 +995,8 @@ def process(
         new_objective = game_objectives_f
     else:
         new_objective = conjunct_formula_set(
-            [replace_in_ltl(o) for o in formula_objectives]
+            [(o) for o in formula_objectives]
+            # [replace_in_ltl(o) for o in formula_objectives]
             + [game_objectives_f]
             # [
             #     BiOp(
@@ -1537,7 +1612,7 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
             preds_to_replace[old_p] = new_p.replace_formulas(rep)
             preds_to_replace[MathExpr(old_p)] = new_p.replace_formulas(rep)
 
-    return preds_to_replace, new_con_props
+    return preds_to_replace, new_con_props, list(old_to_new.keys())
 
 
 def extract_updates_from_formula(formula):
