@@ -199,38 +199,38 @@ issy_benchs = {
     "balancer-bool-simplified-1": (True, "issy"),
     "balancer-bool-simplified-2": (True, "issy"),
     "balancer-bool-simplified-3": (True, "issy"),
-    "balancer": (True, "issy"),
-    "fig7-gt1": (False, "issy"),
+    "balancer": (True, "buechi"),
+    "fig7-gt1": (False, "buechi"),
     "two-loc-inp-real": (True, "issy"),
     "two-loc-inp-unreal-0": (False, "issy"),
     "two-loc-inp-unreal-1": (False, "issy"),
-    "two-loc-real-1": (True, "issy"),
-    "two-loc-real-2": (True, "issy"),
-    "two-vars-real": (True, "issy"),
-    "two-vars-unreal": (False, "issy"),
-    "counter-10-10-formula": (True, "issy"),
-    "counter-10-10-game": (True, "issy"),
-    "counter-2-10-2-formula": (True, "issy"),
-    "counter-2-10-2-game": (True, "issy"),
-    "counter-2-10-formula": (True, "issy"),
-    "counter-2-10-game": (True, "issy"),
-    "counter-3-10-formula": (True, "issy"),
-    "counter-3-10-game": (True, "issy"),
-    "counter-3-7-formula": (True, "issy"),
-    "counter-3-7-game": (True, "issy"),
-    "v1": (True, "issy"),
-    "v2-unreal": (False, "issy"),
-    "parity-two-vars-real": (True, "issy"),
-    "parity-two-vars-unreal-0": (False, "issy"),
-    "parity-two-vars-unreal-1": (False, "issy"),
-    "parity-two-vars-unreal-2": (False, "issy"),
-    "balance-add-rem-2-2-8": (False, "issy"),
-    "balance-add-rem-8-1-16": (True, "issy"),
-    "balance-add-rem-8-1-7": (False, "issy"),
-    "balance-add-rem-8-2-16": (True, "issy"),
-    "empty-add-rem-2-1-unreal": (False, "issy"),
-    "empty-add-rem-2-1": (True, "issy"),
-    "empty-balance-add-rem-2-1-2": (True, "issy"),
+    "two-loc-real-1": (True, "buechi"),
+    "two-loc-real-2": (True, "buechi"),
+    "two-vars-real": (True, "buechi"),
+    "two-vars-unreal": (False, "buechi"),
+    "counter-10-10-formula": (True, "reach"),
+    "counter-10-10-game": (True, "reach"),
+    "counter-2-10-2-formula": (True, "reach"),
+    "counter-2-10-2-game": (True, "reach"),
+    "counter-2-10-formula": (True, "reach"),
+    "counter-2-10-game": (True, "reach"),
+    "counter-3-10-formula": (True, "reach"),
+    "counter-3-10-game": (True, "reach"),
+    "counter-3-7-formula": (True, "reach"),
+    "counter-3-7-game": (True, "reach"),
+    "v1": (True, "buechi"),
+    "v2-unreal": (False, "buechi"),
+    "parity-two-vars-real": (True, "ltl"),
+    "parity-two-vars-unreal-0": (False, "ltl"),
+    "parity-two-vars-unreal-1": (False, "ltl"),
+    "parity-two-vars-unreal-2": (False, "ltl"),
+    "balance-add-rem-2-2-8": (False, "safety"),
+    "balance-add-rem-8-1-16": (True, "safety"),
+    "balance-add-rem-8-1-7": (False, "safety"),
+    "balance-add-rem-8-2-16": (True, "safety"),
+    "empty-add-rem-2-1-unreal": (False, "buechi"),
+    "empty-add-rem-2-1": (True, "buechi"),
+    "empty-balance-add-rem-2-1-2": (True, "buechi"),
     "test-01": (False, "buechi"),
     "test-02": (True, "buechi"),
     "test-03": (True, "buechi"),
@@ -466,16 +466,18 @@ def get_portfolio_result(tool1, tool2, b, b_real):
     t2, result2 = results[b][tool2]
     t1 = t1 if t1 > 0 else timeout
     t2 = t2 if t2 > 0 else timeout
-    verdicts = set((result1, result2))
+    verdicts = set((result1, result2)) - {"missing"}
     time = min(t1, t2)
-    if len(verdicts) == 1:  # Tools agree
+    if not verdicts:
+        return 0, "missing"
+    elif len(verdicts) == 1:  # Tools agree
         v = verdicts.pop()
         return 0 if v == "missing" else time, v
     elif "realizable" in verdicts and "unrealizable" in verdicts:  # Tools disagree
         return time, "unsupported"
     else:
         at_least_one_timeout = "timeout" in verdicts
-        verdicts -= set(("timeout", "missing", "oom", "error"))
+        verdicts -= set(("timeout", "oom", "error"))
         if len(verdicts) == 1:
             return time, verdicts.pop()
         elif at_least_one_timeout:
