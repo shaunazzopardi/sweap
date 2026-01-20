@@ -132,14 +132,16 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                                 v,
                                 "=",
                                 Value(
-                                    (incompatible_state[1] | incompatible_state[2])[str(v)]
+                                    (incompatible_state[1] | incompatible_state[2])[
+                                        str(v)
+                                    ]
                                 ),
                             )
                             for v in p.variablesin()
                         ]
                         if not sat(
-                                conjunct_formula_set([p] + var_state),
-                                program.symbol_table,
+                            conjunct_formula_set([p] + var_state),
+                            program.symbol_table,
                         ):
                             incompatibility_formula.append(p)
 
@@ -180,6 +182,14 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                     + str(conjunct_formula_set(pred_state))
                     + "\n"
                     + str(transition_formula(concretized[-1][0]))
+                    + "\n\n\nAgreed on transitions:\n"
+                    + "\n\n".join(map(lambda x: x[0], concretized[:-1]))
+                    + "\n\n\nInit state:\n"
+                    + str(
+                        conjunct_formula_set(
+                            preds_in_state(concretized[0][1] | concretized[0][2])
+                        )
+                    )
                 )
 
 

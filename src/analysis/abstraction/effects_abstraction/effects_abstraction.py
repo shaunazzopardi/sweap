@@ -689,7 +689,7 @@ class EffectsAbstraction(PredicateAbstraction):
             return self.init_state_abstraction
 
     def update_init_abstraction_old_chain_pred(self, v_chain_pred):
-        if v_chain_pred in self.init_no_matter:
+        if not config.Config.getConfig().dual and v_chain_pred in self.init_no_matter:
             return self.update_init_abstraction_new_chain_pred(v_chain_pred)
 
         old_to_new = v_chain_pred.old_to_new

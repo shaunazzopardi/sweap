@@ -28,6 +28,7 @@ from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import (
+    INTEGER,
     Type,
     Number,
     is_finite,
@@ -647,12 +648,16 @@ class Program:
         ]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
+        locals_plus_inputs = self.local_vars + self.num_in_out
         update_prevs = "(turn = cs)" + (
             " & "
             + " & ".join(
-                ["next(" + str(var) + "_prev) = " + str(var) for var in self.local_vars]
+                [
+                    "next(" + str(var) + "_prev) = " + str(var)
+                    for var in locals_plus_inputs
+                ]
             )
-            if len(self.local_vars) > 0
+            if len(locals_plus_inputs) > 0
             else ""
         )
         maintain_prevs = "!(turn = cs)" + (
@@ -660,10 +665,10 @@ class Program:
             + " & ".join(
                 [
                     "next(" + str(var) + "_prev) = " + str(var) + "_prev"
-                    for var in self.local_vars
+                    for var in locals_plus_inputs
                 ]
             )
-            if len(self.local_vars) > 0
+            if len(locals_plus_inputs) > 0
             else ""
         )
         prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
@@ -1128,6 +1133,7 @@ def fill_in_minigames(
     new_trans = []
     new_con_events = set()
     ts_to_remove = []
+    symbol_table = program.symbol_table
 
     mini_game_counter = 0
     existing_mini_games_from_with: dict[
@@ -1228,10 +1234,11 @@ def fill_in_minigames(
         to_replace_preds = {}
         for u in non_determined_updates:
             v = u.left
-            if program.symbol_table[str(u.left)] == BOOLEAN:
+            if symbol_table[str(u.left)] == BOOLEAN:
                 bool_updates.add(v)
                 continue
             int_v = Variable("int_" + str(v))
+            symbol_table.update({str(int_v): INTEGER})
             to_replace_preds[v] = int_v
 
         stop_prop = conjunct_formula_set(
@@ -1301,7 +1308,7 @@ def fill_in_minigames(
                     [],
                     start_state,
                 )
-                if sat(neg(stop_prop), program.symbol_table):
+                if sat(neg(stop_prop), symbol_table):
                     stutter_t = Transition(
                         start_state,
                         conjunct(stop, neg(stop_prop)),
@@ -1338,24 +1345,25 @@ def fill_in_minigames(
     if no_mini_games_added:
         reset_caches()
         prop_lang_util_reset_caches()
-        for t in new_trans:
-            for tt in new_trans:
-                if t == tt or t.src != tt.src:
-                    continue
-                elif sat(
-                    conjunct(t.condition, tt.condition),
-                    program.symbol_table
-                    | {
-                        str(v): BOOLEAN
-                        for v in minigame_states | {v[0] for v in new_con_events}
-                    },
-                ):
-                    raise Exception(
-                        "Conflict in minigame transitions between \n"
-                        + str(t)
-                        + "\nand\n"
-                        + str(tt)
-                    )
+        if config.Config.getConfig().debug:
+            for t in new_trans:
+                for tt in new_trans:
+                    if t == tt or t.src != tt.src:
+                        continue
+                    elif sat(
+                        conjunct(t.condition, tt.condition),
+                        symbol_table
+                        | {
+                            str(v): BOOLEAN
+                            for v in minigame_states | {v[0] for v in new_con_events}
+                        },
+                    ):
+                        raise Exception(
+                            "Conflict in minigame transitions between \n"
+                            + str(t)
+                            + "\nand\n"
+                            + str(tt)
+                        )
         new_prog = Program(
             name=program.name,
             sts=program.states,
@@ -1382,24 +1390,25 @@ def fill_in_minigames(
         for v, int_v in to_add_to_local_vars
     }
 
-    for t in new_trans:
-        for tt in new_trans:
-            if t == tt or t.src != tt.src:
-                continue
-            elif sat(
-                conjunct(t.condition, tt.condition),
-                program.symbol_table
-                | {
-                    str(v): BOOLEAN
-                    for v in minigame_states | {v[0] for v in new_con_events}
-                },
-            ):
-                raise Exception(
-                    "Conflict in minigame transitions between \n"
-                    + str(t)
-                    + "\nand\n"
-                    + str(tt)
-                )
+    if config.Config.getConfig().debug:
+        for t in new_trans:
+            for tt in new_trans:
+                if t == tt or t.src != tt.src:
+                    continue
+                elif sat(
+                    conjunct(t.condition, tt.condition),
+                    symbol_table
+                    | {
+                        str(v): BOOLEAN
+                        for v in minigame_states | {v[0] for v in new_con_events}
+                    },
+                ):
+                    raise Exception(
+                        "Conflict in minigame transitions between \n"
+                        + str(t)
+                        + "\nand\n"
+                        + str(tt)
+                    )
 
     # now, for each pred in ltl_spec that involves non_determined_updates, we need to
     # replace it with a formula that accounts for the minigame
