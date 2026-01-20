@@ -259,7 +259,9 @@ def _main(args: Namespace):
         and args.rpg is None
         and args.issy is None
     ):
-        raise Exception("No input given! (Specify either --p or --tsl.)")
+        raise Exception(
+            "No input given! "
+            "(Specify one of --p, --issy, --rpg, or --tsl.)")
 
     program, ltl_spec = process_args(args)
 
