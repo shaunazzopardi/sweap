@@ -392,23 +392,17 @@ def fnode_to_formula(fnode: FNode) -> Formula:
         elif fnode.is_times():
             return _mult(args[0], args[1])
         elif fnode.is_and():
-            return conjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+            return conjunct_formula_set(set(args))
         elif fnode.is_or():
-            return disjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+            return disjunct_formula_set(set(args))
         elif fnode.is_not():
-            return neg(fnode_to_formula(fnode.arg(0)))
+            return neg(args[0])
         elif fnode.is_implies():
-            return implies(
-                fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1))
-            )
+            return implies(args[0], args[1])
         elif fnode.is_iff():
-            return iff(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+            return iff(args[0], args[1])
         elif fnode.is_equals():
-            return MathExpr(
-                BiOp(
-                    fnode_to_formula(fnode.arg(0)), "=", fnode_to_formula(fnode.arg(1))
-                )
-            )
+            return MathExpr(BiOp(args[0], "=", args[1]))
         elif fnode.is_symbol():
             return Variable(fnode.symbol_name())
         else:

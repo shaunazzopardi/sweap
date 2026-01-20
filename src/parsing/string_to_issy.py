@@ -15,7 +15,7 @@ from parsing.string_to_ltlmt import massage_ltl, partition_updates, update_combi
 from parsing.string_to_rpg import parity_objective
 from programs.program import Program, program_cross_product, fill_in_minigames
 from programs.transition import Transition
-from programs.util import binary_rep, powerset, refine_init_values
+from programs.util import bdd_simplify_native, binary_rep, powerset, refine_init_values
 from prop_lang.biop import BiOp
 from prop_lang.factory import (
     create_update,
@@ -997,7 +997,7 @@ def extract_formula_updates(program, formula_objective):
                     to_add_non_det_trans.update(unk_next_vars_in_p)
                 else:
                     # here we have assignments to constants, e.g. x' = 0
-                    var = Variable("game_con_" + stringify_pred(p).name)
+                    var = Variable(stringify_pred(p).name + "_bool")
                     preds_to_replace[p] = X(var)
                     preds_to_replace[MathExpr(p)] = X(var)
                     new_con_props.add(var.prev_rep())
@@ -1512,7 +1512,7 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
                 else:
                     v_to_type[v] = INTEGER
                     # here we have assignments to constants, e.g. x' = 0
-                    var = Variable("game_con_" + stringify_pred(p).name)
+                    var = Variable(stringify_pred(p).name)
                     preds_to_replace[original_p] = var
                     preds_to_replace[MathExpr(original_p)] = var
                     old_to_new.setdefault(v, set()).add((original_p, var))
@@ -1525,7 +1525,7 @@ def booleanise_strict_updates(trans_in_all_games, formula_objectives):
     for v, change in more_than_one_update_vars.items():
         old_vars = list(map(lambda x: x[1], change))
         if v_to_type[v] == INTEGER:
-            old_vars.append(neg(conjunct_formula_set(old_vars)))
+            old_vars.append(neg(disjunct_formula_set(old_vars)))
         bin_vars, rep = binary_rep(
             old_vars,
             "game_con_" + v.prev_rep().name,
@@ -1583,6 +1583,8 @@ def formula_to_transitions(formula, inputs, symbol_table):
 
     results = []
     for d in disjuncts:
+        if not sat(d, symbol_table):
+            continue
         updates, to_replace = extract_updates_from_formula(d)
         new_d = d.replace_formulas(to_replace)
         if config.Config.getConfig().debug:
@@ -1619,32 +1621,16 @@ def process_cond_updates(results, inputs, symbol_table):
         if r is None:
             continue
         cond, u = r
-        if not sat(cond, symbol_table):
-            continue
+        # if not sat(cond, symbol_table):
+        #     continue
         new_cond, new_u = clean_updates(u, inputs, symbol_table)
         cond_to_u.setdefault(cond, set()).add((new_u, new_cond))
 
-    for cond, us in trans.items():
-        if len(us) > 1:
-            # if there is a (u1, new_cond1) and (u2, new_cond2) in us
-            # s.t., u1 is a subset of u2, and new_cond1 is None
-            # then we can remove (u2, new_cond2)
-            us_list = list(us)
-            to_remove = set()
-            for i in range(len(us_list)):
-                u1, new_cond1 = us_list[i]
-                for j in range(len(us_list)):
-                    if i == j:
-                        continue
-                    u2, new_cond2 = us_list[j]
-                    if new_cond1 is None and u1.is_subset_of(u2):
-                        to_remove.add((u2, new_cond2))
-            for r in to_remove:
-                us.remove(r)
-
     for cond, us in cond_to_u.items():
         for u, new_cond in us:
-            new_new_cond = cond if not new_cond else conjunct(cond, new_cond)
+            new_new_cond = (
+                cond if isinstance(new_cond, Value) else conjunct(cond, new_cond)
+            )
             if u in trans.keys():
                 trans[u].add(new_new_cond)
             else:
@@ -1653,44 +1639,66 @@ def process_cond_updates(results, inputs, symbol_table):
     results = []
     for u, conds in trans.items():
         reduced_conds = reduce_formula_set_up_to_equivalence(conds, symbol_table)
-        print("reduced up to strength: " + str(len(conds) - len(reduced_conds)))
-        reduced_conds = set(
-            map(
-                lambda x: simplify_issy_formula_with_math(x, symbol_table),
-                reduced_conds,
-            )
-        )
-        if len(reduced_conds) > 1:
-            reduced_conds_disj = join_disjuncts(reduced_conds)
+        if config.Config.getConfig().debug:
             if not is_tautology(
                 implies(
-                    disjunct_formula_set(reduced_conds_disj),
+                    conjunct(disjunct_formula_set(conds), conjunct_formula_set(u)),
                     disjunct_formula_set(reduced_conds),
                 ),
                 symbol_table,
-            ) and not is_tautology(
+            ):
+                raise Exception("Reduction produced non-equivalent formula.\n\n")
+
+        print("reduced up to strength: " + str(len(conds) - len(reduced_conds)))
+        # reduced_conds = set(
+        #     map(
+        #         lambda x: simplify_issy_formula_with_math(x, symbol_table),
+        #         reduced_conds,
+        #     )
+        # )
+        if False and len(reduced_conds) > 1:
+            reduced_conds_disj = join_disjuncts(reduced_conds)
+
+            if config.Config.getConfig().debug:
+                if not is_tautology(
+                    iff(
+                        disjunct_formula_set(reduced_conds_disj),
+                        disjunct_formula_set(reduced_conds),
+                    ),
+                    symbol_table,
+                ):
+                    join_disjuncts(reduced_conds)
+                    raise Exception(
+                        "Join disjuncts produced non-equivalent formula.\n\n"
+                        + str(disjunct_formula_set(reduced_conds))
+                        + "\n vs \n"
+                        + str(disjunct_formula_set(reduced_conds_disj))
+                    )
+                print(
+                    "joined conjuncts: "
+                    + str(len(reduced_conds) - len(reduced_conds_disj))
+                )
+
+            reduced_conds = reduced_conds_disj
+
+        c, new_u = add_pred_upgrades_as_conds(u)
+        new_cond = conjunct(c, disjunct_formula_set(reduced_conds))
+        new_cond = bdd_simplify_native(new_cond, symbol_table)
+        if config.Config.getConfig().debug:
+            if not is_tautology(
                 implies(
-                    disjunct_formula_set(reduced_conds),
-                    disjunct_formula_set(reduced_conds_disj),
+                    conjunct(disjunct_formula_set(conds), conjunct_formula_set(u)),
+                    new_cond,
                 ),
                 symbol_table,
             ):
                 raise Exception(
-                    "Join disjuncts produced non-equivalent formula.\n\n"
-                    + str(disjunct_formula_set(reduced_conds))
+                    "Produced non-equivalent formula.\n\n"
+                    + str(disjunct_formula_set(conds))
                     + "\n vs \n"
-                    + str(disjunct_formula_set(reduced_conds_disj))
+                    + str(new_cond)
                 )
-            print(
-                "joined conjuncts: " + str(len(reduced_conds) - len(reduced_conds_disj))
-            )
-
-            reduced_conds = reduced_conds_disj
-
-        new_cond, new_u = add_pred_upgrades_as_conds(u)
-        results.append(
-            (conjunct(new_cond, disjunct_formula_set(reduced_conds)), [new_u])
-        )
+        results.append((new_cond, [new_u]))
 
     return results
 
@@ -1753,15 +1761,12 @@ def reduce_formula_set_up_to_equivalence(
         is_stronger = False
         to_remove = set()
         for r in reduced:
-            f_implies_r = is_tautology(implies(f, r), symbol_table)
-            r_implies_f = is_tautology(implies(r, f), symbol_table)
-            if f_implies_r:
-                if not r_implies_f:
-                    continue
-                else:
-                    to_remove.add(r)
-            elif r_implies_f:
+            f_stronger = is_tautology(implies(f, r), symbol_table)
+            r_stronger = is_tautology(implies(r, f), symbol_table)
+            if f_stronger:
                 is_stronger = True
+            elif r_stronger:
+                to_remove.add(r)
                 break
         if not is_stronger:
             reduced.difference_update(to_remove)
