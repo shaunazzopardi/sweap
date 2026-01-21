@@ -486,23 +486,17 @@ def massage_ltl(formula: Formula, controller_state: Formula, to_replace, place=F
 
             return BiOp(new_left, formula.op, new_right)
     elif isinstance(formula, UniOp):
-        if formula.op in {"G", "F"} and not (
-            unary_LTL_operators | binary_LTL_operators
-        ).intersection(set(formula.right.ops_used())):
-            new_formula = formula.right.replace_formulas(to_replace)
-            if formula.op == "G":
-                new_formula = BiOp(controller_state, "->", new_formula)
-                return G(new_formula)
-            elif formula.op == "F":
-                new_formula = BiOp(controller_state, "&", new_formula)
-                return F(new_formula)
-
-        new_formula = massage_ltl(formula.right, controller_state, to_replace, True)
+        new_formula = massage_ltl(formula.right, controller_state, to_replace, False)
         if formula.op == "G":
+            new_formula = BiOp(controller_state, "->", new_formula)
             return G(new_formula)
         elif formula.op == "F":
+            new_formula = BiOp(controller_state, "&", new_formula)
             return F(new_formula)
-        elif formula.op == "X":
+        else:
+            new_formula = massage_ltl(formula.right, controller_state, to_replace, True)
+
+        if formula.op == "X":
             return BiOp(
                 neg(controller_state),
                 "U",
