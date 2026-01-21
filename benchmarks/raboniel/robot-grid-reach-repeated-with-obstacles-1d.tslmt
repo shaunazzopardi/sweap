@@ -1,21 +1,19 @@
-//-- State: i_x, loc
+//--State: i_x, loc
 //--Inputs: obstacle, env_in
 
 assume {
-    (ge env_in i0());
-}
-
-guarantee {
-[loc  <- i0()];
+    (eq loc i0());
 }
 
 always guarantee{
 
-([loc  <- i0()] && (eq i_x i0())) -> ((X [loc  <- i1()]));
-([loc  <- i0()] && (! (eq i_x i0()))) -> (X [loc  <- i0()] && (((le obstacle i0()) && ([i_x <- (add i_x i1())] || [i_x <- (sub i_x i1())])) || ((ge obstacle i0()) && [i_x <- i_x])));
+(eq loc i0()) -> ([loc <- i1()] && [i_x <- env_in]);
+((eq loc i1()) && (eq i_x i0())) -> [loc <- i0()];
 
-([loc  <- i1()]) -> (X ([loc <- i0()] && [i_x <- env_in]));
+((eq loc i1()) && (! (eq i_x i0())) && (le obstacle i0())) -> [i_x <- i_x];
+((eq loc i1()) && (! (eq i_x i0())) && (gt obstacle i0())) -> ([i_x <- i_x] || [i_x <- (add i_x i1())] || [i_x <- (sub i_x i1())]);
+
 }
 
-guarantee { (G F (le obstacle i0())) -> G F([loc  <- i1()]);}
+guarantee { (G F (le obstacle i0())) -> G F((eq loc i0()));}
 
