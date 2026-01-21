@@ -218,8 +218,8 @@ issy_benchs = {
     "counter-3-10-game": (True, "reach"),
     "counter-3-7-formula": (True, "reach"),
     "counter-3-7-game": (True, "reach"),
-    "v1": (True, "buechi"),
-    "v2-unreal": (False, "buechi"),
+    # "v1": (True, "buechi"),
+    # "v2-unreal": (False, "buechi"),
     "parity-two-vars-real": (True, "ltl"),
     "parity-two-vars-unreal-0": (False, "ltl"),
     "parity-two-vars-unreal-1": (False, "ltl"),
@@ -245,9 +245,9 @@ issy_benchs = {
     "test-12": (True, "buechi"),
     "test-13": (True, "buechi"),
     "test-14": (True, "safety"),
-    "test-15": (True, "reach"),
-    "test-16": (False, "reach"),
-    "test-17": (True, "reach"),
+    # "test-15": (True, "reach"),
+    # "test-16": (False, "reach"),
+    # "test-17": (True, "reach"),
     "test-extract-input": (True, "safety"),
     "test-extract-lemma": (True, "reach")
 }
