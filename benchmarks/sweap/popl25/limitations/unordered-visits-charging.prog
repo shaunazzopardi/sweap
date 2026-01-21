@@ -30,11 +30,11 @@ program unordered-visits-charging{
                   charge := charge if !c2;
                   dx := 1 if dx1 & dx2;
                   dx := -1 if !dx1 & dx2;
-                  dx := dx if !dx2]
+                  dx := dx if !dx2
+                ]
     }
 
     SPECIFICATION{
-       F(q) & (!q U (q &
         cx1 & cx2 & !c2 & dx2 &&
         (X G((x >= 50) -> ((!cx1 & !cx2 && !dx1 & dx2) || (cx1 & cx2 && !c1 & c2 && !dx2)))) &&
 
@@ -43,6 +43,6 @@ program unordered-visits-charging{
         (X G(!(x >= 50) && !(x <= -70)) -> (cx1 & !cx2 & c1 & c2 && !dx2)) &&
         (G ((charge >= 0) && charge <= 50)) &&
         (F (x >= 50)) &&
-        (F (x <= -70))))
+        (F (x <= -70))
     }
 }
