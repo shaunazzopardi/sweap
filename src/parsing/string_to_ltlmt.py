@@ -503,7 +503,7 @@ def massage_ltl(formula: Formula, controller_state: Formula, to_replace, place=F
                 conjunct(controller_state, X(new_formula)),
             )
         else:
-            return UniOp(formula.op, new_formula)
+            raise Exception("Unknown unary LTL operator " + str(formula.op))
     else:
         return formula
 
