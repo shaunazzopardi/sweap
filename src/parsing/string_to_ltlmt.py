@@ -345,11 +345,13 @@ class ToProgram(NodeWalker):
 
         states = set()
         if len(partition_updates_items) > 0:
+            all_con_act_vars = set()
             for j, (var, acts) in enumerate(partition_updates_items):
                 con_act_vars_no = len(acts)
                 con_act_vars, binary_map = binary_rep(
                     [Variable(str(v)) for v in range(0, con_act_vars_no)], "con_act_"
                 )
+                all_con_act_vars.update(con_act_vars)
                 con_act_f = list(binary_map.values())
 
                 to_replace_here = {}
@@ -397,7 +399,7 @@ class ToProgram(NodeWalker):
                         to_replace[act] = disjunct_formula_set(fs)
         else:
             eval_state = "eval"
-            con_act_vars = []
+            all_con_act_vars = []
             con_t.append(
                 Transition(
                     eval_state,
@@ -437,7 +439,7 @@ class ToProgram(NodeWalker):
             [(str(v), types[str(v)]) for v in self.state_vars],
             con_t,
             [(v, types[str(v)]) for v in self.inputs],
-            [(v, BOOLEAN) for v in con_act_vars],
+            [(v, BOOLEAN) for v in all_con_act_vars],
             preprocess=True,
         )
         # The below is not sound, imagine an F x = 0 as the guarantee, if we set x to 0 in initial state, then
