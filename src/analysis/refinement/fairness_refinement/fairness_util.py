@@ -207,8 +207,8 @@ def liveness_step(
         return False, (None, None)
 
     irrelevant_vars = [v for v in program.local_vars if v not in vars_relevant_to_exit]
-    irrelevant_vars += program.env_events
-    irrelevant_vars += program.con_events
+    irrelevant_vars += [v for v, _ in program.env_events]
+    irrelevant_vars += [v for v, _ in program.con_events]
     irrelevant_vars += [
         v for v in program.local_vars if symbol_table[str(v)] == BOOLEAN
     ]
