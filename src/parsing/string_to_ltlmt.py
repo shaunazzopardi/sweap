@@ -345,13 +345,13 @@ class ToProgram(NodeWalker):
 
         states = set()
         if len(partition_updates_items) > 0:
-            con_act_vars_no = max(len(v) for v in partition_to_updates.values())
-            con_act_vars, binary_map = binary_rep(
-                [Variable(str(v)) for v in range(0, con_act_vars_no)], "con_act_"
-            )
-            con_act_f = list(binary_map.values())
-
             for j, (var, acts) in enumerate(partition_updates_items):
+                con_act_vars_no = len(acts)
+                con_act_vars, binary_map = binary_rep(
+                    [Variable(str(v)) for v in range(0, con_act_vars_no)], "con_act_"
+                )
+                con_act_f = list(binary_map.values())
+
                 to_replace_here = {}
                 last_partition = j == len(partition_updates_items) - 1
 
