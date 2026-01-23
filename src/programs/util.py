@@ -13,6 +13,7 @@ from pysmt.shortcuts import get_env, And
 from sympy.utilities.iterables import iterable
 
 from analysis.smt_checker import check, bdd_simplify
+import config
 from programs.dfa import classify_initial_values
 from programs.transition import Transition
 from prop_lang.biop import BiOp
@@ -701,15 +702,39 @@ def guarded_action_transitions_to_normal_transitions(arg):
                 raise Exception("Otherwise transitions cannot have guarded actions")
         return [guarded_transition]
 
+    symbol_table = {}
+    for v in valuation:
+        symbol_table[v[0]] = v[1]
+        symbol_table[v[0] + "_next"] = v[1]
+
+    for ev, t in env_events + con_events:
+        symbol_table[ev.name] = t
+
     unguarded_acts = []
     guarded_acts = {act: set() for (act, _) in guarded_transition.action}
+    var_to_update_guards = {}
     for act, guard in guarded_transition.action:
-        new_guard = guard
+        var_to_update_guards.setdefault(act.left, list()).append(guard)
         if isinstance(guard, Value):
             if guard.is_true():
                 unguarded_acts += [act]
             continue
-        guarded_acts[act].add(new_guard)
+        guarded_acts[act].add(guard)
+
+    for v, guards in var_to_update_guards.items():
+        for i in range(len(guards)):
+            guard1 = guards[i]
+            for j in range(i + 1, len(guards)):
+                guard2 = guards[j]
+                if sat(conjunct(guard1, guard2), symbol_table):
+                    raise Exception(
+                        "Guarded actions are not mutually exclusive: "
+                        + str(guard1)
+                        + " and "
+                        + str(guard2)
+                        + " for update of variable "
+                        + str(v)
+                    )
 
     guarded_acts = {act: g_set for act, g_set in guarded_acts.items() if len(g_set) > 0}
 
@@ -725,14 +750,6 @@ def guarded_action_transitions_to_normal_transitions(arg):
         ]
 
     transitions = []
-
-    symbol_table = {}
-    for v in valuation:
-        symbol_table[v[0]] = v[1]
-        symbol_table[v[0] + "_next"] = v[1]
-
-    for ev, t in env_events + con_events:
-        symbol_table[ev.name] = t
 
     act_guard_sets = set()
     act_guard_sets.add(frozenset({}))
@@ -776,6 +793,19 @@ def guarded_action_transitions_to_normal_transitions(arg):
         if not sat(new_guard, symbol_table):
             continue
 
+        if config.Config.getConfig().debug:
+            if not is_tautology(
+                BiOp(
+                    conjunct_formula_set(
+                        [a[1] for a in act_guard_set if a[0] is not None]
+                    ),
+                    "->",
+                    action_guards,
+                ),
+                symbol_table,
+            ):
+                raise Exception("Guarded action guards do not imply action guard set")
+
         actions = [act for (act, _) in act_guard_set if act != None]
 
         transitions.append(
@@ -789,19 +819,20 @@ def guarded_action_transitions_to_normal_transitions(arg):
         )
 
     # debug
-    collect_guards = []
-    for t in transitions:
-        collect_guards += [t.condition]
-    if sat(
-        (
-            conjunct(
-                guarded_transition.condition,
-                neg(disjunct_formula_set(collect_guards)),
-            )
-        ),
-        symbol_table,
-    ):
-        raise Exception("Not all transitions are covered by guards")
+    if config.Config.getConfig().debug:
+        collect_guards = []
+        for t in transitions:
+            collect_guards += [t.condition]
+        if sat(
+            (
+                conjunct(
+                    guarded_transition.condition,
+                    neg(disjunct_formula_set(collect_guards)),
+                )
+            ),
+            symbol_table,
+        ):
+            raise Exception("Not all transitions are covered by guards")
 
     return transitions
 
