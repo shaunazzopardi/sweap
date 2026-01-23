@@ -215,7 +215,7 @@ class MooreMachine(Machine):
         define += ["identity_" + self.name + " := " + " & ".join(identity)]
 
         if dualise:
-            vars = ["turn : {prog, cs, init1, init2}"]
+            vars = ["turn : {prog, cs, init1}"]
         else:
             vars = ["turn : {prog, cs}"]
         vars += [str(st) + " : boolean" for st in self.states]

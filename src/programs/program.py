@@ -611,7 +611,7 @@ class Program:
         transitions = guard_and_act
 
         if dualise:
-            vars = ["turn : {prog, cs, init1, init2}"]
+            vars = ["turn : {prog, cs, init1}"]
         else:
             vars = ["turn : {prog, cs}"]
         vars += sorted([s + " : boolean" for s in self.states])
@@ -641,11 +641,7 @@ class Program:
             for var, value in self.init_var_values.items()
             if not isinstance(value, NonDeterministic)
         ]
-        init += [
-            str(var) + "_prev" + " = " + str(value.to_nuxmv())
-            for var, value in self.init_var_values.items()
-            if not isinstance(value, NonDeterministic)
-        ]
+        init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
         locals_plus_inputs = self.local_vars + self.num_in_out
@@ -858,11 +854,7 @@ class Program:
             for var, value in self.init_var_values.items()
             if not isinstance(value, NonDeterministic)
         ]
-        init += [
-            var + "_prev" + " = " + str(value.to_nuxmv())
-            for var, value in self.init_var_values.items()
-            if not isinstance(value, NonDeterministic)
-        ]
+        init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
         trans += prev_logic
