@@ -486,24 +486,31 @@ def massage_ltl(formula: Formula, controller_state: Formula, to_replace, place=F
 
             return BiOp(new_left, formula.op, new_right)
     elif isinstance(formula, UniOp):
-        new_formula = massage_ltl(formula.right, controller_state, to_replace, False)
         if formula.op == "G":
+            new_formula = massage_ltl(
+                formula.right, controller_state, to_replace, False
+            )
             new_formula = BiOp(controller_state, "->", new_formula)
             return G(new_formula)
         elif formula.op == "F":
+            new_formula = massage_ltl(
+                formula.right, controller_state, to_replace, False
+            )
             new_formula = BiOp(controller_state, "&", new_formula)
             return F(new_formula)
-        else:
-            new_formula = massage_ltl(formula.right, controller_state, to_replace, True)
 
         if formula.op == "X":
+            new_formula = massage_ltl(formula.right, controller_state, to_replace, True)
             return BiOp(
                 neg(controller_state),
                 "U",
                 conjunct(controller_state, X(new_formula)),
             )
         else:
-            raise Exception("Unknown unary LTL operator " + str(formula.op))
+            new_formula = massage_ltl(
+                formula.right, controller_state, to_replace, place
+            )
+            return UniOp(formula.op, new_formula)
     else:
         return formula
 
