@@ -33,8 +33,8 @@ program robot-to-target {
 
     SPECIFICATION {
         (G F q) -> (!q U (q & (
-            !cx & ct && X (!q U (q & G (
-                cx & !d1 & !d2 & (tx == 1000 || tx == -1000)) &&
+            !cx & (d1 | (!d1 & !d2)) & ct && X (!q U (q & G (
+                cx & (tx == 1000 || tx == -1000)) &&
                 F (x <= tx) && F (x >= tx)
             )))))
     }
