@@ -1160,14 +1160,17 @@ def compute_abstract_effect_for_guard_update(arg):
         symbol_table,
         vars_relabelling,
     )
-    if config.Config.getConfig().debug:
-        effects_to_ltl_non_bin(
-            gu, new_effects, constants, invars, conf, dual_env_props, symbol_table
-        )
-
     if conf.debug:
-        print("\n\n\n" + str(gu) + "\n" + str(gu_ltl))
-        print("\n\n" + str(gu))
+        effects_to_ltl_non_bin(
+            gu,
+            new_effects,
+            constants,
+            invars,
+            conf,
+            dual_env_props,
+            symbol_table,
+        )
+        print("\n\n" + str(gu_ltl))
 
     return (
         gu,
