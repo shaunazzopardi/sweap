@@ -650,7 +650,6 @@ class EffectsAbstraction(PredicateAbstraction):
 
     def update_init_abstraction_state_pred(self, p):
         new_init_abs = []
-        matters = False
         for m in self.init_state_abstraction:
             for choice in p.choices():
                 m_with_p = m + [choice]
@@ -659,16 +658,10 @@ class EffectsAbstraction(PredicateAbstraction):
                     self.symbol_table,
                 ):
                     new_init_abs.append(m_with_p)
-                else:
-                    matters = True
-        if config.Config.getConfig().dual or matters:
-            return new_init_abs
-        else:
-            return self.init_state_abstraction
+        return new_init_abs
 
     def update_init_abstraction_new_chain_pred(self, v_chain_pred):
         new_init_abs = []
-        matters = False
         for p in v_chain_pred.chain:
             for m in self.init_state_abstraction:
                 m_with_p = (
@@ -681,17 +674,9 @@ class EffectsAbstraction(PredicateAbstraction):
                     self.symbol_table,
                 ):
                     new_init_abs.append(m_with_p)
-                else:
-                    matters = True
-        if config.Config.getConfig().dual or matters:
-            return new_init_abs
-        else:
-            return self.init_state_abstraction
+        return new_init_abs
 
     def update_init_abstraction_old_chain_pred(self, v_chain_pred):
-        if not config.Config.getConfig().dual and v_chain_pred in self.init_no_matter:
-            return self.update_init_abstraction_new_chain_pred(v_chain_pred)
-
         old_to_new = v_chain_pred.old_to_new
         # TODO if transition pred do not update
         new_init_abs = []
