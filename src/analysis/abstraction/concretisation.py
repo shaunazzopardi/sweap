@@ -183,7 +183,7 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                     + "\n"
                     + str(transition_formula(concretized[-1][0]))
                     + "\n\n\nAgreed on transitions:\n"
-                    + "\n\n".join(map(lambda x: x[0], concretized[:-1]))
+                    + "\n\n".join(map(lambda x: str(x[0]), concretized[:-1]))
                     + "\n\n\nInit state:\n"
                     + str(
                         conjunct_formula_set(
