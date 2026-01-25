@@ -1,0 +1,25 @@
+state int x
+state int y
+
+game Reachability from prep {
+    loc prep 0
+    loc work 0
+    loc done 1
+
+    from prep to prep with 
+        ([x' = 0] && [y' = y])   
+      ||([x' = x - 1] && [y' = y])
+      ||([x' = x + 1] && [y' = y])
+
+    from prep to work with 
+        ([x' = x] && [y' = y])   
+
+    from work to work with
+        ([x' = x - 2] && [y' = y - 1])
+     || ([x' = x + 2] && [y' = y + 1])
+
+    from work to done with ([x = 0] && [y = 0])   
+
+    from done to done with true
+
+}

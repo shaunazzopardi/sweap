@@ -1,0 +1,59 @@
+state real altitude
+state real target
+state real load
+
+input real downwind 
+input real new_load
+input real new_target
+
+state int packages 
+
+def DWMAX =  [1.0]
+def DWMIN = [-1.0]
+def LOAD_MAX = [2.0]
+def LOAD_MOD = [1.4]
+def RANGE = [5.5]
+
+def modAlt = [altitude - downwind - LOAD_MOD * load]
+
+def failure_mode = 
+         [downwind > DWMAX] 
+      || [downwind < DWMIN]
+      || [load < 0] 
+      || [load > LOAD_MAX]
+
+
+game Buechi from init {
+
+    loc init 0
+    loc start 0
+    loc changeAlt 0
+    loc setTarget 1
+    loc envFail 1
+    loc sysFail 0
+   
+    from setTarget to start with keep (altitude target load) &&
+            [packages >= 0] && [packages <= 50] &&
+            ([(packages mod 2) = 1] && [packages' = 3 * packages + 1] ||
+             [(packages mod 2) = 0] && [2 * packages' = packages]
+            )
+
+    from setTarget to sysFail with [packages < 0] || [packages > 50]
+    from init to setTarget with [packages' > 10] 
+
+    from start to changeAlt with [target' = new_target] && [load' = new_load] && keep(altitude packages)
+
+    from changeAlt to changeAlt with 
+         ([altitude' >= modAlt - RANGE] 
+      && [altitude' <= modAlt + RANGE] 
+      && keep(target load packages))
+      || (failure_mode && keep(target load packages))
+
+    from changeAlt to setTarget with 
+        (([altitude >= 0.9 * target] && [altitude <= 1.1 * target]) ||
+         ([altitude <= 0.9 * target] && [altitude >= 1.1 * target])     // targets can also be negative
+        ) && keep (packages)
+
+    from envFail to envFail with true
+    from sysFail to sysFail with true
+}

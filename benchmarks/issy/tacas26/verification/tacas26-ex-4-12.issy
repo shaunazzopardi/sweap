@@ -1,0 +1,13 @@
+// Example 4.12 from the paper "Ranking Templates for Linear Loops"
+// There exists a 3-nested ranking function.
+
+state int q
+state int a
+state int b
+
+formula {
+    assert G ([q > 0]  -> ([q' = q + a - 1] && 
+                           [5 * a' =  3 * a - 4 * b]  && 
+                           [5 * b' =  4 * a + 3 * b]))
+    assert F ([q <= 0])
+}

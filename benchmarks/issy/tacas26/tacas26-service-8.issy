@@ -1,0 +1,38 @@
+state int pos
+state int count
+
+input int tasks
+
+formula{
+
+    assert X G ([pos >= 1] && [pos <= 8])
+    assert G F [pos = 1]
+    assert G F [pos = 2]
+    assert G F [pos = 3]
+    assert G F [pos = 4]
+    assert G F [pos = 5]
+    assert G F [pos = 6]
+    assert G F [pos = 7]
+    assert G F [pos = 8]    
+}
+
+game Safety from init {
+    loc init 1
+    loc move 1
+    loc service 1
+
+    from init to move with [pos' = 1] && [count' = tasks]
+
+    from move to move with 
+       [count <= 0] && [count' = count] &&
+       ([pos' = pos + 1] ||  [pos' = pos - 1])
+
+    from move to service with
+        [count' = tasks] && [pos' = pos]
+
+    from service to service with
+        [count' = count - 1] && [pos' = pos]
+    
+    from service to move with 
+        [count <= 0] && [count' = count] && [pos' = pos]
+}    

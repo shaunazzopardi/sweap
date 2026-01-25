@@ -1,0 +1,61 @@
+state int x
+state int y
+state int envX
+state int envY
+
+input int diffX
+input int diffY
+
+state real sx
+state real sy
+input real isx
+input real isy
+
+
+def FIELDSIZE = [6]
+
+def KEEPREST = keep(x y envX envY)
+def RULESYS =  [x >= FIELDSIZE ] && ([x' = FIELDSIZE - 1] || [x' = 0]) && keep(y)
+        || [x <= 0] && ([x' = 1] || [x' = FIELDSIZE]) && keep (y)
+        || [x < FIELDSIZE] && [x > 0] && ([x' = x + 1] || [x' = x - 1]) && keep(y)
+        || [y >= FIELDSIZE ] && ([y' = FIELDSIZE - 1] || [y' = 0]) && keep(x)
+        || [y <= 0] && ([y' = 1] || [y' = FIELDSIZE]) && keep (x)
+        || [y < FIELDSIZE] && [y > 0] && ([y' = y + 1] || [y' = y - 1]) && keep(x)
+ 
+def RULEENV = [diffX <= 1] && [diffX >= -1] && [diffY <= 1] && [diffY >= -1] &&
+          [envX' = envX + diffX] && [envY' = envY + diffY]
+        || ([diffX > 1] || [diffX < -1] || [diffY > 1] || [diffY < -1]) && keep(envX envY)
+        
+
+formula {
+    assume [x = 2]
+    assume [y = 2]
+    assume [envX = 1]
+    assume [envY = 0]
+    assert X G !([x = envX] && [y = envY])
+}
+
+game Buechi from init {
+
+    loc init
+    loc moveSys 1
+    loc moveEnv 0
+
+    loc initNext 0
+    loc moveToNext 0
+    loc reachedNext 0
+
+    from init to moveSys with true
+
+    from initNext to moveToNext with [sx' = isx] && [sy' = isy] && KEEPREST
+    from moveToNext to moveToNext with 
+     (([sx - 0.5 <= sx'] && [sx' <= sx + 0.5] && [sy' = sy]) ||
+     ([sy - 0.5 <= sy'] && [sy' <= sy + 0.5] && [sx' = sx])) && 
+     KEEPREST
+    from moveToNext to reachedNext with [sx = 0] && [sy = 0] && KEEPREST
+
+    from reachedNext to moveSys with KEEPREST
+
+    from moveSys to moveEnv with RULESYS && keep (envX envY)
+    from moveEnv to initNext with RULEENV && keep (x y)
+}

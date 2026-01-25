@@ -1,0 +1,20 @@
+state int x
+state int y
+input bool b
+
+
+game Reachability from loop {
+    loc loop 0
+    loc done 1
+
+    
+    from done to done with true
+    
+    from loop to loop with
+        ([x' = x - 1] && [y' = y])
+     || ([x' = y]     && [y' = x])
+
+    from loop to done with 
+        (b  && [x <= 0]) 
+     || (!b && [y <= 0])   
+}

@@ -1,0 +1,48 @@
+state int x1
+state int x2
+state int y
+input int i
+
+
+
+def goal  = [x1 <= 0] && [x2 <= 0]
+
+def reset_X = [x1' = i] && [x2' = i]
+def keep_X = keep(x1 x2)
+
+def update_Y = ([y' = y + 1] || [y' = y - 1])
+
+
+
+formula {
+     assert G F (goal)
+}
+
+game Safety from linit {
+    
+    loc linit 1
+    loc ldone 1
+    loc l0 1
+    loc l1 1
+    loc l2 1
+
+
+    from linit to l0 with reset_X
+
+    from l0 to l1 with keep_X && [y' = i]
+    from l0 to l2 with keep_X && [y' = i]
+
+    from l1 to l1 with !goal && 
+                       [x1' = x1 - 1] && [x2' = x2] && update_Y
+    from l1 to l0 with !goal && keep_X && [y >= 0]
+    from l1 to ldone with goal && keep_X
+
+    from l2 to l2 with !goal && 
+                       [x2' = x2 - 1] && [x1' = x1 - i] && update_Y
+    from l2 to l0 with !goal && keep_X && [y >= 0]
+    from l2 to ldone with goal && keep_X
+
+    from ldone to l0 with reset_X
+}
+
+

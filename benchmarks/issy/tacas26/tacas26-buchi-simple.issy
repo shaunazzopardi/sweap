@@ -1,0 +1,48 @@
+state int t
+state int b
+input int it
+
+
+game Buechi from done {
+    loc start 0
+    loc charge 0
+    loc work 0
+    loc done 1
+    loc err 0
+
+    from done to start with
+        ([it >= 0] && 
+         [t' = it] && [b' = b])
+
+    from done to done with [it < 0]
+    
+    from start to work with
+        ([t' = t] && [b' = b])
+
+    from start to charge with
+        ([t' = t] && [b' = b])
+    
+    from work to work with
+        ([b > 0] && 
+         [t' = t - 1] && [b' = b - 1])
+   
+    from work to done with 
+        [t <= 0] && keep(t b)
+
+    from work to charge with 
+        [b > 0] && keep(t b)
+
+    from work to err with 
+        [b <= 0] && keep(t b)
+
+    from charge to charge with
+       [b' = b + 1] && keep(t)
+
+    from charge to work with
+       [b' = b + 1] && keep(t)
+
+
+    from err to err with true
+
+}
+

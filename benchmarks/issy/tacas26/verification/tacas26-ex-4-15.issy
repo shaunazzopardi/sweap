@@ -1,0 +1,16 @@
+// Example 4.15 from the paper "Ranking Templates for Linear Loops"
+// In every iteration, min(p,q) decreases by 1.
+// There does not exist a multiphase or lexicographic ranking function: both p and q may increase when assigned the value of i. The number of switches between the two cases is unbounded.
+
+
+state int q
+state int p
+input int i
+
+formula {
+    assert G (([q > 0] && [p > 0] && [q < p])  -> 
+              ([q' = q - 1] && [p' = i]))
+    assert G (([q > 0] && [p > 0] && [p < q])  -> 
+              ([p' = p - 1] && [q' = i]))
+    assert F ([q <= 0] || [p <= 0] || [p = q])
+}

@@ -1,0 +1,55 @@
+state real bound
+state real current
+state int check
+
+input real inb
+input real ind
+input int inc
+
+def INITBOUND  =  [0.5]
+def VALIDBOUND =  [inb > 0]
+def VALIDDEC   =  [ind > 0] && [ind >= bound]
+def VALIDCHECK =  ![inc = 0]
+
+
+game Reachability from init {
+    loc init 0
+    loc done 1
+    loc pick 0
+    loc running 0
+
+    from init to running with 
+        VALIDCHECK && 
+        [bound' = INITBOUND] && 
+        [current' = current] &&
+        [check' = inc]
+
+    from init to done with 
+        !VALIDCHECK 
+
+    from running to running with 
+        VALIDDEC && ![check = 0] &&
+        [bound' = bound] &&
+        [current' = current - ind] &&
+        ([check' = check + 1] || [check' = check - 1])
+
+    from running to pick with 
+        [check = 0] &&
+        [bound' = bound] &&
+        [current' = current] &&
+        [check' = check]
+
+    from running to done with 
+        !VALIDDEC
+     || ![check = 0] && [current <= 0]
+
+
+    from pick to running with  
+        VALIDBOUND &&
+        [bound' = inb] && [current' = current] && [check' = inc]
+
+    from pick to done with  
+        !VALIDBOUND
+        
+    from done to done with true
+}    

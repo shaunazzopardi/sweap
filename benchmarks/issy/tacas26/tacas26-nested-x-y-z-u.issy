@@ -1,0 +1,24 @@
+state int x
+state int y
+state int z
+state int u
+input int iy
+input int iz
+input int iu
+
+game Reachability from work {
+    loc work 0
+    loc goal 1
+
+    from goal to goal with true
+   
+    from work to goal with [x <= 0]
+   
+    from work to work with
+        ([y <= 0] && [x' = x - 1] && [y' = iy] && [z' = iz] && [u' = iu])  
+     || ([z <= 0] && [y' = y - 1] && [x' = x] && [z' = iz] && [u' = iu])
+     || ([u <= 0] && [z' = z - 1] && [x' = x] && [y' = y] && [u' = iu])
+     || ([u' = u - 1] && [x' = x] && [y' = y] && [z' = z])
+
+}
+

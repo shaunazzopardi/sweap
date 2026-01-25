@@ -1,0 +1,17 @@
+state real x
+state real y
+state real z
+
+game Reachability from start {
+    loc start 0
+    loc work 0
+    loc goal 1
+
+    from start to goal with ![x = y * 4 + 3] && keep(x y z)
+    from start to work with [x = y * 4 + 3] && keep(x y z)
+
+    from work to work with [z' >= z - 0.1] && [x' = x + 4] && [y' = y + 1]
+    from work to goal with [z <= 0] && [x = y * 4 + 3] && keep (x y z)
+
+    from goal to goal with true
+}

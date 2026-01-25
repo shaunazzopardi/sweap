@@ -1,0 +1,31 @@
+state int c
+state int x
+state int y
+
+input int ix
+input int iy
+input bool b
+input int i
+
+def BOUND = [400]
+
+game Buechi from init {
+    loc init 0
+    loc iter 1
+    loc loop 0
+    loc sink 0
+
+    from iter to sink with [c < -BOUND]
+    from iter to loop with [c >= -BOUND] && ([c >= 0] && [c' = c + 1] || [c < 0] && [c' = c - 1]) && [x' = ix] && [y' = iy]
+
+    from loop to iter with keep(c) && [y <= 0]
+    
+    from loop to loop with keep(c) && 
+    (   (([x <= 0] || b) && [x' = i]         && [y' = y - 1])  
+     || (([x > 0] && !b) && [x' = x - i - 2] && [y' = y])  
+     || (([x > 0] && !b) && [x' = x + i + 1] && [y' = y]))
+
+    from sink to sink with true
+
+    from init to iter with [c' = 123]
+}

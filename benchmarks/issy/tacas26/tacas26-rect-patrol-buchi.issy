@@ -1,0 +1,58 @@
+state real x
+state real y
+state real tx
+state real ty
+input real txi
+input real tyi
+
+
+def BOUND = [3]
+def STEP = [1]
+
+def valid_input = [txi = 0] && [tyi = 0]
+               || [txi = 0] && [tyi = BOUND]
+               || [txi = BOUND] && [tyi = BOUND]
+               || [txi = BOUND] && [tyi = 0]
+def valid_move =  [x' = x + STEP] && [y' = y]
+               || [x' = x - STEP] && [y' = y]
+               || [x' = x] && [y' = y + STEP]
+               || [x' = x] && [y' = y - STEP]
+def safe = [x = 0] && [y >= 0] && [y <= BOUND] 
+        || [x = BOUND] && [y >= 0] && [y <= BOUND]
+        || [y = 0] && [x >= 0] && [x <= BOUND]
+        || [y = BOUND] && [x >= 0] && [x <= BOUND]
+
+game Buechi from init {
+    loc init 0
+    loc move 0
+    loc done 1
+    loc err 0
+    
+    from init to move with
+        valid_input &&
+        [x' = 0] && [y' = 0] && [tx' = txi] && [ty' = tyi]
+
+    from init to done with
+        !valid_input &&
+        [x' = 0] && [y' = 0] && [tx' = tx] && [ty' = ty]
+        
+    from move to move with
+        safe && valid_move && [tx' = tx] && [ty' = ty]
+
+    from move to done with
+        safe && [x = tx] && [y = ty] &&
+        [x' = x] && [y' = y] && [tx' = tx] && [ty' = ty]
+   
+    from move to err with !safe
+
+    from done to move with
+        valid_input &&
+        [x' = x] && [y' = x] && [tx' = txi] && [ty' = tyi]
+
+    from done to done with
+        !valid_input &&
+        [x' = x] && [y' = y] && [tx' = tx] && [ty' = ty]
+
+    from err to err with true
+
+}

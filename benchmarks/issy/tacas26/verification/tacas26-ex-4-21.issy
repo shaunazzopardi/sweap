@@ -1,0 +1,18 @@
+// Example 4.21 from the paper "Ranking Templates for Linear Loops"
+// There exists a 2-parallel ranking function.
+
+state int a
+state int b
+input bool c
+
+formula {
+    assert G (([a > 0] && [b <= 0])  -> 
+              ([a' = a - 1] && [b' = b]))
+    assert G (([b > 0] && [a <= 0])  -> 
+              ([a' = a] && [b' = b - 1]))
+    assert G (([b > 0] && [a > 0] && c)  -> 
+              ([a' = a - 1] && [b' = b]))
+    assert G (([b > 0] && [a > 0] && !c)  -> 
+              ([a' = a] && [b' = b - 1])) 
+    assert F ([a <= 0] || [b <= 0])
+}

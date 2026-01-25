@@ -1,0 +1,41 @@
+state int remaining
+state int current
+state int time
+
+input int priority
+input int duration
+
+def TOTAL = [100]
+
+def ENVCHOICE =  [priority > 0] && [priority <= remaining]
+
+
+game Reachability from init {
+    loc init 0
+    loc done 1
+    loc running 0
+    loc working 0
+
+
+    from init to running with 
+        [current' = 0] && [remaining' = TOTAL] && [time' = 0]
+
+    from running to running with 
+        ENVCHOICE && 
+        [current' = priority] && [remaining' = remaining - priority + current] && [time' = duration]
+
+    from running to done with 
+        !ENVCHOICE || [remaining = 0]
+
+    from running to working with
+        [current >= priority] && 
+        keep(current remaining time)
+
+    from working to working with 
+        [current' = current] && [remaining' = remaining] && [time' = time - 1]
+
+    from working to running with 
+        [time <= 0] && [current' = 0] && [remaining' = remaining] && [time' = 0]
+
+    from done to done with true
+}    

@@ -1,0 +1,17 @@
+// Example 4.13 from the paper "Ranking Templates for Linear Loops"
+// There exists a 7-nested ranking function.
+
+state int q
+state int a
+state int b
+state int c
+state int d
+
+formula {
+    assert G ([q > 0]  -> ([q' = q + a - 1] && 
+                           [a' =  3 * a - 5 * b + c] && 
+                           [b' =  12 * a + 3 * b] &&
+                           [c' = 3 * c - 4 * d] &&
+                           [d' = 4 * c + 3 * d]))
+    assert F ([q <= 0])
+}
