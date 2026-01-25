@@ -1,5 +1,5 @@
 state int pos
-state int count
+state int c
 
 input int tasks
 
@@ -23,18 +23,18 @@ game Safety from init {
     loc move 1
     loc service 1
 
-    from init to move with [pos' = 1] && [count' = tasks]
+    from init to move with [pos' = 1] && [c' = tasks]
 
     from move to move with 
-       [count <= 0] && [count' = count] &&
+       [c <= 0] && [c' = c] &&
        ([pos' = pos + 1] ||  [pos' = pos - 1])
 
     from move to service with
-        [count' = tasks] && [pos' = pos]
+        [c' = tasks] && [pos' = pos]
 
     from service to service with
-        [count' = count - 1] && [pos' = pos]
+        [c' = c - 1] && [pos' = pos]
     
     from service to move with 
-        [count <= 0] && [count' = count] && [pos' = pos]
+        [c <= 0] && [c' = c] && [pos' = pos]
 }    
