@@ -821,18 +821,14 @@ def process(
                         for scc in program.sccs:
                             states_in_scc = {Variable(t.src) for t in scc}
                             to_add = set()
-                            changed = True
-                            while changed:
-                                for s in states_in_scc:
-                                    to_add.update(
-                                        map(
-                                            lambda x: Variable(x),
-                                            program.reachable_from[str(s)],
-                                        )
+                            for s in states_in_scc:
+                                to_add.update(
+                                    map(
+                                        lambda x: Variable(x),
+                                        program.reachable_from[str(s)],
                                     )
-                                to_add.difference_update(states_in_scc)
-                                if len(to_add) == 0:
-                                    changed = False
+                                )
+                            to_add.difference_update(states_in_scc)
                             states_in_scc.update(to_add)
                             if (
                                 len(set(marked_states[1]).intersection(states_in_scc))
@@ -867,19 +863,15 @@ def process(
                         for scc in program.sccs:
                             states_in_scc = {Variable(t.src) for t in scc}
                             to_add = set()
-                            changed = True
-                            while changed:
-                                for s in states_in_scc:
-                                    to_add.update(
-                                        map(
-                                            lambda x: Variable(x),
-                                            program.reachable_from[str(s)],
-                                        )
+                            for s in states_in_scc:
+                                to_add.update(
+                                    map(
+                                        lambda x: Variable(x),
+                                        program.reachable_from[str(s)],
                                     )
-                                to_add.difference_update(states_in_scc)
-                                if len(to_add) == 0:
-                                    changed = False
-                                states_in_scc.update(to_add)
+                                )
+                            to_add.difference_update(states_in_scc)
+                            states_in_scc.update(to_add)
                             if (
                                 len(set(marked_states[1]).intersection(states_in_scc))
                                 == 0
