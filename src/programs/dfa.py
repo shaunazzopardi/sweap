@@ -196,6 +196,20 @@ def reachable_states(program) -> tuple[Set[Hashable], dict[Hashable, Set[Hashabl
         reachable.add(state)
 
     program_bfs(program, None, step, on_visit=on_visit, key_fn=lambda s, _: s)
+
+    # saturate reachable_from
+    changed = True
+    while changed:
+        changed = False
+        for src in list(reachable_from.keys()):
+            new_targets = set()
+            for mid in reachable_from[src]:
+                new_targets.update(reachable_from[mid])
+            before = len(reachable_from[src])
+            reachable_from[src].update(new_targets)
+            if len(reachable_from[src]) > before:
+                changed = True
+
     return reachable, reachable_from
 
 
