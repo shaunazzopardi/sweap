@@ -864,7 +864,7 @@ def issy_transition_formula(t):
     preds = atomic_predicates(t.condition)
     to_replace = {str(p): f"[{str(p)}]" for p in preds}
     for k, v in to_replace.items():
-        cond = cond.replace(k, v)
+        cond = re.sub(rf"\b{k}\b", v, cond)
 
     stutters = [u.left for u in t.action if u.left == u.right]
     if len(stutters) > 0:
