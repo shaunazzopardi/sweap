@@ -849,6 +849,16 @@ def process(
                     case "Reachability":
                         objective_states = disjunct_formula_set(marked_states[1])
                         objective = F(objective_states)
+                        for scc in program.sccs:
+                            states_in_scc = {Variable(t.src) for t in scc}
+                            if (
+                                len(set(marked_states[1]).intersection(states_in_scc))
+                                == 0
+                            ):
+                                losing_states.extend({s.name for s in states_in_scc})
+                                states_to_exclude_minigame[game_index].update(
+                                    states_in_scc
+                                )
                     case "ParityMaxOdd":
                         objective = parity_objective(marked_states)
                     case _:
