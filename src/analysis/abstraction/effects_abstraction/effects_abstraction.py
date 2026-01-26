@@ -1077,6 +1077,7 @@ def compute_abstract_effect_for_guard_update(arg):
                             for p in right_parts
                             if p
                             in [v_to_partition[vv] for vv in uu.right.variablesin()]
+                            or p == u_part
                         )
                     ):
                         curr_us_to_join.add(other_curr_u)
