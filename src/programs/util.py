@@ -868,7 +868,7 @@ def issy_transition_formula(t):
 
     stutters = [u.left for u in t.action if u.left == u.right]
     if len(stutters) > 0:
-        cond += f" && keep({', '.join([str(s) for s in stutters])})"
+        cond += f" && keep({' '.join([str(s) for s in stutters])})"
     updates = [u for u in t.action if u.left != u.right]
     for u in updates:
         cond += f" && [{str(u.left)}' = {str(u.right)}]"
