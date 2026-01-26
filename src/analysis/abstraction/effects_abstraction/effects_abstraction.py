@@ -964,7 +964,8 @@ def update_effects(
 
     new_now_preds = sorted(list(new_now_preds), key=lambda p: str(p))
     for p in new_now_preds:
-        effects = p.extend_effect_now(gu, effects, symbol_table)
+        if not "_prev" in str(p):
+            effects = p.extend_effect_now(gu, effects, symbol_table)
 
     new_next_preds = sorted(list(new_next_preds), key=lambda p: str(p))
     for p in new_next_preds:
@@ -973,7 +974,7 @@ def update_effects(
     common_preds = sorted(list(common_preds), key=lambda p: str(p))
     for p in common_preds:
         # this is adding tran preds, don t need them if only safety
-        if isinstance(p, TransitionPredicate):
+        if isinstance(p, TransitionPredicate) or "_prev" in str(p):
             effects = p.extend_effect_next(gu, effects, symbol_table)
         else:
             effects = p.extend_effect(gu, effects, symbol_table)
