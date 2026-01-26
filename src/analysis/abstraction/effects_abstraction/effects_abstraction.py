@@ -876,12 +876,16 @@ def join_parts(effects, parts_to_join, us_part_to_pred):
             continue
         old_part_effects = new_part_effects
         new_part_effects = []
-        for new_now, new_nexts in old_part_effects:
-            for now, nexts in nowNexts:
-                new_part_effects.append(
-                    (conjunct(new_now, now), list(set(nexts + new_nexts)))
-                )
-        new_part_effects = new_part_effects
+        for now1, nexts1 in old_part_effects:
+            for now2, nexts2 in nowNexts:
+                # cross_product of nexts
+                new_nexts = []
+                for n1 in nexts1:
+                    for n2 in nexts2:
+                        new_nexts.append(conjunct(n1, n2))
+                new_part_effect = (conjunct(now1, now2), new_nexts)
+                new_part_effects.append(new_part_effect)
+
         new_now_preds.update(now_preds)
         new_next_preds.update(next_preds)
 
@@ -1065,7 +1069,7 @@ def compute_abstract_effect_for_guard_update(arg):
         for u in curr_u:
             u_part = v_to_partition[u.left]
             part = partitions[u_part]
-            right_parts = [v_to_partition[v] for v in u.right.variablesin()]
+            right_parts = {v_to_partition[v] for v in u.right.variablesin()} | {u_part}
             for other_curr_u in old_us_part:
                 if other_curr_u != curr_u:
                     if any(
@@ -1076,8 +1080,8 @@ def compute_abstract_effect_for_guard_update(arg):
                             p
                             for p in right_parts
                             if p
-                            in [v_to_partition[vv] for vv in uu.right.variablesin()]
-                            or p == u_part
+                            in {v_to_partition[vv] for vv in uu.right.variablesin()}
+                            | {v_to_partition[uu.left]}
                         )
                     ):
                         curr_us_to_join.add(other_curr_u)
@@ -1119,14 +1123,18 @@ def compute_abstract_effect_for_guard_update(arg):
 
         new_part_to_curr_parts = new_new_part_to_curr_parts
 
+    # sanity checking, no overlaps in partitions
+    for us_part, old_parts in new_part_to_curr_parts.items():
+        for other_us_part, other_old_parts in new_part_to_curr_parts.items():
+            if us_part != other_us_part:
+                if len(us_part.intersection(other_us_part)) != 0:
+                    raise Exception("Overlapping partitions in updated effects")
+                if len(old_parts.intersection(other_old_parts)) != 0:
+                    raise Exception("Overlapping old partitions in updated effects")
+
     all_relevant_next_preds = set()
     new_effects = {}
     new_us_part_to_pred = {}
-    for us_part, old_parts in new_part_to_curr_parts.items():
-        try:
-            join_parts(effects, list(old_parts), old_us_part_to_pred)
-        except Exception as e:
-            print()
     for us_part, old_parts in new_part_to_curr_parts.items():
         if config.Config.getConfig().debug:
             print(
