@@ -360,12 +360,17 @@ def and_expr_parser():
 @generate
 def comparison_expr_parser():
     yield spaces()
+    yield parsec.optional(string("[")) << spaces()
     left = yield primary_expr_parser
     op = yield parsec.optional(regex("(>=|<=|>|<|!=|=)") << spaces())
     if op:
         right = yield primary_expr_parser
-        return create_mathrel(left, op, right)
-    return left
+        result = create_mathrel(left, op, right)
+    else:
+        result = left
+    yield spaces()
+    yield parsec.optional(string("]")) << spaces()
+    return result
 
 
 @generate
