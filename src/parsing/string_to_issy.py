@@ -512,7 +512,6 @@ def process(
     )
     new_formula_objectives = []
     for a in formula_objectives:
-        preds = atomic_predicates(a)
         to_replace = {}
         if len(to_replace.keys()) > 0:
             formula_objectives.append(a.replace_formulas(to_replace))
