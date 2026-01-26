@@ -23,6 +23,7 @@ def program_bfs(
     stop_condition: Optional[StopCondition] = None,
     key_fn: Optional[KeyFn] = None,
     on_visit: Optional[VisitFn] = None,
+    from_state: Hashable = None,
 ) -> Set[Hashable]:
     """Generic BFS over the program's transition graph.
 
@@ -31,8 +32,9 @@ def program_bfs(
     ``key_fn`` controls how visited states are memoised. Returns the set of
     visited keys (as produced by ``key_fn`` or the default ``(state, context)``).
     """
-
-    queue = deque([(program.initial_state, initial_context)])
+    if not from_state:
+        from_state = program.initial_state
+    queue = deque([(from_state, initial_context)])
     visited: Set[Hashable] = set()
 
     while queue:
@@ -96,7 +98,7 @@ def program_dfs(
     return visited
 
 
-def initial_value_dependencies(program) -> Set[Variable]:
+def value_dependencies(program, init_state=None) -> Set[Variable]:
     """Return uninitialised variables whose initial values affect control flow.
 
     A variable's initial value matters if some reachable guard references it
@@ -152,12 +154,15 @@ def initial_value_dependencies(program) -> Set[Variable]:
         step,
         stop_condition=stop_condition,
         key_fn=key_fn,
+        from_state=init_state,
     )
 
     return {Variable(name) for name in matters}
 
 
-def classify_initial_values(program) -> tuple[Set[Variable], Set[Variable]]:
+def classify_initial_values(
+    program, from_state=None
+) -> tuple[Set[Variable], Set[Variable]]:
     """Classify uninitialised variables by whether their initial value matters.
 
     Traverses from the initial state and stops a branch when every uninitialised
@@ -171,7 +176,7 @@ def classify_initial_values(program) -> tuple[Set[Variable], Set[Variable]]:
     the formula. The analysis here is purely based on the program's transitions.
     """
 
-    relevant = initial_value_dependencies(program)
+    relevant = value_dependencies(program, from_state)
     uninitialised = {Variable(v) for v in program.unset_init_vars}
     irrelevant = uninitialised - relevant
     return relevant, irrelevant
@@ -202,12 +207,6 @@ def program_sccs(program) -> list[Set[Transition]]:
     for transition in program.transitions:
         adjacency[transition.src].append(transition.tgt)
         reverse_adjacency[transition.tgt].append(transition.src)
-    no_outgoing = [state for state, targets in adjacency.items() if not targets]
-    if no_outgoing:
-        raise Exception(
-            "States without outgoing transitions: "
-            + ", ".join(sorted(map(str, no_outgoing)))
-        )
 
     order: list[Hashable] = []
     program_dfs(
