@@ -945,6 +945,18 @@ def process(
             new_trans.append(new_t)
         program.transitions = new_trans
 
+    if len(new_con_props) > 0:
+        for v in new_con_props:
+            program.symbol_table[str(v)] = BOOLEAN
+            program.con_events.append((v, BOOLEAN))
+
+    # we do not need to add minigames at some states:
+    # if goal is safety: no need to add minigames at unsafe states
+    # (not handled yet) if goal is reachability: no need to add minigames from states that cannot reach goal
+    program, preds_to_replace, minigame_states = fill_in_minigames(
+        program, formula_objectives, to_exclude_from_minigame
+    )
+
     new_formula_objectives = []
     for o in formula_objectives:
         new_o = o.replace_formulas(preds_to_replace_in_ltl)
@@ -953,7 +965,13 @@ def process(
         for p in preds_in_new_o:
             all_next_vars = [v for v in p.variablesin() if v.is_next()]
             if len(all_next_vars) > 0:
-                if len(games) == 0:
+                all_have_int_in_prog = not any(
+                    v
+                    for v in all_next_vars
+                    if Variable("int_" + v.prev_rep().name)
+                    not in program.symbol_table.keys()
+                )
+                if len(games) == 0 and all_have_int_in_prog:
                     # an optimisation when we know the variable is only update by minigames
                     rename_to_int = {
                         v.prev_rep(): Variable("int_" + v.prev_rep().name)
@@ -969,18 +987,6 @@ def process(
     formula_objectives = new_formula_objectives
 
     to_replace.update(preds_to_replace_in_ltl)
-
-    if len(new_con_props) > 0:
-        for v in new_con_props:
-            program.symbol_table[str(v)] = BOOLEAN
-            program.con_events.append((v, BOOLEAN))
-
-    # we do not need to add minigames at some states:
-    # if goal is safety: no need to add minigames at unsafe states
-    # (not handled yet) if goal is reachability: no need to add minigames from states that cannot reach goal
-    program, preds_to_replace, minigame_states = fill_in_minigames(
-        program, formula_objectives, to_exclude_from_minigame
-    )
 
     if len(minigame_states) > 0:
         not_in_minigame = neg(disjunct_formula_set(minigame_states))
