@@ -91,7 +91,8 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.v_to_chain_pred = {}
 
-        self.init_conf: Formula = true()
+        self.program = program
+        self.init_conf: Formula = self.program.init_type_constraints
         self.init_state_abstraction = [[true()]]
         self.init_no_matter: list[Predicate] = []
         self.init_constants = []

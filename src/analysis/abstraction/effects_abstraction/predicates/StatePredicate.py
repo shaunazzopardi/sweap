@@ -50,7 +50,7 @@ class StatePredicate(Predicate):
         new_effects = []
         if self.is_bool:
             return old_effects
-        if self.is_input and "_prev" in str(self.pred):
+        if self.is_input or "_prev" in str(self.pred):
             return old_effects
 
         for now, nexts in old_effects:
@@ -96,7 +96,7 @@ class StatePredicate(Predicate):
     ) -> [(Formula, dict[Variable, [Formula]])]:
         if self.is_bool:
             return old_effects
-        if self.is_input and "_prev" not in str(self.pred):
+        if self.is_input:
             return old_effects
         new_effects = []
         for now, nexts in old_effects:
@@ -112,7 +112,7 @@ class StatePredicate(Predicate):
 
     def refine_nexts_with_p(self, now, nexts, symbol_table):
         new_nexts = []
-        if self.is_input and "_prev" not in str(self.pred):
+        if self.is_input:
             return refine_nexts(now, nexts, symbol_table)
         else:
             for next in nexts:
@@ -131,10 +131,7 @@ class StatePredicate(Predicate):
         if self.is_bool:
             return old_effects
         if self.is_input:
-            if "_prev" not in str(self.pred):
-                return self.extend_effect_now(gu, old_effects, symbol_table)
-            else:
-                return self.extend_effect_next(gu, old_effects, symbol_table)
+            return self.extend_effect_now(gu, old_effects, symbol_table)
         new_effects = []
 
         for now, nexts in old_effects:

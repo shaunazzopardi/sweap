@@ -54,11 +54,10 @@ class TransitionPredicate(Predicate, ABC):
             new_nexts = self.refine_nexts_with_p(
                 conjunct(gu, now.prev_rep()), nexts, symbol_table
             )
-            if len(new_nexts) == 0:
-                raise Exception(
-                    "Is this guard update formula unsatisfiable?\n" + str(gu)
-                )
-            new_effects.append((now, new_nexts))
+            if len(new_nexts) > 0:
+                new_effects.append((now, new_nexts))
+        if len(new_effects) == 0:
+            print("WARNING: TransitionPredicate extend_effect_now produced no effects.")
         return new_effects
 
     def refine_nexts_with_p(self, now, nexts, symbol_table):
@@ -97,13 +96,10 @@ class TransitionPredicate(Predicate, ABC):
                 now_p_g = conjunct(gu, now_p.prev_rep())
                 if sat(now_p_g, symbol_table):
                     new_nexts = self.refine_nexts_with_p(now_p_g, nexts, symbol_table)
-                    if len(new_nexts) == 0:
-                        raise Exception(
-                            "Is this guard update formula unsatisfiable?\n" + str(gu)
-                        )
-
-                    new_effects.append((now_p, new_nexts))
-
+                    if len(new_nexts) > 0:
+                        new_effects.append((now_p, new_nexts))
+        if len(new_effects) == 0:
+            print("WARNING: TransitionPredicate extend_effect_now produced no effects.")
         return new_effects
 
     def extend_effect_now(
@@ -117,13 +113,10 @@ class TransitionPredicate(Predicate, ABC):
                 now_p_g = conjunct(gu, now_p.prev_rep())
                 if sat(now_p_g, symbol_table):
                     new_nexts = refine_nexts(now_p_g, nexts, symbol_table)
-                    if len(new_nexts) == 0:
-                        raise Exception(
-                            "Is this guard update formula unsatisfiable?\n" + str(gu)
-                        )
-
-                    new_effects.append((now_p, new_nexts))
-
+                    if len(new_nexts) > 0:
+                        new_effects.append((now_p, new_nexts))
+        if len(new_effects) == 0:
+            print("WARNING: TransitionPredicate extend_effect_now produced no effects.")
         return new_effects
 
     def is_pre_cond(self, gu: Formula, symbol_table):

@@ -321,14 +321,11 @@ class ChainPredicate(Predicate):
             for new_now in new_nows:
                 prev_state = conjunct(gu, new_now.prev_rep())
                 if sat(prev_state, symbol_table):
-                    # TODO: if len(nexts) == 0, then doesn t that mean now is already unsat with guard?
                     new_nexts = recheck_nexts(prev_state, nexts, symbol_table)
                     if len(new_nexts) > 0:
                         new_effects.append((new_now, new_nexts))
-                    else:
-                        new_nexts = recheck_nexts(prev_state, nexts, symbol_table)
-                        raise Exception("Is gu unsatisfiable? " + str(gu))
-
+        if len(new_effects) == 0:
+            raise Exception("Is gu unsatisfiable? " + str(gu))
         return new_effects
 
     def extend_effect_next(

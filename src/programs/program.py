@@ -7,12 +7,13 @@ from typing import Set, Union
 from graphviz import Digraph
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from programs.dfa import program_sccs, reachable_states
+from programs.dfa import program_sccs, reachable_states, classify_initial_values
 from programs.transition import Transition
 from prop_lang.formula import Formula
 from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
     reset_caches as prop_lang_util_reset_caches,
+    type_constraint,
 )
 from programs.util import (
     reset_caches,
@@ -136,15 +137,21 @@ class Program:
         #       reversible-lane-r-10.prog, reversible-lane-r-50.prog
         #       Why?
         # TODO: why does this problem not also arise for natural types?
+        init_type_constraints = []
         new_symbol_table = {}
         for v, t in self.symbol_table.items():
             if isinstance(t, Number) and t.interval:
+                init_type_constraints.append(
+                    type_constraint(Variable(v), self.symbol_table)
+                )
                 new_symbol_table[v] = Number(
                     t.number_type,
                     None,
                 )
             else:
                 new_symbol_table[v] = t
+
+        self.init_type_constraints = conjunct_formula_set(init_type_constraints)
 
         self.symbol_table = new_symbol_table
 
@@ -641,7 +648,7 @@ class Program:
             for var, value in self.init_var_values.items()
             if not isinstance(value, NonDeterministic)
         ]
-        init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
+        # init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
         locals_plus_inputs = self.local_vars + self.num_in_out
@@ -854,7 +861,7 @@ class Program:
             for var, value in self.init_var_values.items()
             if not isinstance(value, NonDeterministic)
         ]
-        init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
+        # init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
         trans += prev_logic
@@ -1126,7 +1133,6 @@ def fill_in_minigames(
     program: Program, ltl_formulas: list[Formula], to_exclude_from_minigame
 ):
     no_mini_games_added = True
-    no_losing_state_modifications = True
     to_add_to_local_vars = set()
     bool_updates = set()
     var_to_minigame_state = {}
@@ -1137,32 +1143,83 @@ def fill_in_minigames(
     ts_to_remove = []
     symbol_table = program.symbol_table
 
+    preds_in_ltl = set()
+    vars_in_ltl = set()
+    for ltl in ltl_formulas:
+        preds = atomic_predicates(ltl)
+        preds_in_ltl.update(preds)
+        for p in preds:
+            for v in p.variablesin():
+                if v.is_next():
+                    vars_in_ltl.add(v.prev_rep())
+                else:
+                    vars_in_ltl.add(Variable(v.name.replace("_prev", "")))
+
+    var_values_that_matter_from_state = {}
+
     mini_game_counter = 0
     existing_mini_games_from_with: dict[
         str, dict[tuple[frozenset[Variable], Formula], str]
     ] = {}
-    to_exclude_from_minigame = list(to_exclude_from_minigame)
+    normalise_losing = lambda x: x if x not in to_exclude_from_minigame else "lose"
+    to_exclude_from_minigame = list(map(str, to_exclude_from_minigame))
+    if len(to_exclude_from_minigame) > 0:
+        new_t = Transition(
+            "lose",
+            true(),
+            [],
+            [],
+            "lose",
+        )
+        new_trans.append(new_t)
+
     for t in program.transitions:
+        if t.src in to_exclude_from_minigame:
+            continue
+
+        if t.tgt in to_exclude_from_minigame:
+            new_t = Transition(
+                t.src,
+                t.condition,
+                [],
+                [],
+                "lose",
+            )
+            new_trans.append(new_t)
+            continue
+
         non_determined_updates = [
             a for a in t.action if isinstance(a.right, NonDeterministic)
         ]
+
         if len(non_determined_updates) == 0:
             new_trans.append(t)
             continue
 
-        if (t.src in to_exclude_from_minigame) or (
-            t.tgt in to_exclude_from_minigame and len(t.pred_upgrades) == 0
-        ):
-            no_losing_state_modifications = True
+        if t.tgt in var_values_that_matter_from_state.keys():
+            relevant = var_values_that_matter_from_state[t.tgt]
+        else:
+            relevant, _ = classify_initial_values(program, t.tgt)
+            relevant.update(vars_in_ltl)
+        non_determined_updates = [
+            u for u in non_determined_updates if u.left in relevant
+        ]
+
+        t.action = [
+            a for a in t.action if not isinstance(a.right, NonDeterministic)
+        ] + non_determined_updates
+        if len(non_determined_updates) == 0:
             new_t = Transition(
                 t.src,
                 t.condition,
-                [a for a in t.action if a not in non_determined_updates],
+                t.action,
                 [],
-                to_exclude_from_minigame[0],
+                t.tgt,
             )
             new_trans.append(new_t)
             continue
+        else:
+            var_values_that_matter_from_state[t.tgt] = relevant
 
         if any(
             v
@@ -1329,11 +1386,6 @@ def fill_in_minigames(
                 Update(v, Variable("int_" + str(v)))
                 for v in undet_vars
                 if v not in bool_updates
-            ]
-            + [
-                Update(Variable("int_" + str(v)), Value(0))
-                for v in undet_vars
-                if v not in bool_updates
             ],
             [],
             end_state,
@@ -1366,10 +1418,11 @@ def fill_in_minigames(
                             + "\nand\n"
                             + str(tt)
                         )
+
         new_prog = Program(
             name=program.name,
-            sts=program.states,
-            init_st=program.initial_state,
+            sts=list(map(normalise_losing, program.states)),
+            init_st=normalise_losing(program.initial_state),
             init_values=list(
                 {
                     (var.name, program.symbol_table[var.name])
@@ -1418,9 +1471,6 @@ def fill_in_minigames(
     # where in_minigame is a formula that is true when in any of the minigame states
     # and add guarantee GF(!in_minigame) to ensure we eventually exit minigame
 
-    preds_in_ltl = set()
-    for ltl in ltl_formulas:
-        preds_in_ltl.update(atomic_predicates(ltl))
     preds_to_replace = {}
     for p in preds_in_ltl:
         undet_vars_in_p = [
@@ -1437,10 +1487,11 @@ def fill_in_minigames(
 
     reset_caches()
     prop_lang_util_reset_caches()
+    new_states = list(map(normalise_losing, program.states | set(new_states)))
     new_prog = Program(
         name=program.name,
-        sts=program.states | set(new_states),
-        init_st=program.initial_state,
+        sts=new_states,
+        init_st=normalise_losing(program.initial_state),
         init_values=list(
             {(var.name, program.symbol_table[var.name]) for var in program.local_vars}
             | new_init_var_values
