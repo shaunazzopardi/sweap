@@ -24,6 +24,7 @@ from programs.util import (
     add_prev_suffix,
     transition_formula,
     binary_rep,
+    issy_transition_formula,
 )
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
@@ -483,6 +484,43 @@ class Program:
         }}
         """
         return dedent(prog)
+
+    def to_issy(self, spec):
+        vars = ""
+
+        def sweap_type_to_issy(t):
+            if t == BOOLEAN:
+                return "bool"
+            elif isinstance(t, Number):
+                return "int"
+            else:
+                raise Exception("Unsupported type for ISSY: " + str(t))
+
+        for i, t in self.env_events:
+            vars += f"input {sweap_type_to_issy(t)} {i}\n"
+        for i, t in self.con_events:
+            vars += f"state {sweap_type_to_issy(t)} {i}\n"
+        for i in self.local_vars:
+            vars += f"state {sweap_type_to_issy(self.symbol_table[str(i)])} {i}\n"
+
+        game_state = "\t" + "\n\t".join([f"loc {s} 1" for s in self.states])
+        transitions = "\t" + "\n\n\t".join(
+            map(issy_transition_formula, self.transitions)
+        )
+        game = (
+            f"game Safety from {self.initial_state} "
+            + "{\n"
+            + game_state
+            + "\n\n"
+            + transitions
+            + "\n}"
+        )
+
+        objective = "formula {\n\tassert " + str(spec) + "\n}"
+
+        full = objective + "\n\n" + vars + "\n" + game
+        full.replace(" & ", " && ").replace(" | ", " || ")
+        return full
 
     def to_dot(self):
         dot = Digraph(

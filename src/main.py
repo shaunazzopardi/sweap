@@ -229,6 +229,8 @@ def handle_translation(target, program, ltl_spec) -> str:
         return create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
     elif target.lower() == "prog":
         return program.to_prog(ltl_spec)
+    elif target.lower() == "issy":
+        return program.to_issy(ltl_spec)
     elif target.lower() == "vmt":
         model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
         model_checker = ModelChecker()
@@ -260,8 +262,8 @@ def _main(args: Namespace):
         and args.issy is None
     ):
         raise Exception(
-            "No input given! "
-            "(Specify one of --p, --issy, --rpg, or --tsl.)")
+            "No input given! " "(Specify one of --p, --issy, --rpg, or --tsl.)"
+        )
 
     program, ltl_spec = process_args(args)
 

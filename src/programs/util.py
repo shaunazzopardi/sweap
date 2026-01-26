@@ -858,6 +858,25 @@ def transition_formula(t):
         return transition_formulas[t]
 
 
+def issy_transition_formula(t):
+    to_return = f"from {t.src} to {t.tgt} with "
+    cond = str(t.condition)
+    preds = atomic_predicates(t.condition)
+    to_replace = {str(p): f"[{str(p)}]" for p in preds}
+    for k, v in to_replace.items():
+        cond = cond.replace(k, v)
+
+    stutters = [u.left for u in t.action if u.left == u.right]
+    if len(stutters) > 0:
+        cond += f" && keep({', '.join([str(s) for s in stutters])})"
+    updates = [u for u in t.action if u.left != u.right]
+    for u in updates:
+        cond += f" && [{str(u.left)}' = {str(u.right)}]"
+
+    to_return += cond
+    return to_return
+
+
 guard_update_formulas = {}
 guard_formulas_unpacked = {}
 
