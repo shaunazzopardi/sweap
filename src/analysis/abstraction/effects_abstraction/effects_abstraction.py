@@ -118,7 +118,6 @@ class EffectsAbstraction(PredicateAbstraction):
         self.loops = []
         self.var_relabellings = {}
 
-        self.program = program
         self.loop_vars = set()
         self.loop_counter = 0
         self.sat_input_models = []
@@ -334,6 +333,7 @@ class EffectsAbstraction(PredicateAbstraction):
                                     BiOp(v, "=", v.prev_rep())
                                     for v in self.program.local_vars
                                 ]
+                                + [self.init_conf]
                             ),
                             p.pred,
                         ),
@@ -661,8 +661,29 @@ class EffectsAbstraction(PredicateAbstraction):
                     new_init_abs.append(m_with_p)
         return new_init_abs
 
+    def update_init_constants_tran_chain_pref(self, v_chain_pred):
+        if "_prev" not in str(v_chain_pred.term):
+            raise Exception("Only prev chain preds should be here")
+        for p in v_chain_pred.chain:
+            if is_tautology(
+                implies(
+                    conjunct_formula_set(
+                        [BiOp(v, "=", v.prev_rep()) for v in self.program.local_vars]
+                        + [self.init_conf]
+                    ),
+                    p,
+                ),
+                self.symbol_table,
+            ):
+                self.init_constants.append(p)
+                break
+
     def update_init_abstraction_new_chain_pred(self, v_chain_pred):
         new_init_abs = []
+        if "_prev" in str(v_chain_pred.term):
+            self.update_init_constants_tran_chain_pref(v_chain_pred)
+            return self.init_state_abstraction
+
         for p in v_chain_pred.chain:
             for m in self.init_state_abstraction:
                 m_with_p = (
@@ -678,6 +699,10 @@ class EffectsAbstraction(PredicateAbstraction):
         return new_init_abs
 
     def update_init_abstraction_old_chain_pred(self, v_chain_pred):
+        if "_prev" in str(v_chain_pred.term):
+            self.update_init_constants_tran_chain_pref(v_chain_pred)
+            return self.init_state_abstraction
+
         old_to_new = v_chain_pred.old_to_new
         # TODO if transition pred do not update
         new_init_abs = []
