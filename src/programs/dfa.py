@@ -182,19 +182,21 @@ def classify_initial_values(
     return relevant, irrelevant
 
 
-def reachable_states(program) -> Set[Hashable]:
+def reachable_states(program) -> tuple[Set[Hashable], dict[Hashable, Set[Hashable]]]:
     """Return states reachable from the program's initial state."""
 
     reachable: Set[Hashable] = set()
+    reachable_from: dict[Hashable, Set[Hashable]] = {}
 
     def step(_, __, transition: Transition):
+        reachable_from.setdefault(transition.src, set()).add(transition.tgt)
         return None
 
     def on_visit(state, _):
         reachable.add(state)
 
     program_bfs(program, None, step, on_visit=on_visit, key_fn=lambda s, _: s)
-    return reachable
+    return reachable, reachable_from
 
 
 def program_sccs(program) -> list[Set[Transition]]:

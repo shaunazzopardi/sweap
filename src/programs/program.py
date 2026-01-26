@@ -217,7 +217,7 @@ class Program:
             else:
                 self.state_to_trans[t.src] = [t]
 
-        reachable_statess = reachable_states(self)
+        reachable_statess, self.reachable_from = reachable_states(self)
         if len(reachable_statess) != len(self.states):
             print(
                 "Removed unreachable states: "

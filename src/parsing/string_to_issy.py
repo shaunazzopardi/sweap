@@ -819,6 +819,15 @@ def process(
                         objective = G(F(objective_states))
                         for scc in program.sccs:
                             states_in_scc = {Variable(t.src) for t in scc}
+                            to_add = set()
+                            for s in states_in_scc:
+                                to_add.update(
+                                    map(
+                                        lambda x: Variable(x),
+                                        program.reachable_from[str(s)],
+                                    )
+                                )
+                            states_in_scc.update(to_add)
                             if (
                                 len(set(marked_states[1]).intersection(states_in_scc))
                                 == 0
@@ -851,6 +860,15 @@ def process(
                         objective = F(objective_states)
                         for scc in program.sccs:
                             states_in_scc = {Variable(t.src) for t in scc}
+                            to_add = set()
+                            for s in states_in_scc:
+                                to_add.update(
+                                    map(
+                                        lambda x: Variable(x),
+                                        program.reachable_from[str(s)],
+                                    )
+                                )
+                            states_in_scc.update(to_add)
                             if (
                                 len(set(marked_states[1]).intersection(states_in_scc))
                                 == 0
