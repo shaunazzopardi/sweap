@@ -507,6 +507,7 @@ class Program:
         transitions = "\t" + "\n\n\t".join(
             map(issy_transition_formula, self.transitions)
         )
+
         game = (
             f"game Safety from {self.initial_state} "
             + "{\n"
@@ -515,8 +516,17 @@ class Program:
             + transitions
             + "\n}"
         )
+        assertion = f"assert {str(spec)}"
 
-        objective = "formula {\n\tassert " + str(spec) + "\n}"
+        init_vals = []
+        for v, k in self.init_var_values.items():
+            init_vals.append(f"[{v} = {k}]")
+
+        if len(init_vals) > 0:
+            assume = f"assume " + " && ".join(init_vals)
+            objective = "formula {\n\t" + assume + "\n\t" + assertion + "\n}"
+        else:
+            objective = "formula {\n\t" + assertion + "\n}"
 
         full = objective + "\n\n" + vars + "\n" + game
         full.replace(" & ", " && ").replace(" | ", " || ")
