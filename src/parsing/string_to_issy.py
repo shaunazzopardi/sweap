@@ -951,8 +951,19 @@ def process(
         preds_in_new_o = atomic_predicates(new_o)
         to_project_into_next = {}
         for p in preds_in_new_o:
-            if any(v for v in p.variablesin() if v.is_next()):
-                to_project_into_next[p] = X(p.prev_rep())
+            all_next_vars = [v for v in p.variablesin() if v.is_next()]
+            if len(all_next_vars) > 0:
+                if len(games) == 0:
+                    # an optimisation when we know the variable is only update by minigames
+                    rename_to_int = {
+                        v.prev_rep(): Variable("int_" + v.prev_rep().name)
+                        for v in all_next_vars
+                    }
+                    to_project_into_next[p] = p.prev_rep().replace_formulas(
+                        rename_to_int
+                    )
+                else:
+                    to_project_into_next[p] = X(p.prev_rep())
         new_o = new_o.replace_formulas(to_project_into_next)
         new_formula_objectives.append(new_o)
     formula_objectives = new_formula_objectives
