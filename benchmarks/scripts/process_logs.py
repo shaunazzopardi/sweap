@@ -109,6 +109,7 @@ buechi_benchs_popl24 = {
     "robot-commute-2d": (True, "buechi"),
     "robot-resource-1d": (False, "buechi"),
     "robot-resource-2d": (False, "buechi"),
+    "robot-resource-2d-real": (True, "buechi")
 }
 
 buechi_benchs_cav24 = {
@@ -121,6 +122,68 @@ buechi_benchs_cav24 = {
     "robot_repair": (False, "buechi"),
     "robot_running": (True, "buechi"),
     "scheduler": (True, "buechi"),
+}
+
+tacas26_benchs = {
+    "tacas26-buchi-hard-loops-200": (False, "buechi"),
+    "tacas26-buchi-hard-loops-400": (False, "buechi"),
+    "tacas26-buchi-hard-loops-800": (False, "buechi"),
+    "tacas26-buchi": (True, "buechi"),
+    "tacas26-buchi-loops-200": (True, "buechi"),
+    "tacas26-buchi-loops-400": (True, "buechi"),
+    "tacas26-buchi-loops-800": (True, "buechi"),
+    "tacas26-buchi-loops-chaining-200": (True, "buechi"),
+    "tacas26-buchi-loops-chaining-400": (True, "buechi"),
+    "tacas26-buchi-loops-chaining-800": (True, "buechi"),
+    "tacas26-buchi-loops-swap-200": (True, "buechi"),
+    "tacas26-buchi-loops-swap-400": (True, "buechi"),
+    "tacas26-buchi-loops-swap-800": (True, "buechi"),
+    "tacas26-buchi-simple": (True, "buechi"),
+    "tacas26-choice-3-actions": (True, "buechi"),
+    "tacas26-choice-4-actions": (True, "buechi"),
+    "tacas26-choice-actions-i":  (True, "buechi"),
+    "tacas26-double": (True, "buechi"),
+    "tacas26-equality-assumption": (True, "buechi"),
+    "tacas26-equal-mod2-real": (True, "buechi"),
+    "tacas26-equal-mod2-unreal": (False, "buechi"),
+    "tacas26-fault-tolerance": (True, "buechi"),
+    "tacas26-inequality-assumption": (True, "buechi"),
+    "tacas26-lemma-chaining-control": (True, "buechi"),
+    "tacas26-lemma-chaining": (True, "buechi"),
+    "tacas26-nested-x-y-z": (True, "buechi"),
+    "tacas26-nested-x-y-z-u": (True, "buechi"),
+    "tacas26-nested-x-y-z-u-v": (True, "buechi"),
+    "tacas26-nondet-exit-swap-input": (True, "buechi"),
+    "tacas26-nondet-exit-swap": (True, "buechi"),
+    # "tacas26-prevent-zeno": (True, "buechi"),
+    "tacas26-prioritized-tasks-real-100": (True, "buechi"),
+    "tacas26-prioritized-tasks-real-200": (True, "buechi"),
+    "tacas26-prioritized-tasks-unreal-100": (False, "buechi"),
+    "tacas26-ranking-choice-2": (True, "buechi"),
+    "tacas26-ranking-choice-3": (True, "buechi"),
+    "tacas26-ranking-choice-4": (True, "buechi"),
+    "tacas26-reach-either-or": (True, "buechi"),
+    # "tacas26-rect-patrol-buchi": (True, "buechi"),
+    "tacas26-service-10": (True, "buechi"),
+    "tacas26-service-2": (True, "buechi"),
+    "tacas26-service-4": (True, "buechi"),
+    "tacas26-service-8": (True, "buechi"),
+    "tacas26-service-bounds-10": (True, "buechi"),
+    "tacas26-service-bounds-20": (True, "buechi"),
+    "tacas26-ex-2-05": (True, "buechi"),
+    "tacas26-ex-4-06": (True, "buechi"),
+    "tacas26-ex-4-11": (True, "buechi"),
+    "tacas26-ex-4-12": (False, "buechi"),
+    "tacas26-ex-4-13": (True, "buechi"),
+    "tacas26-ex-4-15": (True, "buechi"),
+    "tacas26-ex-4-18": (True, "buechi"),
+    "tacas26-ex-4-21": (True, "buechi"),
+    "tacas26-ex-5-01": (True, "buechi"),
+
+    # "tacas26-torus-game": (True, "buechi"),
+    # "tacas26-transfer-linear-constraint": (True, "buechi"),
+    # "tacas26-uav-chaotic": (True, "buechi"),
+    # "tacas26-uav-chaotic-unreal": (False, "buechi"),
 }
 
 ltl_benchs = {
@@ -273,6 +336,7 @@ infinite_benchs = {
     # **other_benchs,
     # **nondet_input_benchs,
     **issy_benchs,
+    **tacas26_benchs
 }
 
 
@@ -542,10 +606,14 @@ for b, (b_real, b_goal) in infinite_benchs.items():
 VERDICTS = ("right", "wrong", "timeout", "oom", "unsupported", "error")
 
 stderr_writer = csv.writer(sys.stderr, dialect="excel", lineterminator="\n")
-stderr_writer.writerow(["tool", *VERDICTS])
+stderr_writer.writerow(["tool", *VERDICTS, "total"])
 for k in (sorted(STATS.keys())):
     v = STATS[k]
-    stderr_writer.writerow([k] + [v.get(x, 0) for x in VERDICTS])
+    values = [v.get(x, 0) for x in VERDICTS]
+    stderr_writer.writerow([k, *values,sum(values)])
+    sys.stderr.flush()
+
+
 
 sys.exit(0)
 
