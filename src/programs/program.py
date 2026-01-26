@@ -529,7 +529,7 @@ class Program:
             objective = "formula {\n\t" + assertion + "\n}"
 
         full = objective + "\n\n" + vars + "\n" + game
-        full.replace(" & ", " && ").replace(" | ", " || ")
+        full = full.replace(" & ", " && ").replace(" | ", " || ")
         return full
 
     def to_dot(self):
