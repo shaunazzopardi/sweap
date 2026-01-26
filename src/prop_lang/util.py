@@ -823,9 +823,8 @@ def type_constraints_acts(transition, symbol_table):
     constraints = []
     for act in acts:
         if act.right != act.left and len(act.right.variablesin()) > 0:
-            constraint = type_constraint(act.left, symbol_table)
+            constraint = type_constraint_from_act(act, symbol_table)
             if not isinstance(constraint, Value):
-                constraint = constraint.replace_formulas({act.left: act.right})
                 if sat(conjunct(transition.condition, constraint), symbol_table):
                     constraints.append(constraint)
     return constraints
@@ -874,6 +873,66 @@ def type_constraint(variable, symbol_table):
                     )
                 ),
             )
+        else:
+            raise NotImplementedError(f"Type {type} unsupported.")
+    else:
+        raise Exception(f"{str(variable)} not a variable.")
+
+
+def type_constraint_from_act(act, symbol_table):
+    variable = act.left
+    if str(variable) not in symbol_table.keys():
+        raise Exception(f"{str(variable)} not in symbol table.")
+    type = symbol_table[str(variable)]
+
+    if isinstance(variable, Variable):
+        if type == INTEGER:
+            return Value(BoolAtoms.TRUE)
+        elif type == BOOLEAN:
+            return Value(BoolAtoms.TRUE)
+        elif type == NATURAL:
+            if is_tautology(BiOp(variable, "<=", act.right), symbol_table):
+                return Value(BoolAtoms.TRUE)
+            return MathExpr(BiOp(variable, ">=", Value("0")))
+        elif type.interval:
+            constraints = []
+            if is_tautology(BiOp(variable, "==", act.right), symbol_table):
+                return Value(BoolAtoms.TRUE)
+
+            assuming_prev_in_lower_bound = BiOp(
+                variable,
+                (">=" if type.interval.lower_inclusive else ">"),
+                Value(type.interval.lower),
+            )
+            assuming_prev_in_upper_bound = BiOp(
+                variable,
+                ("<=" if type.interval.lower_inclusive else "<"),
+                Value(type.interval.upper),
+            )
+            assuming_prev_in_bounds = conjunct(
+                assuming_prev_in_lower_bound, assuming_prev_in_upper_bound
+            )
+            assuming_next_in_lower_bound = (
+                assuming_prev_in_lower_bound.replace_formulas({variable: act.right})
+            )
+            assuming_next_in_upper_bound = (
+                assuming_prev_in_upper_bound.replace_formulas({variable: act.right})
+            )
+
+            if not is_tautology(
+                implies(assuming_prev_in_bounds, assuming_next_in_lower_bound),
+                symbol_table,
+            ):
+                constraints.append(assuming_next_in_lower_bound)
+            if not is_tautology(
+                implies(assuming_prev_in_bounds, assuming_next_in_upper_bound),
+                symbol_table,
+            ):
+                constraints.append(assuming_next_in_upper_bound)
+            if len(constraints) == 0:
+                return Value(BoolAtoms.TRUE)
+            else:
+                return conjunct_formula_set(constraints)
         else:
             raise NotImplementedError(f"Type {type} unsupported.")
     else:
