@@ -37,6 +37,8 @@ ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/example/*.issy))
 ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/parity/*.issy))
 ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/system-level/*.issy))
 
+ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/tacas26/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/tacas26/verification/*.issy))
 
 SWEAP_STRIX_LOGS :=		$(addsuffix .sweap-strix.log, 		$(SWEAP_BENCHS))
 SWEAP_DUAL_LOGS :=		$(addsuffix .sweap-dual.log, 		$(SWEAP_BENCHS))
@@ -85,6 +87,8 @@ endef
 define FOOTER
 	exitcode=$$? ;\
 	endtime=`date +%s%N` ;\
+	echo >> $$LOGFILE ;\
+	echo >> $$LOGFILE ;\
 	echo $$exitcode >> $$LOGFILE ;\
 	echo $$(((endtime - starttime)/1000000)) >> $$LOGFILE ;\
 	mv $$LOGFILE $(ROOT_DIR)/$@
