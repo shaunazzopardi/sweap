@@ -362,7 +362,7 @@ def create_nuxmv_model_for_compatibility_checking(
         + maintain_prog_vars
         + ")"
     )
-    normal_trans = "(!mismatch -> (" + normal_trans + "))"
+    normal_trans = "(!mismatch -> (next(!second_state) & " + normal_trans + "))"
 
     deadlock = (
         "(mismatch -> (next(mismatch) & identity_"
