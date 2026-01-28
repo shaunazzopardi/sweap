@@ -35,7 +35,7 @@ from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def to_ltl_organised_by_pred_effects_guard_updates(
-    predicate_abstraction: EffectsAbstraction, env_lose, models_are_sane
+    predicate_abstraction: EffectsAbstraction, env_lose, con_pred_props
 ):
     rename_pred = lambda x: x.replace_formulas(predicate_abstraction.var_relabellings)
     program = predicate_abstraction.program
@@ -59,6 +59,18 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             i for i in range(0, len(predicate_abstraction.init_state_abstraction))
         ]
         new_env_vars, bin_map = binary_rep(raw_env_vars, "env_init_")
+        vars_to_reuse = (
+            len(new_env_vars)
+            if len(con_pred_props) >= len(new_env_vars)
+            else len(con_pred_props)
+        )
+        reused_events = list(con_pred_props)
+        to_replace = {}
+        for i in range(vars_to_reuse):
+            to_replace[new_env_vars[i]] = reused_events[i]
+            new_env_vars[i] = reused_events[i]
+
+        bin_map = {k: v.replace_formulas(to_replace) for k, v in bin_map.items()}
 
         init_preds = [
             (
@@ -259,10 +271,6 @@ def abstract_ltl_problem(
             )
 
     # ltl_abstraction = to_ltl_reduced(effects_abstraction)
-    _, ltl_abstraction, init_preds = to_ltl_organised_by_pred_effects_guard_updates(
-        effects_abstraction, env_lose, models_are_sane
-    )
-
     for p in effects_abstraction.state_predicates:
         if dualise:
             if any(
@@ -357,9 +365,6 @@ def abstract_ltl_problem(
             else X(new_guar) if not strix_backend else propagate_nexts(X(new_guar))
         )
 
-    assumptions = loop_constraints + ltl_abstraction + orig_assumptions
-    guarantees = orig_guarantees
-
     env_pred_props = set(env_pred_props) | env_predicate_vars
     con_pred_props = con_pred_props | con_predicate_vars
 
@@ -369,6 +374,13 @@ def abstract_ltl_problem(
     con_props = []
     for v in original_LTL_problem.con_props:
         con_props.append(v)
+
+    _, ltl_abstraction, init_preds = to_ltl_organised_by_pred_effects_guard_updates(
+        effects_abstraction, env_lose, con_pred_props
+    )
+
+    assumptions = loop_constraints + ltl_abstraction + orig_assumptions
+    guarantees = orig_guarantees
 
     if model_f:
         if dualise:
@@ -394,7 +406,7 @@ def abstract_ltl_problem(
         env_props,
         program.out_events,
         list(env_pred_props),
-        con_props + list(con_pred_props) + init_preds[1],
+        list(set(con_props + list(con_pred_props) + init_preds[1])),
         assumptions,
         guarantees,
         init_preds[0] if dualise else None,
