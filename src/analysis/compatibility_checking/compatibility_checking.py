@@ -378,7 +378,7 @@ def create_nuxmv_model_for_compatibility_checking(
         normal_trans = (
             "\t((turn != init1) -> ("
             + normal_trans
-            + "& next(!second_state))) &\n"
+            + ")) &\n"
             + "((turn = init1) -> (next(compatible) & next("
             + (" & ".join(program_model.init) if program_model.init else "TRUE")
             + ") &"
@@ -458,13 +458,13 @@ def there_is_mismatch_between_program_and_strategy(
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
-    # if config.debug:
-    logging.info(system)
-    # Sanity check
-    result, out = model_checker.invar_check(system, "F FALSE", None, True)
-    if result:
-        logging.info("Are you sure the counterstrategy given is complete?")
-        return True, None, out
+    if config.debug:
+        logging.info(system)
+        # Sanity check
+        result, out = model_checker.invar_check(system, "F FALSE", None, True)
+        if result:
+            logging.info("Are you sure the counterstrategy given is complete?")
+            return True, None, out
 
     # hack: if env_lose is used in system, i.e. it appears as a word
     env_lose_logic = " | env_lose" if "\tenv_lose :" in system else ""
