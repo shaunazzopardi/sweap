@@ -162,6 +162,7 @@ def create_nuxmv_model_for_compatibility_checking(
         + (seen_strategy_states_decs if prefer_lassos else [])
         + ["mismatch : boolean"]
         + ["init_state : boolean"]
+        + ["second_state : boolean"]
     )
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
     has_input_preds = lambda p: any(
@@ -255,7 +256,7 @@ def create_nuxmv_model_for_compatibility_checking(
 
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
-        + "((turn = cs & !init_state) -> ("
+        + "((turn = cs & !init_state & !second_state) -> ("
         + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -300,6 +301,7 @@ def create_nuxmv_model_for_compatibility_checking(
                 "turn = cs" if not config.Config.getConfig().dual else "turn = init1",
                 "mismatch = FALSE",
                 "init_state = TRUE",
+                "second_state = FALSE",
             ]
             + (
                 (
@@ -376,14 +378,14 @@ def create_nuxmv_model_for_compatibility_checking(
         normal_trans = (
             "\t((turn != init1) -> ("
             + normal_trans
-            + ")) &\n"
+            + "& next(!second_state))) &\n"
             + "((turn = init1) -> (next(compatible) & next("
             + (" & ".join(program_model.init) if program_model.init else "TRUE")
             + ") &"
             + "(("
             + ")\n\t| (".join(strategy_model.trans)
             + "))\n &"
-            + "next(turn = cs) & next(!init_state) & "
+            + "next(turn = cs) & next(!init_state) & next(second_state) & "
             + "next(!mismatch)"
             + "))"
         )
