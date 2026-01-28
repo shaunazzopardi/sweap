@@ -2326,6 +2326,41 @@ def put_vars_on_left_side(pred):
         raise Exception("Predicate " + str(pred) + " is not a BiOp")
 
 
+def put_next_vars_on_left_side(pred):
+    # put all the next variables of a Linear Integer Arithmetic inequality on one side
+
+    if isinstance(pred, BiOp):
+        left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
+        right_vars, right_constants = get_vars_and_constants_in_term(pred.right)
+
+        next_vars_in_left = [v for v in left_vars if v.is_next()]
+        now_vars_in_left = [v for v in left_vars if not v.is_next()]
+        next_vars_in_right = [v for v in right_vars if v.is_next()]
+        now_vars_in_right = [v for v in right_vars if not v.is_next()]
+
+        new_left_vars = next_vars_in_left + [
+            propagate_minuses(UniOp(MathOps.SUB, t)) for t in next_vars_in_right
+        ]
+        new_left = sum(new_left_vars)
+
+        new_right_constants = (
+            right_constants
+            + now_vars_in_right
+            + [
+                propagate_minuses(UniOp(MathOps.SUB, c))
+                for c in left_constants + now_vars_in_left
+            ]
+        )
+        if len(new_right_constants) == 0:
+            new_right = Value(int(0))
+        else:
+            new_right = sum(new_right_constants)
+
+        return new_left, BiOp(new_left, pred.op, new_right)
+    else:
+        raise Exception("Predicate " + str(pred) + " is not a BiOp")
+
+
 def get_vars_and_constants_in_term(term):
     vars = []
     constants = []

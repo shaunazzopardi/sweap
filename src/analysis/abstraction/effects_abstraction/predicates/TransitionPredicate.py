@@ -28,6 +28,7 @@ class TransitionPredicate(Predicate, ABC):
             for t in tran_preds
         ] + [self.stutter]
         self.bool_rep = {t: stringify_pred(t) for t in tran_preds}
+        self.rev_bool_rep = {stringify_pred(t): t for t in tran_preds}
         self.is_input = is_input
         print(str(tran_preds[0]) + "    " + str(is_input))
 

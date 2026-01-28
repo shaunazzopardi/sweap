@@ -131,6 +131,16 @@ def create_nuxmv_model_for_compatibility_checking(
     bool_preds = [p.bool_var for p in state_predicates]
     bool_preds.extend([t for p in transition_predicates for t in p.bool_rep.values()])
 
+    new_state_preds = set()
+    new_tran_preds = []
+    for p in state_predicates:
+        if "_prev" in str(p.pred):
+            new_tran_preds.append(p)
+        else:
+            new_state_preds.add(p)
+    state_predicates = new_state_preds
+    transition_predicates = transition_predicates.union(new_tran_preds)
+
     text = "MODULE main\n"
     strategy_states = sorted(
         [
@@ -245,7 +255,7 @@ def create_nuxmv_model_for_compatibility_checking(
 
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
-        + "((turn = cs) -> ("
+        + "((turn = cs & !init_state) -> ("
         + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -446,13 +456,13 @@ def there_is_mismatch_between_program_and_strategy(
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
-    if config.debug:
-        logging.info(system)
-        # Sanity check
-        result, out = model_checker.invar_check(system, "F FALSE", None, True)
-        if result:
-            logging.info("Are you sure the counterstrategy given is complete?")
-            return True, None, out
+    # if config.debug:
+    logging.info(system)
+    # Sanity check
+    result, out = model_checker.invar_check(system, "F FALSE", None, True)
+    if result:
+        logging.info("Are you sure the counterstrategy given is complete?")
+        return True, None, out
 
     # hack: if env_lose is used in system, i.e. it appears as a word
     env_lose_logic = " | env_lose" if "\tenv_lose :" in system else ""

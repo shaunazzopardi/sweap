@@ -476,7 +476,7 @@ parser = issy_parser
 
 
 def string_to_issy(input: str, name_str: str) -> tuple[Program, Formula]:
-    input_wo_comments = re.sub("//.*(\n|$)", "", input)
+    input_wo_comments = re.sub("//.*(\n|$)", "", input).strip()
     global file_name
     file_name = name_str
     vars_or_macros, objectives, games = (parser << parsec.eof()).parse(
@@ -748,6 +748,8 @@ def process(
                                 for u in predicate_upgrades
                                 for i in u.variablesin()
                                 if i in inputs
+                                # only if multiple next vars, otherwise we will optimise in minigame
+                                and len([v for v in u.variablesin() if v.is_next()]) > 1
                             }
 
                             to_replace = {}
@@ -756,7 +758,7 @@ def process(
                                 to_replace[inp] = new_var
                                 new_state_vars.add(new_var)
                                 symbol_table[str(new_var)] = symbol_table[str(inp)]
-                                updates.append(BiOp(new_var, "=", inp))
+                                updates.append(Update(new_var, inp))
                             predicate_upgrades = list(
                                 map(
                                     lambda x: x.replace_formulas(to_replace),
@@ -1003,7 +1005,7 @@ def process(
                     not in program.symbol_table.keys()
                 )
                 if len(games) == 0 and all_have_int_in_prog:
-                    # an optimisation when we know the variable is only update by minigames
+                    # an optimisation when we know the variable is only updated by minigames
                     rename_to_int = {
                         v.prev_rep(): Variable("int_" + v.prev_rep().name)
                         for v in all_next_vars

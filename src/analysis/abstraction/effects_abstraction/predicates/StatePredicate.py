@@ -27,6 +27,10 @@ class StatePredicate(Predicate):
             self.pred: self.bool_var,
             neg(self.pred): self.neg_bool_var,
         }
+        self.rev_bool_rep = {
+            self.bool_var: self.pred,
+            self.neg_bool_var: neg(self.pred),
+        }
         self.last_pre = {}
         self.last_post = {}
         self.is_input = is_input

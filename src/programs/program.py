@@ -14,6 +14,7 @@ from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
+    put_next_vars_on_left_side,
 )
 from programs.util import (
     reset_caches,
@@ -502,10 +503,15 @@ class Program:
             vars += f"state {sweap_type_to_issy(t)} {i}\n"
         for i in self.local_vars:
             vars += f"state {sweap_type_to_issy(self.symbol_table[str(i)])} {i}\n"
+        states_in_spec = {
+            str(s) for s in atomic_predicates(spec) if str(s) in self.states
+        }
+        for s in states_in_spec:
+            vars += f"state bool {s}\n"
 
         game_state = "\t" + "\n\t".join([f"loc {s} 1" for s in self.states])
         transitions = "\t" + "\n\n\t".join(
-            map(issy_transition_formula, self.transitions)
+            map(lambda x: issy_transition_formula(x, states_in_spec), self.transitions)
         )
 
         game = (
@@ -523,13 +529,22 @@ class Program:
             init_vals.append(f"[{v} = {k}]")
 
         if len(init_vals) > 0:
-            assume = f"assume " + " && ".join(init_vals)
-            objective = "formula {\n\t" + assume + "\n\t" + assertion + "\n}"
+            assume = "assume " + " && ".join(init_vals)
+            objective = assume + "\n\t" + assertion
         else:
-            objective = "formula {\n\t" + assertion + "\n}"
+            objective = assertion
 
-        full = objective + "\n\n" + vars + "\n" + game
-        full = full.replace(" & ", " && ").replace(" | ", " || ")
+        if states_in_spec:
+            init_assumptions = []
+            for s in states_in_spec:
+                if s == self.initial_state:
+                    init_assumptions.append(f"assume [{self.initial_state}]")
+                else:
+                    init_assumptions.append(f"assume ![{s}]")
+            objective = "\n\t".join(init_assumptions) + "\n\t" + objective
+
+        full = "formula {\n\t" + objective + "\n}\n\n" + vars + "\n" + game
+        full.replace(" & ", " && ").replace(" | ", " || ")
         return full
 
     def to_dot(self):
@@ -1269,16 +1284,6 @@ def fill_in_minigames(
         else:
             var_values_that_matter_from_state[t.tgt] = relevant
 
-        if any(
-            v
-            for p in t.pred_upgrades
-            for v in p.variablesin()
-            if v in program.num_in_out
-        ):
-            raise Exception(
-                "We do not support minigames with numerical inputs/outputs."
-            )
-
         undetermined_vars: frozenset[Variable] = frozenset(
             u.left for u in non_determined_updates
         )
@@ -1299,29 +1304,6 @@ def fill_in_minigames(
             new_trans.append(new_t)
             continue
 
-        # need to create enough controller events to represent the minigame choices
-        raw_events = (
-            [u.left.name + "_inc" for u in non_determined_updates]
-            + [u.left.name + "_dec" for u in non_determined_updates]
-            + ["stop"]
-        )
-
-        con_bin_vars, bin_map = binary_rep(raw_events, "minigame_event_")
-        to_replace = {}
-        current_con_events = list(set(program.con_events) | new_con_events)
-        vars_to_reuse = (
-            len(con_bin_vars)
-            if len(current_con_events) >= len(con_bin_vars)
-            else len(current_con_events)
-        )
-        for i in range(vars_to_reuse):
-            to_replace[con_bin_vars[i]] = current_con_events[i][0]
-            con_bin_vars[i] = current_con_events[i][0]
-
-        bin_map = {k: v.replace_formulas(to_replace) for k, v in bin_map.items()}
-        new_con_events.update({(var, BOOLEAN) for var in con_bin_vars})
-        stop = bin_map["stop"]
-
         # create minigame transitions
         start_state = t.tgt + "_minigame_" + str(mini_game_counter)
         minigame_states.add(Variable(start_state))
@@ -1335,21 +1317,84 @@ def fill_in_minigames(
             start_state,
         )
         mg_preds = t.pred_upgrades
-        mg_preds_key = conjunct_formula_set(t.pred_upgrades)
+
+        inputs_updates_depend_on = [
+            v
+            for p in mg_preds
+            for v in p.variablesin()
+            if v in program.num_in_out
+            and len([vv for vv in p.variablesin() if vv.is_next()]) > 1
+        ]
+
+        if len(inputs_updates_depend_on) > 1:
+            to_replace = {}
+            for inp in inputs_updates_depend_on:
+                new_var = Variable("curr_" + inp.name)
+                to_replace[inp] = new_var
+                to_add_to_local_vars.add((inp, new_var))
+                symbol_table[str(new_var)] = symbol_table[str(inp)]
+                new_t.action.append(Update(new_var, inp))
+            mg_preds = list(
+                map(
+                    lambda x: x.replace_formulas(to_replace),
+                    mg_preds,
+                )
+            )
+            raise Exception(
+                "We do not support minigames with numerical inputs/outputs."
+            )
+
+        mg_preds_key = conjunct_formula_set(mg_preds)
+
         undet_vars = []
 
+        def upd_type(v, op, right):
+            if op == "=":
+                return Update(v, right), None
+            elif op == "<":
+                return Update(v, BiOp(right, "-", Value(1))), "dec"
+            elif op == ">":
+                return Update(v, BiOp(right, "+", Value(1))), "inc"
+            elif op == "<=":
+                return Update(v, right), "dec"
+            elif op == ">=":
+                return Update(v, right), "inc"
+            else:
+                raise Exception("Unsupported operator in predicate: " + str(op))
+
+        opt_trans = {}
         to_replace_preds = {}
+        raw_events = []
+        restricted_updates = []
+        unrestricted_updates = []
+        norm_mg_preds, v_to_pred = normalise_mg_preds(mg_preds)
         for u in non_determined_updates:
             v = u.left
+            if (
+                not symbol_table[str(v)] == BOOLEAN
+                and v in v_to_pred.keys()
+                and len(v_to_pred[v]) == 1
+            ):
+                if v_to_pred[v][0].left.prev_rep() == v:
+                    # no need to create int variable
+                    update_type = upd_type(v, v_to_pred[v][0].op, v_to_pred[v][0].right)
+                    if update_type:
+                        raw_events.extend([v.name + "_modify"])
+                        restricted_updates.append(update_type)
+                        continue
+
             if symbol_table[str(u.left)] == BOOLEAN:
                 bool_updates.add(v)
+                unrestricted_updates.append(u)
                 continue
             int_v = Variable("int_" + str(v))
             symbol_table.update({str(int_v): INTEGER})
-            to_replace_preds[v] = int_v
-
+            to_replace_preds[Variable(v.name + "'")] = int_v
+            raw_events.extend([v.name + "_inc", v.name + "_dec"])
+            unrestricted_updates.append(u)
+        raw_events.append("stop")
         stop_prop = conjunct_formula_set(
-            p.prev_rep().replace_formulas(to_replace_preds) for p in mg_preds
+            p.replace_formulas(to_replace_preds) for p in mg_preds
         )
 
         minigame_params: tuple[frozenset[Variable], Formula] = (
@@ -1364,14 +1409,83 @@ def fill_in_minigames(
         else:
             existing_mini_games_from_with[end_state] = {minigame_params: start_state}
 
-        for u in non_determined_updates:
-            no_mini_games_added = False
+        con_bin_vars, bin_map = binary_rep(raw_events, "minigame_event_")
+        to_replace = {}
+        current_con_events = list(set(program.con_events) | new_con_events)
+        vars_to_reuse = (
+            len(con_bin_vars)
+            if len(current_con_events) >= len(con_bin_vars)
+            else len(current_con_events)
+        )
+        for i in range(vars_to_reuse):
+            to_replace[con_bin_vars[i]] = current_con_events[i][0]
+            con_bin_vars[i] = current_con_events[i][0]
+
+        bin_map = {k: v.replace_formulas(to_replace) for k, v in bin_map.items()}
+        stop = bin_map["stop"]
+        new_con_events.update({(var, BOOLEAN) for var in con_bin_vars})
+
+        no_mini_games_added_here = True
+        for u, t in restricted_updates:
             v = u.left
             if v in var_to_minigame_state.keys():
                 var_to_minigame_state[v].append(Variable(start_state))
             else:
                 var_to_minigame_state[v] = [Variable(start_state)]
             undet_vars.append(v)
+
+            modify_prop = bin_map[(v.name + "_modify")]
+
+            new_t.action.append(u)
+
+            if t is None:
+                continue
+            else:
+                no_mini_games_added = False
+                no_mini_games_added_here = False
+
+            if t == "inc":
+                # inc_transition
+                modify_t = Transition(
+                    start_state,
+                    modify_prop,
+                    [Update(u.left, BiOp(u.left, "+", Value(1)))],
+                    [],
+                    start_state,
+                )
+            elif t == "dec":
+                # inc_transition
+                modify_t = Transition(
+                    start_state,
+                    modify_prop,
+                    [Update(u.left, BiOp(u.left, "-", Value(1)))],
+                    [],
+                    start_state,
+                )
+            else:
+                raise Exception("Unknown transition type: " + str(t))
+
+            stop_t = Transition(
+                start_state,
+                stop,
+                [],
+                [],
+                end_state,
+            )
+            new_trans.append(modify_t)
+            new_trans.append(stop_t)
+
+        unrestricted_non_det_vars = []
+        for u in unrestricted_updates:
+            no_mini_games_added = False
+            no_mini_games_added_here = False
+            v = u.left
+            if v in var_to_minigame_state.keys():
+                var_to_minigame_state[v].append(Variable(start_state))
+            else:
+                var_to_minigame_state[v] = [Variable(start_state)]
+            undet_vars.append(v)
+            unrestricted_non_det_vars.append(v)
 
             inc_prop = bin_map[(v.name + "_inc")]
             dec_prop = bin_map[(v.name + "_dec")]
@@ -1427,20 +1541,22 @@ def fill_in_minigames(
                 new_trans.append(inc_t)
                 new_trans.append(dec_t)
 
-        stop_t = Transition(
-            start_state,
-            conjunct(stop, stop_prop),
-            [
-                Update(v, Variable("int_" + str(v)))
-                for v in undet_vars
-                if v not in bool_updates
-            ],
-            [],
-            end_state,
-        )
-        new_trans.append(stop_t)
+        if len(unrestricted_updates) > 0:
+            stop_t = Transition(
+                start_state,
+                conjunct(stop, stop_prop),
+                [
+                    Update(v, Variable("int_" + str(v)))
+                    for v in unrestricted_non_det_vars
+                    if v not in bool_updates
+                ],
+                [],
+                end_state,
+            )
+            new_trans.append(stop_t)
 
-        mini_game_counter += 1
+        if not no_mini_games_added_here:
+            mini_game_counter += 1
         new_trans.append(new_t)
         ts_to_remove.append(t)
 
@@ -1544,9 +1660,26 @@ def fill_in_minigames(
             {(var.name, program.symbol_table[var.name]) for var in program.local_vars}
             | new_init_var_values
         ),
-        transitions=new_trans,
+        transitions=set(new_trans),
         env_events=program.env_events,
         con_events=list(set(program.con_events) | new_con_events),
         preprocess=False,
     )
     return new_prog, preds_to_replace, list(minigame_states)
+
+
+def normalise_mg_preds(mg_preds: list[Formula]):
+    # first let's normalise mg_preds: next vars should be on left side, others on right-hand side
+    normalised = list(map(lambda x: x[1], map(put_next_vars_on_left_side, mg_preds)))
+
+    # arrange into dict from frozenset of variables (representing next vars appearing in formula) to formula
+    mg_dict: dict[Variable, list[Formula]] = {}
+    for p in normalised:
+        next_vars = frozenset(v for v in p.variablesin() if v.is_next())
+        for v in next_vars:
+            v_prev = v.prev_rep()
+            if v_prev in mg_dict.keys():
+                mg_dict[v_prev].append(p)
+            else:
+                mg_dict[v_prev] = [p]
+    return normalised, mg_dict

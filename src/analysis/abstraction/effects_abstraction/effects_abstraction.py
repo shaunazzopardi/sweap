@@ -92,7 +92,12 @@ class EffectsAbstraction(PredicateAbstraction):
         self.v_to_chain_pred = {}
 
         self.program = program
-        self.init_conf: Formula = self.program.init_type_constraints
+        self.init_conf: Formula = conjunct(
+            self.program.init_type_constraints,
+            conjunct_formula_set(
+                BiOp(v, "=", v.prev_rep()) for v in self.program.local_vars
+            ),
+        )
         self.init_state_abstraction = [[true()]]
         self.init_no_matter: list[Predicate] = []
         self.init_constants = []
@@ -317,60 +322,25 @@ class EffectsAbstraction(PredicateAbstraction):
                 self.symbol_table.update(
                     {str(bool_var): BOOLEAN for bool_var in p.bool_rep.values()}
                 )
+                self.init_state_abstraction = self.update_init_abstraction_state_pred(p)
 
-                if not p.is_input:
-                    self.init_constants.append(p.stutter)
             else:
                 # For structural refinement we treat transition predicates as state predicates
                 self.symbol_table.update({str(p.bool_var): BOOLEAN})
-                if p.is_input:
-                    continue
-                if "_prev" in str(p):
-                    if is_tautology(
-                        implies(
-                            conjunct_formula_set(
-                                [
-                                    BiOp(v, "=", v.prev_rep())
-                                    for v in self.program.local_vars
-                                ]
-                                + [self.init_conf]
-                            ),
-                            p.pred,
-                        ),
-                        self.symbol_table,
-                    ):
-                        self.init_constants.append(p.pred)
-                    else:
-                        self.init_constants.append(neg(p.pred))
-                else:
-                    self.init_state_abstraction = (
-                        self.update_init_abstraction_state_pred(p)
-                    )
-
-        if not config.Config.getConfig().dual:
-            for p in self.init_no_matter:
-                if isinstance(p, ChainPredicate):
-                    self.init_state_abstraction = (
-                        self.update_init_abstraction_new_chain_pred(p)
-                    )
-                elif isinstance(p, StatePredicate):
-                    self.init_state_abstraction = (
-                        self.update_init_abstraction_state_pred(p)
-                    )
-                else:
-                    raise Exception(
-                        "What is this predicate in init_no_matter: " + str(p)
-                    )
+                self.init_state_abstraction = self.update_init_abstraction_state_pred(p)
 
         if config.Config.getConfig().debug:
             f = conjunct(
                 self.init_conf,
                 neg(
-                    disjunct_formula_set(
-                        map(
-                            conjunct_formula_set,
-                            self.init_state_abstraction,
-                        )
+                    conjunct(
+                        conjunct_formula_set(self.init_constants),
+                        disjunct_formula_set(
+                            map(
+                                conjunct_formula_set,
+                                self.init_state_abstraction,
+                            )
+                        ),
                     )
                 ),
             )
@@ -409,7 +379,8 @@ class EffectsAbstraction(PredicateAbstraction):
         new_state_predicates = [
             p for p in new_state_predicates if p not in new_input_preds
         ]
-        new_input_preds = self.process_preds(new_input_preds)
+        if len(new_input_preds) > 0:
+            new_input_preds = self.process_preds(new_input_preds)
 
         # TODO: do below incrementally
         self.input_preds = []
@@ -650,6 +621,8 @@ class EffectsAbstraction(PredicateAbstraction):
         pass
 
     def update_init_abstraction_state_pred(self, p):
+        if p.is_input or "_prev" in str(p):
+            return self.init_state_abstraction
         new_init_abs = []
         for m in self.init_state_abstraction:
             for choice in p.choices():
@@ -661,28 +634,10 @@ class EffectsAbstraction(PredicateAbstraction):
                     new_init_abs.append(m_with_p)
         return new_init_abs
 
-    def update_init_constants_tran_chain_pref(self, v_chain_pred):
-        if "_prev" not in str(v_chain_pred.term):
-            raise Exception("Only prev chain preds should be here")
-        for p in v_chain_pred.chain:
-            if is_tautology(
-                implies(
-                    conjunct_formula_set(
-                        [BiOp(v, "=", v.prev_rep()) for v in self.program.local_vars]
-                        + [self.init_conf]
-                    ),
-                    p,
-                ),
-                self.symbol_table,
-            ):
-                self.init_constants.append(p)
-                break
-
     def update_init_abstraction_new_chain_pred(self, v_chain_pred):
-        new_init_abs = []
-        if "_prev" in str(v_chain_pred.term):
-            self.update_init_constants_tran_chain_pref(v_chain_pred)
+        if v_chain_pred.is_input or "_prev" in str(v_chain_pred.term):
             return self.init_state_abstraction
+        new_init_abs = []
 
         for p in v_chain_pred.chain:
             for m in self.init_state_abstraction:
@@ -699,8 +654,7 @@ class EffectsAbstraction(PredicateAbstraction):
         return new_init_abs
 
     def update_init_abstraction_old_chain_pred(self, v_chain_pred):
-        if "_prev" in str(v_chain_pred.term):
-            self.update_init_constants_tran_chain_pref(v_chain_pred)
+        if v_chain_pred.is_input or "_prev" in str(v_chain_pred.term):
             return self.init_state_abstraction
 
         old_to_new = v_chain_pred.old_to_new
@@ -926,6 +880,13 @@ def update_effects(
     now_preds.update(new_now_preds)
 
     next_vs_init = {u.left for u in us if u.left != u.right}
+    if any(
+        p
+        for p in next_preds | new_preds
+        if any(v for v in p.variablesin() if "_prev" in v.name)
+    ):
+        next_vs_init.update({u.left for u in us if u.left == u.right})
+
     next_vs = set(
         itertools.chain.from_iterable(
             partitions[v_to_partition[v]] for v in next_vs_init
@@ -1038,6 +999,23 @@ def compute_abstract_effect_for_guard_update(arg):
             if is_pre:
                 pres[p] = x
                 ignore_in_nows.add(p)
+
+                if conf.debug:
+                    for_sat = (
+                        x
+                        if isinstance(p, ChainPredicate)
+                        else x.replace_formulas(p.rev_bool_rep)
+                    ).prev_rep()
+                    if sat(
+                        conjunct(gu, neg(for_sat)),
+                        symbol_table,
+                    ):
+                        raise Exception(
+                            "Neg of constant sat with gu: "
+                            + str(gu)
+                            + " pred: "
+                            + str(x)
+                        )
             else:
                 if p in ignore_in_nows:
                     ignore_in_nows.remove(p)
@@ -1045,6 +1023,23 @@ def compute_abstract_effect_for_guard_update(arg):
             if is_post:
                 posts[p] = x
                 ignore_in_nexts.add(p)
+
+                if conf.debug:
+                    for_sat = (
+                        x.right
+                        if isinstance(p, ChainPredicate)
+                        else x.right.replace_formulas(p.rev_bool_rep)
+                    )
+                    if sat(
+                        conjunct(gu, neg(for_sat)),
+                        symbol_table,
+                    ):
+                        raise Exception(
+                            "Neg of constant sat with gu: "
+                            + str(gu)
+                            + " pred: "
+                            + str(x)
+                        )
                 if is_pre:
                     continue
             else:
@@ -1152,23 +1147,22 @@ def compute_abstract_effect_for_guard_update(arg):
         us_part_effects_joined, curr_preds = join_parts(
             effects, list(old_parts), old_us_part_to_pred
         )
-        if any(u for u in us_part if u.left != u.right):
-            us_part_effects = update_effects(
-                us_part_effects_joined,
-                us_part,
-                gu,
-                curr_preds,
-                new_preds,
-                partitions,
-                v_to_partition,
-                v_to_preds,
-                ignore_in_nows,
-                ignore_in_nexts,
-                symbol_table,
-            )
-            new_effects[us_part] = us_part_effects
-        else:
-            new_effects[us_part] = us_part_effects_joined
+        us_part_effects = update_effects(
+            us_part_effects_joined,
+            us_part,
+            gu,
+            curr_preds,
+            new_preds,
+            partitions,
+            v_to_partition,
+            v_to_preds,
+            ignore_in_nows,
+            ignore_in_nexts,
+            symbol_table,
+        )
+        new_effects[us_part] = us_part_effects
+        # else:
+        #     new_effects[us_part] = us_part_effects_joined
         new_us_part_to_pred[us_part] = curr_preds
         all_relevant_next_preds.update(curr_preds[1])
         init_nows.extend(curr_preds[0])
@@ -1328,7 +1322,13 @@ def effects_to_ltl(
 
 
 def effects_to_ltl_non_bin(
-    gu, effects, constants, invars, conf: config.Config, dual_env_props, symbol_table
+    gu,
+    effects,
+    constants,
+    invars,
+    conf: config.Config,
+    dual_env_props,
+    symbol_table,
 ):
     parts_ltl = []
     parts_ltl_wo_next = []
@@ -1385,6 +1385,12 @@ def effects_to_ltl_non_bin(
     invars = sorted(set(invars), key=lambda p: str(p))
     for p in invars:
         if isinstance(p, ChainPredicate):
+            for c in p.choices():
+                if sat(conjunct(gu, neg(iff(c.prev_rep(), c))), symbol_table):
+                    raise Exception(
+                        "Neg of invar sat with gu: " + str(gu) + " pred: " + str(p)
+                    )
+
             if conf.dual:
                 invar_preds_effects.update(iff(X(b), X(X(b))) for b in p.bin_vars)
             else:
@@ -1395,11 +1401,18 @@ def effects_to_ltl_non_bin(
                     invar_preds_effects.add(iff(X(p), X(X(p))))
                 else:
                     invar_preds_effects.add(iff(p, X(p)))
+            else:
+                print("prev state predicate as invar")
+
+                for c in p.choices():
+                    if sat(conjunct(gu, neg(iff(c.prev_rep(), c))), symbol_table):
+                        raise Exception(
+                            "Neg of invar sat with gu: " + str(gu) + " pred: " + str(p)
+                        )
 
     constant_effects = []
     constants = sorted(set(constants), key=lambda p: str(p))
-    for p in constants:
-        const = p
+    for const in constants:
         if conf.dual:
             const = X(const)
         constant_effects.append(const)

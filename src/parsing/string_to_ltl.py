@@ -155,7 +155,7 @@ GRAMMAR = r"""
         ;
     
     issy_keep
-        = 'keep' '(' { atom } ')' ;
+        = 'keep' '(' { atom }+ ')' ;
     
     negated_atom 
         = '!' atom $

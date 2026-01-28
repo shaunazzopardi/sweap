@@ -858,7 +858,7 @@ def transition_formula(t):
         return transition_formulas[t]
 
 
-def issy_transition_formula(t):
+def issy_transition_formula(t, states_in_spec):
     to_return = f"from {t.src} to {t.tgt} with "
     cond = str(t.condition)
     preds = atomic_predicates(t.condition)
@@ -872,6 +872,11 @@ def issy_transition_formula(t):
     updates = [u for u in t.action if u.left != u.right]
     for u in updates:
         cond += f" && [{str(u.left)}' = {str(u.right)}]"
+    for s in states_in_spec:
+        if s == t.tgt:
+            cond += f" && [{s}' = true]"
+        else:
+            cond += f" && [{s}' = false]"
 
     to_return += cond
     return to_return
@@ -1001,6 +1006,8 @@ def binary_rep(vars, label, printing=True):
 
 def term_incremented_or_decremented(program, f):
     vars_in_f = f.variablesin()
+    # prev_vars = [Variable(v.name + "_prev") for v in vars_in_f]
+    # vars_in_f.extend(prev_vars)
 
     only_updated_by_constants = True
     only_updated_by_other_program_vars = True
@@ -1033,6 +1040,8 @@ def term_incremented_or_decremented(program, f):
                     # then the predicate abstraction will implicitly force v to progress towards
                     # the ends of the partition (if the other variables are forced to do so)
                     # so only need a ranking refinement for v if it depends on itself, or on inputs
+                    # prev_vars = [Variable(v.name + "_prev") for v in vars_in_u]
+                    # vars_in_u.extend(prev_vars)
                     if u.left in vars_in_u or any(
                         v for v in vars_in_u if v in program.num_in_out
                     ):
