@@ -1383,6 +1383,7 @@ def fill_in_minigames(
                         restricted_updates.append(update_type)
                         continue
 
+            raw_events.extend([v.name + "_inc", v.name + "_dec"])
             if symbol_table[str(u.left)] == BOOLEAN:
                 bool_updates.add(v)
                 unrestricted_updates.append(u)
@@ -1390,7 +1391,6 @@ def fill_in_minigames(
             int_v = Variable("int_" + str(v))
             symbol_table.update({str(int_v): INTEGER})
             to_replace_preds[Variable(v.name + "'")] = int_v
-            raw_events.extend([v.name + "_inc", v.name + "_dec"])
             unrestricted_updates.append(u)
         raw_events.append("stop")
         stop_prop = conjunct_formula_set(
@@ -1670,7 +1670,14 @@ def fill_in_minigames(
 
 def normalise_mg_preds(mg_preds: list[Formula]):
     # first let's normalise mg_preds: next vars should be on left side, others on right-hand side
-    normalised = list(map(lambda x: x[1], map(put_next_vars_on_left_side, mg_preds)))
+    normalised = []
+    of_other_forms = []
+    for p in mg_preds:
+        try:
+            _, norm = put_next_vars_on_left_side(p)
+            normalised.append(norm)
+        except:
+            of_other_forms.append(p)
 
     # arrange into dict from frozenset of variables (representing next vars appearing in formula) to formula
     mg_dict: dict[Variable, list[Formula]] = {}
@@ -1682,4 +1689,4 @@ def normalise_mg_preds(mg_preds: list[Formula]):
                 mg_dict[v_prev].append(p)
             else:
                 mg_dict[v_prev] = [p]
-    return normalised, mg_dict
+    return normalised + of_other_forms, mg_dict
