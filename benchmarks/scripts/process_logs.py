@@ -59,7 +59,7 @@ class CheckMissing:
 tools = {
     **{
         f"sweap{conf}": ToolInfo(name=f"sweap{conf}", real=sweap_real_re, unreal=sweap_unreal_re)
-        for conf in ("-strix", "-dual", "-rpg", "-rpg-dual", "-tsl", "-tsl-dual", "-issy", "-issy-dual", "-semml")
+        for conf in ("-strix", "-dual", "-rpg", "-rpg-dual", "-tsl", "-tsl-dual", "-issy", "-issy-dual", "-semml", "-strix-dual")
     },
     **{
         f"issy{conf}": ToolInfo(name=f"issy{conf}", real=rpg_real_re, unreal=rpg_unreal_re)
@@ -450,11 +450,11 @@ def get_result(tool, tool_info, bench, b_real):
             break
     if not log:
         return 0, 0, "missing"
-    #if tool.startswith("sweap"):
-    #    refinements[b][tool] = get_refinements(log[0])
-
-    with open(log[0], "r") as log_file:
-        raw_result = log_file.read()
+    try:
+        with open(log[0], "r") as log_file:
+            raw_result = log_file.read()
+    except FileNotFoundError:
+        return 0, 0, "missing"
     log_lines = raw_result.splitlines()
     find_timeout = log_lines[0].find("timeout ")
     timeout = 1_000 * int(log_lines[0][find_timeout+8:].split()[0]) if find_timeout != -1 else TIMEOUT

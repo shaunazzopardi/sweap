@@ -165,6 +165,11 @@ print(f"[INFO] solved by both: {solved_by_both.height}", file=sys.stderr)
 print(f"[INFO] solved by none: {solved_by_none.height}", file=sys.stderr)
 print(f"[INFO] solved only by {TOOLS[0]}: {solved_only_by_tool0.height}", file=sys.stderr)
 print(f"[INFO] solved only by {TOOLS[1]}: {solved_only_by_tool1.height}", file=sys.stderr)
+
+with pl.Config(tbl_rows=30):
+    print(f"[INFO] solved only by {TOOLS[0]}: {solved_only_by_tool0["benchmark", f"real_{TOOLS[0]}"].unique()}", file=sys.stderr)
+    print(f"[INFO] solved only by {TOOLS[1]}: {solved_only_by_tool1["benchmark", f"real_{TOOLS[1]}"].unique()}", file=sys.stderr)
+
 csv = (
     csv1
     .with_columns((pl.col(f"goal_{TOOLS[0]}")+"_"+pl.col(f"real_{TOOLS[0]}")).alias("category"))
@@ -183,6 +188,10 @@ print(f"[INFO] {TOOLS[1]} wins: {(csv[f'time(s)_{TOOLS[1]}'] < csv[f'time(s)_{TO
 print(f"[INFO] {TOOLS[0]} wins and {TOOLS[1]} times out: {((csv[f'time(s)_{TOOLS[0]}'] < csv[f'time(s)_{TOOLS[1]}']) & (csv[f'time(s)_{TOOLS[1]}'] == TIMEOUT/1000)).sum()}", file=sys.stderr)
 print(f"[INFO] {TOOLS[1]} wins and {TOOLS[0]} times out: {((csv[f'time(s)_{TOOLS[1]}'] < csv[f'time(s)_{TOOLS[0]}']) & (csv[f'time(s)_{TOOLS[0]}'] == TIMEOUT/1000)).sum()}", file=sys.stderr)
 
+
+with pl.Config(tbl_rows=30):
+    print(f"{TOOLS[0]} wins:", file=sys.stderr)
+    print(csv.filter(pl.col(f'time(s)_{TOOLS[0]}') < pl.col(f'time(s)_{TOOLS[1]}')).select("benchmark", f"real_{TOOLS[0]}"), file=sys.stderr)
 
 # min_time_tool0 = csv[f"time(s)_{TOOLS[0]}"].min()
 # min_time_tool1 = csv[f"time(s)_{TOOLS[1]}"].min()
@@ -279,9 +288,10 @@ fig = scatter.get_figure()
 scatter.get_legend().remove()
 fig.subplots_adjust(left=-0.1)
 for fmt in ("png", "pdf"):
-    fig.savefig(
-        DIR / f"scatter_{TOOLS[0]}_{TOOLS[1]}.{fmt}",
-        dpi=300, bbox_inches='tight', pad_inches=0.05)
+    pass
+    # fig.savefig(
+    #     DIR / f"scatter_{TOOLS[0]}_{TOOLS[1]}.{fmt}",
+    #     dpi=300, bbox_inches='tight', pad_inches=0.05)
 
 # save legend separately
 fig_legend = mpl.figure.Figure(figsize=(3, 1))
