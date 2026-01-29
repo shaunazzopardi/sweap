@@ -42,6 +42,7 @@ ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/tacas26/verification/*.iss
 
 SWEAP_STRIX_LOGS :=		$(addsuffix .sweap-strix.log, 		$(SWEAP_BENCHS))
 SWEAP_DUAL_LOGS :=		$(addsuffix .sweap-dual.log, 		$(SWEAP_BENCHS))
+SWEAP_STRIX_DUAL_LOGS :=$(addsuffix .sweap-strix-dual.log,	$(SWEAP_BENCHS))
 SWEAP_SEMML_LOGS :=		$(addsuffix .sweap-semml.log, 		$(SWEAP_BENCHS))
 SWEAP_RPG_LOGS :=		$(addsuffix .sweap-rpg.log, 		$(RPG_BENCHS))
 SWEAP_RPG_DUAL_LOGS :=	$(addsuffix .sweap-rpg-dual.log, 	$(RPG_BENCHS))
@@ -54,20 +55,20 @@ ISSY2_LOGS :=			$(addsuffix .issy2.log,				$(ISSY_BENCHS))
 ISSY2_RPG_LOGS :=		$(addsuffix .issy2-rpg.log,			$(RPG_BENCHS))
 ISSY2_TSL_LOGS :=		$(addsuffix .issy2-tsl.log,			$(TSLMT2RPG_BENCHS))
 
-
 # Tool command-line invocation
 $(SWEAP_STRIX_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend strix --p
 $(SWEAP_SEMML_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --p
 $(SWEAP_DUAL_LOGS): cmd =		python3 src/main.py --synthesise --dual --synthesis_backend semml --p
+$(SWEAP_STRIX_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual --synthesis_backend strix --p
 $(SWEAP_RPG_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --rpg
 $(SWEAP_RPG_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual --synthesis_backend semml --rpg
 $(SWEAP_TSL_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --tsl
 $(SWEAP_TSL_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual --synthesis_backend semml --tsl
 $(SWEAP_ISSY_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --issy
 $(SWEAP_ISSY_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual --synthesis_backend semml --issy
-$(ISSY2_LOGS): cmd =			apptainer exec issy2.sif issy --pruning 2 --synt <
-$(ISSY2_RPG_LOGS): cmd =		apptainer exec issy2.sif issy --pruning 2 --synt --rpg <
-$(ISSY2_TSL_LOGS): cmd =		apptainer exec issy2.sif issy --pruning 2 --synt --tslmt <
+$(ISSY2_LOGS): cmd =			apptainer exec -c /scratch/luca.di.stefano/issy2.sif issy --pruning 2 --synt <
+$(ISSY2_RPG_LOGS): cmd =		apptainer exec -c /scratch/luca.di.stefano/issy2.sif issy --pruning 2 --synt --rpg <
+$(ISSY2_TSL_LOGS): cmd =		apptainer exec -c /scratch/luca.di.stefano/issy2.sif issy --pruning 2 --synt --tslmt <
 
 
 # paths that the tool needs in $PATH
@@ -96,14 +97,15 @@ endef
 
 all: $(TOOLS)
 
-sweap-strix:	$(SWEAP_STRIX_LOGS)
-sweap-semml:	$(SWEAP_SEMML_LOGS) # SemML does not work well under ulimit
-sweap-dual:		$(SWEAP_DUAL_LOGS)
-sweap-rpg:		$(SWEAP_RPG_LOGS)
-sweap-rpg-dual:	$(SWEAP_RPG_DUAL_LOGS)
-sweap-tsl:		$(SWEAP_TSL_LOGS)
-sweap-tsl-dual:	$(SWEAP_TSL_DUAL_LOGS)
-sweap-issy:		$(SWEAP_ISSY_LOGS)
+sweap-strix:		$(SWEAP_STRIX_LOGS)
+sweap-semml:		$(SWEAP_SEMML_LOGS)
+sweap-dual:			$(SWEAP_DUAL_LOGS)
+sweap-strix-dual:	$(SWEAP_STRIX_DUAL_LOGS)
+sweap-rpg:			$(SWEAP_RPG_LOGS)
+sweap-rpg-dual:		$(SWEAP_RPG_DUAL_LOGS)
+sweap-tsl:			$(SWEAP_TSL_LOGS)
+sweap-tsl-dual:		$(SWEAP_TSL_DUAL_LOGS)
+sweap-issy:			$(SWEAP_ISSY_LOGS)
 sweap-issy-dual:	$(SWEAP_ISSY_DUAL_LOGS)
 
 issy2:		$(ISSY2_LOGS)
@@ -122,6 +124,10 @@ $(SWEAP_STRIX_LOGS): %.sweap-strix.log: %.prog
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
 $(SWEAP_DUAL_LOGS): %.sweap-dual.log: %.prog
+	@echo "$(cmd) $< $(TIMEOUT)"
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
+
+$(SWEAP_STRIX_DUAL_LOGS): %.sweap-strix-dual.log: %.prog
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
@@ -155,7 +161,7 @@ $(SWEAP_ISSY_DUAL_LOGS): %.sweap-issy-dual.log: %.issy
 
 $(ISSY2_LOGS): %.issy2.log : %.issy
 	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) /scratch/luca.di.stefano/$< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
 $(ISSY2_RPG_LOGS): %.issy2-rpg.log : %.rpg
 	@echo "$(cmd) $< $(TIMEOUT)"
@@ -163,7 +169,7 @@ $(ISSY2_RPG_LOGS): %.issy2-rpg.log : %.rpg
 
 $(ISSY2_TSL_LOGS): %.issy2-tsl.log : %.tslmt
 	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) /scratch/luca.di.stefano/$< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
 
 ################################################################################
@@ -195,12 +201,13 @@ tables:
 	(benchmarks/scripts/process_logs.py benchmarks | tee benchmarks/results/results.csv) 2> >(tee benchmarks/results/stats.csv)
 
 plots:
-	cd benchmarks/scripts; \
-	./cactus.py ../results/results.csv
+	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-pf sweap-strix > benchmarks/results/table_sweap-pf_sweap-strix.tex
+	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-issy-pf issy2 > benchmarks/results/table_sweap-issy-pf_issy2.tex
+	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-rpg-pf issy2-rpg > benchmarks/results/table_sweap-rpg-pf_issy2-rpg.tex
+	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-tsl-pf issy2-tsl > benchmarks/results/table_sweap-tsl-pf_issy2-tsl.tex
 
 count:
 	@echo -n "sweap: " && echo $(SWEAP_BENCHS) | wc -w
 	@echo -n "issy: " && echo $(ISSY_BENCHS) | wc -w
 	@echo -n "rpg: " && echo $(RPG_BENCHS) | wc -w
 	@echo -n "tslmt: " && echo $(TSLMT2RPG_BENCHS) | wc -w
-
