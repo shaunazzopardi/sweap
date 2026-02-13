@@ -5,6 +5,10 @@ from textwrap import dedent
 from typing import Set, Union
 
 from graphviz import Digraph
+from pysmt.shortcuts import Symbol, ForAll, Exists, serialize
+from pysmt.typing import INT, BOOL
+
+from analysis.smt_checker import quantifier_elimination
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.dfa import program_sccs, reachable_states, classify_initial_values
@@ -12,6 +16,7 @@ from programs.transition import Transition
 from prop_lang.formula import Formula
 from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
+    fnode_to_formula,
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
     put_next_vars_on_left_side,
@@ -1264,9 +1269,48 @@ def fill_in_minigames(
         else:
             relevant, _ = classify_initial_values(program, t.tgt)
             relevant.update(vars_in_ltl)
-        non_determined_updates = [
-            u for u in non_determined_updates if u.left in relevant
-        ]
+        new_non_determined_updates = []
+        for u in non_determined_updates:
+            if u.left in relevant:
+                new_non_determined_updates.append(u)
+            else:
+                # check that if the variable is used in a pred_upgrade
+                relevant_preds = [
+                    p for p in t.pred_upgrades if u.left in p.prev_rep().variablesin()
+                ]
+                if relevant_preds:
+                    # then we check whether the relevant pred upgrades are always satisfiable with QE query
+                    now_vars = set(
+                        Symbol(str(v), INT)
+                        for p in relevant_preds
+                        for v in p.variablesin()
+                        if not v.is_next()
+                    )
+                    now_vars.update(
+                        {
+                            Symbol(
+                                str(v), BOOL if symbol_table[str(v)] == BOOLEAN else INT
+                            )
+                            for v in t.condition.variablesin()
+                        }
+                    )
+                    next_vars = set(
+                        Symbol(str(v), INT)
+                        for p in relevant_preds
+                        for v in p.variablesin()
+                        if v.is_next()
+                    )
+
+                    # check forall now_vars . exists next_vars . (condition & pred_upgrades)
+                    qe_formula = conjunct_formula_set(
+                        [t.condition] + list(t.pred_upgrades)
+                    ).to_smt(symbol_table)[0]
+                    qe_formula = ForAll(now_vars, Exists(next_vars, qe_formula))
+                    result = quantifier_elimination(qe_formula)
+                    result = fnode_to_formula(result)
+                    if not is_tautology(result, symbol_table):
+                        # then the pred upgrades are not satisfiable without this variable, so we need to keep it
+                        new_non_determined_updates.append(u)
 
         t.action = [
             a for a in t.action if not isinstance(a.right, NonDeterministic)
