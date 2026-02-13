@@ -17,7 +17,14 @@ from config import Config
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.types.ops_and_rels import BoolBiOps, MathRels
-from prop_lang.util import conjunct_formula_set, normalize_ltl, stringify_pred
+from prop_lang.util import (
+    conjunct_formula_set,
+    normalize_ltl,
+    stringify_pred,
+    conjunct,
+    X,
+    implies,
+)
 from prop_lang.variable import Variable
 from synthesis.machines.mealy_machine import MealyMachine
 
@@ -49,6 +56,20 @@ def compatibility_checking_con(
         prefer_lassos=False,
     )
     logging.info(system)
+    bin_conditions = []
+    for chain_pred in predicate_abstraction.v_to_chain_pred.values():
+        if not config.Config.getConfig().dual and chain_pred.is_input:
+            continue
+        ch_pred_bin_conds = []
+        bin_vars = set(chain_pred.bin_vars)
+        for rep in chain_pred.bin_rep.values():
+            missing_bin_vars = bin_vars.difference(rep.variablesin())
+            for m in missing_bin_vars:
+                ch_pred_bin_conds.append(
+                    implies(conjunct(rep, X(rep)), BiOp(m, "<->", X(m)))
+                )
+        bin_conditions.extend(ch_pred_bin_conds)
+
     bound = 50
     (
         contradictory,
@@ -57,7 +78,7 @@ def compatibility_checking_con(
     ) = there_is_mismatch_between_program_and_controller(
         system,
         original_ltl_spec,
-        predicate_abstraction.structural_loop_constraints,
+        predicate_abstraction.structural_loop_constraints + bin_conditions,
         (
             True
             if any(v for v in moore_nuxmv.vars if re.match(r"^env_lose *:?$", v))
@@ -89,6 +110,7 @@ def compatibility_checking_con(
             "Controller does not enforce the required LTL property on the program:\n"
             + str(out)
         )
+
         raise Exception(
             "Controller does not enforce the required LTL property on the program:\n"
             + str(out)
@@ -218,7 +240,7 @@ def create_nuxmv_model_for_compatibility_checking(
     # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
     compatible_tran_predicates = (
         "\tcompatible_tran_predicates := "
-        + "(("
+        + "((!init_state) -> ("
         + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -392,7 +414,9 @@ def there_is_mismatch_between_program_and_controller(
 
     if len(loop_constraints) > 0:
         loop_constraints_str = (
-            "(G(" + ") & (".join(map(str, loop_constraints)) + ")) -> "
+            "(G(("
+            + ") & (".join(map(lambda x: x.to_nuxmv(), loop_constraints))
+            + "))) -> "
         )
     else:
         loop_constraints_str = ""
@@ -409,4 +433,5 @@ def there_is_mismatch_between_program_and_controller(
         bound,
         True,
     )
+
     return False, not there_is_no_mismatch, out
