@@ -67,6 +67,8 @@ class Variable(Atom):
             type = symbol_table[self.name]
         elif self.name.split("_prev")[0] in symbol_table.keys():
             type = symbol_table[self.name.split("_prev")[0]]
+        elif self.is_next():
+            type = symbol_table[self.prev_rep().name]
         else:
             raise Exception(
                 "Variable.to_smt: variable " + self.name + " not in symbol table."
