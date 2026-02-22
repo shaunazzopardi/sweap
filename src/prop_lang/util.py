@@ -147,6 +147,11 @@ def W(left: Formula, right: Formula):
 
 
 def neg(ltl: Formula):
+    if isinstance(ltl, Value):
+        if ltl.is_true():
+            return false()
+        if ltl.is_false():
+            return true()
     if isinstance(ltl, UniOp):
         if ltl.op == "!":
             return ltl.right
