@@ -20,6 +20,7 @@ from prop_lang.util import (
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
     put_next_vars_on_left_side,
+    strip_mathexpr,
 )
 from programs.util import (
     reset_caches,
@@ -1685,6 +1686,7 @@ def normalise_mg_preds(mg_preds: list[Formula]):
     normalised = []
     of_other_forms = []
     for p in mg_preds:
+        p = strip_mathexpr(p)
         try:
             _, norm = put_next_vars_on_left_side(p)
             normalised.append(norm)
@@ -1693,7 +1695,7 @@ def normalise_mg_preds(mg_preds: list[Formula]):
 
     # arrange into dict from frozenset of variables (representing next vars appearing in formula) to formula
     mg_dict: dict[Variable, list[Formula]] = {}
-    for p in normalised:
+    for p in normalised + of_other_forms:
         next_vars = frozenset(v for v in p.variablesin() if v.is_next())
         for v in next_vars:
             v_prev = v.prev_rep()
