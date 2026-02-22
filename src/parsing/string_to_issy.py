@@ -1692,20 +1692,20 @@ def extract_updates_from_formula(formula):
 
 
 def formula_to_transitions(formula, inputs, symbol_table):
-    formula = almost_dnf_to_dnf(formula, 3)
+    formula = almost_dnf_to_dnf(formula, 3, symbol_table)
     if config.Config.getConfig().debug:
         if sat(
-            conjunct(neg(formula), almost_dnf_to_dnf(formula, 3)),
+            conjunct(neg(formula), almost_dnf_to_dnf(formula, 3, symbol_table)),
             symbol_table,
         ) and sat(
-            conjunct(formula, neg(almost_dnf_to_dnf(formula, 3))),
+            conjunct(formula, neg(almost_dnf_to_dnf(formula, 3, symbol_table))),
             symbol_table,
         ):
             raise Exception(
                 "Wrong translation from almost dnf to dnf: "
                 + str(formula)
                 + " vs "
-                + str(almost_dnf_to_dnf(formula, 3))
+                + str(almost_dnf_to_dnf(formula, 3, symbol_table))
             )
 
     disjuncts = []

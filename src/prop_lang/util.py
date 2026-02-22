@@ -1271,7 +1271,7 @@ def almost_dnf(formula):
         return is_atomic(formula)
 
 
-def almost_dnf_to_dnf(formula, depth):
+def almost_dnf_to_dnf(formula, depth, symbol_table):
     if isinstance(formula, BiOp):
         if formula.op == "&":
             new_conjuncts = []
@@ -1293,8 +1293,10 @@ def almost_dnf_to_dnf(formula, depth):
             new_disjuncts = []
             for combination in combinations:
                 new_disj = conjunct_formula_set(list(combination) + new_conjuncts)
+                if not sat(new_disj, symbol_table):
+                    continue
                 if depth > 0:
-                    new_disj = almost_dnf_to_dnf(new_disj, depth - 1)
+                    new_disj = almost_dnf_to_dnf(new_disj, depth - 1, symbol_table)
                 new_disjuncts.append(new_disj)
             return disjunct_formula_set(new_disjuncts)
         else:
