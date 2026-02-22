@@ -1417,6 +1417,26 @@ def run_with_timeout_and_memory_limit(f, args, timeout, max_memory_gb):
     with Manager() as manager:
         result_dict = manager.dict()
 
+        def _kill_process_tree(root_pid: int):
+            try:
+                import psutil
+
+                root = psutil.Process(root_pid)
+                children = root.children(recursive=True)
+                for child in children:
+                    try:
+                        child.terminate()
+                    except Exception:
+                        pass
+                gone, alive = psutil.wait_procs(children, timeout=0.5)
+                for child in alive:
+                    try:
+                        child.kill()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         def target(func, func_args, shared_dict, memory_limit_gb):
             try:
                 memory_bytes = int(memory_limit_gb * 1024 * 1024 * 1024)
@@ -1441,7 +1461,9 @@ def run_with_timeout_and_memory_limit(f, args, timeout, max_memory_gb):
                 break
             time.sleep(0.01)
 
-        process.terminate()
+        if process.is_alive():
+            _kill_process_tree(process.pid)
+            process.terminate()
         process.join(1.0)
 
         status = result_dict.get("status", None)
