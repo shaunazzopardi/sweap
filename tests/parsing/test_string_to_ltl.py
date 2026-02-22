@@ -2,68 +2,83 @@ import time
 from unittest import TestCase
 
 from parsing.hoa_parser import hoa_to_transitions
-from parsing.string_to_ltl import string_to_ltl_with_predicates, string_to_prop
+from parsing.string_to_ltl import (
+    string_to_issy_ltl,
+    string_to_ltl_with_predicates,
+)
 
 
 class Test(TestCase):
+    def test_string_to_prop(self):
+        f = string_to_issy_ltl(
+            "[c >= -BOUND] && ([c >= 0] && [c' = c + 1] || [c < 0] && [c' = c - 1] && [x' = ix] && [y' = iy])"
+        )
+        self.assertTrue(f.op == "&")
+        self.assertTrue(f.right.op == "|")
+        print(str(f))
+
     def test_string_to_ltl_00(self):
-        ltl = string_to_ltl("a | !a & p")
+        ltl = string_to_ltl_with_predicates("a | !a & p")
         print(ltl)
-        ltl = string_to_ltl(
+        ltl = string_to_ltl_with_predicates(
             "(a & (a | (a | (a | (a | ((a | (a | (a | (a | !aa)))) | !a))))) | !a & (a & ((a | (a | (a | ((a & (a | aa) | !a & (a & aa)) | !a)))) | !a) | !a) & (a & (a | (a & (a | (a | (a | (a | (aa | !a))))) | !a & ((a & (a | (a & (a | aa) | !a & (a & aa))) | !a & (a | (a | aa))) | !a))) | !a & (a & (a | (a | (a | (a | (a | (aa | !a)))))) | !a & (a | ((a | (a | (a | aa))) | !a)))))"
         )
         print(ltl)
-        ltl = string_to_ltl("a | !a | p")
+        ltl = string_to_ltl_with_predicates("a | !a | p")
         print(ltl)
-        ltl = string_to_ltl("a & a | !a")
+        ltl = string_to_ltl_with_predicates("a & a | !a")
         print(ltl)
-        ltl = string_to_ltl("p & q -> r")
+        ltl = string_to_ltl_with_predicates("p & q -> r")
         print(ltl)
-        ltl = string_to_ltl("p -> q & q")
+        ltl = string_to_ltl_with_predicates("p -> q & q")
         print(ltl)
-        ltl = string_to_ltl("p -> (q & q) -> p")
+        ltl = string_to_ltl_with_predicates("p -> (q & q) -> p")
         print(ltl)
         if ltl is None:
             self.fail()
 
     def test_string_to_ltl_1(self):
-        ltl = string_to_ltl("(a) & (a)")
+        ltl = string_to_ltl_with_predicates("(a) & (a)")
         print(ltl)
         if ltl is None:
             self.fail()
 
     def test_string_to_ltl_2(self):
-        ltl = string_to_ltl("G (a) & (a)")
+        ltl = string_to_ltl_with_predicates("G (a) & (a)")
+        print(ltl)
+        if ltl is None:
+            self.fail()
+
+    def test_string_to_ltl_31(self):
+        ltl = string_to_ltl_with_predicates("G (a & a)")
         print(ltl)
         if ltl is None:
             self.fail()
 
     def test_string_to_ltl_3(self):
-        ltl = string_to_ltl("G (a & a)")
-        print(ltl)
-        if ltl is None:
-            self.fail()
-
-    def test_string_to_ltl_3(self):
-        ltl = string_to_ltl("G (A && A)")
+        ltl = string_to_ltl_with_predicates("G (A && A)")
         print(ltl)
         if ltl is None:
             self.fail()
 
     def test_string_to_ltl_4(self):
-        ltl = string_to_ltl("F (ROOMCLEAN && (X F !INROOM) && (X F ! DOORLOCKED))")
+        ltl = string_to_ltl_with_predicates(
+            "F (ROOMCLEAN && (X F !INROOM) && (X F ! DOORLOCKED))"
+        )
         print(ltl)
         if ltl is None:
             self.fail()
 
     def test_string_to_ltl_5(self):
-        ltl = string_to_ltl("(((done2 & !room1) | (done1 & room1)) & granting)")
+        ltl = string_to_ltl_with_predicates(
+            "(((done2 & !room1) | (done1 & room1)) & granting)"
+        )
         print(ltl)
         if ltl is None:
             self.fail()
 
     def test_string_to_ltl_6(self):
-        ltl = string_to_ltl(
+        ltl = string_to_ltl_with_predicates(
             "((request & (! decrement)) | ((! request) & (! decrement)) | (decrement & (! request)) | (decrement & request))"
         )
         print(ltl)
