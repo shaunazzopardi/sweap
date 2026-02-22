@@ -20,8 +20,7 @@ class ModelChecker:
             if not mc:
                 call = "check_invar_ic3 -i"
                 call += ' -p "' + str(ltl_spec) + '"\n'
-
-            if mc:
+            else:
                 call = "check_ltlspec_ic3 -i"
                 # if livenesstosafety != None and livenesstosafety:
                 #     call += ' -K 0 '
@@ -29,6 +28,7 @@ class ModelChecker:
                     call += " -k " + str(bound)
 
                 call += ' -p "' + str(ltl_spec) + '"\n'
+
             commands.write(call)
             commands.write("quit")
             commands.close()
@@ -39,20 +39,21 @@ class ModelChecker:
                     encoding="utf-8",
                 )
 
-                if "is true" in out:
+                lower_out = out.lower()
+
+                if "is true" in lower_out:
                     return True, out
-                elif "is false" in out:
+                elif "is false" in lower_out:
                     return False, out
-                elif "Maximum bound reached" in out:
+                elif "maximum bound reached" in lower_out:
                     return False, out
                 else:
-                    # TODO
-                    return NotImplemented
+                    raise Exception(
+                        "Could not parse nuXmv result in ModelChecker.invar_check.\n"
+                        "Expected output containing 'is true' or 'is false'.\n\n" + out
+                    )
             except subprocess.CalledProcessError as err:
-                raise Exception(
-                    err.output
-                    + "\n You may be using a special nuXmv keyword as a variable name."
-                )
+                raise Exception(err.output + "\n\n" + nuxmv_script)
             finally:
                 os.remove(model.name)
                 os.remove(commands.name)
