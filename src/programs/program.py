@@ -133,34 +133,18 @@ class Program:
 
         all_vars = self.local_vars
         self.transitions = [
-            tt.complete_outputs(self.out_events).complete_action_set(all_vars)
+            t.complete_outputs(self.out_events).complete_action_set(all_vars)
             for t in self.transitions
-            for tt in self.add_type_constraints_to_guards(t)
         ]
 
-        # Intervals are encoded in program logic, so we can drop them from symbol table
-        # TODO: not doing this can cause controllers that are not correct
-        #       e.g., elevator-paper-10, reversible-lane-r-5.prog, robot-grid-reach-2d-5.prog,
-        #       reversible-lane-r-10.prog, reversible-lane-r-50.prog
-        #       Why?
-        # TODO: why does this problem not also arise for natural types?
         init_type_constraints = []
-        new_symbol_table = {}
         for v, t in self.symbol_table.items():
             if isinstance(t, Number) and t.interval:
                 init_type_constraints.append(
                     type_constraint(Variable(v), self.symbol_table)
                 )
-                new_symbol_table[v] = Number(
-                    t.number_type,
-                    None,
-                )
-            else:
-                new_symbol_table[v] = t
 
         self.init_type_constraints = conjunct_formula_set(init_type_constraints)
-
-        self.symbol_table = new_symbol_table
 
         if preprocess:
             logging.info("Processing program.")
@@ -747,15 +731,18 @@ class Program:
 
         invar = mutually_exclusive_rules(self.states)
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
+
+        all_numeric_vars = map(str, self.local_vars + self.num_in_out)
+
         invar += [
             str(var) + " >= 0"
-            for var in self.local_vars
-            if self.symbol_table[var.name] == NATURAL
+            for var in all_numeric_vars
+            if self.symbol_table[var] == NATURAL
         ]
         invar.extend(
             [
                 var + "_prev" + " >= 0"
-                for var in self.local_vars_str
+                for var in all_numeric_vars
                 if self.symbol_table[var] == NATURAL
             ]
         )
@@ -763,39 +750,24 @@ class Program:
 
         invar.extend(
             [
-                str(var)
+                var
                 + (">= " if n.interval.lower_inclusive else ">")
                 + str(n.interval.lower)
-                for var in self.local_vars
-                if isinstance(n := self.symbol_table[str(var)], Number)
+                for var in all_numeric_vars
+                if isinstance(n := self.symbol_table[var], Number)
                 and n.interval
                 and n.interval.lower != ""
             ]
         )
         invar.extend(
             [
-                str(var)
+                var
                 + ("<= " if n.interval.upper_inclusive else "<")
                 + str(n.interval.upper)
-                for var in self.local_vars
-                if isinstance(n := self.symbol_table[str(var)], Number)
+                for var in all_numeric_vars
+                if isinstance(n := self.symbol_table[var], Number)
                 and n.interval
                 and n.interval.upper != ""
-            ]
-        )
-
-        invar.extend(
-            [
-                str(var) + " >= 0"
-                for var in self.num_in_out
-                if self.symbol_table[str(var)] == NATURAL
-            ]
-        )
-        invar.extend(
-            [
-                str(var) + "_prev" + " >= 0"
-                for var in self.num_in_out
-                if self.symbol_table[str(var)] == NATURAL
             ]
         )
 
@@ -936,23 +908,19 @@ class Program:
 
         invar = mutually_exclusive_rules(self.states)
         invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
+
+        all_numeric_vars = map(str, self.local_vars + self.num_in_out)
+
         invar += [
             var + " >= 0"
-            for var in self.local_vars_str
+            for var in all_numeric_vars
             if self.symbol_table[var] == NATURAL
         ]
         invar.extend(
             [
                 var + "_prev" + " >= 0"
-                for var in self.local_vars_str
+                for var in all_numeric_vars
                 if self.symbol_table[var] == NATURAL
-            ]
-        )
-        invar.extend(
-            [
-                str(var) + " >= 0"
-                for var in self.num_in_out
-                if self.symbol_table[str(var)] == NATURAL
             ]
         )
 
@@ -961,7 +929,7 @@ class Program:
                 str(var)
                 + (">= " if n.interval.lower_inclusive else ">")
                 + str(n.interval.lower)
-                for var in self.local_vars
+                for var in all_numeric_vars
                 if isinstance(n := self.symbol_table[str(var)], Number)
                 and n.interval
                 and n.interval.lower != ""
@@ -973,7 +941,7 @@ class Program:
                 str(var)
                 + ("<= " if n.interval.upper_inclusive else "<")
                 + str(n.interval.upper)
-                for var in self.local_vars
+                for var in all_numeric_vars
                 if isinstance(n := self.symbol_table[str(var)], Number)
                 and n.interval
                 and n.interval.upper != ""
