@@ -375,6 +375,17 @@ dnf_cache = {}
 
 
 def fnode_to_formula(fnode: FNode) -> Formula:
+    def _unwrap_math_arg(arg: Formula) -> Formula:
+        return arg.formula if isinstance(arg, MathExpr) else arg
+
+    def _fold_nary_math(args_list: list[Formula], op: str) -> Formula:
+        if len(args_list) == 0:
+            raise Exception(f"Unexpected empty argument list for '{op}'.")
+        acc = _unwrap_math_arg(args_list[0])
+        for nxt in args_list[1:]:
+            acc = BiOp(acc, op, _unwrap_math_arg(nxt))
+        return MathExpr(acc)
+
     if fnode.is_constant():
         val = fnode.constant_value()
         if isinstance(val, bool):
@@ -389,13 +400,18 @@ def fnode_to_formula(fnode: FNode) -> Formula:
         elif fnode.is_lt():
             return MathExpr(BiOp(args[0], "<", args[1]))
         elif fnode.is_plus():
-            return MathExpr(BiOp(args[0], "+", args[1]))
+            return _fold_nary_math(args, "+")
         elif fnode.is_minus():
             return MathExpr(BiOp(args[0], "-", args[1]))
         elif fnode.is_div():
             return MathExpr(BiOp(args[0], "/", args[1]))
         elif fnode.is_times():
-            return _mult(args[0], args[1])
+            if len(args) == 0:
+                raise Exception("Unexpected empty argument list for '*'.")
+            acc = _unwrap_math_arg(args[0])
+            for nxt in args[1:]:
+                acc = _mult(acc, _unwrap_math_arg(nxt))
+            return acc
         elif fnode.is_and():
             return conjunct_formula_set(set(args))
         elif fnode.is_or():
