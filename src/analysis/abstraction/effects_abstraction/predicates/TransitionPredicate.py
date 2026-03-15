@@ -30,7 +30,6 @@ class TransitionPredicate(Predicate, ABC):
         self.bool_rep = {t: stringify_pred(t) for t in tran_preds}
         self.rev_bool_rep = {stringify_pred(t): t for t in tran_preds}
         self.is_input = is_input
-        print(str(tran_preds[0]) + "    " + str(is_input))
 
     def __str__(self):
         return ", ".join(map(str, self.preds))
@@ -45,7 +44,11 @@ class TransitionPredicate(Predicate, ABC):
         return self.vars
 
     def extend_effect_next(
-        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+        self,
+        gu: Formula,
+        old_effects: [(Formula, [Formula])],
+        symbol_table,
+        sat_ctx=None,
     ) -> [(Formula, [Formula])]:
         if self.is_input:
             return old_effects
@@ -53,7 +56,7 @@ class TransitionPredicate(Predicate, ABC):
         new_effects = []
         for now, nexts in old_effects:
             new_nexts = self.refine_nexts_with_p(
-                conjunct(gu, now.prev_rep()), nexts, symbol_table
+                conjunct(gu, now.prev_rep()), nexts, symbol_table, sat_ctx=sat_ctx
             )
             if len(new_nexts) > 0:
                 new_effects.append((now, new_nexts))
@@ -61,15 +64,15 @@ class TransitionPredicate(Predicate, ABC):
             print("WARNING: TransitionPredicate extend_effect_now produced no effects.")
         return new_effects
 
-    def refine_nexts_with_p(self, now, nexts, symbol_table):
+    def refine_nexts_with_p(self, now, nexts, symbol_table, sat_ctx=None):
         if self.is_input:
-            return refine_nexts(now, nexts, symbol_table)
+            return refine_nexts(now, nexts, symbol_table, sat_ctx=sat_ctx)
 
         new_nexts = []
         for v_next in nexts:
             for option in self.options:
                 v_next_p = conjunct(v_next, option)
-                if sat(conjunct(now, v_next_p), symbol_table):
+                if sat(conjunct(now, v_next_p), symbol_table, sat_ctx=sat_ctx):
                     new_nexts.append(v_next_p)
         return new_nexts
 
@@ -84,10 +87,16 @@ class TransitionPredicate(Predicate, ABC):
         return self.bool_rep
 
     def extend_effect(
-        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+        self,
+        gu: Formula,
+        old_effects: [(Formula, [Formula])],
+        symbol_table,
+        sat_ctx=None,
     ) -> [(Formula, [Formula])]:
         if self.is_input:
-            return self.extend_effect_now(gu, old_effects, symbol_table)
+            return self.extend_effect_now(
+                gu, old_effects, symbol_table, sat_ctx=sat_ctx
+            )
 
         new_effects = []
 
@@ -95,8 +104,10 @@ class TransitionPredicate(Predicate, ABC):
             for option in self.options:
                 now_p = conjunct(now, option)
                 now_p_g = conjunct(gu, now_p.prev_rep())
-                if sat(now_p_g, symbol_table):
-                    new_nexts = self.refine_nexts_with_p(now_p_g, nexts, symbol_table)
+                if sat(now_p_g, symbol_table, sat_ctx=sat_ctx):
+                    new_nexts = self.refine_nexts_with_p(
+                        now_p_g, nexts, symbol_table, sat_ctx=sat_ctx
+                    )
                     if len(new_nexts) > 0:
                         new_effects.append((now_p, new_nexts))
         if len(new_effects) == 0:
@@ -104,7 +115,11 @@ class TransitionPredicate(Predicate, ABC):
         return new_effects
 
     def extend_effect_now(
-        self, gu: Formula, old_effects: [(Formula, [Formula])], symbol_table
+        self,
+        gu: Formula,
+        old_effects: [(Formula, [Formula])],
+        symbol_table,
+        sat_ctx=None,
     ) -> [(Formula, [Formula])]:
         new_effects = []
 
@@ -112,8 +127,10 @@ class TransitionPredicate(Predicate, ABC):
             for option in self.options:
                 now_p = conjunct(now, option)
                 now_p_g = conjunct(gu, now_p.prev_rep())
-                if sat(now_p_g, symbol_table):
-                    new_nexts = refine_nexts(now_p_g, nexts, symbol_table)
+                if sat(now_p_g, symbol_table, sat_ctx=sat_ctx):
+                    new_nexts = refine_nexts(
+                        now_p_g, nexts, symbol_table, sat_ctx=sat_ctx
+                    )
                     if len(new_nexts) > 0:
                         new_effects.append((now_p, new_nexts))
         if len(new_effects) == 0:

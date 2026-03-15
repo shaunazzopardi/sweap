@@ -1,9 +1,7 @@
-import itertools
 import logging
 import os
-import re
 import resource
-
+import re
 import time
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 import config
@@ -35,7 +33,6 @@ from prop_lang.util import (
     finite_state_preds,
     strip_mathexpr,
     normalise_pred_multiple_vars,
-    normalise_formula,
     conjunct_formula_set,
     implies,
     massage_ltl_for_dual,
@@ -54,7 +51,7 @@ from pathlib import Path
 
 from synthesis.machines.wrapped_hoa import WrappedHOA
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
-from typing import Any, Dict, List, Set, Tuple, Union
+from typing import List, Tuple
 
 
 def synthesize(
@@ -63,8 +60,10 @@ def synthesize(
     tlsf_path: str | None,
     bound: int = -1,
 ) -> WrappedHOA:
-    if not program.deterministic:
-        print("Program is non-deterministic; refinement may fail.")
+    if config.Config.getConfig().debug and not program.deterministic:
+        raise Exception(
+            "Program is non-deterministic; synthesis may fail. Please ensure the program is deterministic, e.g. by adding appropriate assumptions or resolving non-determinism in the program."
+        )
 
     start = time.time()
     (
@@ -78,10 +77,6 @@ def synthesize(
     for ass_or_guar in (ltl_assumptions, ltl_guarantees):
         for x in ass_or_guar:
             aps.update(atomic_predicates(x))
-
-    msg = f"spec contains {len(aps)} APs ({[str(a) for a in aps]})"
-    print(msg)
-    logging.info(msg)
 
     wrapped_hoa: WrappedHOA = abstract_synthesis_loop(
         program,
@@ -218,6 +213,9 @@ def abstract_synthesis_loop(
     )
 
     predicate_abstraction = EffectsAbstraction(program, old_to_new_st_preds)
+    logging.info(
+        "Abstraction backend: " + str(config.Config.getConfig().abstraction_backend)
+    )
 
     new_tran_preds: set[Formula] = set()
     new_ranking_constraints: list[Formula] = []
@@ -245,7 +243,7 @@ def abstract_synthesis_loop(
 
         ## update predicate abstraction
         start = time.time()
-        (base_abstraction, abstract_ltl_problem) = refining_abs_and_log(
+        (_, abstract_ltl_problem) = refining_abs_and_log(
             predicate_abstraction,
             new_state_preds,
             new_tran_preds,
@@ -256,7 +254,9 @@ def abstract_synthesis_loop(
             original_LTL_problem,
             ltl_abstraction_type,
         )
-        logging.info("refining predicate abstraction took " + str(time.time() - start))
+        took = str(time.time() - start)
+        logging.info("predicate abstraction took " + took + " seconds")
+        print("predicate abstraction took " + took + " seconds")
 
         start = time.time()
         print("running LTL synthesis")
@@ -268,7 +268,14 @@ def abstract_synthesis_loop(
         wrapped_hoa: WrappedHOA = ltl_synthesis.ltl_synthesis(
             abstract_ltl_problem, predicate_abstraction.symbol_table
         )
-        logging.info("ltl synthesis took " + str(time.time() - start))
+        took = str(time.time() - start)
+        logging.info("abstract ltl synthesis took " + took + " seconds")
+        print("abstract ltl synthesis took " + took + " seconds")
+
+        logging.info(
+            "Peak memory used so far: "
+            + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        )
         print(
             "Peak memory used so far: "
             + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
@@ -301,9 +308,11 @@ def abstract_synthesis_loop(
                     original_ltl_spec,
                     abstract_ltl_problem,
                 )
+            print_binary_rep_tables_at_end(program, predicate_abstraction)
             return wrapped_hoa
 
         if config.Config.getConfig().finite_synthesis:
+            print_binary_rep_tables_at_end(program, predicate_abstraction)
             return wrapped_hoa
 
         ## compatibility checking
@@ -327,6 +336,7 @@ def abstract_synthesis_loop(
             else:
                 new_index = "-unreal"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
+            print_binary_rep_tables_at_end(program, predicate_abstraction)
             return wrapped_hoa
         else:
             (
@@ -349,6 +359,24 @@ def abstract_synthesis_loop(
     raise Exception(
         f"Could not find a controller or counterstrategy with {cegar_loop_counter + 1} iterations."
     )
+
+
+def print_binary_rep_tables_at_end(
+    program: Program, predicate_abstraction: EffectsAbstraction
+):
+    seen = set()
+    for table in program.get_binary_rep_tables():
+        if table in seen:
+            continue
+        print(table)
+        seen.add(table)
+
+    if hasattr(predicate_abstraction, "get_binary_rep_tables"):
+        for table in predicate_abstraction.get_binary_rep_tables():
+            if table in seen:
+                continue
+            print(table)
+            seen.add(table)
 
 
 def generate_tlsf_file_name_template() -> str | None:
@@ -429,46 +457,37 @@ def extract_init_preds(
     list[Formula],
     set[Formula],
     dict[Formula, Formula],
+    set[Formula],
 ]:
     new_state_preds = set()
 
     if config.Config.getConfig().finite_synthesis:
-        new_state_preds.update(
-            {
-                pred
-                for var in program.local_vars
-                for pred in finite_state_preds(var, program.symbol_table[var.name])
-            }
-        )
+        for var in program.local_vars:
+            for pred in finite_state_preds(var, program.symbol_table[var.name]):
+                new_state_preds.add(pred)
     else:
-        new_state_preds.update(
-            Variable(v)
-            for v, v_type in program.init_var_values.items()
-            if v_type == BOOLEAN
-        )
+        for v, v_type in program.init_var_values.items():
+            if v_type == BOOLEAN:
+                new_state_preds.add(Variable(v))
 
     env_con_events = set(program.bool_in_out)
 
     for t in program.transitions:
         preds_in_cond = atomic_predicates(t.condition)
-        new_state_preds.update(p for p in preds_in_cond if p not in env_con_events)
+        for p in preds_in_cond:
+            if p not in env_con_events:
+                new_state_preds.add(p)
         in_outs_in_act = {
             v for v in program.bool_in_out for act in t.action if v in act.variablesin()
         }
-        new_state_preds.update(in_outs_in_act)
+        for p in in_outs_in_act:
+            new_state_preds.add(p)
 
         for act in t.action:
             # if updating a boolean, add atomic predicates of the right-hand side
             if program.symbol_table[str(act.left)] == BOOLEAN:
-                new_state_preds.update(atomic_predicates(act.right))
-            # exclude constant assignments for minigame intermediate values
-            elif len(act.right.variablesin()) == 0 and not re.match(
-                r"int_.*", str(act.left)
-            ):
-                if program.symbol_table[str(act.left)] == BOOLEAN:
-                    new_state_preds.add(act.left)
-                else:
-                    new_state_preds.add(BiOp(act.left, "=", act.right))
+                for p in atomic_predicates(act.right):
+                    new_state_preds.add(p)
 
     ltl_assumptions = [
         strip_mathexpr(ltl).replace_vars(
@@ -483,12 +502,12 @@ def extract_init_preds(
         for ltl in ltl_guarantees
     ]
 
-    new_state_preds.update(
-        itertools.chain.from_iterable([atomic_predicates(f) for f in ltl_assumptions])
-    )
-    new_state_preds.update(
-        itertools.chain.from_iterable([atomic_predicates(f) for f in ltl_guarantees])
-    )
+    for f in ltl_assumptions:
+        for p in atomic_predicates(f):
+            new_state_preds.add(p)
+    for f in ltl_guarantees:
+        for p in atomic_predicates(f):
+            new_state_preds.add(p)
 
     # TODO don't normalise here; normalise inside of effectsabstraction
     # rankings should also be added inside of abstraction, based on normalised preds?
@@ -496,6 +515,7 @@ def extract_init_preds(
     symbol_table = program.symbol_table
     signatures = set()
     normalised_state_preds = set()
+
     for p in new_state_preds:
         if p in program.bool_in_out:
             continue
@@ -511,10 +531,12 @@ def extract_init_preds(
                 continue
             normalised_state_preds.add(p)
             continue
-        print("normalising predicate: " + str(p))
         result = normalise_pred_multiple_vars(p, signatures, symbol_table)
         if isinstance(result, Variable):
-            normalised_state_preds.add(result)
+            normalised_state_preds.add(pred)
+        # these will be formulas over boolean vars
+        elif isinstance(result, Formula):
+            continue
         else:
             sig, new_p, preds = result
             old_to_new_st_preds[p] = new_p

@@ -1,26 +1,25 @@
 import itertools
+import math
 import logging
+from collections import deque
 from multiprocessing import Pool
 from textwrap import dedent
 from typing import Set, Union
 
 from graphviz import Digraph
-from pysmt.shortcuts import Symbol, ForAll, Exists, serialize
-from pysmt.typing import INT, BOOL
-
-from analysis.smt_checker import quantifier_elimination
+from analysis.sat_context import IncrementalSatContext, NonIncrementalSatContext
 import config
 from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from programs.dfa import program_sccs, reachable_states, classify_initial_values
+from programs.dfa import (
+    program_sccs,
+    reachable_states,
+    simplify_with_location_constants,
+)
 from programs.transition import Transition
 from prop_lang.formula import Formula
-from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
-    fnode_to_formula,
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
-    put_next_vars_on_left_side,
-    strip_mathexpr,
 )
 from programs.util import (
     reset_caches,
@@ -30,14 +29,12 @@ from programs.util import (
     binary_rep_states,
     add_prev_suffix,
     transition_formula,
-    binary_rep,
     issy_transition_formula,
 )
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import (
-    INTEGER,
     Type,
     Number,
     is_finite,
@@ -79,6 +76,7 @@ class Program:
         con_events: list[tuple[Variable, Type]],
         preprocess=True,
         is_determ=None,
+        emit_state_binary_map=True,
     ):
         config.Config.getConfig().cache_smt = False
         reset_caches()
@@ -89,6 +87,7 @@ class Program:
         self.initial_state = init_st
         self.states: Set = set(sts)
         self.constants = {}
+        self.binary_rep_tables: dict[str, str] = {}
 
         inputs = [v for v, _ in env_events]
         outputs = [v for v, _ in con_events]
@@ -147,7 +146,9 @@ class Program:
 
         self.init_type_constraints = conjunct_formula_set(init_type_constraints)
 
-        if preprocess:
+        self.deterministic = is_determ
+
+        if preprocess or config.Config.getConfig().debug:
             logging.info("Processing program.")
             print("Processing program.")
             unsat_trans = []
@@ -170,6 +171,11 @@ class Program:
                     "Removed transitions with unsat transitions: "
                     + ",\n".join(map(str, unsat_trans))
                 )
+
+        if (
+            preprocess and self.deterministic is None
+        ) or config.Config.getConfig().debug:
+            self.deterministic = is_deterministic(self)
 
         otherwise = [t for t in self.transitions if str(t.condition) == "otherwise"]
         if len(otherwise) > 1:
@@ -195,6 +201,17 @@ class Program:
                 )
                 self.transitions.append(concrete_trans)
             self.transitions.remove(otherwise_trans)
+
+        if config.Config.getConfig().opt_location_constant_simplify:
+            simplified, removed_unsat = simplify_with_location_constants(self)
+            if simplified > 0 or removed_unsat > 0:
+                logging.info(
+                    "Location-constant simplification: simplified "
+                    + str(simplified)
+                    + " transitions, removed "
+                    + str(removed_unsat)
+                    + " unsat transitions."
+                )
 
         (
             self.orig_ts,
@@ -223,24 +240,13 @@ class Program:
                 k: v for k, v in self.state_to_trans.items() if k in self.states
             }
 
-        self.deterministic = None
-        if is_determ is None:
-            self.deterministic = is_deterministic(self)
-        else:
-            self._det = None
-
-            def lazy_det(slf):
-                if slf._det is None:
-                    slf._det = is_deterministic(slf)
-                return slf._det
-
-            def skip(_):
-                pass
-
-            self.deterministic = property(lazy_det, skip, skip, "")
-
         # if not config.Config.getConfig().no_binary_enc:
-        self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
+        self.bin_state_vars, self.states_binary_map = binary_rep_states(
+            self.states,
+            printing=False,
+            log=emit_state_binary_map,
+            collect_to=self,
+        )
         self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
         self.states_binary_map |= {
             Variable(st): bin_st for st, bin_st in self.states_binary_map.items()
@@ -267,6 +273,12 @@ class Program:
 
         # doing this after refining var types; otherwise the wrong type constraints will be added to smt calls
         config.Config.getConfig().cache_smt = True
+
+    def register_binary_rep_table(self, label: str, table: str):
+        self.binary_rep_tables[label] = table
+
+    def get_binary_rep_tables(self) -> list[str]:
+        return list(self.binary_rep_tables.values())
 
     def refine_var_types(self):
         from prop_lang.types.types import NATURAL
@@ -596,7 +608,17 @@ class Program:
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
                 cond = transition.condition.to_nuxmv()
-            guard = "turn = cs & " + str(transition.src) + " & " + cond
+            pred_upgrades_cond = conjunct_formula_set(
+                transition.pred_upgrades
+            ).to_nuxmv()
+            guard = (
+                "turn = cs & "
+                + str(transition.src)
+                + " & "
+                + cond
+                + " & "
+                + pred_upgrades_cond
+            )
 
             act = (
                 "next("
@@ -774,7 +796,11 @@ class Program:
 
         return NuXmvModel(self.name, vars, define, init, invar, trans)
 
-    def to_nuXmv_with_turns_for_con_verif(self):
+    def to_nuXmv_with_turns_for_con_verif(
+        self,
+        include_pred_upgrades: bool = False,
+        stutter_when_other_game_in_minigame: bool = False,
+    ):
         real_acts = []
         guards = []
         acts = []
@@ -791,6 +817,13 @@ class Program:
             else:
                 cond = transition.condition.to_nuxmv()
             guard = str(transition.src) + " & " + cond
+            if include_pred_upgrades and len(transition.pred_upgrades) > 0:
+                pred_upgrades_cond = conjunct_formula_set(
+                    transition.pred_upgrades
+                ).to_nuxmv()
+                guard = guard + " & " + pred_upgrades_cond
+            if stutter_when_other_game_in_minigame:
+                guard = "(" + guard + ") & !other_game_in_minigame"
 
             act = (
                 "next("
@@ -800,6 +833,7 @@ class Program:
                     [
                         " & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv())
                         for act in self.complete_action_set(transition.action)
+                        if not isinstance(act.right, NonDeterministic)
                     ]
                 )
                 + "".join(
@@ -823,6 +857,7 @@ class Program:
                     ]
                 )
             )
+
             guards.append(guard)
             acts.append(act)
             real_acts.append((transition.action, transition.output, transition.tgt))
@@ -846,6 +881,8 @@ class Program:
             identity.append("next(" + var + ") = " + var)
         for st in self.states:
             identity.append("next(" + str(st) + ") = " + str(st))
+        if stutter_when_other_game_in_minigame:
+            identity.append("next(other_game_in_minigame) = other_game_in_minigame")
 
         identity += ["!next(" + str(event) + ")" for event in self.out_events]
 
@@ -870,6 +907,8 @@ class Program:
         transitions = guard_and_act
 
         vars = sorted([s + " : boolean" for s in self.states])
+        if stutter_when_other_game_in_minigame:
+            vars.append("other_game_in_minigame : boolean")
 
         prev_logic = []
 
@@ -902,6 +941,8 @@ class Program:
             for var, value in self.init_var_values.items()
             if not isinstance(value, NonDeterministic)
         ]
+        if stutter_when_other_game_in_minigame:
+            init += ["!other_game_in_minigame"]
         # init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
         init += ["!" + str(event) for event in self.out_events]
         trans = ["\n\t|\t".join(transitions)]
@@ -946,13 +987,6 @@ class Program:
                 if isinstance(n := self.symbol_table[str(var)], Number)
                 and n.interval
                 and n.interval.upper != ""
-            ]
-        )
-        invar.extend(
-            [
-                str(var) + "_prev" + " >= 0"
-                for var in self.num_in_out
-                if self.symbol_table[str(var)] == NATURAL
             ]
         )
 
@@ -1166,541 +1200,261 @@ def program_cross_product(
     return new_prog, prog_old_to_new_state
 
 
-def fill_in_minigames(
-    program: Program, ltl_formulas: list[Formula], to_exclude_from_minigame
+def program_cross_product_optimized(
+    programs: list[Program],
+    symbol_table,
+    losing_states,
+    lose_var,
+    name=None,
+    *,
+    debug: bool = False,
+    use_incremental_sat: bool = True,
 ):
-    no_mini_games_added = True
-    to_add_to_local_vars = set()
-    bool_updates = set()
-    var_to_minigame_state = {}
-    minigame_states = set()
-    new_states = []
-    new_trans = []
-    new_con_events = set()
-    ts_to_remove = []
-    symbol_table = program.symbol_table
+    """Optimized alternative to `program_cross_product`.
 
-    preds_in_ltl = set()
-    vars_in_ltl = set()
-    for ltl in ltl_formulas:
-        preds = atomic_predicates(ltl)
-        preds_in_ltl.update(preds)
-        for p in preds:
-            for v in p.variablesin():
-                if v.is_next():
-                    vars_in_ltl.add(v.prev_rep())
-                else:
-                    vars_in_ltl.add(Variable(v.name.replace("_prev", "")))
-
-    var_values_that_matter_from_state = {}
-
-    mini_game_counter = 0
-    existing_mini_games_from_with: dict[
-        str, dict[tuple[frozenset[Variable], Formula], str]
-    ] = {}
-    normalise_losing = lambda x: x if x not in to_exclude_from_minigame else "lose"
-    to_exclude_from_minigame = list(map(str, to_exclude_from_minigame))
-    if len(to_exclude_from_minigame) > 0:
-        new_t = Transition(
-            "lose",
-            true(),
-            [],
-            [],
-            "lose",
-        )
-        new_trans.append(new_t)
-
-    for t in program.transitions:
-        if t.src in to_exclude_from_minigame:
-            continue
-
-        if t.tgt in to_exclude_from_minigame:
-            new_t = Transition(
-                t.src,
-                t.condition,
-                [],
-                [],
-                "lose",
-            )
-            new_trans.append(new_t)
-            continue
-
-        non_determined_updates = [
-            a for a in t.action if isinstance(a.right, NonDeterministic)
-        ]
-
-        if len(non_determined_updates) == 0:
-            new_trans.append(t)
-            continue
-
-        if t.tgt in var_values_that_matter_from_state.keys():
-            relevant = var_values_that_matter_from_state[t.tgt]
-        else:
-            relevant, _ = classify_initial_values(program, t.tgt)
-            relevant.update(vars_in_ltl)
-        new_non_determined_updates = []
-        for u in non_determined_updates:
-            if u.left in relevant:
-                new_non_determined_updates.append(u)
-            else:
-                # check that if the variable is used in a pred_upgrade
-                relevant_preds = [
-                    p for p in t.pred_upgrades if u.left in p.prev_rep().variablesin()
-                ]
-                if relevant_preds:
-                    # then we check whether the relevant pred upgrades are always satisfiable with QE query
-                    now_vars = set(
-                        Symbol(str(v), INT)
-                        for p in relevant_preds
-                        for v in p.variablesin()
-                        if not v.is_next()
-                    )
-                    now_vars.update(
-                        {
-                            Symbol(
-                                str(v), BOOL if symbol_table[str(v)] == BOOLEAN else INT
-                            )
-                            for v in t.condition.variablesin()
-                        }
-                    )
-                    next_vars = set(
-                        Symbol(str(v), INT)
-                        for p in relevant_preds
-                        for v in p.variablesin()
-                        if v.is_next()
-                    )
-
-                    # check forall now_vars . exists next_vars . (condition & pred_upgrades)
-                    qe_formula = conjunct_formula_set(
-                        [t.condition] + list(t.pred_upgrades)
-                    ).to_smt(symbol_table)[0]
-                    qe_formula = ForAll(now_vars, Exists(next_vars, qe_formula))
-                    result = quantifier_elimination(qe_formula)
-                    result = fnode_to_formula(result)
-                    if not is_tautology(result, symbol_table):
-                        # then the pred upgrades are not satisfiable without this variable, so we need to keep it
-                        new_non_determined_updates.append(u)
-
-        t.action = [
-            a for a in t.action if not isinstance(a.right, NonDeterministic)
-        ] + non_determined_updates
-        if len(non_determined_updates) == 0:
-            new_t = Transition(
-                t.src,
-                t.condition,
-                t.action,
-                [],
-                t.tgt,
-            )
-            new_trans.append(new_t)
-            continue
-        else:
-            var_values_that_matter_from_state[t.tgt] = relevant
-
-        undetermined_vars: frozenset[Variable] = frozenset(
-            u.left for u in non_determined_updates
-        )
-        mg_preds_key = conjunct_formula_set(p.prev_rep() for p in t.pred_upgrades)
-        minigame_params = (undetermined_vars, mg_preds_key)
-        if (
-            t.tgt in existing_mini_games_from_with.keys()
-            and minigame_params in existing_mini_games_from_with[t.tgt].keys()
-        ):
-            start_state = existing_mini_games_from_with[t.tgt][minigame_params]
-            new_t = Transition(
-                t.src,
-                t.condition,
-                [a for a in t.action if a not in non_determined_updates],
-                [],
-                start_state,
-            )
-            new_trans.append(new_t)
-            continue
-
-        # create minigame transitions
-        start_state = t.tgt + "_minigame_" + str(mini_game_counter)
-        minigame_states.add(Variable(start_state))
-        new_states.append(start_state)
-        end_state = t.tgt
-        new_t = Transition(
-            t.src,
-            t.condition,
-            [a for a in t.action if a not in non_determined_updates],
-            [],
-            start_state,
-        )
-        mg_preds = t.pred_upgrades
-
-        inputs_updates_depend_on = [
-            v
-            for p in mg_preds
-            for v in p.variablesin()
-            if v in program.num_in_out
-            and len([vv for vv in p.variablesin() if vv.is_next()]) > 1
-        ]
-
-        if len(inputs_updates_depend_on) > 1:
-            to_replace = {}
-            for inp in inputs_updates_depend_on:
-                new_var = Variable("curr_" + inp.name)
-                to_replace[inp] = new_var
-                to_add_to_local_vars.add((inp, new_var))
-                symbol_table[str(new_var)] = symbol_table[str(inp)]
-                new_t.action.append(Update(new_var, inp))
-            mg_preds = list(
-                map(
-                    lambda x: x.replace_formulas(to_replace),
-                    mg_preds,
-                )
-            )
-            raise Exception(
-                "We do not support minigames with numerical inputs/outputs."
-            )
-
-        mg_preds_key = conjunct_formula_set(mg_preds)
-
-        undet_vars = []
-
-        def upd_type(v, op, right):
-            if op == "=":
-                return Update(v, right), None
-            elif op == "<":
-                return Update(v, BiOp(right, "-", Value(1))), "dec"
-            elif op == ">":
-                return Update(v, BiOp(right, "+", Value(1))), "inc"
-            elif op == "<=":
-                return Update(v, right), "dec"
-            elif op == ">=":
-                return Update(v, right), "inc"
-            else:
-                raise Exception("Unsupported operator in predicate: " + str(op))
-
-        opt_trans = {}
-        to_replace_preds = {}
-        raw_events = []
-        restricted_updates = []
-        unrestricted_updates = []
-        norm_mg_preds, v_to_pred = normalise_mg_preds(mg_preds)
-        for u in non_determined_updates:
-            v = u.left
-            if (
-                not symbol_table[str(v)] == BOOLEAN
-                and v in v_to_pred.keys()
-                and len(v_to_pred[v]) == 1
-            ):
-                if v_to_pred[v][0].left.prev_rep() == v:
-                    # no need to create int variable
-                    update_type = upd_type(v, v_to_pred[v][0].op, v_to_pred[v][0].right)
-                    if update_type:
-                        raw_events.extend([v.name + "_modify"])
-                        restricted_updates.append(update_type)
-                        continue
-
-            raw_events.extend([v.name + "_inc", v.name + "_dec"])
-            if symbol_table[str(u.left)] == BOOLEAN:
-                bool_updates.add(v)
-                unrestricted_updates.append(u)
-                continue
-            int_v = Variable("int_" + str(v))
-            symbol_table.update({str(int_v): INTEGER})
-            to_replace_preds[Variable(v.name + "'")] = int_v
-            unrestricted_updates.append(u)
-        raw_events.append("stop")
-        stop_prop = conjunct_formula_set(
-            p.replace_formulas(to_replace_preds) for p in mg_preds
+    Key differences vs legacy:
+    - Builds reachable cross-product states on-the-fly from the initial tuple.
+    - Uses SAT-guided recursive transition combination construction with early
+      pruning of unsatisfiable partial conjunctions.
+    - Orders components by local branching factor to maximize early pruning.
+    - Checks losing-source tuples before any SMT work.
+    - Avoids redundant SAT filtering in Program preprocessing.
+    """
+    if len(programs) == 0:
+        raise Exception(
+            "program_cross_product_optimized: expected at least one program."
         )
 
-        minigame_params: tuple[frozenset[Variable], Formula] = (
-            undetermined_vars,
-            mg_preds_key,
-        )
-        if end_state in existing_mini_games_from_with.keys():
-            if minigame_params in existing_mini_games_from_with[end_state].keys():
-                start_state = existing_mini_games_from_with[end_state][minigame_params]
-            else:
-                existing_mini_games_from_with[end_state][minigame_params] = start_state
-        else:
-            existing_mini_games_from_with[end_state] = {minigame_params: start_state}
+    num_programs = len(programs)
+    new_initial_state_tuple = tuple(prog.initial_state for prog in programs)
+    new_initial_state = "_".join(new_initial_state_tuple)
 
-        con_bin_vars, bin_map = binary_rep(raw_events, "minigame_event_")
-        to_replace = {}
-        current_con_events = list(set(program.con_events) | new_con_events)
-        vars_to_reuse = (
-            len(con_bin_vars)
-            if len(current_con_events) >= len(con_bin_vars)
-            else len(current_con_events)
-        )
-        for i in range(vars_to_reuse):
-            to_replace[con_bin_vars[i]] = current_con_events[i][0]
-            con_bin_vars[i] = current_con_events[i][0]
-
-        bin_map = {k: v.replace_formulas(to_replace) for k, v in bin_map.items()}
-        stop = bin_map["stop"]
-        new_con_events.update({(var, BOOLEAN) for var in con_bin_vars})
-
-        no_mini_games_added_here = True
-        for u, t in restricted_updates:
-            v = u.left
-            if v in var_to_minigame_state.keys():
-                var_to_minigame_state[v].append(Variable(start_state))
-            else:
-                var_to_minigame_state[v] = [Variable(start_state)]
-            undet_vars.append(v)
-
-            modify_prop = bin_map[(v.name + "_modify")]
-
-            new_t.action.append(u)
-
-            if t is None:
-                continue
-            else:
-                no_mini_games_added = False
-                no_mini_games_added_here = False
-
-            if t == "inc":
-                # inc_transition
-                modify_t = Transition(
-                    start_state,
-                    modify_prop,
-                    [Update(u.left, BiOp(u.left, "+", Value(1)))],
-                    [],
-                    start_state,
-                )
-            elif t == "dec":
-                # inc_transition
-                modify_t = Transition(
-                    start_state,
-                    modify_prop,
-                    [Update(u.left, BiOp(u.left, "-", Value(1)))],
-                    [],
-                    start_state,
-                )
-            else:
-                raise Exception("Unknown transition type: " + str(t))
-
-            stop_t = Transition(
-                start_state,
-                stop,
-                [],
-                [],
-                end_state,
-            )
-            new_trans.append(modify_t)
-            new_trans.append(stop_t)
-
-        unrestricted_non_det_vars = []
-        for u in unrestricted_updates:
-            no_mini_games_added = False
-            no_mini_games_added_here = False
-            v = u.left
-            if v in var_to_minigame_state.keys():
-                var_to_minigame_state[v].append(Variable(start_state))
-            else:
-                var_to_minigame_state[v] = [Variable(start_state)]
-            undet_vars.append(v)
-            unrestricted_non_det_vars.append(v)
-
-            inc_prop = bin_map[(v.name + "_inc")]
-            dec_prop = bin_map[(v.name + "_dec")]
-
-            if v in bool_updates:
-                # inc_transition
-                inc_t = Transition(
-                    start_state,
-                    inc_prop,
-                    [Update(v, Value(BoolAtoms.TRUE))],
-                    [],
-                    start_state,
-                )
-                dec_t = Transition(
-                    start_state,
-                    dec_prop,
-                    [Update(v, Value(BoolAtoms.FALSE))],
-                    [],
-                    start_state,
-                )
-                new_trans.append(inc_t)
-                new_trans.append(dec_t)
-            else:
-                int_v = Variable("int_" + str(v))
-                to_add_to_local_vars.add((v, int_v))
-
-                new_t.action.append(Update(int_v, v))
-                new_t.action.append(Update(v, v))
-                # inc_transition
-                inc_t = Transition(
-                    start_state,
-                    inc_prop,
-                    [Update(int_v, BiOp(int_v, "+", Value(1)))],
-                    [],
-                    start_state,
-                )
-                dec_t = Transition(
-                    start_state,
-                    dec_prop,
-                    [Update(int_v, BiOp(int_v, "-", Value(1)))],
-                    [],
-                    start_state,
-                )
-                if sat(neg(stop_prop), symbol_table):
-                    stutter_t = Transition(
-                        start_state,
-                        conjunct(stop, neg(stop_prop)),
-                        [],
-                        [],
-                        start_state,
-                    )
-                    new_trans.append(stutter_t)
-                new_trans.append(inc_t)
-                new_trans.append(dec_t)
-
-        if len(unrestricted_updates) > 0:
-            stop_t = Transition(
-                start_state,
-                conjunct(stop, stop_prop),
-                [
-                    Update(v, Variable("int_" + str(v)))
-                    for v in unrestricted_non_det_vars
-                    if v not in bool_updates
-                ],
-                [],
-                end_state,
-            )
-            new_trans.append(stop_t)
-
-        if not no_mini_games_added_here:
-            mini_game_counter += 1
-        new_trans.append(new_t)
-        ts_to_remove.append(t)
-
-    if no_mini_games_added:
-        reset_caches()
-        prop_lang_util_reset_caches()
-        if config.Config.getConfig().debug:
-            for t in new_trans:
-                for tt in new_trans:
-                    if t == tt or t.src != tt.src:
-                        continue
-                    elif sat(
-                        conjunct(t.condition, tt.condition),
-                        symbol_table
-                        | {
-                            str(v): BOOLEAN
-                            for v in minigame_states | {v[0] for v in new_con_events}
-                        },
-                    ):
-                        raise Exception(
-                            "Conflict in minigame transitions between \n"
-                            + str(t)
-                            + "\nand\n"
-                            + str(tt)
-                        )
-
-        new_prog = Program(
-            name=program.name,
-            sts=list(map(normalise_losing, program.states)),
-            init_st=normalise_losing(program.initial_state),
-            init_values=list(
-                {
-                    (var.name, program.symbol_table[var.name])
-                    for var in program.local_vars
-                }
-            ),
-            transitions=new_trans,
-            env_events=program.env_events,
-            con_events=program.con_events,
-            preprocess=False,
-        )
-        return new_prog, {}, []
-
-    new_init_var_values = {
-        (
-            str(int_v),
-            program.symbol_table[str(v)],
-            Value(0) if v not in bool_updates else Value(False),
-        )
-        for v, int_v in to_add_to_local_vars
+    # Keep the same mapping shape as the legacy implementation.
+    prog_old_to_new_state = {
+        i: {Variable(s): set() for s in programs[i].states} for i in range(num_programs)
     }
 
-    if config.Config.getConfig().debug:
-        for t in new_trans:
-            for tt in new_trans:
-                if t == tt or t.src != tt.src:
-                    continue
-                elif sat(
-                    conjunct(t.condition, tt.condition),
-                    symbol_table
-                    | {
-                        str(v): BOOLEAN
-                        for v in minigame_states | {v[0] for v in new_con_events}
-                    },
-                ):
-                    raise Exception(
-                        "Conflict in minigame transitions between \n"
-                        + str(t)
-                        + "\nand\n"
-                        + str(tt)
+    new_states = set()
+    new_transitions = []
+    transition_constraint_cache = {}
+    combined_src_cache = {}
+    combined_tgt_cache = {}
+    lose_state_name = lose_var if lose_var is not None else "lose"
+
+    def _combined_state_name(state_tuple):
+        cached = combined_src_cache.get(state_tuple)
+        if cached is None:
+            cached = "_".join(state_tuple)
+            combined_src_cache[state_tuple] = cached
+        return cached
+
+    def _combined_target_name(tgt_tuple):
+        cached = combined_tgt_cache.get(tgt_tuple)
+        if cached is None:
+            cached = "_".join(tgt_tuple)
+            combined_tgt_cache[tgt_tuple] = cached
+        return cached
+
+    def _is_losing_src_tuple(state_tuple) -> bool:
+        if "lose" in state_tuple:
+            return True
+        return any(
+            state_tuple[i] in losing_states.get(i, []) for i in range(num_programs)
+        )
+
+    def _transition_constraint(t: Transition):
+        cached = transition_constraint_cache.get(t)
+        if cached is not None:
+            return cached
+        cached = conjunct(
+            transition_formula(t),
+            conjunct_formula_set([p.prev_rep() for p in t.pred_upgrades]),
+        )
+        transition_constraint_cache[t] = cached
+        return cached
+
+    worklist = deque([new_initial_state_tuple])
+    queued = {new_initial_state_tuple}
+    processed = set()
+
+    sat_ctx_cls = (
+        IncrementalSatContext if use_incremental_sat else NonIncrementalSatContext
+    )
+    with sat_ctx_cls(symbol_table) as sat_ctx:
+        while worklist:
+            state_tuple = worklist.popleft()
+            if state_tuple in processed:
+                continue
+            processed.add(state_tuple)
+
+            # Early source-losing pruning before any SMT checks.
+            if _is_losing_src_tuple(state_tuple):
+                continue
+
+            possible_transitions = [
+                programs[i].state_to_trans.get(state_tuple[i], [])
+                for i in range(num_programs)
+            ]
+            if any(len(ts) == 0 for ts in possible_transitions):
+                continue
+
+            order = sorted(
+                range(num_programs), key=lambda i: len(possible_transitions[i])
+            )
+            if debug:
+                upper_bound = math.prod(len(possible_transitions[i]) for i in order)
+                print("TRAN COMBS UPPER BOUND: " + str(upper_bound))
+
+            selected = [None] * num_programs
+
+            def _emit_combination(transition_combination):
+                combined_src = _combined_state_name(state_tuple)
+                new_states.add(combined_src)
+                for i in range(num_programs):
+                    prog_old_to_new_state[i][Variable(state_tuple[i])].add(
+                        Variable(combined_src)
                     )
 
-    # now, for each pred in ltl_spec that involves non_determined_updates, we need to
-    # replace it with a formula that accounts for the minigame
-    # e.g., G (x' < 5) becomes G ( in_minigame U !in_minigame & (x < 5) )
-    # where in_minigame is a formula that is true when in any of the minigame states
-    # and add guarantee GF(!in_minigame) to ensure we eventually exit minigame
+                tgt_tuple = tuple(t.tgt for t in transition_combination)
+                if "lose" in tgt_tuple:
+                    combined_tgt = lose_state_name
+                    new_states.add(combined_tgt)
+                    for i in range(num_programs):
+                        prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                            Variable(combined_tgt)
+                        )
+                else:
+                    losing = [
+                        i
+                        for i in range(num_programs)
+                        if tgt_tuple[i] in losing_states.get(i, [])
+                    ]
+                    if len(losing) > 0:
+                        combined_tgt = lose_state_name
+                        new_states.add(combined_tgt)
+                        for i in losing:
+                            prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                                Variable(combined_tgt)
+                            )
+                    else:
+                        combined_tgt = _combined_target_name(tgt_tuple)
+                        new_states.add(combined_tgt)
+                        for i in range(num_programs):
+                            prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                                Variable(combined_tgt)
+                            )
 
-    preds_to_replace = {}
-    for p in preds_in_ltl:
-        undet_vars_in_p = [
-            v for v in p.variablesin() if v in var_to_minigame_state.keys()
-        ]
-        if len(undet_vars_in_p) == 0:
-            continue
-        relevant_minigame_states = set()
-        for v in undet_vars_in_p:
-            relevant_minigame_states.update(var_to_minigame_state[v])
-        in_minigame = disjunct_formula_set(relevant_minigame_states)
-        new_p = BiOp(in_minigame, "U", conjunct(neg(in_minigame), p))
-        preds_to_replace[p] = new_p
+                        # Reachability-driven state-space construction.
+                        if tgt_tuple not in queued and tgt_tuple not in processed:
+                            queued.add(tgt_tuple)
+                            worklist.append(tgt_tuple)
 
-    reset_caches()
-    prop_lang_util_reset_caches()
-    new_states = list(map(normalise_losing, program.states | set(new_states)))
+                combined_condition = conjunct_formula_set(
+                    [t.condition for t in transition_combination]
+                )
+                combined_actions = set()
+                combined_outputs = []
+                for t in transition_combination:
+                    combined_actions.update(t.action)
+                    combined_outputs.extend(t.output)
+
+                left_to_u = {}
+                # deterministic tie-breaking for conflicting updates
+                combined_actions = sorted(
+                    combined_actions, key=lambda x: len(x.variablesin())
+                )
+                for u in combined_actions:
+                    if u.left in left_to_u.keys():
+                        # conflict, keep deterministic one
+                        if not isinstance(u.right, NonDeterministic) and not isinstance(
+                            left_to_u[u.left].right, NonDeterministic
+                        ):
+                            combined_condition = conjunct(
+                                combined_condition,
+                                BiOp(u.right, "=", left_to_u[u.left].right),
+                            )
+                        elif not isinstance(u.right, NonDeterministic) and isinstance(
+                            left_to_u[u.left].right, NonDeterministic
+                        ):
+                            left_to_u[u.left] = u
+                    else:
+                        left_to_u[u.left] = u
+                combined_actions = set(left_to_u.values())
+
+                new_t = Transition(
+                    combined_src,
+                    combined_condition,
+                    list(combined_actions),
+                    combined_outputs,
+                    combined_tgt,
+                )
+                new_t.pred_upgrades = set(
+                    itertools.chain.from_iterable(
+                        [tt.pred_upgrades for tt in transition_combination]
+                    )
+                )
+                new_transitions.append(new_t)
+
+            def _dfs_transition_combinations(depth, partial_constraint):
+                if depth == num_programs:
+                    _emit_combination(selected)
+                    return
+
+                prog_idx = order[depth]
+                for t in possible_transitions[prog_idx]:
+                    selected[prog_idx] = t
+                    next_partial = conjunct(
+                        partial_constraint, _transition_constraint(t)
+                    )
+                    if sat(next_partial, symbol_table, sat_ctx=sat_ctx):
+                        _dfs_transition_combinations(depth + 1, next_partial)
+                selected[prog_idx] = None
+
+            _dfs_transition_combinations(0, true())
+
+    # state set comes from the reachable construction, no consumed iterator bug.
     new_prog = Program(
-        name=program.name,
-        sts=new_states,
-        init_st=normalise_losing(program.initial_state),
+        name=name if name else "_xprod_".join([prog.name for prog in programs]),
+        sts=set(new_states),
+        init_st=new_initial_state,
         init_values=list(
-            {(var.name, program.symbol_table[var.name]) for var in program.local_vars}
-            | new_init_var_values
+            {
+                (var.name, symbol_table[var.name])
+                for prog in programs
+                for var in prog.local_vars
+            }
         ),
-        transitions=set(new_trans),
-        env_events=program.env_events,
-        con_events=list(set(program.con_events) | new_con_events),
+        transitions=new_transitions,
+        env_events=list({(var, t) for prog in programs for var, t in prog.env_events}),
+        con_events=list({(var, t) for prog in programs for var, t in prog.con_events}),
+        # cross-product generation already performs SAT-guided pruning.
         preprocess=False,
     )
-    return new_prog, preds_to_replace, list(minigame_states)
+    reachable_states = [Variable(s) for s in new_prog.states]
+    prog_old_to_new_state = {
+        i: {prev: new.intersection(reachable_states) for prev, new in d.items()}
+        for i, d in prog_old_to_new_state.items()
+    }
+    return new_prog, prog_old_to_new_state
+
+
+def fill_in_minigames(
+    program: Program,
+    ltl_formulas: list[Formula],
+    to_exclude_from_minigame,
+    optimisation_counters: dict[str, int] | None = None,
+):
+    from programs.minigame_filler import MinigameFiller
+
+    return MinigameFiller(
+        program,
+        ltl_formulas,
+        to_exclude_from_minigame,
+        optimisation_counters=optimisation_counters,
+    ).run()
 
 
 def normalise_mg_preds(mg_preds: list[Formula]):
-    # first let's normalise mg_preds: next vars should be on left side, others on right-hand side
-    normalised = []
-    of_other_forms = []
-    for p in mg_preds:
-        p = strip_mathexpr(p)
-        try:
-            _, norm = put_next_vars_on_left_side(p)
-            normalised.append(norm)
-        except:
-            of_other_forms.append(p)
+    from programs.minigame_filler import MinigameFiller
 
-    # arrange into dict from frozenset of variables (representing next vars appearing in formula) to formula
-    mg_dict: dict[Variable, list[Formula]] = {}
-    for p in normalised + of_other_forms:
-        next_vars = frozenset(v for v in p.variablesin() if v.is_next())
-        for v in next_vars:
-            v_prev = v.prev_rep()
-            if v_prev in mg_dict.keys():
-                mg_dict[v_prev].append(p)
-            else:
-                mg_dict[v_prev] = [p]
-    return normalised + of_other_forms, mg_dict
+    return MinigameFiller.normalise_mg_preds(mg_preds)

@@ -14,7 +14,11 @@ from sympy.utilities.iterables import iterable
 
 from analysis.smt_checker import check, bdd_simplify
 import config
-from programs.dfa import classify_initial_values
+from programs.binary_rep_map import BinaryRepMap
+from programs.dfa import (
+    classify_initial_values,
+    classify_initial_values_with_ltl_horizon,
+)
 from programs.transition import Transition
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -40,6 +44,7 @@ from prop_lang.util import (
     var_to_predicate,
     fnode_to_formula,
     run_with_timeout,
+    false, disjunct,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -199,18 +204,22 @@ def check_for_nondeterminism_last_step(
             logging.info("WARNING: " + message)
 
 
-def parse_nuxmv_ce_output_finite(program, out, cs_alphabet):
+def parse_nuxmv_ce_output_finite(program, out, cs_alphabet, monitor_turn="cs"):
     prefix, _ = get_ce_from_nuxmv_output(out)
 
     (
         agreed_on_transitions,
         incompatible_state,
-    ) = prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet)
+    ) = prog_transition_indices_and_state_from_ce(
+        program, prefix, cs_alphabet, monitor_turn
+    )
 
     return agreed_on_transitions, incompatible_state
 
 
-def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
+def prog_transition_indices_and_state_from_ce(
+    program, prefix, cs_alphabet, monitor_turn="cs"
+):
     transition_no = len(program.transitions)
     program_alphabet = [str(s) for s in program.states] + program.local_vars_str
 
@@ -230,7 +239,7 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     numerical_in_outs = [str(v) for v in program.num_in_out]
     for dic in prefix:
         # monitor only makes decisions at env and mon turns
-        if dic["turn"] == "cs":
+        if "turn" not in dic.keys() or dic["turn"] == monitor_turn:
             transition = "-1"
             program_state = {}
             cs_state = {}
@@ -261,12 +270,12 @@ def prog_transition_indices_and_state_from_ce(program, prefix, cs_alphabet):
     )
 
 
-def get_ce_from_nuxmv_output(out: str):
+def full_ce_from_nuxmv_output(out: str):
     ce = out.split("Counterexample")[1].strip()
     # ce = re.sub("[^\n]*(act|guard)\_[0-9]+ = [^\n]+", "", ce)
     ce = re.sub("[^\n]*(identity)_[^\n]+", "", ce)
-
-    prefix = ce
+    split_ce = ce.split("-- Loop starts here")
+    prefix = split_ce[0]
 
     prefix = re.split("[^\n]*->[^<]*<-", prefix)
     prefix = [[p.strip() for p in re.split("\n", t) if "=" in p] for t in prefix]
@@ -276,9 +285,22 @@ def get_ce_from_nuxmv_output(out: str):
         for t in prefix
     ]
 
-    loop = []
+    if len(split_ce) == 1:
+        return complete_ce(prefix, [])
+    loop = split_ce[1]
+    loop = re.split("[^\n]*->[^<]*<-", loop)
+    loop = [[p.strip() for p in re.split("\n", t) if "=" in p] for t in loop]
+    loop.remove([])
+    loop = [
+        dict([(s.split("=")[0].strip(), s.split("=")[1].strip()) for s in t])
+        for t in loop
+    ]
 
-    complete_prefix, complete_loop = complete_ce(prefix, loop)
+    return complete_ce(prefix, loop)
+
+
+def get_ce_from_nuxmv_output(out: str):
+    complete_prefix, complete_loop = full_ce_from_nuxmv_output(out)
 
     prune_up_to_mismatch = []
     for i in range(0, len(complete_prefix)):
@@ -296,6 +318,12 @@ def get_ce_from_nuxmv_output(out: str):
 def complete_ce(prefix, loop):
     for i in range(1, len(prefix)):
         complete_ce_state(prefix[i - 1], prefix[i])
+
+    if loop:
+        complete_ce_state(prefix[-1], loop[0])
+
+        for i in range(1, len(loop)):
+            complete_ce_state(loop[i - 1], loop[i])
 
     return prefix, loop
 
@@ -429,6 +457,8 @@ stutter_transition_cache = {}
 
 
 def bdd_simplify_guards(program, guard):
+    if len(guard.variablesin()) == 0:
+        return guard
     fnode = And(*guard.to_smt(program.symbol_table))
     order = [
         v
@@ -476,7 +506,15 @@ def bdd_simplify_native(guard, symbol_table):
 
 
 def stutter_transition(program, state, cnf=False):
-    transitions = program.transitions
+    # If the program already materialized explicit stutter transitions,
+    # reuse that transition directly.
+    if hasattr(program, "stutter_ts"):
+        for t in program.stutter_ts:
+            if t.src == state and t.tgt == state:
+                return t
+
+    # Otherwise derive stutter from non-stutter transitions only.
+    transitions = getattr(program, "orig_ts", program.transitions)
     condition = neg(
         disjunct_formula_set([t.condition for t in transitions if t.src == state])
     )
@@ -484,8 +522,9 @@ def stutter_transition(program, state, cnf=False):
     if program not in stutter_transition_cache.keys():
         stutter_transition_cache[program] = {}
 
-    if condition in stutter_transition_cache.keys():
-        return stutter_transition_cache[program][condition]
+    cache_key = (state, condition, cnf)
+    if cache_key in stutter_transition_cache[program].keys():
+        return stutter_transition_cache[program][cache_key]
 
     cond_fnode = And(*condition.to_smt(program.symbol_table))
 
@@ -502,10 +541,10 @@ def stutter_transition(program, state, cnf=False):
             .complete_outputs(program.out_events)
             .complete_action_set([v for v in program.local_vars])
         )
-        stutter_transition_cache[program][condition] = stutter_t
+        stutter_transition_cache[program][cache_key] = stutter_t
         return stutter_t
     else:
-        stutter_transition_cache[program][condition] = None
+        stutter_transition_cache[program][cache_key] = None
         return None
 
 
@@ -602,31 +641,26 @@ def transition_up_to_dnf(transition: Transition, symbol_table):
 
 
 def is_deterministic(program):
-    env_state_dict = {
-        s: [t.condition for t in program.transitions if t.src == s]
-        for s in program.states
-    }
+    env_state_dict = {s: [] for s in program.states}
+    for t in program.transitions:
+        env_state_dict.setdefault(t.src, []).append(t.condition)
 
     symbol_table = program.symbol_table
 
     for s, conds in env_state_dict.items():
-        # Assuming satisfiability already checked
-        sat_conds = [cond for cond in conds]
-
-        for i, cond in enumerate(sat_conds):
-            for cond2 in sat_conds[i + 1 :]:
-                if check(
-                    And(*(cond.to_smt(symbol_table) + cond2.to_smt(symbol_table)))
-                ):
-                    logging.info(
-                        "WARNING: "
-                        + str(cond)
-                        + " and "
-                        + str(cond2)
-                        + " are satisfiable together, see environment transitions from state "
-                        + str(s)
-                    )
-                    return False
+        # O(n) SAT checks instead of O(n^2):
+        # if cond_i overlaps with disjunction of previous guards, state is nondeterministic.
+        covered = false()
+        for cond in conds:
+            if sat(conjunct(cond, covered), symbol_table):
+                logging.info(
+                    "WARNING: transition guard overlap in state "
+                    + str(s)
+                    + " (non-deterministic), overlapping guard: "
+                    + str(cond)
+                )
+                return False
+            covered = disjunct(covered, cond)
 
     return True
 
@@ -696,11 +730,25 @@ def resolve_next_references(transition, valuation):
 def guarded_action_transitions_to_normal_transitions(arg):
     guarded_transition, valuation, env_events, con_events, symbol_table = arg
     if str(guarded_transition.condition) == "otherwise":
-        # check that no guarded actions
+        actions = []
         for act, guard in guarded_transition.action:
-            if guard is not None or str(guard) != "true":
+            guard_formula = (
+                true()
+                if (guard is None or (isinstance(guard, Value) and guard.is_true()))
+                else guard
+            )
+            if not is_tautology(guard_formula, symbol_table):
                 raise Exception("Otherwise transitions cannot have guarded actions")
-        return [guarded_transition]
+            actions.append(act)
+        return [
+            Transition(
+                guarded_transition.src,
+                guarded_transition.condition,
+                actions,
+                guarded_transition.output,
+                guarded_transition.tgt,
+            )
+        ]
 
     symbol_table = {}
     for v in valuation:
@@ -710,113 +758,138 @@ def guarded_action_transitions_to_normal_transitions(arg):
     for ev, t in env_events + con_events:
         symbol_table[ev.name] = t
 
-    unguarded_acts = []
-    guarded_acts = {act: set() for (act, _) in guarded_transition.action}
-    var_to_update_guards = {}
+    # Group updates by variable while preserving input order.
+    updates_by_var = {}
     for act, guard in guarded_transition.action:
-        var_to_update_guards.setdefault(act.left, list()).append(guard)
-        if isinstance(guard, Value):
-            if guard.is_true():
-                unguarded_acts += [act]
-            continue
-        guarded_acts[act].add(guard)
+        guard_formula = (
+            true()
+            if (guard is None or (isinstance(guard, Value) and guard.is_true()))
+            else guard
+        )
+        updates_by_var.setdefault(act.left, []).append((act, guard_formula))
 
-    for v, guards in var_to_update_guards.items():
-        for i in range(len(guards)):
-            guard1 = guards[i]
-            for j in range(i + 1, len(guards)):
-                guard2 = guards[j]
-                if sat(conjunct(guard1, guard2), symbol_table):
-                    raise Exception(
-                        "Guarded actions are not mutually exclusive: "
-                        + str(guard1)
-                        + " and "
-                        + str(guard2)
-                        + " for update of variable "
-                        + str(v)
-                    )
-
-    guarded_acts = {act: g_set for act, g_set in guarded_acts.items() if len(g_set) > 0}
-
-    if len(guarded_acts) == 0:
+    if len(updates_by_var) == 0:
         return [
             Transition(
                 guarded_transition.src,
                 guarded_transition.condition,
-                unguarded_acts,
+                [],
                 guarded_transition.output,
                 guarded_transition.tgt,
             )
         ]
 
-    transitions = []
+    # Build by-order, mutually exclusive cases per variable, then combine
+    # satisfiable cases across different variables.
+    cases_by_var = {}
+    for var, updates in updates_by_var.items():
+        seen_guards = []
+        guard_buckets = {}
 
-    act_guard_sets = set()
-    act_guard_sets.add(frozenset({}))
-    for act in guarded_acts.keys():
-        new_act_guard_sets = set()
-        # check that each guard is mutually exclusive with the other guards
-        for guard1 in guarded_acts[act]:
-            for guard2 in guarded_acts[act]:
-                if guard1 != guard2 and sat(conjunct(guard1, guard2), symbol_table):
+        for act, guard_formula in updates:
+            effective_guard = (
+                guard_formula
+                if len(seen_guards) == 0
+                else conjunct(guard_formula, neg(disjunct_formula_set(seen_guards)))
+            )
+            seen_guards.append(guard_formula)
+
+            if not sat(effective_guard, symbol_table):
+                continue
+
+            rhs_key = str(act.right)
+            bucket = guard_buckets.setdefault(
+                rhs_key, {"act": act, "guards": [], "rhs": act.right}
+            )
+            bucket["guards"].append(effective_guard)
+
+        var_cases = []
+        for bucket in guard_buckets.values():
+            merged_guard = disjunct_formula_set(bucket["guards"])
+            var_cases.append((bucket["act"], merged_guard))
+
+        # Explicit "no update for this variable" case.
+        no_update_guard = neg(disjunct_formula_set(seen_guards))
+        if sat(no_update_guard, symbol_table):
+            var_cases.append((None, no_update_guard))
+
+        # Sanity: two distinct updates for the same variable must be exclusive.
+        for i in range(len(var_cases)):
+            act_i, guard_i = var_cases[i]
+            if act_i is None:
+                continue
+            for j in range(i + 1, len(var_cases)):
+                act_j, guard_j = var_cases[j]
+                if act_j is None:
+                    continue
+                if sat(conjunct(guard_i, guard_j), symbol_table) and not is_tautology(
+                    iff(act_i.right, act_j.right), symbol_table
+                ):
                     raise Exception(
                         "Guarded actions are not mutually exclusive: "
-                        + str(guard1)
+                        + str(guard_i)
                         + " and "
-                        + str(guard2)
-                        + " in "
-                        + str(guarded_transition)
+                        + str(guard_j)
+                        + " for update of variable "
+                        + str(var)
                     )
-            for act_guard_set in act_guard_sets:
-                guard1true = frozenset(act_guard_set | {(act, guard1)})
-                guard1false = frozenset(act_guard_set | {(None, neg(guard1))})
-                if sat(
-                    conjunct_formula_set([g for (_, g) in guard1true]),
-                    symbol_table,
-                ):
-                    new_act_guard_sets.add(guard1true)
-                if sat(
-                    conjunct_formula_set([g for (_, g) in guard1false]),
-                    symbol_table,
-                ):
-                    new_act_guard_sets.add(guard1false)
-        act_guard_sets = new_act_guard_sets
 
-    for act_guard_set in act_guard_sets:
-        action_guards = conjunct_formula_set(
-            sorted(
-                list({guard for (_, guard) in act_guard_set}),
-                key=lambda x: str(x),
-            )
-        )
-        new_guard = conjunct(guarded_transition.condition, action_guards)
+        cases_by_var[var] = var_cases
+
+    combinations = [([], true())]
+    ordered_vars = sorted(cases_by_var.keys(), key=lambda v: str(v))
+    for var in ordered_vars:
+        new_combinations = []
+        for current_actions, current_guard in combinations:
+            for act, case_guard in cases_by_var[var]:
+                combo_guard = conjunct(current_guard, case_guard)
+                if not sat(combo_guard, symbol_table):
+                    continue
+                if act is None:
+                    new_actions = list(current_actions)
+                else:
+                    new_actions = list(current_actions) + [act]
+                new_combinations.append((new_actions, combo_guard))
+        combinations = new_combinations
+
+    transitions = []
+    for actions, action_guard in combinations:
+        new_guard = conjunct(guarded_transition.condition, action_guard)
         if not sat(new_guard, symbol_table):
             continue
-
-        if config.Config.getConfig().debug:
-            if not is_tautology(
-                BiOp(
-                    conjunct_formula_set(
-                        [a[1] for a in act_guard_set if a[0] is not None]
-                    ),
-                    "->",
-                    action_guards,
-                ),
-                symbol_table,
-            ):
-                raise Exception("Guarded action guards do not imply action guard set")
-
-        actions = [act for (act, _) in act_guard_set if act != None]
-
         transitions.append(
             Transition(
                 guarded_transition.src,
                 propagate_negations(new_guard),
-                unguarded_acts + actions,
+                actions,
                 guarded_transition.output,
                 guarded_transition.tgt,
             )
         )
+
+    # Merge transitions with identical action sets by OR-ing their guards.
+    merged = {}
+    for t in transitions:
+        action_sig = tuple(sorted((str(a.left), str(a.right)) for a in t.action))
+        entry = merged.setdefault(
+            action_sig,
+            {
+                "actions": sorted(t.action, key=lambda a: str(a.left)),
+                "guards": [],
+            },
+        )
+        entry["guards"].append(t.condition)
+
+    transitions = [
+        Transition(
+            guarded_transition.src,
+            propagate_negations(disjunct_formula_set(entry["guards"])),
+            entry["actions"],
+            guarded_transition.output,
+            guarded_transition.tgt,
+        )
+        for entry in merged.values()
+    ]
 
     # debug
     if config.Config.getConfig().debug:
@@ -953,53 +1026,39 @@ def powerset(S: set):
         return subsets
 
 
-def binary_rep_states(vars):
-    return binary_rep(vars, "bin_st_")
+def binary_rep_states(
+    vars, printing=True, log=True, collect_to=None, force_table=False
+):
+    return binary_rep(
+        vars,
+        "bin_st_",
+        printing=printing,
+        log=log,
+        collect_to=collect_to,
+        force_table=force_table,
+    )
 
 
-def binary_rep(vars, label, printing=True):
-    if len(vars) == 0:
-        raise Exception("Cannot create binary representation of empty set")
+def binary_rep(
+    vars,
+    label,
+    printing=True,
+    log=True,
+    collect_to=None,
+    force_table=False,
+):
+    bin_vars, rep = BinaryRepMap.build_binary_rep(vars, label)
 
-    bin = math.log(len(vars), 2)
-    bin = math.ceil(bin)
-    if bin == 0:
-        bin = 1
+    should_emit = force_table or rep.should_emit_table(label)
+    if should_emit:
+        mapping_table = rep.format_table(label)
+        if log:
+            logging.info(mapping_table)
+        if printing:
+            print(mapping_table)
 
-    bin_vars = [Variable(label + str(i)) for i in range(0, bin)]
-
-    base = "{0:0" + str(bin) + "b}"
-    rep = {}
-    vars = sorted(vars, key=lambda x: str(x))
-    for i, v in enumerate(vars):
-        bin_rep = base.format(i)
-        bin_formula = None
-        for j, pos in enumerate(bin_rep):
-            if pos == "0":
-                new_constraint = neg(bin_vars[j])
-            else:
-                new_constraint = bin_vars[j]
-
-            if bin_formula is None:
-                bin_formula = new_constraint
-            else:
-                bin_formula = conjunct(bin_formula, new_constraint)
-        rep[v] = bin_formula
-
-    if i > 1 and i < 2**bin - 1:
-        rep[v] = neg(disjunct_formula_set(f for vv, f in rep.items() if vv != v))
-        rep[v] = bdd_simplify_native(rep[v], {str(vv): BOOLEAN for vv in bin_vars})
-        # rep[v] = dnf_safe(
-        #     propagate_negations(rep[v]), {str(vv): BOOLEAN for vv in bin_vars}
-        # )
-
-    if printing:
-        for v, f in rep.items():
-            if isinstance(v, frozenset):
-                print("state: " + str(conjunct_formula_set(v)))
-            else:
-                print("state: " + str(v))
-            print("binary rep: " + str(f))
+        if collect_to is not None and hasattr(collect_to, "register_binary_rep_table"):
+            collect_to.register_binary_rep_table(label, mapping_table)
 
     return bin_vars, rep
 
@@ -1074,12 +1133,29 @@ def reset_caches():
     powersets.clear()
 
 
-def refine_init_values(program, initial_assumptions):
-    _, vars_init_val_no_matter = classify_initial_values(program)
-    preds = atomic_predicates(initial_assumptions)
-    vars_in_preds = set(itertools.chain.from_iterable([p.variablesin() for p in preds]))
+def refine_init_values(
+    program,
+    initial_assumptions,
+    *,
+    use_ltl_horizon: bool = False,
+    bad_states=None,
+):
+    if use_ltl_horizon:
+        _, vars_init_val_no_matter = classify_initial_values_with_ltl_horizon(
+            program,
+            initial_assumptions,
+            bad_states=bad_states,
+        )
+        vars_blocked_by_objective_occurrence = set()
+    else:
+        _, vars_init_val_no_matter = classify_initial_values(program)
+        preds = atomic_predicates(initial_assumptions)
+        vars_blocked_by_objective_occurrence = set(
+            itertools.chain.from_iterable([p.variablesin() for p in preds])
+        )
+
     for v in vars_init_val_no_matter:
-        if v in vars_in_preds:
+        if v in vars_blocked_by_objective_occurrence:
             continue
         if program.symbol_table[str(v)] == BOOLEAN:
             program.init_var_values[str(v)] = Value(BoolAtoms.FALSE)

@@ -20,6 +20,7 @@ class Predicate(ABC):
         gu: Formula,
         effect: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
+        sat_ctx=None,
     ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         pass
 
@@ -29,6 +30,7 @@ class Predicate(ABC):
         gu: Formula,
         effect: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
+        sat_ctx=None,
     ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         pass
 
@@ -38,6 +40,7 @@ class Predicate(ABC):
         gu: Formula,
         effect: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
+        sat_ctx=None,
     ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         pass
 
@@ -58,9 +61,9 @@ class Predicate(ABC):
         pass
 
 
-def refine_nexts(now, nexts, symbol_table):
+def refine_nexts(now, nexts, symbol_table, sat_ctx=None):
     new_nexts = []
     for v_next in nexts:
-        if sat(conjunct(now, v_next), symbol_table):
+        if sat(conjunct(now, v_next), symbol_table, sat_ctx=sat_ctx):
             new_nexts.append(v_next)
     return new_nexts

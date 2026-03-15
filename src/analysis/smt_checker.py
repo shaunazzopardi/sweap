@@ -1,6 +1,5 @@
 import logging
 
-from pysmt.environment import Environment
 from pysmt.fnode import FNode
 from pysmt.rewritings import conjunctive_partition
 from pysmt.shortcuts import (

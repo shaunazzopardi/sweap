@@ -4,7 +4,10 @@ import time
 from pathlib import Path
 from unittest import TestCase
 
+import config
+import programs.util
 from parsing.string_to_program import string_to_program
+from programs.util import reset_caches
 from synthesis.synthesis import synthesize
 import logging
 import sys
@@ -31,7 +34,12 @@ class Test(TestCase):
     def setUp(self):
         os.environ["PATH"] = "../binaries:" + os.environ["PATH"]
         os.environ["PATH"] = "./binaries:" + os.environ["PATH"]
-        # self.clear_module_lru_caches()
+        config.Config.getConfig().debug = True
+
+    def tearDown(self):
+        config.Config.getConfig().debug = False
+        reset_caches()
+        programs.util.reset_caches()
 
     def clear_module_lru_caches(self, names=None):
         """Clear @lru_cache decorated functions in specified modules"""
@@ -59,7 +67,8 @@ class Test(TestCase):
                         try:
                             attr.cache_clear()
                             cleared_count += 1
-                            print(f"Cleared cache for {module_name}.{attr_name}")
+                            if config.Config.getConfig().debug:
+                                print(f"Cleared cache for {module_name}.{attr_name}")
                         except Exception as e:
                             print(
                                 f"Failed to clear cache for {module_name}.{attr_name}: {e}"
@@ -73,9 +82,10 @@ class Test(TestCase):
                                 try:
                                     method.cache_clear()
                                     cleared_count += 1
-                                    print(
-                                        f"Cleared cache for {module_name}.{attr_name}.{method_name}"
-                                    )
+                                    if config.Config.getConfig().debug:
+                                        print(
+                                            f"Cleared cache for {module_name}.{attr_name}.{method_name}"
+                                        )
                                 except Exception as e:
                                     print(
                                         f"Failed to clear cache for {module_name}.{attr_name}.{method_name}: {e}"
@@ -113,6 +123,7 @@ class Test(TestCase):
 
     def test_synthesize_5(self):
         logging.info("Starting test_synthesize_5")
+        config.Config.getConfig().debug = False
         with open("./test-problems/program5.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
@@ -154,6 +165,7 @@ class Test(TestCase):
 
     def test_synthesize_10(self):
         logging.info("Starting test_synthesize_10")
+        config.Config.getConfig().debug = False
         with open("./test-problems/program10.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)

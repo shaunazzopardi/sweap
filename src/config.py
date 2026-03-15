@@ -1,7 +1,17 @@
 import multiprocessing
+import warnings
 
 from prop_lang.uniop import UniOp
 from prop_lang.variable import Variable
+
+# Suppress pySMT/MathSAT noise for UF applications with boolean arguments.
+# This warning is informational and can flood benchmark/test logs.
+warnings.filterwarnings(
+    "ignore",
+    message=r"MathSAT convert\(\): UF with bool arguments have been translated",
+    category=UserWarning,
+    module=r"pysmt\.solvers\.msat",
+)
 
 env = Variable("env_turn")
 con = UniOp("!", env)
@@ -10,6 +20,8 @@ init_state = Variable("init_state")
 strix = "strix"
 semml = "semml"
 synthesis_backends = [semml, strix]
+effects = "effects"
+abstraction_backends = [effects]
 
 
 class Config:
@@ -32,12 +44,42 @@ class Config:
     _name = None
     _log = None
     _cache_smt = False
+    _opt_incremental_smt = True
+    _opt_state_scopes = True
+    _opt_chain_scopes = True
+    _opt_location_constant_simplify = False
+    _abstraction_backend = effects
+    _synthesis_memory_limit_mb = None
 
     def _get_c_s(self):
         return self._cache_smt
 
     def _set_c_s(self, value):
         self._cache_smt = value
+
+    def _get_opt_incremental_smt(self):
+        return self._opt_incremental_smt
+
+    def _set_opt_incremental_smt(self, value: bool):
+        self._opt_incremental_smt = value
+
+    def _get_opt_state_scopes(self):
+        return self._opt_state_scopes
+
+    def _set_opt_state_scopes(self, value: bool):
+        self._opt_state_scopes = value
+
+    def _get_opt_chain_scopes(self):
+        return self._opt_chain_scopes
+
+    def _set_opt_chain_scopes(self, value: bool):
+        self._opt_chain_scopes = value
+
+    def _get_opt_location_constant_simplify(self):
+        return self._opt_location_constant_simplify
+
+    def _set_opt_location_constant_simplify(self, value: bool):
+        self._opt_location_constant_simplify = value
 
     def _get_b(self):
         return self._backend
@@ -141,6 +183,18 @@ class Config:
     def _set_parallelise_type(self, value: str):
         self._parallelise_type = value
 
+    def _get_abstraction_backend(self):
+        return self._abstraction_backend
+
+    def _set_abstraction_backend(self, value: str):
+        self._abstraction_backend = value
+
+    def _get_synthesis_memory_limit_mb(self):
+        return self._synthesis_memory_limit_mb
+
+    def _set_synthesis_memory_limit_mb(self, value):
+        self._synthesis_memory_limit_mb = value
+
     def _do_nothing(self):
         pass
 
@@ -160,9 +214,33 @@ class Config:
     mc = property(_get_mc, _set_mc, _do_nothing, "")
     debug = property(_get_debug, _set_debug, _do_nothing, "")
     cache_smt = property(_get_c_s, _set_c_s, _do_nothing, "")
+    opt_incremental_smt = property(
+        _get_opt_incremental_smt, _set_opt_incremental_smt, _do_nothing, ""
+    )
+    opt_state_scopes = property(
+        _get_opt_state_scopes, _set_opt_state_scopes, _do_nothing, ""
+    )
+    opt_chain_scopes = property(
+        _get_opt_chain_scopes, _set_opt_chain_scopes, _do_nothing, ""
+    )
+    opt_location_constant_simplify = property(
+        _get_opt_location_constant_simplify,
+        _set_opt_location_constant_simplify,
+        _do_nothing,
+        "",
+    )
     cnf_optimisations = property(_get_cnf_opt, _set_cnf_opt, _do_nothing, "")
     parallelise_type = property(
         _get_parallelise_type, _set_parallelise_type, _do_nothing, ""
+    )
+    abstraction_backend = property(
+        _get_abstraction_backend, _set_abstraction_backend, _do_nothing, ""
+    )
+    synthesis_memory_limit_mb = property(
+        _get_synthesis_memory_limit_mb,
+        _set_synthesis_memory_limit_mb,
+        _do_nothing,
+        "",
     )
     workers = multiprocessing.cpu_count()
 

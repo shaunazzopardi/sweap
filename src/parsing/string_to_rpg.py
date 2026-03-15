@@ -25,12 +25,12 @@ from prop_lang.util import (
     neg,
     conjunct,
     disjunct_formula_set,
-    simplify_formula_without_math,
     conjunct_formula_set,
     G,
     F,
     disjunct,
     sat,
+    rewrite_boolean_equalities_as_iff,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -109,6 +109,7 @@ def rpg_parser():
         list(inputs.items()),
         [(v, BOOLEAN) for v in con_vars],
         preprocess=False,
+        is_determ=True,
     )
     refine_init_values(program, true())
 
@@ -131,8 +132,10 @@ def rpg_parser():
         case _:
             raise Exception("Unknown game type: " + str(game_type))
 
-    print(program.to_prog(objective))
-    logging.info(program.to_prog(objective))
+    prog_str = program.to_prog(objective)
+    print(prog_str)
+    logging.info(prog_str)
+
     return program, objective
 
 
@@ -408,12 +411,13 @@ def process(inputs, state_vars, init, src_update_tuples):
     for src, rest in src_update_tuples:
         if src in seen_srcs:
             raise Exception("Multiple 'trans' from state " + src + "'.")
+        seen_srcs.add(src)
 
         if isinstance(rest, str):
             transitions.append(Transition(src, true(), [], [], rest))
         elif isinstance(rest, frozenset):
             if len(rest) == 1:
-                u_tgt = list(rest)[0]
+                u_tgt = next(iter(rest))
                 transitions.append(
                     Transition(src, true(), list(u_tgt[0]), [], u_tgt[1])
                 )
@@ -422,22 +426,15 @@ def process(inputs, state_vars, init, src_update_tuples):
             con_events, binary_map = binary_rep(
                 range(0, len(rest)), "con_", printing=False
             )
-            binary_map[len(rest) - 1] = neg(
-                disjunct_formula_set(
-                    binary_map[i] for i in range(0, len(rest)) if i < len(rest) - 1
-                )
-            )
-            binary_map[len(rest) - 1] = simplify_formula_without_math(
-                binary_map[len(rest) - 1]
-            )
             con_vars.update(con_events)
             for i, (u, d) in enumerate(rest):
                 transitions.append(Transition(src, binary_map[i], list(u), [], d))
         else:
             if len(rest) == 1:
-                u_t, c = list(rest.items())[0]
+                u_t, c = next(iter(rest.items()))
+                c = rewrite_boolean_equalities_as_iff(c, symbol_table)
                 if len(u_t) == 1:
-                    u = list(u_t)[0]
+                    u = next(iter(u_t))
                     if isinstance(u, str):
                         transitions.append(Transition(src, c, [], [], u))
                     else:
@@ -446,6 +443,7 @@ def process(inputs, state_vars, init, src_update_tuples):
             if conds_mutually_exclusive(list(rest.values()), symbol_table):
                 left_to_do = {}
                 for us, c in rest.items():
+                    c = rewrite_boolean_equalities_as_iff(c, symbol_table)
                     if len(us) != 1:
                         left_to_do[us] = c
                         continue
@@ -467,14 +465,11 @@ def process(inputs, state_vars, init, src_update_tuples):
                     continue
                 else:
                     rest = left_to_do
+
             for us, c in rest.items():
+                c = rewrite_boolean_equalities_as_iff(c, symbol_table)
                 con_events, binary_map = binary_rep(
                     range(0, len(us)), "con_", printing=False
-                )
-                binary_map[len(us) - 1] = neg(
-                    disjunct_formula_set(
-                        binary_map[i] for i in range(0, len(us)) if i < len(us) - 1
-                    )
                 )
                 con_vars.update(con_events)
                 for i, u_tgt in enumerate(us):
@@ -493,7 +488,54 @@ def process(inputs, state_vars, init, src_update_tuples):
                             )
                         )
 
+    transitions = _merge_transitions_by_effect(transitions)
     return init, con_vars, transitions
+
+
+def _merge_transitions_by_effect(transitions: list[Transition]) -> list[Transition]:
+    if len(transitions) < 2:
+        return transitions
+
+    grouped: dict[
+        tuple[str, str, tuple[tuple[str, str], ...], tuple[str, ...]], dict
+    ] = {}
+
+    for t in transitions:
+        action_sig = tuple(sorted((str(a.left), str(a.right)) for a in t.action))
+        output_sig = tuple(sorted(str(o) for o in t.output))
+        key = (str(t.src), str(t.tgt), action_sig, output_sig)
+        if key not in grouped:
+            grouped[key] = {
+                "guards": [t.condition],
+                "actions": sorted(t.action, key=lambda a: str(a.left)),
+                "outputs": sorted(t.output, key=lambda o: str(o)),
+            }
+        else:
+            grouped[key]["guards"].append(t.condition)
+
+    if len(grouped) == len(transitions):
+        return transitions
+
+    merged = []
+    for (src, tgt, _, _), entry in grouped.items():
+        guards = entry["guards"]
+        guard = guards[0] if len(guards) == 1 else disjunct_formula_set(guards)
+        merged.append(
+            Transition(
+                src,
+                guard,
+                entry["actions"],
+                entry["outputs"],
+                tgt,
+            )
+        )
+
+    logging.info(
+        "RPG transition compaction: %d -> %d transitions",
+        len(transitions),
+        len(merged),
+    )
+    return merged
 
 
 def parity_objective(marked_states: dict[int, list[str]]) -> Formula:
@@ -544,9 +586,12 @@ def parity_objective(marked_states: dict[int, list[str]]) -> Formula:
 
 
 def conds_mutually_exclusive(conds: list[Formula], symbol_table) -> bool:
-    for i in range(0, len(conds)):
-        for j in range(i + 1, len(conds)):
-            sat_formula = conjunct(conds[i], conds[j])
-            if sat(sat_formula, symbol_table):
-                return False
+    if len(conds) < 2:
+        return True
+
+    covered = conds[0]
+    for c in conds[1:]:
+        if sat(conjunct(c, covered), symbol_table):
+            return False
+        covered = disjunct(covered, c)
     return True

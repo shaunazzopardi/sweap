@@ -28,3 +28,6 @@ pysmt
 joblib ~= 1.3.2
 
 docker
+
+# required by binaries/semml/semml.py
+pyyaml==6.0.2

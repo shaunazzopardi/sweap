@@ -20,6 +20,9 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
   - `strix` - Strix 21.0.0, https://github.com/meyerphi/strix/releases/tag/21.0.0
   - `cpa.sh` - CPAchecker 2.3, https://gitlab.com/sosy-lab/software/cpachecker/
   - `syfco` - syfco 1.1, https://github.com/reactive-systems/syfco
+- Spot (https://spot.lre.epita.fr/) with Python bindings is required.
+  - Some ISSY/LTL reduction paths import `spot` directly at runtime.
+  - The Spot Python module must be available in the same Python environment used to run `sweap`.
 - For CPAChecker:
   - Ensure you have Java 17 installed,
   - set the environment variable `JAVA' to your Java 17 executable:
@@ -55,6 +58,22 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
         - We experienced an error in this step sometimes, of the form:
           - `FileNotFoundError: [Errno 2] No such file or directory: '/home/<user>/.smt_solvers/bdd/repycudd-ecb03d6d231273343178f566cc4d7258dcce52b4/repycudd.py'`
         - Delete the directory `/home/<user>/.smt_solvers/bdd/` and running the command again worked for us.
+
+- Install Spot Python bindings in the same virtual environment used for `sweap`:
+  - Activate your venv first, then build/install Spot with that interpreter:
+```bash
+source .venv/bin/activate
+cd /path/to/spot-2.14.5
+make distclean || true
+./configure --prefix="$VIRTUAL_ENV" PYTHON="$VIRTUAL_ENV/bin/python"
+make -j"$(nproc)"
+make install
+```
+  - Verify the binding is visible from the venv:
+```bash
+python -c "import spot; print(spot.__file__)"
+```
+  - Note: manual copying of Spot bindings from another Python installation may fail if Python ABI versions differ (e.g., `cpython-312` bindings with a Python 3.10 venv).
 
 ## Usage
 
@@ -113,7 +132,7 @@ Find below the grammar in EBNF and regex for each section:
 
 The real format is a bit less strict, e.g., the long form names for types are also parsed, `;` can be used instead of `,`, and `&` and `|` can be used instead of `&&` and `||`.
 
-An important aspect is that we require the defined transitions to be **deterministic**. That is, we require that from every state the guards of each transition are mutually exclusive.  
+An important aspect is that we require the defined transitions to be **deterministic**. That is, we require that from every state the guards of each transition are mutually exclusive. Nonetheless, even if the program is non-deterministic, unless the `--debug` flag is used, the tool will not raise an exception. However, in this case refinement is not complete and may not succeed.
 
 #### Example 
 
@@ -125,7 +144,7 @@ It defines one environment events/variables (`request`) and two controller event
 
 The valuation section defines one natural variables `cnt`. 
 
-The transitions section defines the transitions between the states based on the environment and controller events. Note at state `q0` the environment can increase the value of `cnt` by setting request to true, and force a transition to `q1` by setting `request` to false. In state `q1` the controller can grant each request by setting `grant` to `true`. If the controller calls `finished` when `cnt` is `0` then the program transitions back to `q0`. Note the defined automaton is deterministic.
+The transitions section defines the transitions between the states based on the environment and controller events. Note at state `q0` the environment can increase the value of `cnt` by setting request to true, and force a transition to `q1` by setting `request` to false. In state `q1`, when `cnt != 0`, the controller can grant each request by setting `grant` to `true`. If the controller calls `finished` when `cnt` is `0` then the program transitions back to `q0`. At `q1` the transition function is not complete, the interpretation here is that the arena defines when the arena state transforms, any behaviour that does not activate a guard results in stuttering. Note the defined arena is deterministic.
 
 The specification section defines the LTL formula that the controller should satisfy, namely that the controller should always eventually return to state `q0` from state `q1`.
 
@@ -150,7 +169,7 @@ program arbiter {
     TRANSITIONS {
         q0 -> q0 [request $ cnt := cnt + 1],
         q0 -> q1 [!request],
-        q1 -> q1 [grant $ cnt := cnt - 1],
+        q1 -> q1 [grant & cnt != 0 $ cnt := cnt - 1],
         q1 -> q0 [cnt == 0 & finished $]
     }
 
@@ -183,8 +202,30 @@ To run the tool on a symbolic synthesis problem, run the following command in th
 PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise
 ```
 
+#### Other input formats
+
+`sweap` supports multiple input formats:
+
+- `--p <file.prog>`:
+  - Standard input format for `sweap`.
+- `--issy <file.issy>`:
+  - Parsed and normalised with ISSY reductions (`string_to_issy`), including formula/game reductions and Spot-based update-restriction inference where applicable.
+- `--tsl <file.tsl>`:
+  - Parsed as TSL/LTL modulo theories.
+- `--rpg <file.rpg>`:
+  - Parsed via the RPG parser and converted to the same internal model (`rpg_parsec`).
+
+These input formats can go through the synthesis pipeline `--synthesise`. Standard one-shot enumerative finite synthesis of programs can be performed through `--finite_synthesise`.
+
+`sweap` also provides a translation mode,`--translate`, the pipeline stops after front-end parsing and emits the requested target (`prog`, `dot`, `nuxmv`, `issy`, or `vmt`) without running synthesis.
+
+
 Other flags may be useful to the interested user:
 
 - ``--verify_controller`` verifies that the controller satisfies the intended LTL specification in the context of the arena.
 - ``--only_safety`` attempts the synthesis problem without any liveness refinements.
 - ``--no_binary_enc`` attempts the synthesis problem without binary encoding of the predicates, instead of creating a new proposition for each predicate.
+- ``--debug`` runs the tool in debug mode, which raises enables inline checks that verifies: 
+  - determinism of the arena (i.e., that the guards of the transitions from each state are mutually exclusive);
+  - correctness of abstraction refinement; and
+  - correctness of certain steps in ISSY translation to sweap problems.

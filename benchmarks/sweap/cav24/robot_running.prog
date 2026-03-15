@@ -1,6 +1,6 @@
 program robot_running {
     STATES {
-        base : init, setInReqSamples, collectSamples, move, setSamplesAB
+        base : init, collectSamples, move, setSamplesAB
     }
 
     ENVIRONMENT EVENTS {

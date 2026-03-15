@@ -21,7 +21,15 @@ from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex,
 from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
 from prop_lang.update_formula import UpdateFormula
-from prop_lang.util import true, normalize_ltl
+from prop_lang.util import (
+    true,
+    normalize_ltl,
+    conjunct,
+    disjunct_formula_set,
+    neg,
+    sat,
+    rewrite_boolean_equalities_as_iff,
+)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
@@ -55,18 +63,31 @@ def program_parser():
             )
         )
     yield spaces()
-    _, transitions = yield transitions_parser
+    semantics, transitions = yield transitions_parser
     yield spaces()
     ltl_spec = yield parsec.optional(specification_parser)
     yield spaces() >> string("}") >> spaces()
 
     symbol_table = {v[0]: v[1] for v in initial_vals}
+    guard_symbol_table = dict(symbol_table)
+    guard_symbol_table.update({ev.name: t for ev, t in env + con})
+    transitions = [
+        t.with_condition(
+            rewrite_boolean_equalities_as_iff(t.condition, guard_symbol_table)
+        )
+        for t in transitions
+    ]
     arg = []
     for t in transitions:
         arg.append((t, initial_vals, env, con, symbol_table))
     with Pool(config.Config.getConfig().workers) as pool:
         results = pool.map(guarded_action_transitions_to_normal_transitions, arg)
         new_transitions = [t for tt in results for t in tt]
+
+    if semantics == "by-order":
+        new_transitions = apply_transition_semantics_by_order(
+            new_transitions, guard_symbol_table
+        )
 
     program = Program(
         program_name,
@@ -82,6 +103,37 @@ def program_parser():
     )
     print(program.to_prog(ltl_spec))
     return program, ltl_spec
+
+
+def apply_transition_semantics_by_order(
+    transitions: list[Transition], symbol_table
+) -> list[Transition]:
+    """Make transition guards source-local and priority-ordered.
+
+    For each source state, transition i is rewritten to:
+      guard_i & !(guard_1 | ... | guard_{i-1})
+    preserving the input transition order.
+    """
+    covered_by_src = {}
+    rewritten = []
+
+    for t in transitions:
+        covered = covered_by_src.get(t.src)
+        effective_guard = (
+            t.condition if covered is None else conjunct(t.condition, neg(covered))
+        )
+        covered_by_src[t.src] = (
+            t.condition
+            if covered is None
+            else disjunct_formula_set([covered, t.condition])
+        )
+
+        if sat(effective_guard, symbol_table):
+            rewritten.append(
+                Transition(t.src, effective_guard, t.action, t.output, t.tgt)
+            )
+
+    return rewritten
 
 
 @generate

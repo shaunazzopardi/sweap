@@ -105,11 +105,11 @@ class Test(TestCase):
         p1 = string_to_prop("!((c_1 + -e_1) < (c_0 + -e_0))")
 
         symbol_table = {
-            "e_0": TypedValuation("e_0", "int", None),
-            "e_1": TypedValuation("e_1", "int", None),
-            "c_0": TypedValuation("c_0", "int", None),
-            "c_1": TypedValuation("c_1", "int", None),
-            "set_e": TypedValuation("set_e", "int", None),
+            "e_0": INTEGER,
+            "e_1": INTEGER,
+            "c_0": INTEGER,
+            "c_1": INTEGER,
+            "set_e": INTEGER,
         }
 
         exist_vars = [Symbol("e_0", INT), Symbol("c_0", INT), Symbol("set_e", INT)]

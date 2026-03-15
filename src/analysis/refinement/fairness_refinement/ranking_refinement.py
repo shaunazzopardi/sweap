@@ -145,7 +145,7 @@ def ranking_refinement(ranking, invars, signatures, symbol_table, there_is_inc=T
         state_preds = set()
         for i in invars:
             result = normalise_pred_multiple_vars(i, signatures, symbol_table)
-            if isinstance(result, Variable):
+            if isinstance(result, Formula):
                 normalised_invars.add(i)
             else:
                 new_sig, new_invar, new_preds = result

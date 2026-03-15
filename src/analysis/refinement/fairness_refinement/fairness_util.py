@@ -38,6 +38,18 @@ from synthesis.machines.mealy_machine import MealyMachine
 existing_refinements = set()
 
 
+def _normalise_exit_condition_for_liveness(program, exit_cond, valuation, symbol_table):
+    """Best-effort normalisation so liveness refinement can handle *_prev predicates."""
+    normalised = exit_cond
+
+    prev_vars = [v for v in normalised.variablesin() if "_prev" in str(v)]
+    normalised = ground_predicate_on_vars(
+        program, normalised, valuation, prev_vars, symbol_table
+    ).simplify()
+
+    return normalised
+
+
 def try_liveness_refinement(
     Cs: MealyMachine,
     program: Program,
@@ -194,10 +206,14 @@ def liveness_step(
     counter,
     symbol_table,
 ):
-    if any(v for v in exit_cond.variablesin() if "_prev" in str(v)):
-        return False, (None, None)
-
     body = [t.action for t, _, _ in concrete_body]
+
+    init_valuation = concrete_body[0][1] | concrete_body[0][2]
+    last_valuation = concrete_body[-1][1] | concrete_body[-1][2]
+    exit_cond = _normalise_exit_condition_for_liveness(
+        program, exit_cond, last_valuation, symbol_table
+    )
+
     (
         reduced,
         reduced_body,
@@ -213,7 +229,6 @@ def liveness_step(
         v for v in program.local_vars if symbol_table[str(v)] == BOOLEAN
     ]
 
-    init_valuation = concrete_body[0][1] | concrete_body[0][2]
     # remove booleans from loop
     pre_cond = ground_predicate_on_vars(
         program, pre_cond, init_valuation, irrelevant_vars, symbol_table

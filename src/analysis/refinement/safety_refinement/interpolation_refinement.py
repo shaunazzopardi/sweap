@@ -10,6 +10,7 @@ from parsing.string_to_prop_logic import string_to_prop
 from programs.program import Program
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
+from prop_lang.formula import Formula
 from prop_lang.types.types import typed_var_to_pysmt_type
 from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
@@ -352,7 +353,7 @@ def normalise_and_filter_preds(
     for p in new_state_preds:
         result = normalise_pred_multiple_vars(p, signatures, symbol_table)
         # ignore boolean variables, these will already have been handled
-        if not isinstance(result, Variable):
+        if not isinstance(result, Formula):
             sig, _, preds = result
             signatures.add(sig)
             normalised_state_preds.update(preds)

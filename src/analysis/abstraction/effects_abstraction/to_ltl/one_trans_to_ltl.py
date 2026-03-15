@@ -1,5 +1,3 @@
-import time
-
 import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
@@ -19,11 +17,9 @@ from prop_lang.util import (
     implies,
     F,
     propagate_nexts,
-    disjunct,
     massage_ltl_for_dual,
     neg,
     iff,
-    true,
     sat,
 )
 from prop_lang.value import Value
@@ -51,14 +47,16 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         if strix_backend:
             init_explicit_state = propagate_nexts(init_explicit_state)
 
-    # TODO: can perhaps reduce number of vars needed by focusing on unset init vars only
     if dualise and len(predicate_abstraction.init_state_abstraction) > 1:
-        # TODO: we need to skip the fucking first state because of these
-        #       this means compatibility checking needs to change too
         raw_env_vars = [
             i for i in range(0, len(predicate_abstraction.init_state_abstraction))
         ]
-        new_env_vars, bin_map = binary_rep(raw_env_vars, "env_init_")
+        new_env_vars, bin_map = binary_rep(
+            raw_env_vars,
+            "env_init_",
+            printing=False,
+            log=False,
+        )
         vars_to_reuse = (
             len(new_env_vars)
             if len(con_pred_props) >= len(new_env_vars)
@@ -142,8 +140,8 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         for p in predicate_abstraction.init_constants
     ]
 
-    init_transition_ltl = []
-    transition_ltl = {}
+    init_transition_terms = {}
+    transition_terms_by_src = {}
     for gu in predicate_abstraction.gu_to_trans.keys():
         tt = predicate_abstraction.gu_to_trans[gu][0]
         cond = tt.condition
@@ -191,15 +189,38 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             )
 
             if t in predicate_abstraction.init_program_trans:
-                init_transition_ltl.append(conjunct(cond, next))
+                next_key = str(next)
+                if next_key not in init_transition_terms:
+                    init_transition_terms[next_key] = {
+                        "next": next,
+                        "conds": {},
+                    }
+                init_transition_terms[next_key]["conds"][str(cond)] = cond
 
             if t in predicate_abstraction.non_init_program_trans:
-                if bin_src in transition_ltl.keys():
-                    transition_ltl[bin_src] = disjunct(
-                        transition_ltl[bin_src], conjunct(cond, next)
-                    )
-                else:
-                    transition_ltl[bin_src] = conjunct(cond, next)
+                if bin_src not in transition_terms_by_src:
+                    transition_terms_by_src[bin_src] = {}
+                src_terms = transition_terms_by_src[bin_src]
+                next_key = str(next)
+                if next_key not in src_terms:
+                    src_terms[next_key] = {
+                        "next": next,
+                        "conds": {},
+                    }
+                src_terms[next_key]["conds"][str(cond)] = cond
+
+    transition_ltl = {}
+    for bin_src, next_map in transition_terms_by_src.items():
+        merged_terms = []
+        for item in next_map.values():
+            conds = list(item["conds"].values())
+            merged_cond = conds[0] if len(conds) == 1 else disjunct_formula_set(conds)
+            merged_terms.append(conjunct(merged_cond, item["next"]))
+        transition_ltl[bin_src] = (
+            merged_terms[0]
+            if len(merged_terms) == 1
+            else disjunct_formula_set(merged_terms)
+        )
 
     _transition_ltl = [
         (
@@ -226,8 +247,20 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         )
         for g in transition_ltl.keys()
     ]
-    # TODO: inspect why there is repetition in init_transtion_ltl
-    init_transition_ltl = disjunct_formula_set(set(init_transition_ltl))
+    init_transition_ltl = []
+    for item in init_transition_terms.values():
+        conds = list(item["conds"].values())
+        merged_cond = conds[0] if len(conds) == 1 else disjunct_formula_set(conds)
+        init_transition_ltl.append(conjunct(merged_cond, item["next"]))
+    init_transition_ltl = (
+        disjunct_formula_set([])
+        if len(init_transition_ltl) == 0
+        else (
+            init_transition_ltl[0]
+            if len(init_transition_ltl) == 1
+            else disjunct_formula_set(init_transition_ltl)
+        )
+    )
 
     abs = (
         [conjunct_formula_set([init_explicit_state] + init_constants)]
@@ -242,7 +275,6 @@ def abstract_ltl_problem(
     original_LTL_problem: LTLSynthesisProblem,
     effects_abstraction: EffectsAbstraction,
 ):
-    start = time.time()
     env_predicate_vars = set()
     con_predicate_vars = set()
     dualise = config.Config.getConfig().dual
@@ -300,11 +332,10 @@ def abstract_ltl_problem(
             env_predicate_vars.update(p.bin_vars)
 
     program = effects_abstraction.get_program()
-    env_pred_props = program.bin_state_vars + list(env_predicate_vars)
+    env_pred_props = list(program.bin_state_vars) + list(env_predicate_vars)
     con_pred_props = con_predicate_vars
 
-    states_binary_map = {k: v for k, v in program.states_binary_map.items()}
-    dict_to_replace = states_binary_map
+    dict_to_replace = dict(program.states_binary_map)
     dict_to_replace |= effects_abstraction.var_relabellings
 
     loop_constraints = []
@@ -411,7 +442,6 @@ def abstract_ltl_problem(
         guarantees,
         init_preds[0] if dualise else None,
     )
-    print("ltl abstraction took: " + str(time.time() - start))
 
     return ltl_synthesis_problem
 

@@ -62,7 +62,19 @@ class UniOp(Formula):
                 )  # pyright: ignore [reportUndefinedVariable]
             elif isinstance(right, Value) and right.is_false():
                 return Value(BoolAtoms.TRUE)
-        return self
+        elif self.op == "X":
+            if isinstance(right, Value):
+                return right
+        elif self.op == "F":
+            if isinstance(right, Value):
+                return right
+        elif self.op == "G":
+            if isinstance(right, Value):
+                return right
+
+        if right == self.right:
+            return self
+        return UniOp(self.op, right)
 
     @functools.lru_cache()
     def ops_used(self):

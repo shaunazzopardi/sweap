@@ -74,17 +74,35 @@ def create_neg_no(v: Formula) -> UniOp:
     return create_uniop("-", v)
 
 
-def _mult(lhs, rhs):
-    if isinstance(lhs, Value):
-        if isinstance(rhs, Value):
-            return Value(int(lhs.val) * int(rhs.val))
+def _const_formula_to_int(f: Formula) -> int | None:
+    if isinstance(f, Value):
+        return int(f.val)
+    if (
+        isinstance(f, UniOp)
+        and f.op == "-"
+        and isinstance(f.right, Value)
+    ):
+        return -int(f.right.val)
+    return None
 
-        val = int(lhs.val)
+
+def _int_to_const_formula(v: int) -> Formula:
+    if v < 0:
+        return UniOp("-", Value(abs(v)))
+    return Value(v)
+
+
+def _mult(lhs, rhs):
+    lhs_val = _const_formula_to_int(lhs)
+    rhs_val = _const_formula_to_int(rhs)
+
+    if lhs_val is not None and rhs_val is not None:
+        return _int_to_const_formula(lhs_val * rhs_val)
+    if lhs_val is not None:
+        val = lhs_val
         var = rhs
-    elif isinstance(rhs, Value):
-        if isinstance(lhs, Value):
-            return Value(int(lhs.val) * int(rhs.val))
-        val = int(rhs.val)
+    elif rhs_val is not None:
+        val = rhs_val
         var = lhs
     else:
         raise Exception(

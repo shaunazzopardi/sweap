@@ -1,5 +1,9 @@
+from typing import TYPE_CHECKING
+
 from prop_lang.atom import Atom
-from prop_lang.variable import Variable
+
+if TYPE_CHECKING:
+    from prop_lang.variable import Variable
 
 
 class NonDeterministic(Atom):
@@ -18,23 +22,23 @@ class NonDeterministic(Atom):
             return True
         return NotImplemented
 
-    def variablesin(self) -> [Variable]:
+    def variablesin(self) -> list["Variable"]:
         return []
 
     def ops_used(self):
         return []
 
-    def replace_formulas(self):
-        raise NotImplementedError("NonDeterministic.replace_formulas")
+    def replace_formulas(self, context=None):
+        return self
 
-    def replace_math_exprs(self):
-        raise NotImplementedError("NonDeterministic.replace_math_exprs")
+    def replace_math_exprs(self, context=None):
+        return self
 
-    def replace_vars(self):
-        raise NotImplementedError("NonDeterministic.replace_vars")
+    def replace_vars(self, context=None):
+        return self
 
     def simplify(self):
-        raise NotImplementedError("NonDeterministic.simplify")
+        return self
 
     def to_nuxmv(self):
         raise NotImplementedError("NonDeterministic.to_nuxmv")
@@ -52,16 +56,7 @@ class NonDeterministic(Atom):
         raise NotImplementedError("NonDeterministic.prev_rep")
 
     def replace_formulas_multiple(self, context: dict):
-        raise NotImplementedError("NonDeterministic.replace_formulas_multiple")
+        return self
 
     def prev_rep(self):
         raise NotImplementedError("NonDeterministic.prev_rep")
-
-    def replace_formulas_multiple(self, context: dict):
-        raise NotImplementedError("NonDeterministic.replace_formulas_multiple")
-
-    def prev_rep(self):
-        raise NotImplementedError("NonDeterministic.prev_rep")
-
-    def replace_formulas_multiple(self, context: dict):
-        raise NotImplementedError("NonDeterministic.replace_formulas_multiple")

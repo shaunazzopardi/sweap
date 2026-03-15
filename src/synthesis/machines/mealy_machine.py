@@ -260,10 +260,6 @@ class MealyMachine(Machine):
             [neg(Variable(stt)) for stt in self.states if stt != self.init_st]
             + [Variable(self.init_st)]
         )
-        init_cond = conjunct(
-            init_cond,
-            conjunct_formula_set([neg(Variable(t)) for t in trans_pred_acts]),
-        )
 
         debug = config.Config.getConfig().debug
         for src in self.transitions.keys():

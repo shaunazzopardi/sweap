@@ -7,10 +7,11 @@ import sympy
 
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, simplify, serialize
+from pysmt.shortcuts import And, simplify, serialize, Solver
 from sympy import Basic
 from sympy.logic.boolalg import BooleanAtom, BooleanTrue, to_dnf, to_cnf, BooleanFalse
 
+import config
 from analysis.smt_checker import check, bdd_simplify, find_unsat_core
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
@@ -33,6 +34,10 @@ from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from prop_lang.factory import _mult
+
+# Local toggle: SAT-guided incremental enumeration in all_sat_models.
+# Set to False to use the previous cross-product + sat filtering implementation.
+USE_INCREMENTAL_ALL_SAT_MODELS = True
 
 
 def true():
@@ -223,7 +228,10 @@ def unsat_core(
 def sat(
     formula: Formula,
     symbol_table: dict,
+    sat_ctx=None,
 ) -> bool:
+    if sat_ctx is not None:
+        return sat_ctx.is_sat(formula)
     try:
         return check(And(*formula.to_smt(symbol_table)))
     except Exception as e:
@@ -284,7 +292,12 @@ def propagate_minuses(formula, init=False):
 
 
 def propagate_nexts(formula, init=0):
-    if isinstance(formula, Value) or isinstance(formula, Variable):
+    if (
+        isinstance(formula, Value)
+        or isinstance(formula, Variable)
+        or isinstance(formula, MathExpr)
+        or should_be_math_expr(formula)
+    ):
         if init > 0:
             for _ in range(init):
                 formula = X(formula)
@@ -390,6 +403,8 @@ def fnode_to_formula(fnode: FNode) -> Formula:
         val = fnode.constant_value()
         if isinstance(val, bool):
             return Value(BoolAtoms.TRUE) if val else Value(BoolAtoms.FALSE)
+        if isinstance(val, int) and val < 0:
+            return UniOp(MathOps.SUB, Value(abs(val)))
         return Value(val)
     elif fnode.is_symbol():
         return Variable(fnode.symbol_name())
@@ -529,7 +544,9 @@ def simplify_sum(formula, symbol_table):
         simplified = environ.simplifier.simplify(formula.to_smt(symbol_table)[0])
         str_simpl = serialize(simplified)
         if str_simpl[0] == "-":
-            return UniOp(MathOps.SUB, Value(str_simpl[1:]))
+            return UniOp(MathOps.SUB, Value(int(str_simpl[1:])))
+        if re.fullmatch(r"[0-9]+", str_simpl):
+            return Value(int(str_simpl))
         else:
             return Value(str_simpl)
 
@@ -640,10 +657,6 @@ def dnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     f_vars = f.variablesin()
     if len(f_vars) == 0:
         return f
-    elif len(f_vars) <= 6:
-        result = dnf(f, symbol_table)
-        dnf_cache[f] = result
-        return result
     else:
         return dnf_with_timeout(f, symbol_table, simplify, timeout)
 
@@ -831,8 +844,12 @@ def type_constraints_formula(formula, symbol_table):
 
 
 def type_constraints(formula, symbol_table):
+    return type_constraints_from_vars(formula.variablesin(), symbol_table)
+
+
+def type_constraints_from_vars(vars, symbol_table):
     constraints = set()
-    for v in formula.variablesin():
+    for v in vars:
         t = type_constraint(v, symbol_table)
         if not (isinstance(t, Value) and t.is_true()):
             constraints.add(t)
@@ -901,6 +918,19 @@ def type_constraint(variable, symbol_table):
 
 
 def type_constraint_from_act(act, symbol_table):
+    constraints = set()
+    constraints.add(next_type_constraint_from_act(act, symbol_table))
+    vars = act.right.variablesin()
+    if act.left in vars:
+        vars.remove(act.left)
+    constraints.update(type_constraints_from_vars(vars, symbol_table))
+    if true() in constraints:
+        constraints.remove(true())
+
+    return conjunct_formula_set(constraints)
+
+
+def next_type_constraint_from_act(act, symbol_table):
     variable = act.left
     if str(variable) not in symbol_table.keys():
         raise Exception(f"{str(variable)} not in symbol table.")
@@ -986,11 +1016,24 @@ def propagate_negations(formula: Formula):
         else:
             return UniOp(formula.op, propagate_negations(formula.right))
     elif isinstance(formula, BiOp):
-        return BiOp(
-            propagate_negations(formula.left),
-            formula.op,
-            propagate_negations(formula.right),
-        )
+        n_left = propagate_negations(formula.left)
+        n_right = propagate_negations(formula.right)
+        if formula.op == "W":
+            # a W b  ==  G(a) | (a U b)
+            return disjunct(G(n_left), U(n_left, n_right))
+        elif formula.op == "R":
+            # a R b  ==  !( !a U !b )
+            return UniOp(
+                "!",
+                U(
+                    propagate_negations(neg(n_left)),
+                    propagate_negations(neg(n_right)),
+                ),
+            )
+        elif formula.op == "M":
+            # a M b  ==  b U (a & b)
+            return U(n_right, conjunct(n_left, n_right))
+        return BiOp(n_left, formula.op, n_right)
     else:
         return formula
 
@@ -999,6 +1042,15 @@ def negate(formula):
     if isinstance(formula, UniOp):
         if formula.op == "!":
             return formula.right
+        elif formula.op == "G":
+            # !G(phi) == F(!phi)
+            return F(negate(formula.right))
+        elif formula.op == "F":
+            # !F(phi) == G(!phi)
+            return G(negate(formula.right))
+        elif formula.op == "X":
+            # !X(phi) == X(!phi)
+            return X(negate(formula.right))
         else:
             return UniOp(formula.op, negate(formula.right))
     elif isinstance(formula, BiOp):
@@ -1018,14 +1070,24 @@ def negate(formula):
             return BiOp(formula.left, "<=", formula.right)
         elif formula.op == "<":
             return BiOp(formula.left, ">=", formula.right)
-        elif formula.op == ">":
-            return BiOp(formula.left, "<=", formula.right)
         elif formula.op == ">=":
             return BiOp(formula.left, "<", formula.right)
         elif formula.op == "<=":
             return BiOp(formula.left, ">", formula.right)
         elif formula.op == "=" or formula.op == "==":
             return BiOp(formula.left, "!=", formula.right)
+        elif formula.op == "U":
+            # !(a U b) == (!a) R (!b)
+            return BiOp(negate(formula.left), "R", negate(formula.right))
+        elif formula.op == "R":
+            # !(a R b) == (!a) U (!b)
+            return BiOp(negate(formula.left), "U", negate(formula.right))
+        elif formula.op == "W":
+            # !(a W b) == (!a) M (!b)
+            return BiOp(negate(formula.left), "M", negate(formula.right))
+        elif formula.op == "M":
+            # !(a M b) == (!a) W (!b)
+            return BiOp(negate(formula.left), "W", negate(formula.right))
         else:
             return UniOp("!", formula)
     else:
@@ -1683,7 +1745,7 @@ def take_out_predicate(
         false_formula = simplify_formula_with_next(false_formula)
         true_formula = true_formula.replace_formulas(
             lambda x: (
-                Value("true")
+                true()
                 if isinstance(x, UniOp)
                 and x.op == "X"
                 and isinstance(x.right, Value)
@@ -1693,7 +1755,7 @@ def take_out_predicate(
         )
         false_formula = false_formula.replace_formulas(
             lambda x: (
-                Value("true")
+                true()
                 if isinstance(x, UniOp)
                 and x.op == "X"
                 and isinstance(x.right, Value)
@@ -2143,7 +2205,7 @@ def normalise_formula(f, signatures, symbol_table, ignore_these=None):
                 old_to_new[pp] = false()
         else:
             result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
-            if isinstance(result, Variable):
+            if isinstance(result, Formula):
                 old_to_new[pp] = result
                 new_preds.add(result)
             else:
@@ -2195,8 +2257,50 @@ def normalise_predicate_old(pred, signatures, symbol_table) -> (Formula, [Formul
         return p, [(signature, preds)]
 
 
+def rewrite_boolean_equalities_as_iff(
+    formula: Formula, symbol_table: dict[str, Type]
+) -> Formula:
+    def _var_type(v: Variable):
+        key = str(v.prev_rep()) if v.is_next() else str(v)
+        return symbol_table.get(key)
+
+    def _is_boolean_term(f: Formula) -> bool:
+        if isinstance(f, Value):
+            return f.is_true() or f.is_false()
+        if isinstance(f, Variable):
+            return _var_type(f) == BOOLEAN
+        if isinstance(f, UniOp):
+            return str(f.op) == "!" and _is_boolean_term(f.right)
+        if isinstance(f, BiOp):
+            if f.op in [BoolBiOps.CONJ, BoolBiOps.DISJ, BoolBiOps.IMPL, BoolBiOps.IFF]:
+                return _is_boolean_term(f.left) and _is_boolean_term(f.right)
+            if f.op in [MathRels.EQ, MathRels.NEQ]:
+                return _is_boolean_term(f.left) and _is_boolean_term(f.right)
+        return False
+
+    def _rewrite(f: Formula) -> Formula:
+        if isinstance(f, BiOp):
+            left = _rewrite(f.left)
+            right = _rewrite(f.right)
+            if (
+                f.op in [MathRels.EQ, MathRels.NEQ]
+                and _is_boolean_term(left)
+                and _is_boolean_term(right)
+            ):
+                iff_f = BiOp(left, BoolBiOps.IFF, right).simplify()
+                return iff_f if f.op == MathRels.EQ else neg(iff_f).simplify()
+            return BiOp(left, f.op, right).simplify()
+        if isinstance(f, UniOp):
+            return UniOp(f.op, _rewrite(f.right)).simplify()
+        return f
+
+    return _rewrite(strip_mathexpr(formula))
+
+
 def normalise_pred_multiple_vars(pred, signatures, symbol_table):
-    if isinstance(pred, Variable):
+    if isinstance(pred, Variable) or any(
+        v for v in pred.variablesin() if symbol_table[str(v)] == BOOLEAN
+    ):
         return pred
     signature, pred_with_var_on_one_side = put_vars_on_left_side(strip_mathexpr(pred))
     op = pred_with_var_on_one_side.op
@@ -2222,6 +2326,19 @@ def normalise_pred_multiple_vars(pred, signatures, symbol_table):
                 pred_with_var_on_one_side = BiOp(new_right, op, sig)
                 vars_on_left = False
                 break
+
+    if (
+        signature not in signatures
+        and isinstance(signature, UniOp)
+        and signature.op == MathOps.SUB
+    ):
+        signature = signature.right
+        new_right = propagate_minuses(
+            UniOp(MathOps.SUB, pred_with_var_on_one_side.right)
+        )
+        new_right = simplify_sum(new_right, {})
+        pred_with_var_on_one_side = BiOp(new_right, op, signature)
+        vars_on_left = False
 
     left = pred_with_var_on_one_side.left
     right = pred_with_var_on_one_side.right
@@ -2333,7 +2450,7 @@ def lt_to_le(pred):
 
     if isinstance(pred, BiOp):
         if pred.op == "<":
-            new_right = simplify_sum(BiOp(pred.right, "-", Value("1")), {})
+            new_right = simplify_sum(BiOp(pred.right, "-", Value(1)), {})
             return BiOp(pred.left, "<=", new_right)
         else:
             raise Exception(
@@ -2354,7 +2471,6 @@ def put_vars_on_left_side(pred):
         new_left_vars = left_vars + [
             propagate_minuses(UniOp(MathOps.SUB, t)) for t in right_vars
         ]
-        print(str(pred))
         new_left = sum(new_left_vars)
 
         new_right_constants = right_constants + [
@@ -2373,15 +2489,18 @@ def put_vars_on_left_side(pred):
 
 def put_next_vars_on_left_side(pred):
     # put all the next variables of a Linear Integer Arithmetic inequality on one side
+    def _is_next_term(term):
+        vars_in_term = [v for v in term.variablesin()]
+        return len(vars_in_term) > 0 and all(v.is_next() for v in vars_in_term)
 
     if isinstance(pred, BiOp):
         left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
         right_vars, right_constants = get_vars_and_constants_in_term(pred.right)
 
-        next_vars_in_left = [v for v in left_vars if v.is_next()]
-        now_vars_in_left = [v for v in left_vars if not v.is_next()]
-        next_vars_in_right = [v for v in right_vars if v.is_next()]
-        now_vars_in_right = [v for v in right_vars if not v.is_next()]
+        next_vars_in_left = [v for v in left_vars if _is_next_term(v)]
+        now_vars_in_left = [v for v in left_vars if not _is_next_term(v)]
+        next_vars_in_right = [v for v in right_vars if _is_next_term(v)]
+        now_vars_in_right = [v for v in right_vars if not _is_next_term(v)]
 
         new_left_vars = next_vars_in_left + [
             propagate_minuses(UniOp(MathOps.SUB, t)) for t in next_vars_in_right
@@ -2401,9 +2520,50 @@ def put_next_vars_on_left_side(pred):
         else:
             new_right = sum(new_right_constants)
 
-        return new_left, BiOp(new_left, pred.op, new_right)
+        new_pred = BiOp(new_left, pred.op, new_right)
+        new_pred = _remove_single_negated_lhs_var(new_pred)
+        return new_pred.left, new_pred
     else:
         raise Exception("Predicate " + str(pred) + " is not a BiOp")
+
+
+def _flip_relation_under_sign_change(op):
+    if op == MathRels.LT:
+        return MathRels.GT
+    if op == MathRels.LE:
+        return MathRels.GE
+    if op == MathRels.GT:
+        return MathRels.LT
+    if op == MathRels.GE:
+        return MathRels.LE
+    if op == MathRels.EQ or op == MathRels.NEQ:
+        return op
+    raise Exception(f"Unsupported relation for sign flip: {op}")
+
+
+def _remove_single_negated_lhs_var(pred):
+    """
+    Canonicalize relations of the form (-v REL rhs) into (v REL' -rhs),
+    but only when lhs consists of exactly one negated variable and no constants.
+    """
+    if not isinstance(pred, BiOp):
+        return pred
+
+    left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
+    if len(left_vars) != 1 or len(left_constants) != 0:
+        return pred
+
+    only_left_var = left_vars[0]
+    if not (
+        isinstance(only_left_var, UniOp)
+        and only_left_var.op == MathOps.SUB
+        and isinstance(only_left_var.right, Variable)
+    ):
+        return pred
+
+    flipped_right = propagate_minuses(UniOp(MathOps.SUB, pred.right))
+    flipped_op = _flip_relation_under_sign_change(pred.op)
+    return BiOp(only_left_var.right, flipped_op, flipped_right)
 
 
 def get_vars_and_constants_in_term(term):
@@ -2517,15 +2677,84 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=False):
 def all_sat_models(preds, symbol_table):
     if len(preds) == 0:
         raise Exception("all_sat_models called with zero preds")
-    models = [c for c in preds[0].choices()]
-    for pred in preds[1:]:
-        new_models = []
-        for m in models:
-            for c in pred.choices():
-                new_m = conjunct(c, m)
-                if sat(new_m, symbol_table):
-                    new_models.append(new_m)
-        models = new_models
+
+    if not USE_INCREMENTAL_ALL_SAT_MODELS:
+        # Previous implementation: explicit cross-product with SAT filtering.
+        models = [c for c in preds[0].choices()]
+        for pred in preds[1:]:
+            new_models = []
+            for m in models:
+                for c in pred.choices():
+                    new_m = conjunct(c, m)
+                    if sat(new_m, symbol_table):
+                        new_models.append(new_m)
+            models = new_models
+        return models
+
+    # Incremental SAT-guided enumeration of choice combinations.
+    # Semantics match the legacy cross-product + sat filtering, but avoids
+    # rebuilding and re-solving the full conjunction at each step.
+    choices_per_pred = []
+    for pred in preds:
+        seen = set()
+        deduped = []
+        for c in pred.choices():
+            sc = str(c)
+            if sc in seen:
+                continue
+            seen.add(sc)
+            deduped.append(c)
+        choices_per_pred.append(deduped)
+
+    try:
+        solver = Solver(name="msat")
+    except Exception:
+        # Fallback to legacy behavior if incremental solver is unavailable.
+        models = [c for c in choices_per_pred[0]]
+        for pred_choices in choices_per_pred[1:]:
+            new_models = []
+            for m in models:
+                for c in pred_choices:
+                    new_m = conjunct(c, m)
+                    if sat(new_m, symbol_table):
+                        new_models.append(new_m)
+            models = new_models
+        return models
+
+    smt_cache = {}
+
+    def _to_smt(f):
+        key = str(f)
+        cached = smt_cache.get(key)
+        if cached is not None:
+            return cached
+        smt = And(*f.to_smt(symbol_table))
+        smt_cache[key] = smt
+        return smt
+
+    chosen = []
+    models = []
+
+    def _dfs(i: int):
+        if i == len(choices_per_pred):
+            models.append(conjunct_formula_set(list(chosen)))
+            return
+        for c in choices_per_pred[i]:
+            solver.push()
+            solver.add_assertion(_to_smt(c))
+            try:
+                if solver.solve():
+                    chosen.append(c)
+                    _dfs(i + 1)
+                    chosen.pop()
+            finally:
+                solver.pop()
+
+    try:
+        _dfs(0)
+    finally:
+        solver.exit()
+
     return models
 
 
@@ -2535,7 +2764,7 @@ def reset_caches(names=None):
     var_to_predicate_cache.clear()
     predicate_to_var_cache.clear()
 
-    import sys, functools, inspect
+    import sys, inspect
 
     """Clear @lru_cache decorated functions in specified modules"""
     if names is None:
@@ -2549,6 +2778,26 @@ def reset_caches(names=None):
 
     cleared_count = 0
 
+    def _cache_clear_target(obj):
+        """
+        Return the object exposing a callable `cache_clear`, if any.
+        Works across runtimes (CPython/PyPy) and common descriptor wrappers.
+        """
+        direct = getattr(obj, "cache_clear", None)
+        if callable(direct):
+            return obj
+
+        # Decorated methods may be wrapped in descriptors.
+        for wrapped_attr in ("__func__", "fget"):
+            inner = getattr(obj, wrapped_attr, None)
+            if inner is None:
+                continue
+            cache_clear = getattr(inner, "cache_clear", None)
+            if callable(cache_clear):
+                return inner
+
+        return None
+
     for module_name in names:
         if module_name in sys.modules:
             module = sys.modules[module_name]
@@ -2558,11 +2807,13 @@ def reset_caches(names=None):
                 attr = getattr(module, attr_name)
 
                 # Check if it's an lru_cache decorated function
-                if isinstance(attr, functools._lru_cache_wrapper):
+                target = _cache_clear_target(attr)
+                if target is not None:
                     try:
-                        attr.cache_clear()
+                        target.cache_clear()
                         cleared_count += 1
-                        print(f"Cleared cache for {module_name}.{attr_name}")
+                        if config.Config.getConfig().debug:
+                            print(f"Cleared cache for {module_name}.{attr_name}")
                     except Exception as e:
                         print(
                             f"Failed to clear cache for {module_name}.{attr_name}: {e}"
@@ -2572,13 +2823,15 @@ def reset_caches(names=None):
                 elif inspect.isclass(attr):
                     for method_name in dir(attr):
                         method = getattr(attr, method_name)
-                        if isinstance(method, functools._lru_cache_wrapper):
+                        target = _cache_clear_target(method)
+                        if target is not None:
                             try:
-                                method.cache_clear()
+                                target.cache_clear()
                                 cleared_count += 1
-                                print(
-                                    f"Cleared cache for {module_name}.{attr_name}.{method_name}"
-                                )
+                                if config.Config.getConfig().debug:
+                                    print(
+                                        f"Cleared cache for {module_name}.{attr_name}.{method_name}"
+                                    )
                             except Exception as e:
                                 print(
                                     f"Failed to clear cache for {module_name}.{attr_name}.{method_name}: {e}"
@@ -2589,10 +2842,13 @@ def reset_caches(names=None):
 
 def extract_global_formula(formula: Formula) -> Optional[Formula]:
     """Return f if formula is equivalent to G(f); otherwise return None.
-    Assuming that formula == propagate_negations(only_dis_or_con_junctions(formula))
+    Formula is first normalised to NNF/LTL-normal form via propagate_negations.
     """
 
     temporal_ops = {"G", "F", "X", "U", "W", "R", "M"}
+
+    # Keep extraction stable regardless of caller pre-processing.
+    formula = propagate_negations(formula)
 
     def is_propositional(node: Formula) -> bool:
         return not any(op in temporal_ops for op in node.ops_used())
@@ -2627,17 +2883,34 @@ def extract_global_formula(formula: Formula) -> Optional[Formula]:
 
 
 def extract_initial_formula(formula: Formula) -> Formula | None:
-    """Return a formula that must hold in the initial state to satisfy the LTL formula.
+    r"""Partial initial-obligation extractor I(·) for normalized LTL formulas.
 
-    Assuming: formula has been normalised formula = normalize_ltl(formula)
-    Temporal operators are handled conservatively:
-    - G(f) returns extract_initial_formula(f)
-    - F(f), X(f) return None
-    - f U g returns extract_initial_formula(f) | extract_initial_formula(g)
-    - otherwise recurse over boolean structure
+    Formal contract:
+      I : LTL -> Prop ∪ {None}
+      where `I(phi) = psi` means `psi` is a sound initial-state obligation
+      derivable from `phi` (i.e., if `phi` holds on a trace, then `psi` holds at t=0).
+      `None` means "no sound nontrivial initial obligation extracted".
+
+    This is intentionally partial/conservative: failing to extract is allowed; extracting
+    an obligation that is not semantically required is not allowed.
+
+    Assumes input is already normalized (e.g., `normalize_ltl(propagate_negations(phi))`).
+
+    Core rules (implemented below):
+      - propositional atom/formula p:                 I(p) = p
+      - G f:                                          I(G f) = I(f)
+      - F f, X f:                                     I(F f) = I(X f) = None
+      - f U g:                                        I(f U g) = I(f) ∨ I(g)
+      - f ∧ g:                                        I(f ∧ g) = combine_and(I(f), I(g))
+      - f ∨ g:                                        I(f ∨ g) = I(f) ∨ I(g) if both exist, else None
+
+    Implication-family rules use an exactness guard:
+      For `->`, `<-`, `<->`, we only keep implication shape when the antecedent-side
+      extraction is exact (string-equal to the original side). This avoids unsoundly
+      replacing temporal antecedents by weaker/stronger initial projections.
     """
 
-    temporal_ops = {"G", "F", "X", "U"}
+    temporal_ops = {"G", "F", "X", "U", "W", "R", "M"}
 
     def combine_and(left: Formula | None, right: Formula | None) -> Formula | None:
         if left is None and right is None:
@@ -2652,6 +2925,11 @@ def extract_initial_formula(formula: Formula) -> Formula | None:
         if left is None or right is None:
             return None
         return disjunct(left, right)
+
+    def is_exact_initial_subformula(
+        subformula: Formula, extracted: Formula | None
+    ) -> bool:
+        return extracted is not None and str(extracted) == str(subformula)
 
     if not any(op in temporal_ops for op in formula.ops_used()):
         return formula
@@ -2685,6 +2963,26 @@ def extract_initial_formula(formula: Formula) -> Formula | None:
             left = extract_initial_formula(formula.left)
             right = extract_initial_formula(formula.right)
             if left is None or right is None:
+                return None
+            # Soundness guard (formal):
+            # We do NOT assume I(a -> b) = I(a) -> I(b) in general.
+            # We only allow implication extraction when antecedent-side extraction is exact:
+            #   ->   : require I(a) == a
+            #   <-   : require I(b) == b
+            #   <->  : require I(a) == a and I(b) == b
+            # Otherwise return None conservatively.
+            if formula.op == "->" and not is_exact_initial_subformula(
+                formula.left, left
+            ):
+                return None
+            if formula.op == "<-" and not is_exact_initial_subformula(
+                formula.right, right
+            ):
+                return None
+            if formula.op == "<->" and (
+                not is_exact_initial_subformula(formula.left, left)
+                or not is_exact_initial_subformula(formula.right, right)
+            ):
                 return None
             return BiOp(left, formula.op, right)
         return None

@@ -147,6 +147,7 @@ def create_nuxmv_model_for_compatibility_checking(
         sorted(program_model.vars)
         + sorted([v for v in strategy_model.vars if v not in program_model.vars])
         + ["init_state : boolean"]
+        + ["second_state : boolean"]
     )
     text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
     has_input_preds = lambda p: any(
@@ -279,7 +280,7 @@ def create_nuxmv_model_for_compatibility_checking(
             (
                 program_model.init
                 + strategy_model.init
-                + ["init_state", "compatible"]
+                + ["init_state", "!second_state", "compatible"]
                 # + (
                 #     []
                 #     if not abstract_ltl_problem.init_choice_logic
@@ -317,11 +318,11 @@ def create_nuxmv_model_for_compatibility_checking(
             "(("
             + ")\n\t| (".join(strategy_model.trans)
             + "))\n &"
-            + "\t((!init_state -> ("
+            + "\t((!init_state -> (next(!second_state) & "
             + "(("
             + ")\n\t\t& (".join(program_model.trans + turn_logic)
             + ")))) & next(!init_state)) &\n"
-            + "(init_state -> (next(!init_state) & "
+            + "(init_state -> (next(!init_state) & next(second_state) & "
             + " next("
             + (" & ".join(program_model.init) if program_model.init else "TRUE")
             + ")"
@@ -332,7 +333,11 @@ def create_nuxmv_model_for_compatibility_checking(
         )
     else:
         new_trans = program_model.trans + strategy_model.trans + turn_logic
-        normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
+        normal_trans = (
+            "\t((init_state <-> next(second_state)) & ("
+            + ")\n\t& (".join(new_trans)
+            + "))\n"
+        )
 
     text += "TRANS\n" + normal_trans + "\n"
 

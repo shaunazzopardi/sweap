@@ -1,6 +1,9 @@
 import os
 import csv
+import sys
+import time
 
+import psutil
 from pysmt.environment import Environment
 
 import config
@@ -20,17 +23,18 @@ benchmarks_dir = str(os.path.join(dirname, "../../sweap"))
 csv_dir = os.path.join(dirname, "../../sweap/results")
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
-csv_path = os.path.join(csv_dir, "synthesis_results.csv")
+csv_path = os.path.join(csv_dir, "synthesis_results-2Mar.csv")
+
+csv.field_size_limit(sys.maxsize)
 
 
 def test_synthesis():
-    import time
-
     cnt = 0
     ignore = """"""
 
     # verifies controller
-    config.Config.getConfig()._set_v_c(True)
+    # config.Config.getConfig()._set_v_c(True)
+    # config.Config.getConfig().backend = "strix"
 
     # Read existing results to avoid reprocessing
     processed_files = set()
@@ -85,49 +89,145 @@ def test_synthesis():
                     }
 
                     total_start_time = time.time()
+                    synthesis_start_time = None
 
                     # Time the parsing step
                     with Environment() as env:
                         parse_start_time = time.time()
-
-                        prog, ltl = string_to_program(content)
-                        parse_end_time = time.time()
-                        result["parse_time_seconds"] = round(
-                            parse_end_time - parse_start_time, 3
-                        )
-
                         try:
-                            # Time the synthesis step
-                            # Time the synthesis step
-                            synthesis_start_time = time.time()
 
-                            success, hoa = run_with_timeout_and_memory_limit(
-                                synthesize,
-                                [prog, ltl, None, -1],
-                                timeout=30,
-                                max_memory_gb=50,
+                            def _run_parse_attempt(dual_mode: bool):
+                                config.Config.getConfig().dual = dual_mode
+                                return run_with_timeout_and_memory_limit(
+                                    string_to_program,
+                                    [content],
+                                    timeout=10,
+                                    max_memory_gb=50,
+                                )
+
+                            success, res = _run_parse_attempt(
+                                config.Config.getConfig().dual
                             )
+
+                            parse_end_time = time.time()
+                            result["parse_time_seconds"] = round(
+                                parse_end_time - parse_start_time, 3
+                            )
+
+                            if not success:
+                                if res == "Timeout":
+                                    result["realisable"] = "TO(parse)"
+                                elif res == "Memory limit exceeded":
+                                    result["realisable"] = "OOM(parse)"
+                                else:
+                                    result["realisable"] = f"ERR(parse): {res}"
+
                             if success:
-                                if config.Config.getConfig().dual:
-                                    result["realisable"] = (
-                                        not hoa.is_controller
-                                        if hoa is not None
-                                        else "N/A"
+                                prog, ltl = res
+                                synthesis_start_time = time.time()
+                                synthesis_timeout_seconds = 50
+                                original_dual = config.Config.getConfig().dual
+
+                                def _kill_solver_processes():
+                                    proc_names = ["strix", "semml"]
+                                    for proc in psutil.process_iter():
+                                        if proc.name() in proc_names:
+                                            proc.kill()
+
+                                def _run_synthesis_attempt(
+                                    dual_mode: bool, attempt_prog, attempt_ltl
+                                ):
+                                    config.Config.getConfig().dual = dual_mode
+                                    attempt_success, attempt_result = (
+                                        run_with_timeout_and_memory_limit(
+                                            synthesize,
+                                            [attempt_prog, attempt_ltl, None, -1],
+                                            timeout=synthesis_timeout_seconds,
+                                            max_memory_gb=50,
+                                        )
                                     )
-                                else:
-                                    result["realisable"] = (
-                                        hoa.is_controller if hoa is not None else "N/A"
+                                    _kill_solver_processes()
+                                    return attempt_success, attempt_result
+
+                                try:
+                                    success, hoa = _run_synthesis_attempt(
+                                        original_dual, prog, ltl
                                     )
-                            else:
-                                # Handle timeout or OOM
-                                if hoa == "Memory limit exceeded":
-                                    result["realisable"] = "OOM"
-                                elif hoa == "Timeout":
-                                    result["realisable"] = "TO"
-                                elif "java.lang.OutOfMemoryError" in hoa:
-                                    result["realisable"] = "OOM"
-                                else:
-                                    result["realisable"] = f"ERR: {hoa}"
+                                    used_dual_fallback = False
+                                    dual_retry_parse_failed = False
+
+                                    if not success:
+                                        dual_parse_start_time = time.time()
+                                        dual_parse_success, dual_parse_res = (
+                                            _run_parse_attempt(True)
+                                        )
+                                        dual_parse_end_time = time.time()
+                                        result["parse_time_seconds"] = round(
+                                            result["parse_time_seconds"]
+                                            + (
+                                                dual_parse_end_time
+                                                - dual_parse_start_time
+                                            ),
+                                            3,
+                                        )
+
+                                        if dual_parse_success:
+                                            dual_prog, dual_ltl = dual_parse_res
+                                            success, hoa = _run_synthesis_attempt(
+                                                True, dual_prog, dual_ltl
+                                            )
+                                            used_dual_fallback = True
+                                        else:
+                                            dual_retry_parse_failed = True
+                                            if dual_parse_res == "Timeout":
+                                                result["realisable"] = "TO(parse-dual)"
+                                            elif (
+                                                dual_parse_res
+                                                == "Memory limit exceeded"
+                                            ):
+                                                result["realisable"] = "OOM(parse-dual)"
+                                            else:
+                                                result["realisable"] = (
+                                                    f"ERR(parse-dual): {dual_parse_res}"
+                                                )
+
+                                    if dual_retry_parse_failed:
+                                        pass
+                                    elif success:
+                                        if config.Config.getConfig().dual:
+                                            realisable = (
+                                                not hoa.is_controller
+                                                if hoa is not None
+                                                else "N/A"
+                                            )
+                                        else:
+                                            realisable = (
+                                                hoa.is_controller
+                                                if hoa is not None
+                                                else "N/A"
+                                            )
+                                        if used_dual_fallback:
+                                            if realisable in [True, False]:
+                                                result["realisable"] = (
+                                                    f"{str(realisable)} (dual)"
+                                                )
+                                            else:
+                                                result["realisable"] = (
+                                                    f"{realisable} (dual)"
+                                                )
+                                        else:
+                                            result["realisable"] = realisable
+                                    else:
+                                        if hoa == "Memory limit exceeded":
+                                            result["realisable"] = "OOM"
+                                        elif hoa == "Timeout":
+                                            result["realisable"] = "TO"
+                                        elif "java.lang.OutOfMemoryError" in hoa:
+                                            result["realisable"] = "OOM"
+                                        else:
+                                            result["realisable"] = f"ERR: {hoa}"
+                                finally:
+                                    config.Config.getConfig().dual = original_dual
                         except Exception as e:
                             if "Could not find a controller" not in str(e):
                                 print(f"Error parsing {file}: {e}")
@@ -136,7 +236,12 @@ def test_synthesis():
                                 raise e
                         synthesis_end_time = time.time()
                         result["synthesis_time_seconds"] = round(
-                            synthesis_end_time - synthesis_start_time, 3
+                            (
+                                synthesis_end_time - synthesis_start_time
+                                if synthesis_start_time
+                                else -1
+                            ),
+                            3,
                         )
 
                     total_end_time = time.time()
@@ -165,6 +270,7 @@ def test_synthesis():
 
 
 def test_parsing():
+    config.Config.getConfig().debug = True
     for root, _, files in os.walk(benchmarks_dir):
         for file in files:
             if file.endswith(".prog"):
@@ -183,4 +289,4 @@ def test_parsing():
 
 
 if __name__ == "__main__":
-    test_synthesis()
+    test_parsing()

@@ -1,10 +1,12 @@
 import os
+import time
 
+import psutil
 from pysmt.environment import Environment
 
+from analysis import smt_checker
 import config
 from parsing.string_to_issy import string_to_issy
-from parsing.string_to_rpg import rpg_parsec
 from programs.util import reset_caches as program_util_reset_caches
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
 from prop_lang.util import run_with_timeout_and_memory_limit
@@ -21,19 +23,19 @@ def test_synthesis():
     import time
 
     dirname = os.path.dirname(__file__)
-    benchmarks_dir = str(os.path.join(dirname, "../../issy"))
+    benchmarks_dir = str(os.path.join(dirname, "../../issy/"))
     csv_dir = os.path.join(dirname, "../../issy/results")
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
-    csv_path = os.path.join(csv_dir, "synthesis_results.csv")
+    csv_path = os.path.join(csv_dir, "synthesis_results-latest-3Mar-notsatguided.csv")
 
     cnt = 0
     ignore = """"""
 
     # verifies controller
-    config.Config.getConfig()._set_v_c(True)
-    config.Config.getConfig().backend = "semml"
-    config.Config.getConfig().dual = False
+    # config.Config.getConfig()._set_v_c(False)
+    # config.Config.getConfig().backend = "semml"
+    # config.Config.getConfig().dual = True
 
     # Read existing results to avoid reprocessing
     processed_files = set()
@@ -94,11 +96,18 @@ def test_synthesis():
                         parse_start_time = time.time()
 
                         try:
-                            success, res = run_with_timeout_and_memory_limit(
-                                string_to_issy,
-                                [content, file],
-                                timeout=40,
-                                max_memory_gb=50,
+
+                            def _run_parse_attempt(dual_mode: bool):
+                                config.Config.getConfig().dual = dual_mode
+                                return run_with_timeout_and_memory_limit(
+                                    string_to_issy,
+                                    [content, file],
+                                    timeout=10,
+                                    max_memory_gb=50,
+                                )
+
+                            success, res = _run_parse_attempt(
+                                config.Config.getConfig().dual
                             )
 
                             parse_end_time = time.time()
@@ -106,40 +115,120 @@ def test_synthesis():
                                 parse_end_time - parse_start_time, 3
                             )
                             if not success:
-                                raise Exception(res)
+                                if res == "Timeout":
+                                    result["realisable"] = "TO(parse)"
+                                elif res == "Memory limit exceeded":
+                                    result["realisable"] = "OOM(parse)"
+                                else:
+                                    result["realisable"] = f"ERR(parse): {res}"
+                                synthesis_start_time = None
+                                # Parsing failed: no synthesis (and therefore no dual retry).
                             if success:
                                 prog, ltl = res
                                 # Time the synthesis step
                                 # Time the synthesis step
                                 synthesis_start_time = time.time()
+                                synthesis_timeout_seconds = 50
+                                original_dual = config.Config.getConfig().dual
 
-                                success, hoa = run_with_timeout_and_memory_limit(
-                                    synthesize,
-                                    [prog, ltl, None, -1],
-                                    timeout=40,
-                                    max_memory_gb=50,
-                                )
-                                if success:
-                                    if config.Config.getConfig().dual:
-                                        result["realisable"] = (
-                                            not hoa.is_controller
-                                            if hoa is not None
-                                            else "N/A"
+                                def _kill_solver_processes():
+                                    proc_names = ["strix", "semml"]
+                                    for proc in psutil.process_iter():
+                                        if proc.name() in proc_names:
+                                            proc.kill()
+
+                                def _run_synthesis_attempt(
+                                    dual_mode: bool, attempt_prog, attempt_ltl
+                                ):
+                                    config.Config.getConfig().dual = dual_mode
+                                    attempt_success, attempt_result = (
+                                        run_with_timeout_and_memory_limit(
+                                            synthesize,
+                                            [attempt_prog, attempt_ltl, None, -1],
+                                            timeout=synthesis_timeout_seconds,
+                                            max_memory_gb=50,
                                         )
-                                    else:
-                                        result["realisable"] = (
-                                            hoa.is_controller
-                                            if hoa is not None
-                                            else "N/A"
+                                    )
+                                    _kill_solver_processes()
+                                    return attempt_success, attempt_result
+
+                                try:
+                                    success, hoa = _run_synthesis_attempt(
+                                        original_dual, prog, ltl
+                                    )
+                                    used_dual_fallback = False
+                                    dual_retry_parse_failed = False
+
+                                    if not success:
+                                        dual_parse_start_time = time.time()
+                                        dual_parse_success, dual_parse_res = (
+                                            _run_parse_attempt(True)
                                         )
-                                else:
-                                    # Handle timeout or OOM
-                                    if hoa == "Memory limit exceeded":
-                                        result["realisable"] = "OOM"
-                                    elif hoa == "Timeout":
-                                        result["realisable"] = "TO"
+                                        dual_parse_end_time = time.time()
+                                        result["parse_time_seconds"] = round(
+                                            result["parse_time_seconds"]
+                                            + (
+                                                dual_parse_end_time
+                                                - dual_parse_start_time
+                                            ),
+                                            3,
+                                        )
+
+                                        if dual_parse_success:
+                                            dual_prog, dual_ltl = dual_parse_res
+                                            success, hoa = _run_synthesis_attempt(
+                                                True, dual_prog, dual_ltl
+                                            )
+                                            used_dual_fallback = True
+                                        else:
+                                            dual_retry_parse_failed = True
+                                            if dual_parse_res == "Timeout":
+                                                result["realisable"] = "TO(parse-dual)"
+                                            elif (
+                                                dual_parse_res
+                                                == "Memory limit exceeded"
+                                            ):
+                                                result["realisable"] = "OOM(parse-dual)"
+                                            else:
+                                                result["realisable"] = (
+                                                    f"ERR(parse-dual): {dual_parse_res}"
+                                                )
+
+                                    if dual_retry_parse_failed:
+                                        pass
+                                    elif success:
+                                        if config.Config.getConfig().dual:
+                                            realisable = (
+                                                not hoa.is_controller
+                                                if hoa is not None
+                                                else "N/A"
+                                            )
+                                        else:
+                                            realisable = (
+                                                hoa.is_controller
+                                                if hoa is not None
+                                                else "N/A"
+                                            )
+                                        if used_dual_fallback:
+                                            if realisable in [True, False]:
+                                                result["realisable"] = (
+                                                    f"{str(realisable)} (dual)"
+                                                )
+                                            else:
+                                                result["realisable"] = (
+                                                    f"{realisable} (dual)"
+                                                )
+                                        else:
+                                            result["realisable"] = realisable
                                     else:
-                                        result["realisable"] = f"ERR: {hoa}"
+                                        if hoa == "Memory limit exceeded":
+                                            result["realisable"] = "OOM"
+                                        elif hoa == "Timeout":
+                                            result["realisable"] = "TO"
+                                        else:
+                                            result["realisable"] = f"ERR: {hoa}"
+                                finally:
+                                    config.Config.getConfig().dual = original_dual
                         except Exception as e:
                             if "Could not find a controller" not in str(e):
                                 print(f"Error parsing {file}: {e}")
@@ -184,23 +273,39 @@ def test_synthesis():
 def test_parsing():
     dirname = os.path.dirname(__file__)
     benchmarks_dir = str(os.path.join(dirname, "../../issy/"))
+    config.Config.getConfig().debug = True
 
     cnt = 0
-    # iterate over all files in the directory
-    for file in os.listdir(benchmarks_dir):
-        if file.endswith(".issy"):
-            with open(os.path.join(benchmarks_dir, file), "r") as f:
-                content = f.read()
-                with Environment() as env:
-                    print("Parsing " + file)
-                    try:
-                        f = string_to_issy(content, "name")
-                    except Exception as e:
-                        if "real" not in str(e):
-                            raise e
-                    print("Parsed " + file)
+    # iterate over all .issy files in the directory and subdirectories
+    for root, _, files in os.walk(benchmarks_dir):
+        for file in files:
+            if file.endswith(".issy"):
+                file_path = os.path.join(root, file)
+                rel_path = os.path.relpath(file_path, benchmarks_dir)
+                with open(file_path, "r") as f:
+                    content = f.read()
+                    with Environment() as env:
+                        print("Parsing " + rel_path)
+                        try:
+                            success, res = run_with_timeout_and_memory_limit(
+                                string_to_issy,
+                                [content, "name"],
+                                timeout=30,
+                                max_memory_gb=50,
+                            )
+                            if not success:
+                                print(f"parsing {res} timedout")
+                        except Exception as e:
+                            if "real" not in str(e) and "We do not handle" not in str(
+                                e
+                            ):
+                                raise e
+                        print("Parsed " + rel_path)
     print(f"Finished parsing with {cnt} errors.")
 
 
 if __name__ == "__main__":
-    test_synthesis()
+    start = time.time()
+    test_parsing()
+    end = time.time()
+    print(f"Parsing benchmark completed in {round(end - start, 3)} seconds.")

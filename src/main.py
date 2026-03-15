@@ -111,12 +111,32 @@ def setup_argument_parser() -> ArgumentParser:
         default="semml",
     )
     parser.add_argument(
+        "--abstraction_backend",
+        dest="abstraction_backend",
+        help="Choice of abstraction backend, options: effects.",
+        type=str,
+        nargs="?",
+        default=config.effects,
+    )
+    parser.add_argument(
         "--verify_controller",
         dest="verify_controller",
         help="Verifies controller, if realisable, satisfies given LTL specification against program.",
         type=bool,
         nargs="?",
         const=True,
+    )
+    parser.add_argument(
+        "--workers",
+        dest="workers",
+        help="Number of worker processes for parallel abstraction steps.",
+        type=int,
+    )
+    parser.add_argument(
+        "--synthesis_memory_limit_mb",
+        dest="synthesis_memory_limit_mb",
+        help="Optional memory limit (MB) for each LTL synthesis backend process. If omitted, unbounded.",
+        type=int,
     )
     parser.add_argument(
         "--lazy",
@@ -151,7 +171,6 @@ def setup_argument_parser() -> ArgumentParser:
         nargs="?",
         const=True,
     )
-
     return parser
 
 
@@ -186,6 +205,16 @@ def process_args(args: Namespace) -> (Program, Formula):
     conf.add_all_preds_in_prog = True
 
     conf.finite_synthesis = args.finite_synthesise
+    if args.workers is not None:
+        conf.workers = max(1, int(args.workers))
+    if args.synthesis_memory_limit_mb is None:
+        conf.synthesis_memory_limit_mb = None
+    else:
+        conf.synthesis_memory_limit_mb = (
+            int(args.synthesis_memory_limit_mb)
+            if int(args.synthesis_memory_limit_mb) > 0
+            else None
+        )
 
     if not args.synthesis_backend:
         raise Exception("--synthesis_backend present without an argument.")
@@ -193,6 +222,15 @@ def process_args(args: Namespace) -> (Program, Formula):
         raise Exception(args.synthesis_backend + " is not a valid synthesis backend.")
     else:
         conf.backend = args.synthesis_backend
+
+    if not args.abstraction_backend:
+        raise Exception("--abstraction_backend present without an argument.")
+    elif args.abstraction_backend not in config.abstraction_backends:
+        raise Exception(
+            args.abstraction_backend + " is not a valid abstraction backend."
+        )
+    else:
+        conf.abstraction_backend = args.abstraction_backend
 
     if args.program is not None:
         name = ".".join(os.path.basename(args.program).split(".")[0:-1])
@@ -241,7 +279,7 @@ def handle_translation(target, program, ltl_spec) -> str:
     else:
         raise Exception(
             target
-            + " is not recognised. --translate options are 'dot' or 'nuxmv' or 'prog' or 'vmt'."
+            + " is not recognised. --translate options are 'prog' or 'issy' or 'dot' or 'nuxmv' or 'vmt'."
         )
 
 
@@ -295,6 +333,7 @@ def _main(args: Namespace):
         _, out = ModelChecker().invar_check(
             nuxmv_script, ltl_spec.to_nuxmv(), None, True
         )
+        print(nuxmv_script)
         print(out)
     elif args.synthesise or args.finite_synthesise:
         ltl = ltl_spec
@@ -309,9 +348,6 @@ def _main(args: Namespace):
         bound = (
             args.synthesise if args.synthesise is not None else args.finite_synthesise
         )
-        realizable: bool
-        mm: Machine
-        mm_hoa: str
         mm: WrappedHOA = synthesize(program, ltl, args.tlsf, bound)
         end = time.time()
 
@@ -328,7 +364,9 @@ def _main(args: Namespace):
         print("Synthesis took: ", (end - start) * 10**3, "ms")
 
     else:
-        raise Exception("Specify either --translate or --synthesise.")
+        raise Exception(
+            "Specify either --translate or --synthesise or --finite_synthesise."
+        )
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 from pysmt.shortcuts import And
 
-import config
 from analysis.smt_checker import check
 from programs.util import (
     stutter_transition,
@@ -19,11 +18,28 @@ from prop_lang.util import (
     var_to_predicate,
     is_predicate_var,
     normalise_mathexpr,
-    true,
     unsat_core,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
+
+
+def _is_transition_like_predicate_formula(p):
+    return any("_prev" in str(v) for v in p.variablesin())
+
+
+def _is_initial_compat_phase(cs_state: dict[str, str]):
+    return (
+        cs_state.get("init_state") == "TRUE" or cs_state.get("second_state") == "TRUE"
+    )
+
+
+def _filter_preds_for_compat_state(preds, cs_state):
+    # Transition predicates are intentionally not enforced during the initial
+    # compatibility phase, so they must not be used to derive refinement facts.
+    if _is_initial_compat_phase(cs_state):
+        return [p for p in preds if not _is_transition_like_predicate_formula(p)]
+    return preds
 
 
 def concretize_transitions(program, indices_and_state_list, incompatible_state):
@@ -79,16 +95,22 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
             incompatible_state[2]["compatible_state_predicates"] == "FALSE"
             or incompatible_state[2]["compatible_tran_predicates"] == "FALSE"
         ):
-            pred_state = [
-                p
-                for p in preds_in_state(incompatible_state[2])
-                if not any(v for v in p.variablesin() if v in program.inp_out_puts)
-            ]
-            predicate_state_before_incompatibility = [
-                add_prev_suffix(p)
-                for p in preds_in_state(concretized[-1][2])
-                if not any(v for v in p.variablesin() if "_prev" in str(v))
-            ]
+            pred_state = _filter_preds_for_compat_state(
+                [
+                    p
+                    for p in preds_in_state(incompatible_state[2])
+                    if not any(v for v in p.variablesin() if v in program.inp_out_puts)
+                ],
+                incompatible_state[2],
+            )
+            predicate_state_before_incompatibility = _filter_preds_for_compat_state(
+                [
+                    add_prev_suffix(p)
+                    for p in preds_in_state(concretized[-1][2])
+                    if not any(v for v in p.variablesin() if "_prev" in str(v))
+                ],
+                concretized[-1][2],
+            )
             # we check if this incompatible state formula is ever possibly true after the last transition
             # if it is then the problem is with the predicate state
             if sat(
@@ -170,14 +192,7 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                     print("\t" + str(c))
                 raise Exception(
                     "Something wrong in abstraction.\nAbstract transition is not satisfiable:\n\n"
-                    + str(
-                        conjunct_formula_set(
-                            [
-                                add_prev_suffix(p)
-                                for p in preds_in_state(concretized[-1][2])
-                            ]
-                        )
-                    )
+                    + str(conjunct_formula_set(predicate_state_before_incompatibility))
                     + "\n"
                     + str(conjunct_formula_set(pred_state))
                     + "\n"

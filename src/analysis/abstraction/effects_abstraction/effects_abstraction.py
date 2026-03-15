@@ -6,10 +6,19 @@ from multiprocessing import Pool
 from pysmt.shortcuts import Symbol, Exists, And
 from pysmt.typing import INT
 from analysis.smt_checker import quantifier_elimination
+from analysis.sat_context import IncrementalSatContext, NonIncrementalSatContext
 
 import config
 from analysis.abstraction.effects_abstraction.abs_util import (
     update_var_partition_mult,
+)
+from analysis.abstraction.effects_abstraction.scoped_effects_update import (
+    _chain_extend_effect_next_scoped,
+    _chain_extend_effect_now_scoped,
+    _chain_extend_effect_scoped,
+    _state_extend_effect_next_scoped,
+    _state_extend_effect_now_scoped,
+    _state_extend_effect_scoped,
 )
 from analysis.abstraction.effects_abstraction.predicates import StatePredicate
 from analysis.abstraction.effects_abstraction.predicates.ChainPredicate import (
@@ -52,6 +61,7 @@ from prop_lang.util import (
     atomic_predicates,
     normalise_pred_multiple_vars,
     implies,
+    stringify_term,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -70,6 +80,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.abstract_effect_ltl = {}
         self.input_preds = []
         self.input_models = []
+        self.binary_rep_tables: dict[str, str] = {}
 
         vars = [
             Variable(v) for v in program.symbol_table.keys() if "_prev_prev" not in v
@@ -222,6 +233,12 @@ class EffectsAbstraction(PredicateAbstraction):
             processed_ltl_constraints.append(processed)
             self.structural_loop_constraints.extend(processed_ltl_constraints)
 
+    def register_binary_rep_table(self, label: str, table: str):
+        self.binary_rep_tables[label] = table
+
+    def get_binary_rep_tables(self) -> list[str]:
+        return list(self.binary_rep_tables.values())
+
     def process_preds(self, new_state_predicates: list[Formula]):
         use_chain_preds = not config.Config.getConfig().no_binary_enc
         remaining_st_preds = list(new_state_predicates)
@@ -272,6 +289,11 @@ class EffectsAbstraction(PredicateAbstraction):
                     self.var_relabellings.pop(old_p)
 
                 v_chain_pred.add_predicate(preds)
+                chain_label = "bin_" + stringify_term(term)
+                if v_chain_pred.bin_rep.should_emit_table(chain_label):
+                    self.register_binary_rep_table(
+                        chain_label, v_chain_pred.bin_rep.format_table(chain_label)
+                    )
 
                 self.symbol_table |= {str(b): BOOLEAN for b in v_chain_pred.bin_vars}
 
@@ -296,9 +318,6 @@ class EffectsAbstraction(PredicateAbstraction):
                     self.init_state_abstraction = (
                         self.update_init_abstraction_old_chain_pred(v_chain_pred)
                     )
-                    # TODO: to avoid having to learn init values, re-introduce second state abstraction
-                    #       do it for each model? second_state_abs: dom(init_state_abs) -> [[preds]]
-                    #       maybe this is a bit too much
         else:
             for p in remaining_st_preds:
                 f_p = StatePredicate(p, self.has_input_vars(p))
@@ -354,11 +373,11 @@ class EffectsAbstraction(PredicateAbstraction):
         return any(v for v in x.variablesin() if v in self.program.num_in_out)
 
     def add_state_predicates(
-        self, new_state_predicates: list[Formula], signatures, parallelise=True
+        self, new_state_predicates: set[Formula], signatures, parallelise=True
     ):
         if len(new_state_predicates) == 0:
             return
-        new_state_predicates = sorted(new_state_predicates, key=lambda p: str(p))
+        # new_state_predicates = sorted(new_state_predicates, key=lambda p: str(p))
         # assuming input state predicates have been normalised (all of type < or <=, and vars on LHS and constants on RHS)
 
         logger.info("Adding predicates to predicate abstraction:")
@@ -375,10 +394,10 @@ class EffectsAbstraction(PredicateAbstraction):
         # # we do this sorting to ensure deterministic behaviour in abstraction, in case of bugs
         # new_preds.sort(key=lambda x: str(x))
 
-        new_input_preds = [p for p in new_state_predicates if self.has_input_vars(p)]
-        new_state_predicates = [
+        new_input_preds = {p for p in new_state_predicates if self.has_input_vars(p)}
+        new_state_predicates = {
             p for p in new_state_predicates if p not in new_input_preds
-        ]
+        }
         if len(new_input_preds) > 0:
             new_input_preds = self.process_preds(new_input_preds)
 
@@ -417,7 +436,7 @@ class EffectsAbstraction(PredicateAbstraction):
                         result = normalise_pred_multiple_vars(
                             p, signatures, self.symbol_table
                         )
-                        if isinstance(result, Variable):
+                        if isinstance(result, Formula):
                             if result not in self.program.bool_in_out:
                                 normalised_state_preds.add(result)
                         else:
@@ -444,7 +463,7 @@ class EffectsAbstraction(PredicateAbstraction):
 
             self.sat_input_models = new_models
             print("Adding preds for input models: " + ", ".join(map(str, new_qe_preds)))
-            new_state_predicates.extend(new_qe_preds)
+            new_state_predicates.update(new_qe_preds)
 
         # NOTE: important that process_preds for state predicates is done after new_qe_preds are discovered
         #       otherwise ChainPredicate.old_to_new will not be in a sane state
@@ -858,7 +877,16 @@ def update_effects(
     ignore_in_nows,
     ignore_in_nexts,
     symbol_table,
+    sat_ctx=None,
 ):
+    conf = config.Config.getConfig()
+    use_state_scopes = (
+        conf.opt_state_scopes and sat_ctx is not None and sat_ctx.supports_scopes
+    )
+    base_chain_scopes = (
+        conf.opt_chain_scopes and sat_ctx is not None and sat_ctx.supports_scopes
+    )
+
     now_preds, next_preds = curr_preds
     now_vs_init = set(
         itertools.chain.from_iterable(
@@ -927,22 +955,41 @@ def update_effects(
     new_now_preds.difference_update(common_preds)
     new_next_preds.difference_update(common_preds)
 
+    use_chain_scopes = base_chain_scopes
+
     new_now_preds = sorted(list(new_now_preds), key=lambda p: str(p))
     for p in new_now_preds:
         if not "_prev" in str(p):
-            effects = p.extend_effect_now(gu, effects, symbol_table)
+            if use_state_scopes and isinstance(p, StatePredicate):
+                effects = _state_extend_effect_now_scoped(p, effects, sat_ctx)
+            elif use_chain_scopes and isinstance(p, ChainPredicate):
+                effects = _chain_extend_effect_now_scoped(p, gu, effects, sat_ctx)
+            else:
+                effects = p.extend_effect_now(
+                    gu, effects, symbol_table, sat_ctx=sat_ctx
+                )
 
     new_next_preds = sorted(list(new_next_preds), key=lambda p: str(p))
     for p in new_next_preds:
-        effects = p.extend_effect_next(gu, effects, symbol_table)
+        if use_state_scopes and isinstance(p, StatePredicate):
+            effects = _state_extend_effect_next_scoped(p, effects, sat_ctx)
+        elif use_chain_scopes and isinstance(p, ChainPredicate):
+            effects = _chain_extend_effect_next_scoped(p, gu, effects, sat_ctx)
+        else:
+            effects = p.extend_effect_next(gu, effects, symbol_table, sat_ctx=sat_ctx)
 
     common_preds = sorted(list(common_preds), key=lambda p: str(p))
     for p in common_preds:
         # this is adding tran preds, don t need them if only safety
         if isinstance(p, TransitionPredicate) or "_prev" in str(p):
-            effects = p.extend_effect_next(gu, effects, symbol_table)
+            effects = p.extend_effect_next(gu, effects, symbol_table, sat_ctx=sat_ctx)
         else:
-            effects = p.extend_effect(gu, effects, symbol_table)
+            if use_state_scopes and isinstance(p, StatePredicate):
+                effects = _state_extend_effect_scoped(p, effects, sat_ctx)
+            elif use_chain_scopes and isinstance(p, ChainPredicate):
+                effects = _chain_extend_effect_scoped(p, gu, effects, sat_ctx)
+            else:
+                effects = p.extend_effect(gu, effects, symbol_table, sat_ctx=sat_ctx)
 
     return effects
 
@@ -1118,55 +1165,64 @@ def compute_abstract_effect_for_guard_update(arg):
 
         new_part_to_curr_parts = new_new_part_to_curr_parts
 
-    # sanity checking, no overlaps in partitions
-    for us_part, old_parts in new_part_to_curr_parts.items():
-        for other_us_part, other_old_parts in new_part_to_curr_parts.items():
-            if us_part != other_us_part:
-                if len(us_part.intersection(other_us_part)) != 0:
-                    raise Exception("Overlapping partitions in updated effects")
-                if len(old_parts.intersection(other_old_parts)) != 0:
-                    raise Exception("Overlapping old partitions in updated effects")
+    if conf.debug:
+        # sanity checking, no overlaps in partitions
+        for us_part, old_parts in new_part_to_curr_parts.items():
+            for other_us_part, other_old_parts in new_part_to_curr_parts.items():
+                if us_part != other_us_part:
+                    if len(us_part.intersection(other_us_part)) != 0:
+                        raise Exception("Overlapping partitions in updated effects")
+                    if len(old_parts.intersection(other_old_parts)) != 0:
+                        raise Exception("Overlapping old partitions in updated effects")
 
     all_relevant_next_preds = set()
     new_effects = {}
     new_us_part_to_pred = {}
-    for us_part, old_parts in new_part_to_curr_parts.items():
-        if config.Config.getConfig().debug:
-            print(
-                f"Updating effects for us_part for gu "
-                + str(gu)
-                + ": \nold: ["
-                + ",".join(
-                    ["[" + ",".join(map(str, old_part)) + "]" for old_part in old_parts]
+    sat_ctx_cls = (
+        IncrementalSatContext if conf.opt_incremental_smt else NonIncrementalSatContext
+    )
+    with sat_ctx_cls(symbol_table, gu) as sat_ctx:
+        for us_part, old_parts in new_part_to_curr_parts.items():
+            if config.Config.getConfig().debug:
+                print(
+                    f"Updating effects for us_part for gu "
+                    + str(gu)
+                    + ": \nold: ["
+                    + ",".join(
+                        [
+                            "[" + ",".join(map(str, old_part)) + "]"
+                            for old_part in old_parts
+                        ]
+                    )
+                    + "]\nnew: "
+                    + "["
+                    + ",".join(map(str, us_part))
+                    + "]"
                 )
-                + "]\nnew: "
-                + "["
-                + ",".join(map(str, us_part))
-                + "]"
+            us_part_effects_joined, curr_preds = join_parts(
+                effects, list(old_parts), old_us_part_to_pred
             )
-        us_part_effects_joined, curr_preds = join_parts(
-            effects, list(old_parts), old_us_part_to_pred
-        )
-        us_part_effects = update_effects(
-            us_part_effects_joined,
-            us_part,
-            gu,
-            curr_preds,
-            new_preds,
-            partitions,
-            v_to_partition,
-            v_to_preds,
-            ignore_in_nows,
-            ignore_in_nexts,
-            symbol_table,
-        )
-        new_effects[us_part] = us_part_effects
-        # else:
-        #     new_effects[us_part] = us_part_effects_joined
-        new_us_part_to_pred[us_part] = curr_preds
-        all_relevant_next_preds.update(curr_preds[1])
-        init_nows.extend(curr_preds[0])
-        init_nexts.extend(curr_preds[1])
+            us_part_effects = update_effects(
+                us_part_effects_joined,
+                us_part,
+                gu,
+                curr_preds,
+                new_preds,
+                partitions,
+                v_to_partition,
+                v_to_preds,
+                ignore_in_nows,
+                ignore_in_nexts,
+                symbol_table,
+                sat_ctx=sat_ctx,
+            )
+            new_effects[us_part] = us_part_effects
+            # else:
+            #     new_effects[us_part] = us_part_effects_joined
+            new_us_part_to_pred[us_part] = curr_preds
+            all_relevant_next_preds.update(curr_preds[1])
+            init_nows.extend(curr_preds[0])
+            init_nexts.extend(curr_preds[1])
 
     unused_new_preds = all_preds.difference(all_relevant_next_preds)
     unused_new_preds.difference_update(ignore_in_nexts)
@@ -1215,6 +1271,84 @@ def compute_abstract_effect_for_guard_update(arg):
         ignore_in_nexts,
         str(gu_ltl),
     )
+
+
+# this is unneeded, can just add disjunction of all possible prev transitions.prev_rep() to each gu
+def reduce_effects(args):
+    abstract_effect, gu_to_trans, symbol_table = args
+
+    # given each state s, we collect all possible states
+    # we collect all transition with that state as tgt (tgt transitions),
+    # and all transitions from that state (source transitions)
+    # we compute all the possible abstract states of the state from the post-states of the tgt transitions
+    # then we identify any pre-states of the source transitions that are not satisfiable with the collected abstract states
+    # and reduce the source transitions abstractions accordingly
+
+    # first we build a mapping from state to transitions
+    state_to_tgts = {}
+    state_to_srcs = {}
+    for gu, ts in gu_to_trans.items():
+        for t in ts:
+            src = t.src
+            tgt = t.tgt
+            if tgt not in state_to_tgts:
+                state_to_tgts[tgt] = set()
+            state_to_tgts[tgt].add(gu)
+            if src not in state_to_srcs:
+                state_to_srcs[src] = set()
+            state_to_srcs[src].add(gu)
+
+    reduced = 0
+    for state, tgt_gus in state_to_tgts.items():
+        src_gus = state_to_srcs[state]
+        # compute all possible abstract post-states from tgt_gus
+        possible_post_states = []
+        for gu in tgt_gus:
+            effects = abstract_effect[gu]
+            for part_effects in effects.values():
+                for now, nexts in part_effects:
+                    for next in nexts:
+                        possible_post_states.append(next.prev_rep())
+        possible_post_states_f = disjunct_formula_set(possible_post_states)
+
+        # now reduce the pre-states of src_gus
+        for gu in src_gus:
+            effects = abstract_effect[gu]
+            new_effects = {}
+            for part, part_effects in effects.items():
+                new_part_effects = []
+                for now, nexts in part_effects:
+                    new_nexts = []
+                    for next in nexts:
+                        f = conjunct_formula_set(
+                            [now.prev_rep(), next, possible_post_states_f]
+                        )
+                        if sat(f, symbol_table):
+                            new_nexts.append(next)
+                        else:
+                            reduced += 1
+                            # if config.Config.getConfig().debug:
+                            print(
+                                "Eliminating next in reduce_effects for gu: " + str(gu)
+                            )
+                            print("now: " + str(now))
+                            print("next: " + str(next))
+                    if len(new_nexts) > 0:
+                        new_part_effects.append((now, new_nexts))
+                    else:
+                        raise Exception(
+                            "All nexts eliminated in reduce_effects for gu: " + str(gu)
+                        )
+                if len(new_part_effects) > 0:
+                    new_effects[part] = new_part_effects
+                else:
+                    raise Exception(
+                        "All part effects eliminated in reduce_effects for gu: "
+                        + str(gu)
+                    )
+            abstract_effect[gu] = new_effects
+
+    return abstract_effect, reduced
 
 
 def debug_check_sat(gu, now_nexts, invars, constants, symbol_table):
@@ -1376,20 +1510,22 @@ def effects_to_ltl_non_bin(
     effects_ltl = conjunct_formula_set(parts_ltl)
 
     effects_ltl_wo_nexts = conjunct_formula_set(parts_ltl_wo_next)
-    if sat(conjunct(gu, neg(effects_ltl_wo_nexts)), symbol_table):
-        raise Exception("Neg of effects sat with gu: " + str(gu))
-    else:
-        print("Effects ok for gu: " + str(gu))
+    if conf.debug:
+        if sat(conjunct(gu, neg(effects_ltl_wo_nexts)), symbol_table):
+            raise Exception("Neg of effects sat with gu: " + str(gu))
+        else:
+            print("Effects ok for gu: " + str(gu))
 
     invar_preds_effects = set()
     invars = sorted(set(invars), key=lambda p: str(p))
     for p in invars:
         if isinstance(p, ChainPredicate):
-            for c in p.choices():
-                if sat(conjunct(gu, neg(iff(c.prev_rep(), c))), symbol_table):
-                    raise Exception(
-                        "Neg of invar sat with gu: " + str(gu) + " pred: " + str(p)
-                    )
+            if conf.debug:
+                for c in p.choices():
+                    if sat(conjunct(gu, neg(iff(c.prev_rep(), c))), symbol_table):
+                        raise Exception(
+                            "Neg of invar sat with gu: " + str(gu) + " pred: " + str(p)
+                        )
 
             if conf.dual:
                 invar_preds_effects.update(iff(X(b), X(X(b))) for b in p.bin_vars)

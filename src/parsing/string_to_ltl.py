@@ -5,9 +5,8 @@ import sys
 
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
-from pysmt.shortcuts import serialize, And
+from pysmt.shortcuts import And
 from tatsu.grammars import Grammar
-from tatsu.infos import ParserConfig
 from tatsu.tool import compile
 
 from parsing.keywords import regex_keywords, is_keyword
@@ -231,8 +230,6 @@ parser_issy_ltl: Grammar = compile(
     + "\n math_0 = math_0_issy ;"
     + "\n boolean_term = boolean_term_issy ;"
 )
-math_config = ParserConfig(start="math_expression_eof")
-negated_atom_config = ParserConfig(start="negated_atom")
 
 
 class Semantics:
@@ -519,14 +516,14 @@ def string_to_prop(text: str, hoa_flag: bool = False) -> Formula:
 
 def string_to_math_expression(text: str) -> MathExpr:
     formula = parser_ltl.parse(
-        text, config=math_config, semantics=Semantics(False, False)
+        text, start="math_expression_eof", semantics=Semantics(False, False)
     )
     return formula
 
 
 def string_to_negated_atom(text: str) -> Formula:
     formula = parser_ltl.parse(
-        text, config=negated_atom_config, semantics=Semantics(False, False)
+        text, start="negated_atom", semantics=Semantics(False, False)
     )
     return formula
 
@@ -586,8 +583,6 @@ def string_to_issy_ltl(text: str) -> Formula:
 
 
 def fnode_to_issy_formula(fnode: FNode) -> Formula:
-    # fnode_str = serialize(fnode).replace("True", "true").replace("False", "false")
-    # fnode_str = re.sub(r"\\?'(?![ |)])", "", fnode_str)
     to_ret = fnode_to_formula(fnode)
 
     return to_ret

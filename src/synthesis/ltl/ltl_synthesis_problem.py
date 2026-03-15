@@ -15,8 +15,8 @@ class LTLSynthesisProblem:
         assumptions: list[Formula],
         guarantees: list[Formula],
     ):
-        self.env_props = env_props
-        self.con_props = con_props
+        self.env_props = sorted(env_props, key=lambda x: x.name)
+        self.con_props = sorted(con_props, key=lambda x: x.name)
         self.assumptions = assumptions
         self.guarantees = guarantees
         self.tlsf = self.__to_tlsf()
