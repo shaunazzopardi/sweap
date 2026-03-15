@@ -222,6 +222,7 @@ These input formats can go through the synthesis pipeline `--synthesise`. Standa
 
 Other flags may be useful to the interested user:
 
+- `--dual` performs synthesis of the dual problem, i.e. flips the problem by setting the concrete controller as the abstract environment, and the concrete environment as the abstract controller, and negating the original specification. This results in an under-approximation of the arena (given it is now controlled by the controller, which is the environment in the abstract problem). This is likely to not terminate for realisable problems, but should be used to check for unrealisability.
 - ``--verify_controller`` verifies that the controller satisfies the intended LTL specification in the context of the arena.
 - ``--only_safety`` attempts the synthesis problem without any liveness refinements.
 - ``--no_binary_enc`` attempts the synthesis problem without binary encoding of the predicates, instead of creating a new proposition for each predicate.
