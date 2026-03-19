@@ -1,13 +1,14 @@
 import itertools
 import logging
 import re
+import functools
 from typing import Optional
 
 import sympy
 
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, simplify, serialize, Solver
+from pysmt.shortcuts import And, TRUE, simplify, serialize, Solver
 from sympy import Basic
 from sympy.logic.boolalg import BooleanAtom, BooleanTrue, to_dnf, to_cnf, BooleanFalse
 
@@ -208,16 +209,23 @@ def nnf(prop: Formula) -> Formula:
 def sat_parallel(arg):
     formula, symbol_table = arg
     try:
-        return check(And(*formula.to_smt(symbol_table)))
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
     except:
-        return check(And(*formula.to_smt(symbol_table)))
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
+
+
+def _formula_to_smt_with_invariants(formula: Formula, symbol_table: dict):
+    expr, invar = formula.to_smt(symbol_table)
+    if invar == TRUE() or invar.is_true():
+        return expr
+    return And(expr, invar)
 
 
 def unsat_core(
     formula: Formula,
     symbol_table: dict,
 ) -> set[Formula]:
-    core = find_unsat_core(And(*formula.to_smt(symbol_table)))
+    core = find_unsat_core(_formula_to_smt_with_invariants(formula, symbol_table))
     core_formulas = set()
     if core:
         for fnode in core:
@@ -233,22 +241,24 @@ def sat(
     if sat_ctx is not None:
         return sat_ctx.is_sat(formula)
     try:
-        return check(And(*formula.to_smt(symbol_table)))
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
     except Exception as e:
         logging.info(str(formula))
-        return check(And(*formula.to_smt(symbol_table)))
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
 
 
 def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None) -> bool:
-    return not check(And(*neg(iff(formula1, formula2)).to_smt(symbol_table)))
+    return not check(
+        _formula_to_smt_with_invariants(neg(iff(formula1, formula2)), symbol_table)
+    )
 
 
 def is_tautology(formula: Formula, symbol_table: dict = None) -> bool:
-    return not check(And(*neg(formula).to_smt(symbol_table)))
+    return not check(_formula_to_smt_with_invariants(neg(formula), symbol_table))
 
 
 def is_contradictory(formula: Formula, symbol_table: dict = None) -> bool:
-    return not check(And(*formula.to_smt(symbol_table)))
+    return not check(_formula_to_smt_with_invariants(formula, symbol_table))
 
 
 def negation_closed(predicates: [Formula]):
@@ -1009,62 +1019,198 @@ def cancel_double_negations(formula: Formula):
         return formula
 
 
-def propagate_negations(formula: Formula):
+def _negate_non_recursive(formula: Formula):
+    """Non-recursive equivalent of negate(formula)."""
+    task_stack = [("visit", formula)]
+    value_stack = []
+
+    while task_stack:
+        task, node = task_stack.pop()
+        if task == "visit":
+            if isinstance(node, UniOp):
+                if node.op == "!":
+                    value_stack.append(node.right)
+                elif node.op in ["G", "F", "X"] or node.op not in ["!", "-"]:
+                    task_stack.append(("combine_uni", node))
+                    task_stack.append(("visit", node.right))
+                else:
+                    task_stack.append(("combine_uni", node))
+                    task_stack.append(("visit", node.right))
+            elif isinstance(node, BiOp):
+                if node.op in ["&", "|", "U", "R", "W", "M"]:
+                    task_stack.append(("combine_bi_both_negated", node))
+                    task_stack.append(("visit", node.right))
+                    task_stack.append(("visit", node.left))
+                elif node.op == "->":
+                    task_stack.append(("combine_impl", node))
+                    task_stack.append(("visit", node.right))
+                elif node.op == "<->":
+                    task_stack.append(("combine_iff", node))
+                    task_stack.append(("visit", node.right))
+                    task_stack.append(("visit", node.left))
+                elif node.op == ">":
+                    value_stack.append(BiOp(node.left, "<=", node.right))
+                elif node.op == "<":
+                    value_stack.append(BiOp(node.left, ">=", node.right))
+                elif node.op == ">=":
+                    value_stack.append(BiOp(node.left, "<", node.right))
+                elif node.op == "<=":
+                    value_stack.append(BiOp(node.left, ">", node.right))
+                elif node.op == "=" or node.op == "==":
+                    value_stack.append(BiOp(node.left, "!=", node.right))
+                else:
+                    value_stack.append(UniOp("!", node))
+            else:
+                value_stack.append(UniOp("!", node).simplify())
+        elif task == "combine_uni":
+            right = value_stack.pop()
+            if node.op == "G":
+                value_stack.append(F(right))
+            elif node.op == "F":
+                value_stack.append(G(right))
+            elif node.op == "X":
+                value_stack.append(X(right))
+            else:
+                value_stack.append(UniOp(node.op, right))
+        elif task == "combine_bi_both_negated":
+            right = value_stack.pop()
+            left = value_stack.pop()
+            if node.op == "&":
+                value_stack.append(BiOp(left, "|", right))
+            elif node.op == "|":
+                value_stack.append(BiOp(left, "&", right))
+            elif node.op == "U":
+                value_stack.append(BiOp(left, "R", right))
+            elif node.op == "R":
+                value_stack.append(BiOp(left, "U", right))
+            elif node.op == "W":
+                value_stack.append(BiOp(left, "M", right))
+            elif node.op == "M":
+                value_stack.append(BiOp(left, "W", right))
+            else:
+                value_stack.append(UniOp("!", BiOp(left, node.op, right)))
+        elif task == "combine_impl":
+            right = value_stack.pop()
+            value_stack.append(BiOp(node.left, "&", right))
+        elif task == "combine_iff":
+            right = value_stack.pop()
+            left = value_stack.pop()
+            value_stack.append(
+                BiOp(BiOp(node.left, "&", right), "|", BiOp(left, "&", node.right))
+            )
+
+    return value_stack.pop()
+
+
+def negate(formula: Formula):
+    return _negate_non_recursive(formula)
+
+
+def _propagate_negations_recursive(formula: Formula):
+    """Legacy recursive implementation kept as reference for tests."""
     if isinstance(formula, UniOp):
         if formula.op == "!":
-            return negate(propagate_negations(formula.right))
+            return negate_recursive(_propagate_negations_recursive(formula.right))
         else:
-            return UniOp(formula.op, propagate_negations(formula.right))
+            return UniOp(formula.op, _propagate_negations_recursive(formula.right))
     elif isinstance(formula, BiOp):
-        n_left = propagate_negations(formula.left)
-        n_right = propagate_negations(formula.right)
+        n_left = _propagate_negations_recursive(formula.left)
+        n_right = _propagate_negations_recursive(formula.right)
         if formula.op == "W":
-            # a W b  ==  G(a) | (a U b)
             return disjunct(G(n_left), U(n_left, n_right))
         elif formula.op == "R":
-            # a R b  ==  !( !a U !b )
             return UniOp(
                 "!",
                 U(
-                    propagate_negations(neg(n_left)),
-                    propagate_negations(neg(n_right)),
+                    _propagate_negations_recursive(neg(n_left)),
+                    _propagate_negations_recursive(neg(n_right)),
                 ),
             )
         elif formula.op == "M":
-            # a M b  ==  b U (a & b)
             return U(n_right, conjunct(n_left, n_right))
         return BiOp(n_left, formula.op, n_right)
     else:
         return formula
 
 
-def negate(formula):
+@functools.lru_cache(maxsize=50000)
+def _propagate_negations_cached(formula: Formula):
+    """
+    Non-recursive version of propagate_negations to avoid recursion-depth failures.
+    """
+    task_stack = [("visit", formula)]
+    value_stack = []
+
+    while task_stack:
+        task, node = task_stack.pop()
+        if task == "visit":
+            if isinstance(node, UniOp):
+                task_stack.append(("combine_uni", node))
+                task_stack.append(("visit", node.right))
+            elif isinstance(node, BiOp):
+                task_stack.append(("combine_bi", node))
+                task_stack.append(("visit", node.right))
+                task_stack.append(("visit", node.left))
+            else:
+                value_stack.append(node)
+        elif task == "combine_uni":
+            right = value_stack.pop()
+            if node.op == "!":
+                value_stack.append(negate(right))
+            else:
+                value_stack.append(UniOp(node.op, right))
+        elif task == "combine_bi":
+            right = value_stack.pop()
+            left = value_stack.pop()
+            if node.op == "W":
+                value_stack.append(disjunct(G(left), U(left, right)))
+            elif node.op == "R":
+                task_stack.append(("combine_r", None))
+                task_stack.append(("visit", neg(right)))
+                task_stack.append(("visit", neg(left)))
+            elif node.op == "M":
+                value_stack.append(U(right, conjunct(left, right)))
+            else:
+                value_stack.append(BiOp(left, node.op, right))
+        elif task == "combine_r":
+            right_neg_prop = value_stack.pop()
+            left_neg_prop = value_stack.pop()
+            value_stack.append(UniOp("!", U(left_neg_prop, right_neg_prop)))
+
+    return value_stack.pop()
+
+
+def propagate_negations(formula: Formula):
+    return _propagate_negations_cached(formula)
+
+
+def negate_recursive(formula):
     if isinstance(formula, UniOp):
         if formula.op == "!":
             return formula.right
         elif formula.op == "G":
             # !G(phi) == F(!phi)
-            return F(negate(formula.right))
+            return F(negate_recursive(formula.right))
         elif formula.op == "F":
             # !F(phi) == G(!phi)
-            return G(negate(formula.right))
+            return G(negate_recursive(formula.right))
         elif formula.op == "X":
             # !X(phi) == X(!phi)
-            return X(negate(formula.right))
+            return X(negate_recursive(formula.right))
         else:
-            return UniOp(formula.op, negate(formula.right))
+            return UniOp(formula.op, negate_recursive(formula.right))
     elif isinstance(formula, BiOp):
         if formula.op == "&":
-            return BiOp(negate(formula.left), "|", negate(formula.right))
+            return BiOp(negate_recursive(formula.left), "|", negate_recursive(formula.right))
         elif formula.op == "|":
-            return BiOp(negate(formula.left), "&", negate(formula.right))
+            return BiOp(negate_recursive(formula.left), "&", negate_recursive(formula.right))
         elif formula.op == "->":
-            return BiOp(formula.left, "&", negate(formula.right))
+            return BiOp(formula.left, "&", negate_recursive(formula.right))
         elif formula.op == "<->":
             return BiOp(
-                BiOp(formula.left, "&", negate(formula.right)),
+                BiOp(formula.left, "&", negate_recursive(formula.right)),
                 "|",
-                BiOp(negate(formula.left), "&", formula.right),
+                BiOp(negate_recursive(formula.left), "&", formula.right),
             )
         elif formula.op == ">":
             return BiOp(formula.left, "<=", formula.right)
@@ -1078,16 +1224,16 @@ def negate(formula):
             return BiOp(formula.left, "!=", formula.right)
         elif formula.op == "U":
             # !(a U b) == (!a) R (!b)
-            return BiOp(negate(formula.left), "R", negate(formula.right))
+            return BiOp(negate_recursive(formula.left), "R", negate_recursive(formula.right))
         elif formula.op == "R":
             # !(a R b) == (!a) U (!b)
-            return BiOp(negate(formula.left), "U", negate(formula.right))
+            return BiOp(negate_recursive(formula.left), "U", negate_recursive(formula.right))
         elif formula.op == "W":
             # !(a W b) == (!a) M (!b)
-            return BiOp(negate(formula.left), "M", negate(formula.right))
+            return BiOp(negate_recursive(formula.left), "M", negate_recursive(formula.right))
         elif formula.op == "M":
             # !(a M b) == (!a) W (!b)
-            return BiOp(negate(formula.left), "W", negate(formula.right))
+            return BiOp(negate_recursive(formula.left), "W", negate_recursive(formula.right))
         else:
             return UniOp("!", formula)
     else:
@@ -2774,6 +2920,7 @@ def reset_caches(names=None):
             "prop_lang.formula",
             "prop_lang.uniop",
             "prop_lang.value",
+            "prop_lang.util",
         ]
 
     cleared_count = 0

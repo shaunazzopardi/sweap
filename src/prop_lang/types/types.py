@@ -1,4 +1,5 @@
 import re
+import functools
 from enum import Enum
 
 from dataclasses import dataclass
@@ -189,32 +190,45 @@ bool_regex = "(" + "|".join(bool_str) + ")"
 type_regex = f"({number_regex}|{'|'.join(bool_str)})"
 
 
-def typed_var_to_pysmt_type(var_name: str, type: Type) -> tuple[Symbol, FNode]:
+def _typed_var_to_pysmt_type_uncached(
+    var_name: str, type: Type
+) -> tuple[Symbol, FNode]:
     if type == INTEGER:
         return Symbol(var_name, INT), TRUE()
     elif type == BOOLEAN:
         return Symbol(var_name, BOOL), TRUE()
     elif type == NATURAL:
-        return Symbol(var_name, INT), GE(Symbol(var_name, INT), Int(0))
+        sym = Symbol(var_name, INT)
+        return sym, GE(sym, Int(0))
     elif (
         isinstance(type, Number)
         and type.number_type in countable_number_types
         and type.interval
     ):
-        return Symbol(var_name, INT), And(
+        sym = Symbol(var_name, INT)
+        return sym, And(
             (
-                GE(Symbol(var_name, INT), Int(int(type.interval.lower)))
+                GE(sym, Int(int(type.interval.lower)))
                 if type.interval.lower_inclusive
-                else GT(Symbol(var_name, INT), Int(int(type.interval.lower)))
+                else GT(sym, Int(int(type.interval.lower)))
             ),
             (
-                LE(Symbol(var_name, INT), Int(int(type.interval.upper)))
+                LE(sym, Int(int(type.interval.upper)))
                 if type.interval.upper_inclusive
-                else LT(Symbol(var_name, INT), Int(int(type.interval.upper)))
+                else LT(sym, Int(int(type.interval.upper)))
             ),
         )
     else:
         raise NotImplementedError(f"Type {type} unsupported.")
+
+
+@functools.lru_cache(maxsize=8192)
+def _typed_var_to_pysmt_type_cached(var_name: str, type: Type) -> tuple[Symbol, FNode]:
+    return _typed_var_to_pysmt_type_uncached(var_name, type)
+
+
+def typed_var_to_pysmt_type(var_name: str, type: Type) -> tuple[Symbol, FNode]:
+    return _typed_var_to_pysmt_type_cached(var_name, type)
 
 
 def parse_type(type_str: str) -> Type:

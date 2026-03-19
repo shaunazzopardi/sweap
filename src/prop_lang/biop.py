@@ -3,7 +3,7 @@ from typing import Union, Callable
 
 import sympy
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, Or, Implies
+from pysmt.shortcuts import And, Or, Implies, TRUE
 from pysmt.shortcuts import (
     Plus,
     Minus,
@@ -224,23 +224,47 @@ class BiOp(Formula):
         # "%": BVSRem,
     }
 
+    @staticmethod
+    def _merge_invariants(invariants: list[FNode]) -> FNode:
+        non_trivial = [inv for inv in invariants if not inv.is_true()]
+        if len(non_trivial) == 0:
+            return TRUE()
+        if len(non_trivial) == 1:
+            return non_trivial[0]
+        return And(*non_trivial)
+
     def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
         cache = config.Config.getConfig().cache_smt
         if cache and self.smt_representation:
             return self.smt_representation
 
-        left_expr, left_invar = self.left.to_smt(symbol_table)
-        right_expr, right_invar = self.right.to_smt(symbol_table)
-
         try:
             op = self.ops[self.op]
-            f = op(left_expr, right_expr), And(left_invar, right_invar)
+            if self.op in [BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD]:
+                exprs = []
+                invars = []
+                for sub in self.sub_formulas:
+                    expr, invar = sub.to_smt(symbol_table)
+                    exprs.append(expr)
+                    invars.append(invar)
+                expr = op(*exprs)
+                invar = self._merge_invariants(invars)
+            else:
+                left_expr, left_invar = self.left.to_smt(symbol_table)
+                right_expr, right_invar = self.right.to_smt(symbol_table)
+                expr = op(left_expr, right_expr)
+                invar = self._merge_invariants([left_invar, right_invar])
+            f = expr, invar
         except KeyError:
             raise NotImplementedError(f"{self.op} unsupported")
         except Exception as e:
             print(str(e))
+            left_expr, left_invar = self.left.to_smt(symbol_table)
+            right_expr, right_invar = self.right.to_smt(symbol_table)
             op = self.ops[self.op]
-            f = op(left_expr, right_expr), And(left_invar, right_invar)
+            f = op(left_expr, right_expr), self._merge_invariants(
+                [left_invar, right_invar]
+            )
         if cache:
             self.smt_representation = f
 
