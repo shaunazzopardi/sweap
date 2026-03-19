@@ -1,10 +1,12 @@
 from unittest import TestCase
+from unittest.mock import patch
 
 from analysis.refinement.fairness_refinement.fairness_util import (
     function_has_well_ordered_range,
     function_decreases_in_loop_body,
-    _normalise_exit_condition_for_liveness,
+    try_liveness_refinement,
 )
+from config import Config
 from parsing.string_to_prop_logic import string_to_prop
 from prop_lang.types.types import NATURAL
 from prop_lang.biop import BiOp
@@ -22,8 +24,6 @@ class Test(TestCase):
         result = function_has_well_ordered_range(formula, [], symbol_table)
         self.assertTrue(result)
 
-
-class Test(TestCase):
     def test_function_decreases_in_loop_body(self):
         symbol_table = {"x": NATURAL}
         symbol_table |= {"x_prev": NATURAL}
@@ -54,31 +54,36 @@ class Test(TestCase):
 
         self.assertTrue(result)
 
+    class _DummyPredicateAbstraction:
+        @staticmethod
+        def get_symbol_table():
+            return {}
 
-class TestPrevNormalisation(TestCase):
-    class _DummyProgram:
-        env_events = []
-        con_events = []
-        out_events = []
+    def test_skips_liveness_refinement_on_prev_mismatch(self):
+        conf = Config.getConfig()
+        old_only_safety = conf.only_safety
+        conf.only_safety = False
 
-    def test_normalise_exit_condition_grounds_prev_refs(self):
-        exit_cond = string_to_prop("(x < x_prev) & (z_prev < z)")
-        valuation = {"x_prev": "2", "z_prev": "0"}
+        try:
+            with patch(
+                "analysis.refinement.fairness_refinement.fairness_util.use_fairness_refinement"
+            ) as fairness_check, patch(
+                "analysis.refinement.fairness_refinement.fairness_util.liveness_step"
+            ) as liveness_step:
+                success, result = try_liveness_refinement(
+                    Cs=None,
+                    program=None,
+                    predicate_abstraction=self._DummyPredicateAbstraction(),
+                    agreed_on_execution=[],
+                    disagreed_on_state=([string_to_prop("x_prev < x")], None),
+                    signatures={},
+                    loop_counter=0,
+                    allow_user_input=False,
+                )
 
-        normalised = _normalise_exit_condition_for_liveness(
-            self._DummyProgram(), exit_cond, valuation, {}
-        )
-
-        self.assertFalse(any("_prev" in str(v) for v in normalised.variablesin()))
-        self.assertIn("x", str(normalised))
-        self.assertIn("z", str(normalised))
-
-    def test_normalise_exit_condition_with_full_prev_valuation(self):
-        exit_cond = string_to_prop("(x < x_prev) & (z_prev < z)")
-        valuation = {"x_prev": "5", "z_prev": "1"}
-
-        normalised = _normalise_exit_condition_for_liveness(
-            self._DummyProgram(), exit_cond, valuation, {}
-        )
-
-        self.assertFalse(any("_prev" in str(v) for v in normalised.variablesin()))
+            self.assertFalse(success)
+            self.assertIsNone(result)
+            fairness_check.assert_not_called()
+            liveness_step.assert_not_called()
+        finally:
+            conf.only_safety = old_only_safety

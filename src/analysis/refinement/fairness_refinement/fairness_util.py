@@ -38,18 +38,6 @@ from synthesis.machines.mealy_machine import MealyMachine
 existing_refinements = set()
 
 
-def _normalise_exit_condition_for_liveness(program, exit_cond, valuation, symbol_table):
-    """Best-effort normalisation so liveness refinement can handle *_prev predicates."""
-    normalised = exit_cond
-
-    prev_vars = [v for v in normalised.variablesin() if "_prev" in str(v)]
-    normalised = ground_predicate_on_vars(
-        program, normalised, valuation, prev_vars, symbol_table
-    ).simplify()
-
-    return normalised
-
-
 def try_liveness_refinement(
     Cs: MealyMachine,
     program: Program,
@@ -65,6 +53,18 @@ def try_liveness_refinement(
     if conf.only_safety:
         return False, None
 
+    disagreed_preds_wo_prev = [
+        p
+        for p in disagreed_on_state[0]
+        if not any("_prev" in str(v) for v in p.variablesin())
+    ]
+    if len(disagreed_preds_wo_prev) == 0:
+        logging.info(
+            "Skipping fairness refinement because mismatch condition has no non-*_prev predicates."
+        )
+        return False, None
+    disagreed_on_state_filtered = (disagreed_preds_wo_prev, disagreed_on_state[1])
+
     symbol_table = predicate_abstraction.get_symbol_table()
     ## check if should use fairness refinement or not
     start = time.time()
@@ -78,7 +78,7 @@ def try_liveness_refinement(
         Cs,
         predicate_abstraction,
         agreed_on_execution,
-        disagreed_on_state,
+        disagreed_on_state_filtered,
         symbol_table,
     )
     logging.info(
@@ -94,7 +94,9 @@ def try_liveness_refinement(
 
     # TODO this isn't the real exit trans, it's a good approximation for now, but it may be a just
     #  an explicit or implicit stutter transition
-    exit_condition = neg(conjunct_formula_set([p for p in set(disagreed_on_state[0])]))
+    exit_condition = neg(
+        conjunct_formula_set([p for p in set(disagreed_on_state_filtered[0])])
+    )
     known_math_exprs = math_exprs_in_formula(entry_predicate)
     new_entry_constraints = []
     for p in math_exprs_in_formula(exit_condition):
@@ -210,9 +212,10 @@ def liveness_step(
 
     init_valuation = concrete_body[0][1] | concrete_body[0][2]
     last_valuation = concrete_body[-1][1] | concrete_body[-1][2]
-    exit_cond = _normalise_exit_condition_for_liveness(
-        program, exit_cond, last_valuation, symbol_table
-    )
+    prev_vars = [v for v in exit_cond.variablesin() if "_prev" in str(v)]
+    exit_cond = ground_predicate_on_vars(
+        program, exit_cond, last_valuation, prev_vars, symbol_table
+    ).simplify()
 
     (
         reduced,
