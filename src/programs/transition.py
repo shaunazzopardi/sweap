@@ -114,3 +114,8 @@ class Transition:
 
     def set_predicate_upgrades(self, pred_upgrades: list[BiOp]):
         self.pred_upgrades = pred_upgrades
+
+    def replace_formulas(self, context):
+        t = self.with_condition(self.condition.replace_formulas(context))
+        t.action = [a.replace_formulas(context) for a in self.action]
+        return t

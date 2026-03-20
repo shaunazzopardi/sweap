@@ -153,8 +153,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.init_program_trans = []
 
         all_trans = [
-            t.with_condition(t.condition.replace_formulas(old_to_new_st_preds))
-            for t in orig_transitions + stutter
+            t.replace_formulas(old_to_new_st_preds) for t in orig_transitions + stutter
         ]
         self.init_conf = conjunct_typed_valuation_set(self.program.init_var_values)
         self.init_program_trans = {
@@ -1402,13 +1401,14 @@ def effects_to_ltl(
             parts_ltl.append(disjunct_formula_set(part_ltl))
 
     parts_ltl = sorted(parts_ltl, key=lambda f: str(f))
-    # ignoring stutters since these will already be handled in invars
-    # ignoring assignment to values since these will already be handled in constants
+
+    # Encoding boolean updates directly
     bool_updates = [
         u
         for part in effects.keys()
         for u in part
-        if u.left != u.right
+        if symbol_table[str(u.left)] == BOOLEAN
+        and u.left != u.right
         and not isinstance(u.right, Value)
         and symbol_table[str(u.left)] == BOOLEAN
     ]
