@@ -16,8 +16,8 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
     LTLAbstractionType,
     LTLAbstractionOutputType,
 )
-from analysis.compatibility_checking.compatibility_checking_con import (
-    compatibility_checking_con,
+from analysis.compatibility_checking.strategy_verification import (
+    verify_strategy,
 )
 from analysis.refinement.refinement import refinement_standard
 from parsing.string_to_ltl import string_to_ltl_with_predicates
@@ -303,7 +303,7 @@ def abstract_synthesis_loop(
                     )
                     + " enforces required LTL specification on program.."
                 )
-                compatibility_checking_con(
+                verify_strategy(
                     program,
                     predicate_abstraction,
                     wrapped_hoa.machine,
