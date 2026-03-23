@@ -130,6 +130,8 @@ def create_nuxmv_model_for_compatibility_checking(
     program_model = program.to_nuXmv_with_turns()
     bool_preds = [p.bool_var for p in state_predicates]
     bool_preds.extend([t for p in transition_predicates for t in p.bool_rep.values()])
+    dual = config.Config.getConfig().dual
+    dual2 = config.Config.getConfig().dual2
 
     new_state_preds = set()
     new_tran_preds = []
@@ -217,7 +219,7 @@ def create_nuxmv_model_for_compatibility_checking(
     ]
 
     tran_predicate_truth = [
-        BiOp(pred, BoolBiOps.IFF, bool_var)
+        BiOp(bool_var, BoolBiOps.IFF, pred)
         for p in transition_predicates
         for pred, bool_var in p.bool_rep.items()
         if not has_input_preds(p)
@@ -298,7 +300,7 @@ def create_nuxmv_model_for_compatibility_checking(
             + strategy_model.init
             + [
                 "compatible",
-                "turn = cs" if not config.Config.getConfig().dual else "turn = init1",
+                "turn = cs" if not dual and not dual2 else "turn = init1",
                 "mismatch = FALSE",
                 "init_state = TRUE",
                 "second_state = FALSE",
@@ -374,7 +376,7 @@ def create_nuxmv_model_for_compatibility_checking(
         + "))"
     )
 
-    if config.Config.getConfig().dual:
+    if dual:
         normal_trans = (
             "\t((turn != init1) -> ("
             + normal_trans
@@ -384,10 +386,42 @@ def create_nuxmv_model_for_compatibility_checking(
             + ") &"
             + "(("
             + ")\n\t| (".join(strategy_model.trans)
-            + "))\n &"
-            + "next(turn = cs) & next(!init_state) & next(second_state) & "
+            + "))\n"
+            + " & next(turn = cs) & next(!init_state) & next(second_state) & "
             + "next(!mismatch)"
             + "))"
+        )
+
+    if dual2:
+        preds = []
+        preds.extend(
+            str(p.left) + " <-> next(" + str(p.left) + ")"
+            for p in safety_predicate_truth
+        )
+        preds.extend(
+            str(p.left) + " <-> next(" + str(p.left) + ")" for p in tran_predicate_truth
+        )
+        preds.extend(
+            str(v) + " <-> next(" + str(v) + ")" for v in program.bin_state_vars
+        )
+
+        normal_trans = (
+            "\t((turn != init1) -> ("
+            + normal_trans
+            + ")) &\n"
+            + "((turn = init1) -> ("
+            + "next(turn = cs) & next(compatible) & next(!init_state) & next(second_state) & "
+            + "(("
+            + ")\n\t| (".join(strategy_model.trans)
+            + "))\n & "
+            + "next(!mismatch) & "
+            + "identity_"
+            + program_model.name
+            + "))"
+            # + " & "
+            # + "(turn = cs -> (("
+            # + ") & (".join(preds)
+            # + ")))"
         )
 
     text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
@@ -459,7 +493,7 @@ def there_is_mismatch_between_program_and_strategy(
     model_checker = ModelChecker()
     config = Config.getConfig()
     if config.debug:
-        logging.info(system)
+        logging.info("Deadlock check")
         # Sanity check
         result, out = model_checker.invar_check(system, "F FALSE", None, True)
         if result:
@@ -469,7 +503,7 @@ def there_is_mismatch_between_program_and_strategy(
     # hack: if env_lose is used in system, i.e. it appears as a word
     env_lose_logic = " | env_lose" if "\tenv_lose :" in system else ""
 
-    if not controller:
+    if not controller or config.getConfig().dual2:
         if not mismatch_condition:
             there_is_no_mismatch, out = model_checker.invar_check(
                 system, "compatible" + env_lose_logic, None, config.mc

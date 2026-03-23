@@ -26,26 +26,26 @@ from prop_lang.util import (
     implies,
 )
 from prop_lang.variable import Variable
-from synthesis.machines.mealy_machine import MealyMachine
+from synthesis.machines.machine import Machine
 
 
-def compatibility_checking_con(
+def verify_strategy(
     program: Program,
     predicate_abstraction: EffectsAbstraction,
-    mealy_machine: MealyMachine,
+    machine: Machine,
     original_ltl_spec,
     abstract_ltl_problem,
 ):
-    moore_nuxmv = mealy_machine.to_nuXmv_with_turns_for_con_verif(
+    strategy_nuxmv = machine.to_nuXmv_with_turns_for_verif(
         predicate_abstraction.get_program().bin_state_vars,
         predicate_abstraction.get_program().out_events,
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
     )
 
-    system = create_nuxmv_model_for_compatibility_checking(
+    system = create_nuxmv_model_for_verification_checking(
         program,
-        moore_nuxmv,
+        strategy_nuxmv,
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
@@ -58,7 +58,11 @@ def compatibility_checking_con(
     logging.info(system)
     bin_conditions = []
     for chain_pred in predicate_abstraction.v_to_chain_pred.values():
-        if not config.Config.getConfig().dual and chain_pred.is_input:
+        if (
+            not config.Config.getConfig().dual
+            and not config.Config.getConfig().dual2
+            and chain_pred.is_input
+        ):
             continue
         ch_pred_bin_conds = []
         bin_vars = set(chain_pred.bin_vars)
@@ -81,7 +85,7 @@ def compatibility_checking_con(
         predicate_abstraction.structural_loop_constraints + bin_conditions,
         (
             True
-            if any(v for v in moore_nuxmv.vars if re.match(r"^env_lose *:?$", v))
+            if any(v for v in strategy_nuxmv.vars if re.match(r"^env_lose *:?$", v))
             else False
         ),
         bound,
@@ -91,8 +95,7 @@ def compatibility_checking_con(
         raise Exception(
             "I have no idea what's gone wrong. Strix thinks the previous mealy machine is a "
             + ("controller" if True else "counterstrategy")
-            + ", but nuxmv thinks it is non consistent with the program.\n"
-            + "This may be a problem with nuXmv, e.g., it does not seem to play well with integer division."
+            + ", but nuxmv thinks it is non consistent with the program."
         )
 
     if there_is_mismatch:
@@ -104,8 +107,8 @@ def compatibility_checking_con(
             )
             return True
         logging.info(out)
-        logging.info(str(mealy_machine))
-        print(str(mealy_machine))
+        logging.info(str(machine))
+        print(str(machine))
         logging.info(
             "Controller does not enforce the required LTL property on the program:\n"
             + str(out)
@@ -125,7 +128,7 @@ def compatibility_checking_con(
         return True
 
 
-def create_nuxmv_model_for_compatibility_checking(
+def create_nuxmv_model_for_verification_checking(
     program: Program,
     strategy_model: NuXmvModel,
     state_predicates: set[StatePredicate],
@@ -344,67 +347,6 @@ def create_nuxmv_model_for_compatibility_checking(
     return text
 
 
-def create_nuxmv_model(nuxmvModel):
-    from warnings import warn
-
-    warn("This method is deprecated.", DeprecationWarning, stacklevel=2)
-
-    env_pred_props = set(env_pred_props) | env_predicate_vars
-
-    text = "MODULE main\n"
-    text += "VAR\n" + "\t" + ";\n\t".join(nuxmvModel.vars) + ";\n"
-    text += "DEFINE\n" + "\t" + ";\n\t".join(nuxmvModel.define) + ";\n"
-    text += "INIT\n" + "\t(" + ")\n\t& (".join(nuxmvModel.init + ["turn = env"]) + ")\n"
-    text += "INVAR\n" + "\t(" + ")\n\t& (".join(nuxmvModel.invar) + ")\n"
-
-    turn_logic = ["(turn = con -> next(turn) = prog_con)"]
-    turn_logic += ["(turn = env -> next(turn) = prog_env)"]
-    turn_logic += ["(turn = prog_env -> next(turn) = con)"]
-    turn_logic += ["(turn = prog_con -> next(turn) = env)"]
-
-    text += "TRANS\n" + "\t(" + ")\n\t& (".join(nuxmvModel.trans + turn_logic) + ")\n"
-    text = text.replace("%", "mod")
-    text = text.replace("&&", "&")
-    text = text.replace("||", "|")
-    text = text.replace("==", "=")
-    return text
-
-
-def there_is_mismatch_between_program_and_strategy(
-    system, controller: bool, mismatch_condition=None
-):
-    model_checker = ModelChecker()
-    config = Config.getConfig()
-    if config.debug:
-        logging.info(system)
-        # Sanity check
-        result, out = model_checker.invar_check(system, "F FALSE", None, True)
-        if result:
-            logging.info("Are you sure the counterstrategy given is complete?")
-            return True, None, out
-
-    if not controller:
-        if mismatch_condition is None:
-            there_is_no_mismatch, out = model_checker.invar_check(
-                system, "compatible", None, config.mc
-            )
-        else:
-            there_is_no_mismatch, out = model_checker.invar_check(
-                system,
-                "!(!compatible" + " & " + mismatch_condition + ")",
-                None,
-                config.mc,
-            )
-            if there_is_no_mismatch:
-                there_is_no_mismatch, out = model_checker.invar_check(
-                    system, "compatible", None, config.mc
-                )
-
-        return False, not there_is_no_mismatch, out
-    else:
-        return False, False, None
-
-
 def there_is_mismatch_between_program_and_controller(
     system, ltlspec, loop_constraints, env_lose, bound
 ):
@@ -427,7 +369,7 @@ def there_is_mismatch_between_program_and_controller(
         loop_constraints_str = ""
 
     objective = loop_constraints_str + " (" + str(normalize_ltl(ltlspec)) + ")"
-    if config.getConfig().dual:
+    if config.getConfig().dual or config.getConfig().dual2:
         objective = "X(" + objective + ")"
 
     print(objective)

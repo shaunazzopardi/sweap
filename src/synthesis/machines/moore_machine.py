@@ -5,6 +5,7 @@ from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from config import env, con
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct_formula_set,
@@ -273,6 +274,116 @@ class MooreMachine(Machine):
         # while j < len(trans_pred_acts):
         #     invar += [str(neg(conjunct(trans_pred_acts[j], trans_pred_acts[j + 1])))]
         #     j += 2
+
+        return NuXmvModel(self.name, set(vars), define, init, invar, trans)
+
+    def to_nuXmv_with_turns_for_verif(
+        self, prog_states, prog_out_events, state_pred_list, trans_pred_list
+    ):
+        state_pred_acts = [p.bool_var for p in state_pred_list]
+        trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
+        pred_acts = state_pred_acts + trans_pred_acts
+
+        guards_acts = {}
+
+        init_cond = []
+        for st in self.init_st:
+            st_guard = self.out[st]
+            init_cond.append(
+                conjunct_formula_set(
+                    [neg(Variable(stt)) for stt in self.states if stt != st]
+                    + [Variable(st), st_guard]
+                )
+            )
+        init_cond = disjunct_formula_set(init_cond)
+
+        debug = config.Config.getConfig().debug
+        for src in self.transitions.keys():
+            if debug:
+                ccs = [cc for cc, _ in self.transitions[src]]
+                c = disjunct_formula_set(ccs)
+                symbol_table = {str(v): BOOLEAN for v in c.variablesin()}
+                if not is_tautology(c, symbol_table):
+                    raise Exception(
+                        str(src)
+                        + " does not have complete transitions for controller behaviour."
+                    )
+                for c1 in ccs:
+                    for c2 in ccs:
+                        if c1 != c2:
+                            overlap = conjunct(c1, c2)
+                            symbol_table = {
+                                str(v): BOOLEAN for v in overlap.variablesin()
+                            }
+                            if sat(overlap, symbol_table):
+                                raise Exception(
+                                    str(src)
+                                    + " has overlapping transitions for controller behaviour: "
+                                    + str(c1)
+                                    + " and "
+                                    + str(c2)
+                                )
+
+            for con_beh, tgt in self.transitions[src]:
+                guard = str(src) + " & " + con_beh.to_nuxmv()
+                if guard not in guards_acts.keys():
+                    guards_acts[guard] = []
+
+                next_state = self.out[tgt].replace(lambda x: UniOp("next", x))
+
+                act = conjunct_formula_set(
+                    [
+                        next_state,
+                        UniOp("next", Variable(tgt)),
+                        UniOp(
+                            "next",
+                            conjunct_formula_set(
+                                [neg(Variable(s)) for s in self.states if s != tgt]
+                            ),
+                        ),
+                    ]
+                ).to_nuxmv()
+
+                guards_acts[guard].append(act)
+
+        define = []
+        transitions = []
+        guard_ids = []
+        i = 0
+        guard_keys = list(guards_acts.keys())
+        while i < len(guard_keys):
+            define += [self.name + "_guard_" + str(i) + " := " + guard_keys[i]]
+            define += [
+                self.name
+                + "_act_"
+                + str(i)
+                + " := ("
+                + ")\n\t| \t(".join(map(str, guards_acts[guard_keys[i]]))
+                + ")"
+            ]
+            transitions.append(
+                self.name + "_guard_" + str(i) + " & " + self.name + "_act_" + str(i)
+            )
+            guard_ids.append(self.name + "_guard_" + str(i))
+            i += 1
+
+        vars = []
+        vars += [str(st) + " : boolean" for st in self.states]
+        vars += [
+            str(var) + " : boolean"
+            for var in self.env_events
+            if str(var)
+            not in [str(v) for v in (prog_out_events + prog_states + pred_acts)]
+        ]
+        vars += [str(var) + " : boolean" for var in self.con_events]
+        vars += ["prog_" + str(var) + " : boolean" for var in prog_out_events]
+        vars += [str(var) + " : boolean" for var in prog_states]
+        vars += [str(var) + " : boolean" for var in pred_acts]
+
+        init = [init_cond.to_nuxmv()]
+        transitions = ["((" + ")\n\t|\t(".join(transitions) + "))"]
+        trans = ["(" + ")\n\t|\t(".join(transitions) + ")"]
+        invar = ["TRUE"]
 
         return NuXmvModel(self.name, set(vars), define, init, invar, trans)
 

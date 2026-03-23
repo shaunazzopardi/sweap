@@ -10,6 +10,7 @@ from prop_lang.util import (
     conjunct_formula_set,
     disjunct_formula_set,
     is_tautology,
+    massage_ltl_for_dual,
     neg,
     conjunct,
     propagate_negations,
@@ -117,6 +118,7 @@ class MealyMachine(Machine):
     def to_nuXmv_with_turns(
         self, prog_states, prog_out_events, state_pred_list, trans_pred_list
     ):
+        dual2 = config.Config.getConfig().dual2
         state_pred_acts = [p.bool_var for p in state_pred_list]
         trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
         pred_acts = state_pred_acts + trans_pred_acts
@@ -132,9 +134,15 @@ class MealyMachine(Machine):
             conjunct_formula_set([neg(Variable(t)) for t in trans_pred_acts]),
         )
 
+        f = lambda x: (
+            UniOp("next", x) if (str(x).startswith("bin_") or x in pred_acts) else None
+        )
+
         for src in self.transitions.keys():
             for tgt, env_con_behs in self.transitions[src].items():
                 for env_beh, con_beh in env_con_behs:
+                    if dual2:
+                        con_beh = con_beh.replace_formulas(f).to_nuxmv()
                     guard = str(src) + " & " + str(env_beh) + " & " + str(con_beh)
                     if guard not in guards_acts.keys():
                         guards_acts[guard] = list()
@@ -186,7 +194,10 @@ class MealyMachine(Machine):
 
         define += ["identity_" + self.name + " := " + " & ".join(identity)]
 
-        vars = ["turn : {prog, cs}"]
+        if dual2:
+            vars = ["turn : {prog, cs, init1}"]
+        else:
+            vars = ["turn : {prog, cs}"]
         vars += [str(st) + " : boolean" for st in self.states]
         vars += [
             str(var) + " : boolean"
@@ -232,7 +243,7 @@ class MealyMachine(Machine):
         trans = [
             "("
             + identity
-            + " &\n\t\t((turn = prog) -> ("
+            + " &\n\t\t((turn != cs) -> ("
             + ")\n\t|\t(".join(transitions)
             + ")))"
         ]
@@ -247,7 +258,7 @@ class MealyMachine(Machine):
 
         return NuXmvModel(self.name, set(vars), define, init, invar, trans)
 
-    def to_nuXmv_with_turns_for_con_verif(
+    def to_nuXmv_with_turns_for_verif(
         self, prog_states, prog_out_events, state_pred_list, trans_pred_list
     ):
         state_pred_acts = [p.bool_var for p in state_pred_list]

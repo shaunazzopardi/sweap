@@ -171,6 +171,14 @@ def setup_argument_parser() -> ArgumentParser:
         nargs="?",
         const=True,
     )
+    parser.add_argument(
+        "--dual2",
+        dest="dual2",
+        help="Experimental secondary dual-mode toggle.",
+        type=bool,
+        nargs="?",
+        const=True,
+    )
     return parser
 
 
@@ -197,8 +205,15 @@ def process_args(args: Namespace) -> (Program, Formula):
     else:
         conf._verify_controller = False
 
+    if args.dual2:
+        conf.dual2 = True
+    else:
+        conf.dual2 = False
+
     if args.dual:
         conf.dual = True
+        if conf.dual2:
+            raise Exception("--dual cannot be used with dual2 flag.")
     else:
         conf.dual = False
 
@@ -264,13 +279,13 @@ def handle_translation(target, program, ltl_spec) -> str:
     if target.lower() == "dot":
         return str(program.to_dot())
     elif target.lower() == "nuxmv":
-        return create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
+        return create_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
     elif target.lower() == "prog":
         return program.to_prog(ltl_spec)
     elif target.lower() == "issy":
         return program.to_issy(ltl_spec)
     elif target.lower() == "vmt":
-        model = create_nuxmv_model(program.to_nuXmv_with_turns_for_con_verif())
+        model = create_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
         model_checker = ModelChecker()
         model_checker.to_vmt(model, ltl_spec, "model")
         vmt = open("model.vmt").read()
@@ -324,6 +339,8 @@ def _main(args: Namespace):
         )
     else:
         logging.disable(logging.CRITICAL)
+
+    logging.info("Input args: %s", vars(args))
 
     if args.translate:
         out = handle_translation(args.translate, program, ltl_spec)

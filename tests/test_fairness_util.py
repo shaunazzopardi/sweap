@@ -59,7 +59,7 @@ class Test(TestCase):
         def get_symbol_table():
             return {}
 
-    def test_skips_liveness_refinement_on_prev_mismatch(self):
+    def test_skips_liveness_refinement_when_all_mismatch_preds_are_prev(self):
         conf = Config.getConfig()
         old_only_safety = conf.only_safety
         conf.only_safety = False
@@ -84,6 +84,46 @@ class Test(TestCase):
             self.assertFalse(success)
             self.assertIsNone(result)
             fairness_check.assert_not_called()
+            liveness_step.assert_not_called()
+        finally:
+            conf.only_safety = old_only_safety
+
+    def test_filters_prev_preds_before_fairness_check(self):
+        conf = Config.getConfig()
+        old_only_safety = conf.only_safety
+        conf.only_safety = False
+
+        prev_pred = string_to_prop("x_prev < x")
+        non_prev_pred = string_to_prop("x < 10")
+        disagreed_on_state = ([prev_pred, non_prev_pred], "meta")
+
+        try:
+            with patch(
+                "analysis.refinement.fairness_refinement.fairness_util.use_fairness_refinement"
+            ) as fairness_check, patch(
+                "analysis.refinement.fairness_refinement.fairness_util.liveness_step"
+            ) as liveness_step:
+                fairness_check.return_value = (False, None, None, None, None)
+
+                success, result = try_liveness_refinement(
+                    Cs=None,
+                    program=None,
+                    predicate_abstraction=self._DummyPredicateAbstraction(),
+                    agreed_on_execution=[],
+                    disagreed_on_state=disagreed_on_state,
+                    signatures={},
+                    loop_counter=0,
+                    allow_user_input=False,
+                )
+
+            self.assertFalse(success)
+            self.assertIsNone(result)
+            fairness_check.assert_called_once()
+            passed_disagreed_on_state = fairness_check.call_args.args[3]
+            self.assertEqual(
+                [str(non_prev_pred)], [str(p) for p in passed_disagreed_on_state[0]]
+            )
+            self.assertEqual(disagreed_on_state[1], passed_disagreed_on_state[1])
             liveness_step.assert_not_called()
         finally:
             conf.only_safety = old_only_safety

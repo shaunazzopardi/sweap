@@ -597,6 +597,7 @@ class Program:
         guards = []
         acts = []
         dualise = config.Config.getConfig().dual
+        dual2 = config.Config.getConfig().dual2
         for transition in self.transitions:
             if dualise:
                 # cond = (
@@ -604,6 +605,14 @@ class Program:
                 # )
                 cond = massage_ltl_for_dual(
                     transition.condition, [v for v, _ in self.env_events], False
+                )
+                cond = cond.to_nuxmv().replace("X(", "next(")
+            elif dual2:
+                # cond = (
+                #     transition.condition.to_nuxmv()
+                # )
+                cond = massage_ltl_for_dual(
+                    transition.condition, self.bool_in_out + self.num_in_out, False
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
@@ -692,7 +701,7 @@ class Program:
 
         transitions = guard_and_act
 
-        if dualise:
+        if dualise or dual2:
             vars = ["turn : {prog, cs, init1}"]
         else:
             vars = ["turn : {prog, cs}"]
@@ -805,13 +814,16 @@ class Program:
         guards = []
         acts = []
         dualise = config.Config.getConfig().dual
+        dual2 = config.Config.getConfig().dual2
         for transition in self.transitions:
             if dualise:
-                # cond = (
-                #     transition.condition.to_nuxmv()
-                # )
                 cond = massage_ltl_for_dual(
                     transition.condition, [v for v, _ in self.env_events], False
+                )
+                cond = cond.to_nuxmv().replace("X(", "next(")
+            elif dual2:
+                cond = massage_ltl_for_dual(
+                    transition.condition, self.bool_in_out + self.num_in_out, False
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:

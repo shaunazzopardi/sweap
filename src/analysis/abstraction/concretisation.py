@@ -206,6 +206,8 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                         )
                     )
                 )
+        else:
+            raise Exception("No incompatibility, what are you doin in here?")
 
 
 def process_transition_mismatch(program, concretized, incompatible_state):

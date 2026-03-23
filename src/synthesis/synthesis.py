@@ -281,7 +281,9 @@ def abstract_synthesis_loop(
             + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
         )
 
-        if wrapped_hoa.is_controller:
+        if (wrapped_hoa.is_controller and not config.Config.getConfig().dual2) or (
+            not wrapped_hoa.is_controller and config.Config.getConfig().dual2
+        ):
             new_index = "-unreal" if config.Config.getConfig().dual else "-real"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
 

@@ -471,6 +471,16 @@ class EffectsAbstraction(PredicateAbstraction):
         new_preds.update(new_input_preds)
         all_preds = self.state_predicates | set(self.v_to_chain_pred.values())
 
+        relabelling_for_dual2 = {}
+        if config.Config.getConfig().dual2:
+            for var, label in self.var_relabellings.items():
+                if var not in self.input_preds:
+                    relabelling_for_dual2[var] = label
+                else:
+                    relabelling_for_dual2[var] = X(label)
+            for v in self.program.bool_in_out:
+                relabelling_for_dual2[v] = X(v)
+
         gus = []
         gu_invars = []
         gu_constants = []
@@ -488,6 +498,7 @@ class EffectsAbstraction(PredicateAbstraction):
         ignore_in_nows = []
         ignore_in_nexts = []
         relabelling = []
+        relabelling2 = []
         symbol_tables = []
         for gu in self.non_init_program_gus | self.init_program_gus:
             gus.append(gu)
@@ -507,6 +518,7 @@ class EffectsAbstraction(PredicateAbstraction):
             ignore_in_nows.append(self.t_ignore_in_nows[gu])
             ignore_in_nexts.append(self.t_ignore_in_nexts[gu])
             relabelling.append(self.var_relabellings)
+            relabelling2.append(relabelling_for_dual2)
             symbol_tables.append(self.symbol_table)
         with Pool(no_of_workers) as pool:
             results = pool.map(
@@ -529,6 +541,7 @@ class EffectsAbstraction(PredicateAbstraction):
                     ignore_in_nows,
                     ignore_in_nexts,
                     relabelling,
+                    relabelling2,
                     symbol_tables,
                 ),
             )
@@ -1012,6 +1025,7 @@ def compute_abstract_effect_for_guard_update(arg):
         ignore_in_nows,
         ignore_in_nexts,
         vars_relabelling,
+        relabelling2,
         symbol_table,
     ) = arg
 
@@ -1244,6 +1258,7 @@ def compute_abstract_effect_for_guard_update(arg):
         dual_env_props,
         symbol_table,
         vars_relabelling,
+        relabelling2,
     )
     if conf.debug:
         effects_to_ltl_non_bin(
@@ -1368,6 +1383,7 @@ def effects_to_ltl(
     dual_env_props,
     symbol_table,
     vars_relabelling,
+    relabelling2,
 ):
     parts_ltl = []
     for part in effects.keys():
@@ -1385,6 +1401,11 @@ def effects_to_ltl(
                 E_now = X(E_now)
                 if conf.backend == "strix":
                     E_now = propagate_nexts(E_now)
+            if conf.dual2:
+                E_now = E_now.replace_formulas(relabelling2)
+                if conf.backend == "strix":
+                    E_now = propagate_nexts(E_now)
+
             next_disjuncts = []
             # if not (len(nexts) == 1 and nexts[0] == true()):
             for next in nexts:
@@ -1414,6 +1435,8 @@ def effects_to_ltl(
     for u in bool_updates:
         if conf.dual:
             part = iff(X(u.left), X(X(massage_ltl_for_dual(u.right, dual_env_props))))
+        elif conf.dual2:
+            part = iff(u.left, X(u.right.replace_formulas(relabelling2)))
         else:
             part = iff(u.left, X(u.right))
         if conf.backend == "strix":

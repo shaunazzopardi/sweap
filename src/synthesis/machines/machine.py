@@ -20,3 +20,9 @@ class Machine(ABC):
         self, prog_states, prog_out_events, state_pred_list, trans_pred_list
     ):
         pass
+
+    @abstractmethod
+    def to_nuXmv_with_turns_for_verif(
+        self, prog_states, prog_out_events, state_pred_list, trans_pred_list
+    ):
+        pass

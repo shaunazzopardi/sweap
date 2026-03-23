@@ -40,6 +40,7 @@ class ModelChecker:
                 )
 
                 lower_out = out.lower()
+                logging.info(out)
 
                 if "is true" in lower_out:
                     return True, out

@@ -21,6 +21,7 @@ from programs.util import (
     get_differently_value_vars,
     ground_predicate_on_vars,
     add_prev_suffix,
+    preds_in_state,
 )
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -46,6 +47,7 @@ from prop_lang.util import (
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from synthesis.machines.moore_machine import MooreMachine
+from synthesis.machines.mealy_machine import MealyMachine
 
 seen_loops_cache = {}
 
@@ -479,7 +481,7 @@ def use_liveness_refinement_state(
 
 
 def use_liveness_refinement_state_joined(
-    Cs: MooreMachine,
+    Cs: MooreMachine | MealyMachine,
     program,
     predicate_abstraction: PredicateAbstraction,
     ce: [dict],
@@ -503,57 +505,71 @@ def use_liveness_refinement_state_joined(
         str(l): BOOLEAN for l in inloop_vars
     }
 
+    is_mealy = isinstance(Cs, MealyMachine)
     last_props_state_dict = {
-        str(p): disagreed_on_state_dict[str(p)] for p in irrelevant_vars
+        str(p): disagreed_on_state_dict[str(p)]
+        for p in irrelevant_vars
+        if str(p) in disagreed_on_state_dict
     }
 
-    last_pred_state = ground_predicate_on_vars(
-        program,
-        Cs.out[last_cs_state],
-        last_props_state_dict,
-        irrelevant_vars,
-        symbol_table_with_inloop_vars,
-    )
+    if is_mealy:
+        # Mealy states do not carry an `out` valuation; use trace predicates directly.
+        last_pred_state = conjunct_formula_set(preds_in_state(disagreed_on_state_dict))
+        last_pred_state_wo_props = last_pred_state
+    else:
+        last_pred_state = ground_predicate_on_vars(
+            program,
+            Cs.out[last_cs_state],
+            last_props_state_dict,
+            irrelevant_vars,
+            symbol_table_with_inloop_vars,
+        )
 
-    last_pred_state_wo_props = ground_predicate_on_vars(
-        program,
-        last_pred_state,
-        last_props_state_dict,
-        irrelevant_vars,
-        symbol_table_with_inloop_vars,
-    )
+        last_pred_state_wo_props = ground_predicate_on_vars(
+            program,
+            last_pred_state,
+            last_props_state_dict,
+            irrelevant_vars,
+            symbol_table_with_inloop_vars,
+        )
 
     if all(str(v).startswith("bin_st") for v in last_pred_state.variablesin()):
         return False, None
 
     previous_visits = []
     for i, ce_state in enumerate(ce):
-        cs_st = [str(st) for st in Cs.states if ce_state[str(st)] == "TRUE"][0]
-
-        pred_state_wo_props = ground_predicate_on_vars(
-            program,
-            Cs.out[cs_st],
-            ce_state,
-            irrelevant_vars,
-            symbol_table_with_inloop_vars,
-        )
+        if is_mealy:
+            pred_state_wo_props = conjunct_formula_set(preds_in_state(ce_state))
+        else:
+            cs_st = [str(st) for st in Cs.states if ce_state[str(st)] == "TRUE"][0]
+            pred_state_wo_props = ground_predicate_on_vars(
+                program,
+                Cs.out[cs_st],
+                ce_state,
+                irrelevant_vars,
+                symbol_table_with_inloop_vars,
+            )
         tran_cond = prog_trans[i][0].condition
 
         f = iff(pred_state_wo_props, last_pred_state_wo_props)
-        if is_tautology(
-            f.replace_formulas(
+        if is_mealy:
+            f_check = f
+            last_pred_state_check = last_pred_state
+        else:
+            f_check = f.replace_formulas(
                 lambda x: x if not isinstance(x, Variable) else var_to_predicate(x)
-            ),
+            )
+            last_pred_state_check = last_pred_state.replace_formulas(
+                lambda x: x if not isinstance(x, Variable) else var_to_predicate(x)
+            )
+        if is_tautology(
+            f_check,
             symbol_table_with_inloop_vars,
         ):
             if sat(
                 conjunct(
                     tran_cond,
-                    last_pred_state.replace_formulas(
-                        lambda x: (
-                            x if not isinstance(x, Variable) else var_to_predicate(x)
-                        )
-                    ),
+                    last_pred_state_check,
                 ),
                 symbol_table_with_inloop_vars,
             ):
@@ -699,7 +715,7 @@ def massage_ce(Cs: MooreMachine, agreed_on_transitions):
 
 
 def use_fairness_refinement(
-    Cs: MooreMachine,
+    Cs: MooreMachine | MealyMachine,
     predicate_abstraction: EffectsAbstraction,
     agreed_on_execution,
     disagreed_on_state,

@@ -1201,9 +1201,13 @@ def negate_recursive(formula):
             return UniOp(formula.op, negate_recursive(formula.right))
     elif isinstance(formula, BiOp):
         if formula.op == "&":
-            return BiOp(negate_recursive(formula.left), "|", negate_recursive(formula.right))
+            return BiOp(
+                negate_recursive(formula.left), "|", negate_recursive(formula.right)
+            )
         elif formula.op == "|":
-            return BiOp(negate_recursive(formula.left), "&", negate_recursive(formula.right))
+            return BiOp(
+                negate_recursive(formula.left), "&", negate_recursive(formula.right)
+            )
         elif formula.op == "->":
             return BiOp(formula.left, "&", negate_recursive(formula.right))
         elif formula.op == "<->":
@@ -1224,16 +1228,24 @@ def negate_recursive(formula):
             return BiOp(formula.left, "!=", formula.right)
         elif formula.op == "U":
             # !(a U b) == (!a) R (!b)
-            return BiOp(negate_recursive(formula.left), "R", negate_recursive(formula.right))
+            return BiOp(
+                negate_recursive(formula.left), "R", negate_recursive(formula.right)
+            )
         elif formula.op == "R":
             # !(a R b) == (!a) U (!b)
-            return BiOp(negate_recursive(formula.left), "U", negate_recursive(formula.right))
+            return BiOp(
+                negate_recursive(formula.left), "U", negate_recursive(formula.right)
+            )
         elif formula.op == "W":
             # !(a W b) == (!a) M (!b)
-            return BiOp(negate_recursive(formula.left), "M", negate_recursive(formula.right))
+            return BiOp(
+                negate_recursive(formula.left), "M", negate_recursive(formula.right)
+            )
         elif formula.op == "M":
             # !(a M b) == (!a) W (!b)
-            return BiOp(negate_recursive(formula.left), "W", negate_recursive(formula.right))
+            return BiOp(
+                negate_recursive(formula.left), "W", negate_recursive(formula.right)
+            )
         else:
             return UniOp("!", formula)
     else:
@@ -2805,7 +2817,10 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=False):
         else:
             return formula
     elif isinstance(formula, MathExpr) or should_be_math_expr(formula):
-        return formula
+        if any(v for v in next_events if v in formula.variablesin()):
+            return X(formula)
+        else:
+            return formula
     elif isinstance(formula, UniOp):
         return UniOp(
             formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too)

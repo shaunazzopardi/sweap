@@ -191,13 +191,11 @@ def build_cross_product_minigame_equivalence_model(
     synchronised_controller_var_prefixes: tuple[str, ...] = (),
     stutter_left_while_right_in_minigame: bool = False,
 ) -> tuple[str, str, str | None, bool]:
-    left_model = pre_program.to_nuXmv_with_turns_for_con_verif(
+    left_model = pre_program.to_nuXmv_with_turns_for_verif(
         include_pred_upgrades=True,
         stutter_when_other_game_in_minigame=stutter_left_while_right_in_minigame,
     )
-    right_model = post_program.to_nuXmv_with_turns_for_con_verif(
-        include_pred_upgrades=True
-    )
+    right_model = post_program.to_nuXmv_with_turns_for_verif(include_pred_upgrades=True)
 
     left_module_name = _module_name(pre_program.name + "_pre_minigame")
     right_module_name = _module_name(post_program.name + "_post_minigame")
