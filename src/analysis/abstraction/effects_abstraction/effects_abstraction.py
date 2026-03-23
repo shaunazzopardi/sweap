@@ -1410,13 +1410,12 @@ def effects_to_ltl(
         if symbol_table[str(u.left)] == BOOLEAN
         and u.left != u.right
         and not isinstance(u.right, Value)
-        and symbol_table[str(u.left)] == BOOLEAN
     ]
     for u in bool_updates:
         if conf.dual:
-            part = iff(X(massage_ltl_for_dual(u.right, dual_env_props)), X(X(u.left)))
+            part = iff(X(u.left), X(X(massage_ltl_for_dual(u.right, dual_env_props))))
         else:
-            part = iff(u.right, X(u.left))
+            part = iff(u.left, X(u.right))
         if conf.backend == "strix":
             part = propagate_nexts(part)
         parts_ltl.append(part.replace_formulas(vars_relabelling))
