@@ -323,7 +323,7 @@ def create_nuxmv_model_for_verification_checking(
 
     turn_logic = ["!next(init_state)"]
 
-    if config.Config.getConfig().dual or config.Config.getConfig().dual2:
+    if config.Config.getConfig().dual:
         init_choice_logic = abstract_ltl_problem.init_choice_logic
         if init_choice_logic:
             init_choice_logic = init_choice_logic.to_nuxmv()
@@ -337,7 +337,7 @@ def create_nuxmv_model_for_verification_checking(
             + ")\n\t\t& (".join(program_model.trans + turn_logic)
             + ")))) & next(!init_state)) &\n"
             + "(init_state -> (next(!init_state) & next(second_state) & "
-            + " next("
+            + (" next(" if config.Config.getConfig().dual else "(")
             + (" & ".join(program_model.init) if program_model.init else "TRUE")
             + ")"
             + (" & (" + init_choice_logic + ")" if init_choice_logic else "")
@@ -352,6 +352,16 @@ def create_nuxmv_model_for_verification_checking(
             + ")\n\t& (".join(new_trans)
             + "))\n"
         )
+        if config.Config.getConfig().dual2:
+            init_choice_logic = abstract_ltl_problem.init_choice_logic
+            if init_choice_logic and config.Config.getConfig().dual2:
+                init_choice_logic = init_choice_logic.to_nuxmv().replace("next(", "(")
+
+            normal_trans += (
+                "& (init_state -> "
+                + (" (" + init_choice_logic + ")" if init_choice_logic else "")
+                + ")\n"
+            )
 
     text += "TRANS\n" + normal_trans + "\n"
 
