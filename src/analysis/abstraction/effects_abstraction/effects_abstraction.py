@@ -369,7 +369,11 @@ class EffectsAbstraction(PredicateAbstraction):
         return new_preds
 
     def has_input_vars(self, x):
-        return any(v for v in x.variablesin() if v in self.program.num_in_out)
+        return any(
+            v
+            for v in x.variablesin()
+            if v in self.program.num_in_out or v in self.program.bool_in_out
+        )
 
     def add_state_predicates(
         self, new_state_predicates: set[Formula], signatures, parallelise=True

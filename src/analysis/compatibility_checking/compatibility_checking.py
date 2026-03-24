@@ -424,7 +424,7 @@ def create_nuxmv_model_for_compatibility_checking(
             + program_model.name
             + "))"
             + " & "
-            + "(turn = prog -> (("
+            + "(turn = cs -> (("
             + ") & (".join(preds)
             + ")))"
             # + " & "
