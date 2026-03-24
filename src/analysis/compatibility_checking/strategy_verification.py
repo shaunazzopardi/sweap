@@ -91,17 +91,20 @@ def verify_strategy(
         bound,
     )
 
+    dual2 = config.Config.getConfig().dual2
+    type = "controller" if not dual2 else "counterstrategy"
     if contradictory:
         raise Exception(
             "I have no idea what's gone wrong. Strix thinks the previous mealy machine is a "
-            + ("controller" if True else "counterstrategy")
+            + type
             + ", but nuxmv thinks it is non consistent with the program."
         )
 
     if there_is_mismatch:
         if "Maximum bound reached" in out:
             print(
-                "Controller correct up to "
+                type
+                + " correct up to "
                 + str(bound)
                 + " IC3 steps, I do not verify beyond this."
             )
@@ -110,19 +113,22 @@ def verify_strategy(
         logging.info(str(machine))
         print(str(machine))
         logging.info(
-            "Controller does not enforce the required LTL property on the program:\n"
+            type
+            + " does not enforce the required LTL property on the program:\n"
             + str(out)
         )
 
         raise Exception(
-            "Controller does not enforce the required LTL property on the program:\n"
+            type
+            + " does not enforce the required LTL property on the program:\n"
             + str(out)
         )
     else:
         print(out)
-        print("Controller enforces the required LTL property!")
+        print(type + " enforces the required LTL property!")
         logging.info(
-            "Controller does not enforce the required LTL property on the program:\n"
+            type
+            + " does not enforce the required LTL property on the program:\n"
             + str(out)
         )
         return True
@@ -177,20 +183,25 @@ def create_nuxmv_model_for_verification_checking(
         + ";\n"
     )
 
-    input_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
-        for p in state_predicates
-        if has_input_preds(p)
-    ]
+    if not config.Config.getConfig().dual2:
+        input_predicate_truth = [
+            BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
+            for p in state_predicates
+            if has_input_preds(p)
+        ]
+    else:
+        state_to_prev = lambda x: (
+            Variable(x.name + "_prev") if x in program.local_vars else None
+        )
+        input_predicate_truth = [
+            BiOp(p.pred.replace_formulas(state_to_prev), BoolBiOps.IFF, p.bool_var)
+            for p in state_predicates
+            if has_input_preds(p)
+        ]
+
     input_predicate_truth += [
         BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
         for bool_rep, p in input_pred_rep_to_val.items()
-    ]
-    input_predicate_truth += [
-        BiOp(pred, BoolBiOps.IFF, bool_var)
-        for p in transition_predicates
-        if has_input_preds(p)
-        for pred, bool_var in p.bool_rep.items()
     ]
 
     safety_predicate_truth = [
@@ -251,9 +262,9 @@ def create_nuxmv_model_for_verification_checking(
     )
     compatible_input_predicates = (
         "\tcompatible_inputs := "
-        + "("
+        + "((!init_state) -> ("
         + conjunct_formula_set(input_predicate_truth).to_nuxmv()
-        + ")"
+        + "))"
         + ";\n"
     )
     compatible = (
@@ -312,7 +323,7 @@ def create_nuxmv_model_for_verification_checking(
 
     turn_logic = ["!next(init_state)"]
 
-    if config.Config.getConfig().dual:
+    if config.Config.getConfig().dual or config.Config.getConfig().dual2:
         init_choice_logic = abstract_ltl_problem.init_choice_logic
         if init_choice_logic:
             init_choice_logic = init_choice_logic.to_nuxmv()
@@ -368,8 +379,11 @@ def there_is_mismatch_between_program_and_controller(
     else:
         loop_constraints_str = ""
 
-    objective = loop_constraints_str + " (" + str(normalize_ltl(ltlspec)) + ")"
-    if config.getConfig().dual or config.getConfig().dual2:
+    spec = str(normalize_ltl(ltlspec))
+    if config.getConfig().dual2:
+        spec = "!" + spec
+    objective = loop_constraints_str + " (" + spec + ")"
+    if config.getConfig().dual:
         objective = "X(" + objective + ")"
 
     print(objective)

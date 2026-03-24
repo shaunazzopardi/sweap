@@ -1,7 +1,6 @@
 import logging
 import os
 import resource
-import re
 import time
 import analysis.abstraction.effects_abstraction.effects_to_ltl as effects_to_ltl
 import config
@@ -157,6 +156,16 @@ def process_specifications(
             )
         ]
         ltl_assumptions = []
+
+    if config.Config.getConfig().dual2:
+        ltl_assumptions = [
+            massage_ltl_for_dual(f, program.num_in_out + program.bool_in_out, False)
+            for f in ltl_assumptions
+        ]
+        ltl_guarantees = [
+            massage_ltl_for_dual(f, program.num_in_out + program.bool_in_out, False)
+            for f in ltl_guarantees
+        ]
 
     in_acts = [e for e, t in program.env_events if t == BOOLEAN]
     out_acts = [c for c, t in program.con_events if t == BOOLEAN]

@@ -3,6 +3,7 @@ import time
 
 import config
 from parsing.hoa_parser import hoa_to_transitions
+from prop_lang.types.types import BOOLEAN
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from synthesis.machines.machine import Machine
 from synthesis.machines.mealy_machine import MealyMachine
@@ -59,6 +60,7 @@ class WrappedHOA:
                 )
 
         dual = config.Config.getConfig().dual
+        dual2 = config.Config.getConfig().dual2
         if dual:
             if self.is_controller:
                 name = "counterstrategy"
@@ -73,6 +75,10 @@ class WrappedHOA:
             else:
                 name = "counterstrategy"
                 logging.info("Unrealizable")
+
+        if dual or dual2:
+            # to add env_int props
+            symbol_table.update({v.name: BOOLEAN for v in env_props})
 
         if not self.is_controller:
             mm = MooreMachine(name, init_st, env_props, con_props, {})

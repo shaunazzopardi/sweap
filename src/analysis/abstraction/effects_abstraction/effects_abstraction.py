@@ -474,7 +474,9 @@ class EffectsAbstraction(PredicateAbstraction):
         relabelling_for_dual2 = {}
         if config.Config.getConfig().dual2:
             for var, label in self.var_relabellings.items():
-                if var not in self.input_preds:
+                if isinstance(var, UniOp):
+                    continue
+                if not self.has_input_vars(var):
                     relabelling_for_dual2[var] = label
                 else:
                     relabelling_for_dual2[var] = X(label)
@@ -1396,15 +1398,17 @@ def effects_to_ltl(
                     and nexts[0].is_true()
                 ):
                     continue
-            E_now = now.replace_formulas(vars_relabelling)
             if conf.dual:
+                E_now = now.replace_formulas(vars_relabelling)
                 E_now = X(E_now)
                 if conf.backend == "strix":
                     E_now = propagate_nexts(E_now)
-            if conf.dual2:
-                E_now = E_now.replace_formulas(relabelling2)
+            elif conf.dual2:
+                E_now = now.replace_formulas(relabelling2)
                 if conf.backend == "strix":
                     E_now = propagate_nexts(E_now)
+            else:
+                E_now = now.replace_formulas(vars_relabelling)
 
             next_disjuncts = []
             # if not (len(nexts) == 1 and nexts[0] == true()):
@@ -1462,7 +1466,10 @@ def effects_to_ltl(
     constant_effects = []
     constants = sorted(set(constants), key=lambda p: str(p))
     for p in constants:
-        const = p.replace_formulas(vars_relabelling)
+        if conf.dual2:
+            const = p.replace_formulas(relabelling2)
+        else:
+            const = p.replace_formulas(vars_relabelling)
         if conf.dual:
             const = X(const)
         if conf.backend == "strix":

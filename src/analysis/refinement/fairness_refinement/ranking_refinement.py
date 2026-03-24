@@ -736,6 +736,19 @@ def use_fairness_refinement(
     ):
         return False, None, None, None, None
 
+    # if any action depends on input variables, give up
+    if any(
+        a
+        for t, _, _ in mon_transitions
+        for a in t.action
+        if any(
+            v
+            for v in a.right.variablesin()
+            if v in predicate_abstraction.program.num_in_out
+        )
+    ):
+        return False, None, None, None, None
+
     last_counterstrategy_state = [
         st
         for st, v in disagreed_on_state[1][2].items()

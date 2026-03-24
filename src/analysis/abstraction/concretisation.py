@@ -2,6 +2,7 @@ from pysmt.shortcuts import And
 
 from analysis.smt_checker import check
 from programs.util import (
+    is_deterministic,
     stutter_transition,
     preds_in_state,
     transition_formula,
@@ -175,10 +176,16 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                 return concretized, env_pred_state
             # if not, then we choose the wrong transition
             else:
-                if not program.deterministic:
+                if program.deterministic is None:
+                    if not is_deterministic(program):
+                        raise Exception(
+                            "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
+                        )
+                elif not program.deterministic:
                     raise Exception(
                         "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
                     )
+
                 core_unsat = unsat_core(
                     conjunct_formula_set(
                         pred_state

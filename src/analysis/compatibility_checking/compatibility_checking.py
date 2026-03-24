@@ -191,24 +191,29 @@ def create_nuxmv_model_for_compatibility_checking(
         + ";\n"
     )
 
-    input_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
-        for p in state_predicates
-        if has_input_preds(p)
-    ]
+    if not dual2:
+        input_predicate_truth = [
+            BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
+            for p in state_predicates
+            if has_input_preds(p)
+        ]
+    else:
+        state_to_prev = lambda x: (
+            Variable(x.name + "_prev") if x in program.local_vars else None
+        )
+        input_predicate_truth = [
+            BiOp(p.pred.replace_formulas(state_to_prev), BoolBiOps.IFF, p.bool_var)
+            for p in state_predicates
+            if has_input_preds(p)
+        ]
+
     input_predicate_truth += [
         BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
         for bool_rep, p in input_pred_rep_to_val.items()
     ]
-    input_predicate_truth += [
-        BiOp(pred, BoolBiOps.IFF, bool_var)
-        for p in transition_predicates
-        if has_input_preds(p)
-        for pred, bool_var in p.bool_rep.items()
-    ]
 
     safety_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
+        BiOp(p.bool_var, BoolBiOps.IFF, p.pred)
         for p in state_predicates
         if not has_input_preds(p)
     ]
@@ -418,9 +423,15 @@ def create_nuxmv_model_for_compatibility_checking(
             + "identity_"
             + program_model.name
             + "))"
+            + " & "
+            + "(turn = prog -> (("
+            + ") & (".join(preds)
+            + ")))"
             # + " & "
             # + "(turn = cs -> (("
-            # + ") & (".join(preds)
+            # + ") & (".join(
+            #     [str(i) + " = next(" + str(i) + ")" for i in program.num_in_out]
+            # )
             # + ")))"
         )
 
