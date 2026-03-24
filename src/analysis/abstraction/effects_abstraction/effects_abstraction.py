@@ -1438,11 +1438,11 @@ def effects_to_ltl(
     ]
     for u in bool_updates:
         if conf.dual:
-            part = iff(X(u.left), X(X(massage_ltl_for_dual(u.right, dual_env_props))))
+            part = iff(X(massage_ltl_for_dual(u.right, dual_env_props)), X(X(u.left)))
         elif conf.dual2:
-            part = iff(u.left, X(u.right.replace_formulas(relabelling2)))
+            part = iff(X(u.left), u.right.replace_formulas(relabelling2))
         else:
-            part = iff(u.left, X(u.right))
+            part = iff(u.right, X(u.left))
         if conf.backend == "strix":
             part = propagate_nexts(part)
         parts_ltl.append(part.replace_formulas(vars_relabelling))
