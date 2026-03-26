@@ -2758,23 +2758,25 @@ def sum(terms):
         raise Exception("No terms to sum")
     elif len(terms) == 1:
         return terms[0]
-    else:
-        kept_terms = set()
-        for t in terms:
-            minus_t = propagate_minuses(UniOp(MathOps.SUB, t))
-            if propagate_minuses(UniOp(MathOps.SUB, (t))) in kept_terms:
-                kept_terms.remove(minus_t)
-            else:
-                kept_terms.add(t)
 
-        if len(kept_terms) == 0:
-            return Value(int(0))
+    kept_terms = set()
+    for t in terms:
+        if str(t) == "0":
+            continue
+        minus_t = propagate_minuses(UniOp(MathOps.SUB, t))
+        if propagate_minuses(UniOp(MathOps.SUB, t)) in kept_terms:
+            kept_terms.remove(minus_t)
+        else:
+            kept_terms.add(t)
 
-        new_terms = list(kept_terms)
-        term = new_terms[0]
-        for i in range(1, len(new_terms)):
-            term = BiOp(term, "+", new_terms[i])
-        return term
+    if len(kept_terms) == 0:
+        return Value(int(0))
+
+    new_terms = list(kept_terms)
+    term = new_terms[0]
+    for i in range(1, len(new_terms)):
+        term = BiOp(term, "+", new_terms[i])
+    return term
 
 
 def strip_outer_mathexpr(f):

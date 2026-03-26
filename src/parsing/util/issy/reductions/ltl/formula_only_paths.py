@@ -25,8 +25,8 @@ from parsing.util.issy.reductions.transition_utils import (
     _build_formula_update_predicate_guard_replacement,
     _restricted_updates_are_pairwise_mutually_exclusive,
 )
-from parsing.util.issy_game_transition_utils import determinise
-from parsing.util.issy_optimisation_reporting import (
+from parsing.util.game_transition_utils import determinise
+from parsing.util.issy.issy_optimisation_reporting import (
     record_optimisation as _record_optimisation,
     record_optimisation_detail as _record_optimisation_detail,
 )

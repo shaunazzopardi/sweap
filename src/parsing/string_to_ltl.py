@@ -230,6 +230,16 @@ parser_issy_ltl: Grammar = compile(
     + "\n math_0 = math_0_issy ;"
     + "\n boolean_term = boolean_term_issy ;"
 )
+parser_program_action_formula: Grammar = compile(
+    GRAMMAR.replace("atom = normal_atom", "atom = next_or_now_atom").replace(
+        "start_placeholder", "start = expression $ ;"
+    )
+    + "\n number = number_ltl ; "
+    + "\n math_expression = math_expression_ltl ; "
+    + "\n math_predicate = math_predicate_ltl ;"
+    + "\n math_0 = math_0_ltl_mt ;"
+    + "\n boolean_term = boolean_term_ltl ;"
+)
 
 
 class Semantics:
@@ -577,6 +587,15 @@ def string_to_issy_ltl(text: str) -> Formula:
     return parser_issy_ltl.parse(
         text,
         semantics=Semantics(),
+        comments="(\\/\\*.*?\\*\\/)",
+        eol_comments="\\/\\/.*?(\n|$)",
+    )
+
+
+def string_to_program_action_formula(text: str) -> Formula:
+    return parser_program_action_formula.parse(
+        text,
+        semantics=Semantics(True, False),
         comments="(\\/\\*.*?\\*\\/)",
         eol_comments="\\/\\/.*?(\n|$)",
     )

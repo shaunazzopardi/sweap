@@ -5,22 +5,30 @@ from parsec import generate, string, sepBy, spaces, regex
 
 import config
 from parsing.keywords import is_keyword
-from parsing.string_to_ltl import string_to_ltl_with_predicates
+from parsing.string_to_ltl import (
+    string_to_ltl_with_predicates,
+    string_to_program_action_formula,
+)
+from parsing.string_to_ltlmt import massage_ltl
 from parsing.string_to_prop_logic import (
     string_to_math_expression,
     string_to_prop,
     string_to_negated_atom,
 )
-from programs.program import Program
+from parsing.util.game_transition_utils import (
+    _resolve_nondeterminism,
+    formula_to_transitions,
+)
+from programs.program import Program, fill_in_minigames
 from programs.transition import Transition
 from programs.util import guarded_action_transitions_to_normal_transitions
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.nondet import NonDeterministic
-from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex, INTEGER
+from prop_lang.types.types import number_regex, BOOLEAN, parse_type, bool_regex
 from prop_lang.types.values import BoolAtoms
 from prop_lang.update import Update
-from prop_lang.update_formula import UpdateFormula
+from prop_lang.uniop import UniOp
 from prop_lang.util import (
     true,
     normalize_ltl,
@@ -29,6 +37,9 @@ from prop_lang.util import (
     neg,
     sat,
     rewrite_boolean_equalities_as_iff,
+    strip_mathexpr,
+    G,
+    F,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -63,7 +74,7 @@ def program_parser():
             )
         )
     yield spaces()
-    semantics, transitions = yield transitions_parser
+    semantics, transitions = yield transitions_parser({v[0] for v in initial_vals})
     yield spaces()
     ltl_spec = yield parsec.optional(specification_parser)
     yield spaces() >> string("}") >> spaces()
@@ -77,27 +88,51 @@ def program_parser():
         )
         for t in transitions
     ]
-    arg = []
-    for t in transitions:
-        arg.append((t, initial_vals, env, con, symbol_table))
-    with Pool(config.Config.getConfig().workers) as pool:
-        results = pool.map(guarded_action_transitions_to_normal_transitions, arg)
-        new_transitions = [t for tt in results for t in tt]
+    transition_groups = [None] * len(transitions)
+    guarded_action_args = []
+    guarded_action_indices = []
+
+    had_complex_action = False
+    for i, t in enumerate(transitions):
+        if isinstance(t.action, Formula):
+            had_complex_action = True
+            transition_groups[i] = lower_program_action_formula_transition(
+                t, initial_vals
+            )
+        else:
+            guarded_action_indices.append(i)
+            guarded_action_args.append((t, initial_vals, env, con, symbol_table))
+
+    if len(guarded_action_args) > 0:
+        with Pool(config.Config.getConfig().workers) as pool:
+            results = pool.map(
+                guarded_action_transitions_to_normal_transitions, guarded_action_args
+            )
+        for i, result in zip(guarded_action_indices, results):
+            transition_groups[i] = result
+
+    new_transitions = [t for group in transition_groups for t in group]
 
     if semantics == "by-order":
         new_transitions = apply_transition_semantics_by_order(
             new_transitions, guard_symbol_table
         )
 
+    states_for_program = list(states)
+    if any(str(s) == "lose" for t in new_transitions for s in (t.src, t.tgt)):
+        states_for_program.append("lose")
+
     program = Program(
         program_name,
-        states,
+        states_for_program,
         initial_state,
         initial_vals,
         new_transitions,
         env,
         con,
     )
+    if had_complex_action:
+        program, ltl_spec = postprocess_complex_action_program(program, ltl_spec)
     ltl_spec = ltl_spec.replace_formulas(
         {Variable(s): Value(BoolAtoms.FALSE) for s in states if s not in program.states}
     )
@@ -337,39 +372,43 @@ def initial_val_parser():
     return vals
 
 
-@generate
-def transition_parser():
-    yield spaces()
-    source = yield state << spaces()
-    yield regex("-+>") >> spaces()
-    dest = yield state << spaces()
-    yield string("[") >> spaces()
-    raw_cond = yield parsec.optional(spaces() >> regex(r"[^$#\]]+"), "true")
-    cond = string_to_prop(raw_cond)
-    yield spaces()
-    act = yield parsec.optional(
-        string("$")
-        >> spaces()
-        >> assignments
-        << spaces()
-        << parsec.optional(regex("(,|;)") >> spaces())
-        << parsec.lookahead(regex(r"(#|\])")),
-        [],
-    )
-    yield spaces()
-    raw_events = yield parsec.optional(outputs, [])
-    events = [string_to_negated_atom(e) for e in raw_events]
-    yield spaces()
-    yield string("]") >> spaces()
-    if not cond:
-        cond = true()
-    return Transition(source, cond, act, events, dest)
+def transition_parser(program_var_names: set[str] | None = None):
+    @generate
+    def _transition_parser():
+        yield spaces()
+        source = yield state << spaces()
+        yield regex("-+>") >> spaces()
+        dest = yield state << spaces()
+        yield string("[") >> spaces()
+        raw_cond = yield parsec.optional(spaces() >> regex(r"[^$#\]]+"), "true")
+        cond = string_to_prop(raw_cond)
+        yield spaces()
+        act = yield parsec.optional(
+            parsec.try_choice(
+                make_transition_normal_action_parser(),
+                make_transition_special_action_parser(program_var_names),
+            )
+            << spaces()
+            << parsec.optional(regex("(,|;)") >> spaces())
+            << parsec.lookahead(parsec.try_choice(string(">>"), string("]"))),
+            [],
+        )
+        yield spaces()
+        raw_events = yield parsec.optional(outputs, [])
+        events = [string_to_negated_atom(e) for e in raw_events]
+        yield spaces()
+        yield string("]") >> spaces()
+        if not cond:
+            cond = true()
+        return Transition(source, cond, act, events, dest)
+
+    return _transition_parser
 
 
 @generate
 def outputs():
     outputs = (
-        yield string("#")
+        yield string(">>")
         >> spaces()
         >> sepBy(
             parsec.try_choice(bool_decl_parser_untyped, regex(r"[^\],;]+")) << spaces(),
@@ -394,6 +433,223 @@ def assignments():
     return assignment_and_guards
 
 
+def _validate_program_action_formula_vars(
+    formula: Formula, program_var_names: set[str] | None
+) -> None:
+    if program_var_names is None:
+        return
+
+    invalid = sorted(
+        {
+            str(v)
+            for v in formula.variablesin()
+            if (
+                str(v.prev_rep()) if isinstance(v, Variable) and v.is_next() else str(v)
+            )
+            not in program_var_names
+        }
+    )
+    if invalid:
+        raise Exception(
+            "Program action formula may only reference program variables (now or next): "
+            + ", ".join(invalid)
+        )
+
+
+def parse_program_action_formula_text(
+    text: str, program_var_names: set[str] | None = None
+) -> Formula:
+    stripped = text.strip()
+    formula = true() if stripped == "" else string_to_program_action_formula(stripped)
+    _validate_program_action_formula_vars(formula, program_var_names)
+    return formula
+
+
+def make_program_action_formula_parser(program_var_names: set[str] | None = None):
+    @generate
+    def program_action_formula_parser():
+        raw_value = yield parsec.optional(regex(r"(?s)(?:(?!>>|\]).)+"), "")
+        yield spaces()
+        try:
+            return parse_program_action_formula_text(raw_value, program_var_names)
+        except Exception as e:
+            yield parsec.fail_with(str(e))
+
+    return program_action_formula_parser
+
+
+def make_transition_normal_action_parser():
+    @generate
+    def transition_normal_action_parser():
+        yield string("$") >> spaces()
+        empty_body = yield parsec.optional(
+            parsec.lookahead(parsec.try_choice(string(">>"), string("]"))),
+            None,
+        )
+        if empty_body is not None:
+            return []
+        raw_value = yield parsec.optional(regex(r"(?s)(?:(?!>>|\]).)+"), "")
+        try:
+            return (assignments << parsec.eof()).parse(raw_value.strip().rstrip(",;"))
+        except Exception as e:
+            yield parsec.fail_with(str(e))
+
+    return transition_normal_action_parser
+
+
+def make_transition_special_action_parser(
+    program_var_names: set[str] | None = None,
+):
+    @generate
+    def transition_special_action_parser():
+        yield string("#") >> spaces()
+        empty_body = yield parsec.optional(
+            parsec.lookahead(parsec.try_choice(string(">>"), string("]"))),
+            None,
+        )
+        if empty_body is not None:
+            return parse_program_action_formula_text("", program_var_names)
+        formula = yield make_program_action_formula_parser(program_var_names)
+        yield spaces()
+        yield parsec.optional(regex("(,|;)") >> spaces())
+        yield parsec.lookahead(parsec.try_choice(string(">>"), string("]")))
+        return formula
+
+    return transition_special_action_parser
+
+
+def _program_action_symbol_table(
+    initial_vals: list[tuple[str, object] | tuple[str, object, object]],
+) -> dict[str, object]:
+    symbol_table = {}
+    for v in initial_vals:
+        symbol_table[v[0]] = v[1]
+        symbol_table[v[0] + "'"] = v[1]
+    return symbol_table
+
+
+def lower_program_action_formula_transition(
+    transition: Transition,
+    initial_vals: list[tuple[str, object] | tuple[str, object, object]],
+) -> list[Transition]:
+    if not isinstance(transition.action, Formula):
+        return [transition]
+
+    symbol_table = _program_action_symbol_table(initial_vals)
+    program_vars = {Variable(v[0]) for v in initial_vals}
+    cond_updates = formula_to_transitions(
+        strip_mathexpr(transition.action), [], symbol_table
+    )
+    covered_conditions = [cond for cond, _ in cond_updates]
+
+    lowered = []
+    for cond, raw_update_sets in cond_updates:
+        for raw_updates in raw_update_sets:
+            predicate_upgrades = []
+            updates = []
+            for raw_update in raw_updates:
+                f = strip_mathexpr(raw_update)
+                if isinstance(f, Variable) and f.is_next():
+                    updates.append(Update(f.prev_rep(), true()))
+                    continue
+                if (
+                    isinstance(f, UniOp)
+                    and f.op == "!"
+                    and isinstance(f.right, Variable)
+                    and f.right.is_next()
+                ):
+                    updates.append(Update(f.right.prev_rep(), Value(BoolAtoms.FALSE)))
+                    continue
+
+                if isinstance(f, BiOp) and f.op == "=":
+                    left, right = f.left, f.right
+                    if (
+                        isinstance(left, Variable)
+                        and left.is_next()
+                        and not any(v for v in right.variablesin() if v.is_next())
+                    ):
+                        updates.append(Update(left.prev_rep(), right))
+                        continue
+
+                    if (
+                        isinstance(right, Variable)
+                        and right.is_next()
+                        and not any(v for v in left.variablesin() if v.is_next())
+                    ):
+                        updates.append(Update(right.prev_rep(), left))
+                        continue
+
+                predicate_upgrades.append(raw_update)
+
+            vars_updated_in_transition = {u.left for u in updates}
+            vars_not_updated = program_vars - vars_updated_in_transition
+            for v in sorted(vars_not_updated, key=str):
+                updates.append(Update(v, NonDeterministic()))
+
+            lowered_transition = Transition(
+                transition.src,
+                conjunct(transition.condition, cond),
+                updates,
+                transition.output,
+                transition.tgt,
+            )
+            lowered_transition.set_predicate_upgrades(predicate_upgrades)
+            lowered.append(lowered_transition)
+
+    uncovered_guard = conjunct(
+        transition.condition,
+        neg(disjunct_formula_set(covered_conditions)),
+    )
+    if sat(uncovered_guard, symbol_table):
+        lowered.append(Transition(transition.src, uncovered_guard, [], [], "lose"))
+
+    return lowered
+
+
+def postprocess_complex_action_program(
+    program: Program, ltl_spec: Formula
+) -> tuple[Program, Formula]:
+    to_exclude_from_minigame = []
+    lose_var = None
+
+    if not program.deterministic:
+        program, lose_var, to_exclude_from_minigame = _resolve_nondeterminism(
+            program,
+            dict(program.symbol_table),
+            list(to_exclude_from_minigame),
+        )
+
+    has_pred_upgrades = any(len(t.pred_upgrades) > 0 for t in program.orig_ts)
+    minigame_states = []
+    if has_pred_upgrades:
+        program, minigame_states = fill_in_minigames(
+            program,
+            [ltl_spec],
+            to_exclude_from_minigame,
+        )
+
+    if len(minigame_states) > 0:
+        not_in_minigame = neg(disjunct_formula_set(minigame_states))
+        ltl_spec = massage_ltl(ltl_spec, not_in_minigame, {})
+        ltl_spec = conjunct(
+            ltl_spec,
+            G(F(neg(disjunct_formula_set(minigame_states)))),
+        )
+
+    effective_lose_var = (
+        lose_var
+        if lose_var is not None
+        else ("lose" if "lose" in program.states else None)
+    )
+    if effective_lose_var is not None:
+        ltl_spec = conjunct(ltl_spec, G(neg(Variable(effective_lose_var))))
+
+    return program, normalize_ltl(ltl_spec)
+
+
+make_transition_action_formula_parser = make_transition_special_action_parser
+
+
 @generate
 def nondet_assignment():
     yield string("*") << spaces()
@@ -402,30 +658,36 @@ def nondet_assignment():
     yield string("]") << spaces()
     condition = string_to_prop(raw_value)
     # doesn t handle nexts
-    return UpdateFormula(condition)
+    return condition
 
 
-@generate
-def transitions_parser():
-    yield string("TRANSITIONS") >> spaces()
-    options = "by-order"
-    semantics = yield parsec.optional(
-        string("[")
-        >> spaces()
-        >> string("semantics")
-        >> spaces()
-        >> string("=")
-        >> spaces()
-        >> regex(options)
-        << spaces()
-        << string("]")
-        << spaces(),
-        "",
-    )
-    yield string("{") >> spaces()
-    transitions = yield sepBy(transition_parser, spaces() >> regex("(,|;)") >> spaces())
-    yield spaces() >> string("}")
-    return semantics, transitions
+def transitions_parser(program_var_names: set[str] | None = None):
+    @generate
+    def _transitions_parser():
+        yield string("TRANSITIONS") >> spaces()
+        options = "by-order"
+        semantics = yield parsec.optional(
+            string("[")
+            >> spaces()
+            >> string("semantics")
+            >> spaces()
+            >> string("=")
+            >> spaces()
+            >> regex(options)
+            << spaces()
+            << string("]")
+            << spaces(),
+            "",
+        )
+        yield string("{") >> spaces()
+        transitions = yield sepBy(
+            transition_parser(program_var_names),
+            spaces() >> regex("(,|;)") >> spaces(),
+        )
+        yield spaces() >> string("}")
+        return semantics, transitions
+
+    return _transitions_parser
 
 
 @generate

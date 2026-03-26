@@ -11,8 +11,8 @@ from parsing.string_to_issy import (
     _build_intermediate_game_program_data,
     _prepare_context,
     _cross_product_intermediate_programs,
-    _resolve_nondeterminism_after_cross_product,
 )
+from parsing.util.game_transition_utils import _resolve_nondeterminism
 from .formula_update_booleanisation import extract_formula_updates
 from .issy_translation_equivalence import (
     _dump_model_to_log,
@@ -89,7 +89,7 @@ def _build_pre_post_cross_product_programs(
 
     if resolve_nondeterminism and not pre_program.deterministic:
         pre_program, _post_cross_lose_var, to_exclude_from_minigame = (
-            _resolve_nondeterminism_after_cross_product(
+            _resolve_nondeterminism(
                 pre_program,
                 symbol_table,
                 list(to_exclude_from_minigame),

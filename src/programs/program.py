@@ -437,7 +437,7 @@ class Program:
             if t.action is not None and len(t.action) > 0:
                 result += " $ " + "; ".join(map(remove_paren, t.action))
             if is_env and t.output is not None and len(t.output) > 0:
-                result += " # " + ", ".join(map(remove_paren, t.output))
+                result += " >> " + ", ".join(map(remove_paren, t.output))
             return result + "]"
 
         # Create valuations from init_var_values and symbol_table

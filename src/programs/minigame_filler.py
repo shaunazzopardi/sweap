@@ -81,9 +81,15 @@ class MinigameFiller:
 
     @staticmethod
     def _local_init_values(prog: Program):
-        return list(
-            {(var.name, prog.symbol_table[var.name]) for var in prog.local_vars}
-        )
+        init_values = []
+        for var in sorted(prog.local_vars, key=lambda v: v.name):
+            var_name = var.name
+            var_type = prog.symbol_table[var_name]
+            if var_name in prog.init_var_values:
+                init_values.append((var_name, var_type, prog.init_var_values[var_name]))
+            else:
+                init_values.append((var_name, var_type))
+        return init_values
 
     @staticmethod
     def _assert_no_conflicting_transitions(

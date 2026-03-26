@@ -8,6 +8,10 @@ from parsec import choice, generate, string, sepBy, spaces, regex, many1, try_ch
 
 import config
 from analysis.smt_checker import quantifier_elimination
+from parsing.util.game_transition_utils import (
+    _resolve_nondeterminism,
+    _complete_raw_transitions_with_lose,
+)
 from parsing.util.issy.reductions.ltl.spot_update_restrictions import (
     infer_spot_update_restrictions,
     prepare_restriction_scan_context,
@@ -65,7 +69,7 @@ from parsing.string_to_ltl import (
     unary_LTL_operators,
     binary_LTL_operators,
 )
-from parsing.util.issy_optimisation_reporting import (
+from parsing.util.issy.issy_optimisation_reporting import (
     new_optimisation_summary as _new_optimisation_summary,
     record_optimisation as _record_optimisation,
     set_last_optimisation_summary as _set_last_optimisation_summary,
@@ -82,8 +86,7 @@ from parsing.util.issy.reductions.ltl.formula_utils import (
 from parsing.util.issy.reductions.both.next_state_var_booleanisation import (
     _promote_next_state_vars_to_controller_props,
 )
-from parsing.util.issy_game_transition_utils import (
-    determinise,
+from parsing.util.game_transition_utils import (
     formula_to_transitions,
 )
 from parsing.util.issy.reductions.ltl.drop_unsat_initial_antecedents import (
@@ -688,15 +691,6 @@ def _finalize_program_initial_values(
             program.unset_init_vars.remove(str(var))
 
 
-def _complete_raw_transitions_with_lose(raw_transitions, symbol_table):
-    lose_transitions = []
-    for src, trans in raw_transitions.items():
-        no_trans_triggered = neg(disjunct_formula_set(t.condition for t in trans))
-        if sat(no_trans_triggered, symbol_table):
-            lose_transitions.append(Transition(src, no_trans_triggered, [], [], "lose"))
-    return lose_transitions
-
-
 def _preprocess_issy_games_for_intermediate(
     games,
     macros,
@@ -1236,128 +1230,6 @@ def _cross_product_intermediate_programs(
     )
 
 
-def _resolve_nondeterminism_after_cross_product(
-    program: Program,
-    symbol_table,
-    to_exclude_from_minigame,
-):
-    if program.deterministic:
-        return program, None, to_exclude_from_minigame
-
-    raw_transitions = {}
-    for t in program.orig_ts:
-        raw_transitions.setdefault(t.src, []).append(t)
-
-    # Determinisation/merge may touch pre-existing helper/event vars that are
-    # present on transitions but not yet in the shared symbol table.
-    det_symbol_table = dict(symbol_table)
-    for ev, ty in list(program.env_events) + list(program.con_events):
-        det_symbol_table.setdefault(str(ev), ty)
-
-    # Backstop for helper vars that may have been introduced earlier.
-    helper_name_pattern = re.compile(r"^(eq_con_|sat_con_).+")
-    for ts in raw_transitions.values():
-        for t in ts:
-            for v in t.condition.variablesin():
-                name = v.name
-                if name not in det_symbol_table and helper_name_pattern.match(name):
-                    det_symbol_table[name] = BOOLEAN
-                if v.is_next():
-                    prev_name = v.prev_rep().name
-                    if prev_name not in det_symbol_table and helper_name_pattern.match(
-                        prev_name
-                    ):
-                        det_symbol_table[prev_name] = BOOLEAN
-
-    # Create lose transitions from raw source-guard coverage before any
-    # determinisation selectors are introduced.
-    lose_transitions = _complete_raw_transitions_with_lose(
-        raw_transitions,
-        det_symbol_table,
-    )
-
-    det_transitions, _lose_transitions, new_con_vars = determinise(
-        raw_transitions,
-        "cp",
-        det_symbol_table,
-    )
-
-    merge_symbol_table = det_symbol_table | {str(v): BOOLEAN for v in new_con_vars}
-
-    def _merge_equivalent_transitions(
-        transitions: list[Transition],
-    ) -> list[Transition]:
-        grouped = {}
-        for t in transitions:
-            sig = (
-                str(t.src),
-                str(t.tgt),
-                tuple(sorted(str(a) for a in t.action)),
-                tuple(sorted(str(p) for p in t.pred_upgrades)),
-                tuple(sorted(str(o) for o in t.output)),
-            )
-            if sig not in grouped:
-                grouped[sig] = {"rep": t, "conds": [t.condition]}
-            else:
-                grouped[sig]["conds"].append(t.condition)
-
-        merged = []
-        for entry in grouped.values():
-            rep = entry["rep"]
-            merged_cond = simplify_formula_with_math(
-                disjunct_formula_set(entry["conds"]),
-                merge_symbol_table,
-            )
-            merged_t = Transition(
-                rep.src,
-                merged_cond,
-                list(rep.action),
-                list(rep.output),
-                rep.tgt,
-            )
-            merged_t.set_predicate_upgrades(list(rep.pred_upgrades))
-            merged.append(merged_t)
-        return merged
-
-    all_transitions = _merge_equivalent_transitions(det_transitions + lose_transitions)
-
-    new_con_events = list(program.con_events)
-    symbol_table.update(det_symbol_table)
-    if len(new_con_vars) > 0:
-        symbol_table.update({str(v): BOOLEAN for v in new_con_vars})
-        for v in new_con_vars:
-            if not any(ev == v and ty == BOOLEAN for ev, ty in new_con_events):
-                new_con_events.append((v, BOOLEAN))
-
-    lose_var = None
-    if any(t.tgt == "lose" for t in all_transitions):
-        lose_var = "lose"
-        if lose_var not in to_exclude_from_minigame:
-            to_exclude_from_minigame.append(lose_var)
-
-    init_values = []
-    for var in program.local_vars_str:
-        var_type = program.symbol_table[var]
-        if var in program.init_var_values:
-            init_values.append((var, var_type, program.init_var_values[var]))
-        else:
-            init_values.append((var, var_type))
-
-    determinised_program = Program(
-        program.name,
-        set(program.states),
-        program.initial_state,
-        init_values,
-        all_transitions,
-        list(program.env_events),
-        new_con_events,
-        preprocess=False,
-        emit_state_binary_map=False,
-        is_determ=True,
-    )
-    return determinised_program, lose_var, to_exclude_from_minigame
-
-
 def process(
     name_str,
     vars_or_macros,
@@ -1814,7 +1686,7 @@ def _process_pipeline_post_stage1(
             program,
             post_cross_lose_var,
             to_exclude_from_minigame,
-        ) = _resolve_nondeterminism_after_cross_product(
+        ) = _resolve_nondeterminism(
             program,
             symbol_table,
             list(to_exclude_from_minigame),

@@ -7,7 +7,7 @@ from pathlib import Path
 from pysmt.shortcuts import reset_env
 
 from parsing import string_to_issy as string_to_issy_module
-from parsing.util import issy_optimisation_reporting as issy_optimisations_module
+from parsing.util.issy import issy_optimisation_reporting as issy_optimisations_module
 from prop_lang.util import run_with_timeout
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
