@@ -190,6 +190,54 @@ class MinigameFiller:
             c += 1
         return c
 
+    @staticmethod
+    def _minigame_reuse_key(
+        *,
+        one_step_const_var,
+        mg_preds,
+        one_step_consts: list[int],
+        restricted_updates,
+        unrestricted_updates,
+        const_choice_updates,
+        unrestricted_numeric_directions,
+        direct_unrestricted_vars,
+        bool_updates,
+        stop_prop,
+    ):
+        if one_step_const_var is not None:
+            return (
+                ("const_choice", one_step_const_var.name, tuple(one_step_consts)),
+                tuple(sorted(str(p) for p in mg_preds)),
+            )
+
+        action_signature = []
+        for upd, typ in restricted_updates:
+            if typ is not None:
+                action_signature.append(("restricted", upd.left.name, typ))
+        for upd in unrestricted_updates:
+            v = upd.left
+            if v in const_choice_updates:
+                action_signature.append(
+                    (
+                        "const_choice",
+                        v.name,
+                        tuple(const_choice_updates[v]),
+                    )
+                )
+            elif v in bool_updates:
+                action_signature.append(("bool", v.name))
+            else:
+                action_signature.append(
+                    (
+                        "numeric",
+                        v.name,
+                        unrestricted_numeric_directions.get(v, "both"),
+                        "direct" if v in direct_unrestricted_vars else "int",
+                    )
+                )
+        exit_signature = "stop" if len(unrestricted_updates) == 0 else str(stop_prop)
+        return (tuple(sorted(action_signature)), exit_signature)
+
     def _collect_ltl_constant_comparison_profile(self):
         tracked_int_vars = {
             str(v)
@@ -592,9 +640,7 @@ class MinigameFiller:
         new_trans = []
         var_values_that_matter_from_state = {}
         mini_game_counter = 0
-        existing_mini_games_from_with: dict[
-            str, dict[tuple[frozenset[Variable], Formula], str]
-        ] = {}
+        existing_mini_games_from_with: dict[str, dict[tuple, str]] = {}
         to_exclude_from_minigame = list(map(str, self.to_exclude_from_minigame))
         lose_self_loop = None
         if len(to_exclude_from_minigame) > 0:
@@ -700,60 +746,11 @@ class MinigameFiller:
             t.action = base_actions + non_determined_updates
             var_values_that_matter_from_state[t.tgt] = relevant
 
+            end_state = t.tgt
             undetermined_vars: frozenset[Variable] = frozenset(
                 u.left for u in non_determined_updates
             )
-            mg_preds_key = conjunct_formula_set(p.prev_rep() for p in t.pred_upgrades)
-            minigame_params = (undetermined_vars, mg_preds_key)
-            if (
-                t.tgt in existing_mini_games_from_with
-                and minigame_params in existing_mini_games_from_with[t.tgt]
-            ):
-                start_state = existing_mini_games_from_with[t.tgt][minigame_params]
-                new_t = Transition(
-                    t.src,
-                    t.condition,
-                    [a for a in t.action if a not in non_determined_updates],
-                    [],
-                    start_state,
-                )
-                reuse_input_dependent = sorted(
-                    {
-                        v
-                        for p in t.pred_upgrades
-                        for v in p.variablesin()
-                        if self._is_program_input_var(v)
-                        and len([vv for vv in p.variablesin() if vv.is_next()]) > 0
-                    },
-                    key=str,
-                )
-                if len(reuse_input_dependent) > 0:
-                    existing_lefts = {str(a.left) for a in new_t.action}
-                    for inp in reuse_input_dependent:
-                        curr_inp = Variable("curr_" + inp.name)
-                        if str(curr_inp) not in self.symbol_table:
-                            self.symbol_table[str(curr_inp)] = self.symbol_table[
-                                str(inp)
-                            ]
-                            curr_state_init_values.add(
-                                (str(curr_inp), self.symbol_table[str(inp)])
-                            )
-                        if str(curr_inp) not in existing_lefts:
-                            new_t.action.append(Update(curr_inp, inp))
-                new_trans.append(new_t)
-                continue
-
-            start_state = t.tgt + "_minigame_" + str(mini_game_counter)
-            minigame_states.add(Variable(start_state))
-            new_states.append(start_state)
-            end_state = t.tgt
-            new_t = Transition(
-                t.src,
-                t.condition,
-                [a for a in t.action if a not in non_determined_updates],
-                [],
-                start_state,
-            )
+            entry_actions = [a for a in t.action if a not in non_determined_updates]
             mg_preds = t.pred_upgrades
             nondet_next_vars = {
                 Variable(u.left.name + "'") for u in non_determined_updates
@@ -801,14 +798,14 @@ class MinigameFiller:
                 mg_preds = [
                     p.replace_formulas(input_snapshot_replacements) for p in mg_preds
                 ]
-                existing_lefts = {str(a.left) for a in new_t.action}
-                new_t.action.extend(
+                existing_lefts = {str(a.left) for a in entry_actions}
+                entry_actions.extend(
                     u
                     for u in input_snapshot_updates
                     if str(u.left) not in existing_lefts
                 )
 
-            mg_preds_key = conjunct_formula_set(mg_preds)
+            mg_preds = sorted(mg_preds, key=str)
             undet_vars = []
 
             def upd_type(v, op, right):
@@ -1017,8 +1014,11 @@ class MinigameFiller:
                 raw_events.append("stop")
 
             stop_prop = conjunct_formula_set(
-                p.replace_formulas(to_replace_preds).simplify() for p in mg_preds
-            )
+                sorted(
+                    (p.replace_formulas(to_replace_preds).simplify() for p in mg_preds),
+                    key=str,
+                )
+            ).simplify()
             # Outside one-step-constant handling, all primed vars must now be
             # resolved either by deterministic substitutions or minigame int/current
             # proxies. If not, fail early with context.
@@ -1040,20 +1040,47 @@ class MinigameFiller:
                         + "\nstop_pred="
                         + str(stop_prop)
                     )
-            minigame_params = (undetermined_vars, mg_preds_key)
+            minigame_params = self._minigame_reuse_key(
+                one_step_const_var=one_step_const_var,
+                mg_preds=mg_preds,
+                one_step_consts=one_step_consts,
+                restricted_updates=restricted_updates,
+                unrestricted_updates=unrestricted_updates,
+                const_choice_updates=const_choice_updates,
+                unrestricted_numeric_directions=unrestricted_numeric_directions,
+                direct_unrestricted_vars=direct_unrestricted_vars,
+                bool_updates=bool_updates,
+                stop_prop=stop_prop,
+            )
             if end_state in existing_mini_games_from_with:
                 if minigame_params in existing_mini_games_from_with[end_state]:
                     start_state = existing_mini_games_from_with[end_state][
                         minigame_params
                     ]
-                else:
-                    existing_mini_games_from_with[end_state][
-                        minigame_params
-                    ] = start_state
-            else:
-                existing_mini_games_from_with[end_state] = {
-                    minigame_params: start_state
-                }
+                    new_trans.append(
+                        Transition(
+                            t.src,
+                            t.condition,
+                            entry_actions,
+                            [],
+                            start_state,
+                        )
+                    )
+                    continue
+
+            start_state = t.tgt + "_minigame_" + str(mini_game_counter)
+            minigame_states.add(Variable(start_state))
+            new_states.append(start_state)
+            existing_mini_games_from_with.setdefault(end_state, {})[
+                minigame_params
+            ] = start_state
+            new_t = Transition(
+                t.src,
+                t.condition,
+                entry_actions,
+                [],
+                start_state,
+            )
 
             con_bin_vars, bin_map = binary_rep(raw_events, "minigame_event_")
             to_replace = {}
