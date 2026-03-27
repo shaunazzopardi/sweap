@@ -52,6 +52,16 @@ from synthesis.machines.mealy_machine import MealyMachine
 seen_loops_cache = {}
 
 
+def _prev_rep_only_for_vars(formula: Formula, vars_to_snapshot: set[Variable]) -> Formula:
+    return formula.replace_formulas(
+        lambda f: (
+            f.prev_rep()
+            if isinstance(f, Variable) and f in vars_to_snapshot
+            else None
+        )
+    )
+
+
 def already_an_equivalent_ranking(prev_decs, new_dec):
     for prev_dec in prev_decs:
         if new_dec == prev_dec:
@@ -308,6 +318,20 @@ def loop_to_c(
     choices = []
 
     for t in body:
+        updated_acts = [
+            act
+            for act in t.action
+            if symbol_table[str(act.left)] != BOOLEAN and act.left != act.right
+        ]
+        updated_vars = {act.left for act in updated_acts}
+        vars_to_snapshot = []
+        seen_snapshot_vars = set()
+        for act in updated_acts:
+            for var in act.right.variablesin():
+                if var in updated_vars and str(var) not in seen_snapshot_vars:
+                    vars_to_snapshot.append(var)
+                    seen_snapshot_vars.add(str(var))
+
         safety = (
             type_constraints_formula(t.condition, symbol_table)
             .to_nuxmv()
@@ -326,29 +350,26 @@ def loop_to_c(
             acts = "\n\t\t" + "\n\t\t".join(
                 [
                     str(act.left) + " = " + str(act.right) + ";"
-                    for act in t.action
-                    if symbol_table[str(act.left)] != BOOLEAN
-                    if act.left != act.right
+                    for act in updated_acts
                 ]
             )
         else:
             acts_prev = "\n\t\t".join(
                 [
-                    str(act.left) + "_prev = " + str(act.left) + ";"
-                    for act in t.action
-                    if symbol_table[str(act.left)] != BOOLEAN
-                    if act.left != act.right
+                    str(var) + "_prev = " + str(var) + ";"
+                    for var in vars_to_snapshot
                 ]
             )
             acts = (
                 acts_prev
-                + "\n\t\t"
+                + ("\n\t\t" if acts_prev else "")
                 + "\n\t\t".join(
                     [
-                        str(act.left) + " = " + str(act.right.prev_rep()) + ";"
-                        for act in t.action
-                        if symbol_table[str(act.left)] != BOOLEAN
-                        if act.left != act.right
+                        str(act.left)
+                        + " = "
+                        + str(_prev_rep_only_for_vars(act.right, set(vars_to_snapshot)))
+                        + ";"
+                        for act in updated_acts
                     ]
                 )
             )
