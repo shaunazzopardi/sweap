@@ -747,9 +747,6 @@ class MinigameFiller:
             var_values_that_matter_from_state[t.tgt] = relevant
 
             end_state = t.tgt
-            undetermined_vars: frozenset[Variable] = frozenset(
-                u.left for u in non_determined_updates
-            )
             entry_actions = [a for a in t.action if a not in non_determined_updates]
             mg_preds = t.pred_upgrades
             nondet_next_vars = {
@@ -1040,6 +1037,22 @@ class MinigameFiller:
                         + "\nstop_pred="
                         + str(stop_prop)
                     )
+
+            completed_entry_actions = list(entry_actions) + list(
+                map(lambda x: x[0], restricted_updates)
+            )
+            for u in unrestricted_updates:
+                v = u.left
+                if (
+                    self.symbol_table[str(v)] == BOOLEAN
+                    or v in direct_unrestricted_vars
+                    or v in const_choice_updates
+                ):
+                    continue
+                int_v = Variable("int_" + str(v))
+                to_add_to_local_vars.add((v, int_v))
+                completed_entry_actions.append(Update(int_v, v))
+
             minigame_params = self._minigame_reuse_key(
                 one_step_const_var=one_step_const_var,
                 mg_preds=mg_preds,
@@ -1061,7 +1074,7 @@ class MinigameFiller:
                         Transition(
                             t.src,
                             t.condition,
-                            entry_actions,
+                            completed_entry_actions,
                             [],
                             start_state,
                         )
@@ -1077,7 +1090,7 @@ class MinigameFiller:
             new_t = Transition(
                 t.src,
                 t.condition,
-                entry_actions,
+                completed_entry_actions,
                 [],
                 start_state,
             )
@@ -1153,7 +1166,6 @@ class MinigameFiller:
                     undet_vars.append(v)
 
                     modify_prop = bin_map[(v.name + "_modify")]
-                    new_t.action.append(u)
 
                     if typ is None:
                         continue
@@ -1282,9 +1294,6 @@ class MinigameFiller:
                             )
                     else:
                         int_v = Variable("int_" + str(v))
-                        to_add_to_local_vars.add((v, int_v))
-                        new_t.action.append(Update(int_v, v))
-                        new_t.action.append(Update(v, v))
                         stutter_guard = conjunct(stop, neg(stop_prop))
                         if sat(stutter_guard, self.symbol_table):
                             new_trans.append(
