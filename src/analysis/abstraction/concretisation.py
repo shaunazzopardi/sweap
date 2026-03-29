@@ -75,11 +75,16 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
         == "FALSE"
         # or incompatible_state[2]["compatible_outputs"] == "FALSE"
     ):
-        # TODO
-        if not program.deterministic:
+        if program.deterministic is None:
+            if not is_deterministic(program):
+                raise Exception(
+                    "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
+                )
+        elif not program.deterministic:
             raise Exception(
-                "Program is non-deterministic, we do not handle refinement for it."
+                "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
             )
+
         failed_condition = neg(concretized[-1][0].condition)
         reduced = failed_condition.replace(
             {

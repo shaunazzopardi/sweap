@@ -271,7 +271,7 @@ def create_nuxmv_model_for_compatibility_checking(
 
     compatible_input_predicates = (
         "\tcompatible_inputs := "
-        + "((turn = cs) -> ("
+        + "(("
         + conjunct_formula_set(input_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -427,12 +427,6 @@ def create_nuxmv_model_for_compatibility_checking(
             + "(turn = cs -> (("
             + ") & (".join(preds)
             + ")))"
-            # + " & "
-            # + "(turn = cs -> (("
-            # + ") & (".join(
-            #     [str(i) + " = next(" + str(i) + ")" for i in program.num_in_out]
-            # )
-            # + ")))"
         )
 
     text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"

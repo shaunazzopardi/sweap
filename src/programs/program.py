@@ -20,6 +20,7 @@ from prop_lang.formula import Formula
 from prop_lang.util import (
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
+    X,
 )
 from programs.util import (
     reset_caches,
@@ -629,26 +630,27 @@ class Program:
                 + pred_upgrades_cond
             )
 
+            bare_acts = []
+            for u in self.complete_action_set(transition.action):
+                if dualise:
+                    right = massage_ltl_for_dual(u.right, self.env_events, False)
+                elif dual2:
+                    right = massage_ltl_for_dual(
+                        u.right, self.bool_in_out + self.num_in_out, False
+                    )
+                else:
+                    right = u.right
+                bare_acts.append(BiOp(X(u.left), "=", right))
+
+            bare_acts = (
+                conjunct_formula_set(bare_acts).to_nuxmv().replace("X(", "next(")
+            )
+
             act = (
                 "next("
                 + str(transition.tgt)
                 + ") &"
-                + conjunct_formula_set(
-                    self.complete_action_set(transition.action)
-                ).to_nuxmv()
-                # + "".join(
-                #     [
-                #         " & next(" + str(assignment) + ")"
-                #         for assignment in transition.output
-                #     ]
-                # )
-                # + "".join(
-                #     [
-                #         " & !next(" + str(event) + ")"
-                #         for event in self.out_events
-                #         if event not in transition.output
-                #     ]
-                # )
+                + bare_acts
                 + "".join(
                     [
                         " & !next(" + st + ")"
@@ -837,30 +839,27 @@ class Program:
             if stutter_when_other_game_in_minigame:
                 guard = "(" + guard + ") & !other_game_in_minigame"
 
+            bare_acts = []
+            for u in self.complete_action_set(transition.action):
+                if dualise:
+                    right = massage_ltl_for_dual(u.right, self.env_events, False)
+                elif dual2:
+                    right = massage_ltl_for_dual(
+                        u.right, self.bool_in_out + self.num_in_out, False
+                    )
+                else:
+                    right = u.right
+                bare_acts.append(BiOp(X(u.left), "=", right))
+
+            bare_acts = (
+                conjunct_formula_set(bare_acts).to_nuxmv().replace("X(", "next(")
+            )
+
             act = (
                 "next("
                 + str(transition.tgt)
-                + ")"
-                + "".join(
-                    [
-                        " & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv())
-                        for act in self.complete_action_set(transition.action)
-                        if not isinstance(act.right, NonDeterministic)
-                    ]
-                )
-                + "".join(
-                    [
-                        " & next(" + str(assignment) + ")"
-                        for assignment in transition.output
-                    ]
-                )
-                + "".join(
-                    [
-                        " & !next(" + str(event) + ")"
-                        for event in self.out_events
-                        if event not in transition.output
-                    ]
-                )
+                + ") &"
+                + bare_acts
                 + "".join(
                     [
                         " & !next(" + st + ")"
