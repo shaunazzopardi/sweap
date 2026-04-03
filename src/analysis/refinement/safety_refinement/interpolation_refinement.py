@@ -244,7 +244,6 @@ def qe_refinement(
         RHS = And(*neg(right).to_smt(new_symbol_table))
         formula = ForAll(typed_vars, Implies(LHS, RHS))
         qe = quantifier_elimination(formula)
-        print(serialize(qe))
         neg_f = fnode_to_formula(qe)
         preds_in_res.update(atomic_predicates(neg_f))
 
