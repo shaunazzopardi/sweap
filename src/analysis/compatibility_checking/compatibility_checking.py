@@ -197,6 +197,10 @@ def create_nuxmv_model_for_compatibility_checking(
             for p in state_predicates
             if has_input_preds(p)
         ]
+        input_predicate_truth += [
+            BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
+            for bool_rep, p in input_pred_rep_to_val.items()
+        ]
     else:
         state_to_prev = lambda x: (
             Variable(x.name + "_prev") if x in program.local_vars else None
@@ -207,10 +211,14 @@ def create_nuxmv_model_for_compatibility_checking(
             if has_input_preds(p)
         ]
 
-    input_predicate_truth += [
-        BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
-        for bool_rep, p in input_pred_rep_to_val.items()
-    ]
+        input_predicate_truth += [
+            BiOp(
+                p.replace_formulas(state_to_prev),
+                BoolBiOps.IFF,
+                Variable(bool_rep),
+            )
+            for bool_rep, p in input_pred_rep_to_val.items()
+        ]
 
     safety_predicate_truth = [
         BiOp(p.bool_var, BoolBiOps.IFF, p.pred)
@@ -230,22 +238,11 @@ def create_nuxmv_model_for_compatibility_checking(
         if not has_input_preds(p)
     ]
 
-    # prog_output_equality = [
-    #     BiOp(o, MathRels.EQ, Variable("prog_" + o.name)) for o in program.out_events
-    # ]
-
     prog_state_equality = [
         BiOp(Variable(s), BoolBiOps.IFF, program.states_binary_map[s])
         for s in program.states
     ]
 
-    # compatible_output = (
-    #     "\tcompatible_outputs := "
-    #     + "((turn = cs) -> ("
-    #     # + conjunct_formula_set(prog_output_equality).to_nuxmv()
-    #     + "))"
-    #     + ";\n"
-    # )
     compatible_states = (
         "\tcompatible_states := "
         + "((turn = cs) -> ("

@@ -149,6 +149,8 @@ def create_nuxmv_model_for_verification_checking(
     program_model = program.to_nuXmv_with_turns_for_con_verif()
     bool_preds = [p.bool_var for p in state_predicates]
     bool_preds.extend([t for p in transition_predicates for t in p.bool_rep.values()])
+    dual = config.Config.getConfig().dual
+    dual2 = config.Config.getConfig().dual2
 
     text = "MODULE main\n"
 
@@ -183,11 +185,15 @@ def create_nuxmv_model_for_verification_checking(
         + ";\n"
     )
 
-    if not config.Config.getConfig().dual2:
+    if not dual2:
         input_predicate_truth = [
             BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
             for p in state_predicates
             if has_input_preds(p)
+        ]
+        input_predicate_truth += [
+            BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
+            for bool_rep, p in input_pred_rep_to_val.items()
         ]
     else:
         state_to_prev = lambda x: (
@@ -199,10 +205,14 @@ def create_nuxmv_model_for_verification_checking(
             if has_input_preds(p)
         ]
 
-    input_predicate_truth += [
-        BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
-        for bool_rep, p in input_pred_rep_to_val.items()
-    ]
+        input_predicate_truth += [
+            BiOp(
+                p.replace_formulas(state_to_prev),
+                BoolBiOps.IFF,
+                Variable(bool_rep),
+            )
+            for bool_rep, p in input_pred_rep_to_val.items()
+        ]
 
     safety_predicate_truth = [
         BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
@@ -323,7 +333,7 @@ def create_nuxmv_model_for_verification_checking(
 
     turn_logic = ["!next(init_state)"]
 
-    if config.Config.getConfig().dual:
+    if dual:
         init_choice_logic = abstract_ltl_problem.init_choice_logic
         if init_choice_logic:
             init_choice_logic = init_choice_logic.to_nuxmv()
@@ -337,7 +347,7 @@ def create_nuxmv_model_for_verification_checking(
             + ")\n\t\t& (".join(program_model.trans + turn_logic)
             + ")))) & next(!init_state)) &\n"
             + "(init_state -> (next(!init_state) & next(second_state) & "
-            + (" next(" if config.Config.getConfig().dual else "(")
+            + (" next(" if dual else "(")
             + (" & ".join(program_model.init) if program_model.init else "TRUE")
             + ")"
             + (" & (" + init_choice_logic + ")" if init_choice_logic else "")
@@ -352,9 +362,9 @@ def create_nuxmv_model_for_verification_checking(
             + ")\n\t& (".join(new_trans)
             + "))\n"
         )
-        if config.Config.getConfig().dual2:
+        if dual2:
             init_choice_logic = abstract_ltl_problem.init_choice_logic
-            if init_choice_logic and config.Config.getConfig().dual2:
+            if init_choice_logic and dual2:
                 init_choice_logic = init_choice_logic.to_nuxmv().replace("next(", "(")
 
             normal_trans += (

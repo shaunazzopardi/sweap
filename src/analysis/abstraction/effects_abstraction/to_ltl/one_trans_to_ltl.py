@@ -308,7 +308,6 @@ def abstract_ltl_problem(
                 )
             )
 
-    # ltl_abstraction = to_ltl_reduced(effects_abstraction)
     for p in effects_abstraction.state_predicates:
         if dualise:
             if any(v for v in p.variablesin() if v in program.num_in_out):
@@ -376,7 +375,7 @@ def abstract_ltl_problem(
 
     for f in effects_abstraction.structural_loop_constraints:
         f = f.replace_formulas(dict_to_replace | relabellings)
-        if dualise or dual2:
+        if dualise:
             f = X(f)
         if strix_backend:
             f = propagate_nexts(f)
@@ -398,7 +397,9 @@ def abstract_ltl_problem(
 
     orig_assumptions = []
     for ass in original_LTL_problem.assumptions:
-        new_ass = ass.replace_formulas(dict_to_replace | relabellings)
+        new_ass = ass.replace_formulas(
+            dict_to_replace | effects_abstraction.var_relabellings
+        )
         orig_assumptions.append(
             new_ass
             if not dualise
@@ -407,7 +408,9 @@ def abstract_ltl_problem(
 
     orig_guarantees = []
     for guar in original_LTL_problem.guarantees:
-        new_guar = guar.replace_formulas(dict_to_replace | relabellings)
+        new_guar = guar.replace_formulas(
+            dict_to_replace | effects_abstraction.var_relabellings
+        )
         orig_guarantees.append(
             new_guar
             if not dualise

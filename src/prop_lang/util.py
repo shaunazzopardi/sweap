@@ -2837,6 +2837,32 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=False):
         return formula
 
 
+def massage_action_for_dual(formula: Formula, next_events, preds_too=False):
+    if isinstance(formula, Value):
+        return formula
+    elif isinstance(formula, Variable):
+        if formula in next_events:
+            return X(formula)
+        else:
+            return formula
+    elif isinstance(formula, MathExpr):
+        return massage_action_for_dual(formula.formula, next_events, preds_too)
+    elif should_be_math_expr(formula):
+        return massage_action_for_dual(formula, next_events, preds_too)
+    elif isinstance(formula, UniOp):
+        return UniOp(
+            formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too)
+        )
+    elif isinstance(formula, BiOp):
+        return BiOp(
+            massage_ltl_for_dual(formula.left, next_events, preds_too),
+            formula.op,
+            massage_ltl_for_dual(formula.right, next_events, preds_too),
+        )
+    else:
+        return formula
+
+
 def all_sat_models(preds, symbol_table):
     if len(preds) == 0:
         raise Exception("all_sat_models called with zero preds")

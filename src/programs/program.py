@@ -21,6 +21,7 @@ from prop_lang.util import (
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
     X,
+    massage_action_for_dual,
 )
 from programs.util import (
     reset_caches,
@@ -609,10 +610,7 @@ class Program:
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             elif dual2:
-                # cond = (
-                #     transition.condition.to_nuxmv()
-                # )
-                cond = massage_ltl_for_dual(
+                cond = massage_action_for_dual(
                     transition.condition, self.bool_in_out + self.num_in_out, False
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
@@ -635,7 +633,7 @@ class Program:
                 if dualise:
                     right = massage_ltl_for_dual(u.right, self.env_events, False)
                 elif dual2:
-                    right = massage_ltl_for_dual(
+                    right = massage_action_for_dual(
                         u.right, self.bool_in_out + self.num_in_out, False
                     )
                 else:
@@ -824,7 +822,7 @@ class Program:
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             elif dual2:
-                cond = massage_ltl_for_dual(
+                cond = massage_action_for_dual(
                     transition.condition, self.bool_in_out + self.num_in_out, False
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
@@ -844,7 +842,7 @@ class Program:
                 if dualise:
                     right = massage_ltl_for_dual(u.right, self.env_events, False)
                 elif dual2:
-                    right = massage_ltl_for_dual(
+                    right = massage_action_for_dual(
                         u.right, self.bool_in_out + self.num_in_out, False
                     )
                 else:
