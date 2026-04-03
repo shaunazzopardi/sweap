@@ -446,6 +446,9 @@ def refining_abs_and_log(
         in_loop_vars, new_structural_loop_constraints
     )
 
+    for table in predicate_abstraction.get_binary_rep_tables():
+        logging.info(table)
+
     new_state_preds.clear()
     new_tran_preds.clear()
     new_ranking_constraints.clear()
