@@ -2845,10 +2845,10 @@ def massage_action_for_dual(formula: Formula, next_events, preds_too=False):
             return X(formula)
         else:
             return formula
-    elif isinstance(formula, MathExpr):
-        return massage_action_for_dual(formula.formula, next_events, preds_too)
-    elif should_be_math_expr(formula):
-        return massage_action_for_dual(formula, next_events, preds_too)
+    elif isinstance(formula, MathExpr) or should_be_math_expr(formula):
+        return formula.replace_formulas(
+            {v: X(v) for v in formula.variablesin() if v in next_events}
+        )
     elif isinstance(formula, UniOp):
         return UniOp(
             formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too)
