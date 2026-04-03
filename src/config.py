@@ -250,7 +250,7 @@ class Config:
         _do_nothing,
         "",
     )
-    workers = 1  # multiprocessing.cpu_count()
+    workers = multiprocessing.cpu_count()
 
     def __init__(self):
         raise RuntimeError("Use getConfig() instead")
