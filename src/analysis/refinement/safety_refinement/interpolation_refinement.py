@@ -109,7 +109,7 @@ def safety_refinement_seq_int(
                 g = tran.condition.replace_vars(
                     {
                         Variable(str(e)): Value(cs_state[str(e)])
-                        for e, _ in program.env_events + program.con_events
+                        for e in program.bool_in_out
                     }
                 )
                 g_i = g.replace_vars(ith_vars(i))
