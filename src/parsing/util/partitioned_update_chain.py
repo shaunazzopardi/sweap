@@ -7,6 +7,7 @@ from typing import Iterator
 from analysis.smt_checker import quantifier_elimination
 from pysmt.shortcuts import Exists, Not, Symbol
 from pysmt.typing import BOOL, INT
+from programs.binary_rep_map import BinaryRepMap
 from programs.transition import Transition
 from programs.util import binary_rep
 from prop_lang.biop import BiOp
@@ -98,34 +99,31 @@ def build_update_predicate_guard_replacements(
 
 def format_update_predicate_guard_map(
     update_predicate_key_to_guard: dict[str, Formula],
+    *,
+    update_predicate_key_to_guard_display: dict[str, str] | None = None,
+    guard_bits: set[Variable] | None = None,
 ) -> str:
     if len(update_predicate_key_to_guard) == 0:
         return "Partition update predicate -> guards map: <empty>"
-    rows = [
-        (pred_key, str(update_predicate_key_to_guard[pred_key]))
-        for pred_key in sorted(update_predicate_key_to_guard.keys())
-    ]
-    col1_header = "Predicate"
-    col2_header = "Guards"
-    col1_width = max([len(col1_header)] + [len(r[0]) for r in rows])
-    col2_width = max([len(col2_header)] + [len(r[1]) for r in rows])
 
-    top = "+" + "-" * (col1_width + 2) + "+" + "-" * (col2_width + 2) + "+"
-    hdr = (
-        "| "
-        + col1_header.ljust(col1_width)
-        + " | "
-        + col2_header.ljust(col2_width)
-        + " |"
+    pred_keys = sorted(update_predicate_key_to_guard.keys())
+    table_rhs_display = {
+        pred_key: (
+            update_predicate_key_to_guard_display[pred_key]
+            if update_predicate_key_to_guard_display is not None
+            and pred_key in update_predicate_key_to_guard_display
+            else str(update_predicate_key_to_guard[pred_key])
+        )
+        for pred_key in pred_keys
+    }
+    pred_to_guard_code = BinaryRepMap(
+        {pred_key: update_predicate_key_to_guard[pred_key] for pred_key in pred_keys},
+        bin_vars=tuple(sorted(guard_bits, key=lambda v: str(v)))
+        if guard_bits is not None
+        else tuple(),
+        table_rhs_display=table_rhs_display,
     )
-    sep = "+" + "=" * (col1_width + 2) + "+" + "=" * (col2_width + 2) + "+"
-    body = [
-        "| " + left.ljust(col1_width) + " | " + right.ljust(col2_width) + " |"
-        for left, right in rows
-    ]
-    return "\n".join(
-        ["Partition update predicate -> guards map:", top, hdr, sep] + body + [top]
-    )
+    return pred_to_guard_code.format_table("Partition update predicate -> guards map")
 
 
 def build_partitioned_update_chain(
@@ -162,6 +160,7 @@ def build_partitioned_update_chain(
     transitions: list[Transition] = []
     all_con_act_vars: set[Variable] = set()
     update_key_to_guard_terms: dict[tuple[str, str], list[Formula]] = {}
+    update_key_to_guard_display_terms: dict[tuple[str, str], list[str]] = {}
     update_key_to_rhs: dict[tuple[str, str], Formula] = {}
     update_keys_by_var: dict[str, set[tuple[str, str]]] = {}
     update_key_to_pred_keys: dict[tuple[str, str], set[str]] = {}
@@ -248,12 +247,24 @@ def build_partitioned_update_chain(
                 original_upd = rewritten_to_original_update.get(upd, upd)
                 rhs = strip_mathexpr(original_upd.right)
                 upd_key = (str(original_upd.left), str(rhs))
+                selector_key = Variable(str(i))
+                selector_code = selector_map._table_rhs_display.get(
+                    selector_key, str(act_guard)
+                )
+                pred_guard_display = (
+                    selector_code
+                    if state == eval_state
+                    else f"(!{state} U ({state} && {selector_code}))"
+                )
                 update_key_to_rhs[upd_key] = rhs
                 update_keys_by_var.setdefault(str(original_upd.left), set()).add(
                     upd_key
                 )
                 update_key_in_first_partition[upd_key] = bool(j == 0)
                 update_key_to_guard_terms.setdefault(upd_key, []).append(pred_guard)
+                update_key_to_guard_display_terms.setdefault(upd_key, []).append(
+                    pred_guard_display
+                )
                 pred_keys = canonical_pred_keys_cache.get(original_upd)
                 if pred_keys is None:
                     pred_keys = _canonical_update_predicate_keys(original_upd)
@@ -261,8 +272,20 @@ def build_partitioned_update_chain(
                 for pred_key in pred_keys:
                     update_key_to_pred_keys.setdefault(upd_key, set()).add(pred_key)
 
+    def _join_unique_disjuncts(terms: list[str]) -> str:
+        unique_terms = list(dict.fromkeys(terms))
+        if len(unique_terms) == 0:
+            return "FALSE"
+        if len(unique_terms) == 1:
+            return unique_terms[0]
+        return " || ".join(unique_terms)
+
     update_key_to_guard = {
         k: disjunct_formula_set(vs) for k, vs in update_key_to_guard_terms.items()
+    }
+    update_key_to_guard_display = {
+        k: _join_unique_disjuncts(vs)
+        for k, vs in update_key_to_guard_display_terms.items()
     }
 
     if use_qe_equivalent_update_guard_fusion and len(update_keys_by_var) > 0:
@@ -294,10 +317,12 @@ def build_partitioned_update_chain(
             return simplify_formula_with_math(fnode_to_formula(qe), qe_symbol_table)
 
         merged_update_key_to_guard = {}
+        merged_update_key_to_guard_display = {}
         for var_name, upd_keys in update_keys_by_var.items():
             upd_keys_sorted = sorted(upd_keys)
             for target_key in upd_keys_sorted:
                 guard_terms = [update_key_to_guard[target_key]]
+                display_terms = [update_key_to_guard_display[target_key]]
                 target_rhs = rhs_for_qe[target_key]
                 for other_key in upd_keys_sorted:
                     if other_key == target_key:
@@ -312,25 +337,45 @@ def build_partitioned_update_chain(
                     eq_cond = _qe_equivalence_cond(var_name, target_rhs, other_rhs)
                     if is_tautology(eq_cond, qe_symbol_table):
                         guard_terms.append(update_key_to_guard[other_key])
+                        display_terms.append(update_key_to_guard_display[other_key])
                     elif sat(eq_cond, qe_symbol_table):
                         guard_terms.append(
                             conjunct(eq_cond, update_key_to_guard[other_key])
                         )
+                        display_terms.append(
+                            f"({eq_cond} && {update_key_to_guard_display[other_key]})"
+                        )
                 merged_update_key_to_guard[target_key] = disjunct_formula_set(
                     guard_terms
                 )
+                merged_update_key_to_guard_display[target_key] = _join_unique_disjuncts(
+                    display_terms
+                )
         update_key_to_guard = merged_update_key_to_guard
+        update_key_to_guard_display = merged_update_key_to_guard_display
 
     update_predicate_key_to_guard_terms = {}
+    update_predicate_key_to_guard_display_terms = {}
     for upd_key, guard in update_key_to_guard.items():
         for pred_key in update_key_to_pred_keys.get(upd_key, set()):
             update_predicate_key_to_guard_terms.setdefault(pred_key, []).append(guard)
+            update_predicate_key_to_guard_display_terms.setdefault(pred_key, []).append(
+                update_key_to_guard_display[upd_key]
+            )
     update_predicate_key_to_guard = {
         k: disjunct_formula_set(vs)
         for k, vs in update_predicate_key_to_guard_terms.items()
     }
+    update_predicate_key_to_guard_display = {
+        k: _join_unique_disjuncts(vs)
+        for k, vs in update_predicate_key_to_guard_display_terms.items()
+    }
 
-    map_str = format_update_predicate_guard_map(update_predicate_key_to_guard)
+    map_str = format_update_predicate_guard_map(
+        update_predicate_key_to_guard,
+        update_predicate_key_to_guard_display=update_predicate_key_to_guard_display,
+        guard_bits=all_con_act_vars,
+    )
     print(map_str)
     logging.info(map_str)
 
