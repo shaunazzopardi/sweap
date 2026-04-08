@@ -105,9 +105,8 @@ class BiOp(Formula):
     # returns list of variables that appear in formula
     # ordered as they appear in the formula
     # without already appearing variables
+    @functools.lru_cache()
     def variablesin(self) -> list[Variable]:
-        if self.vars is not None:
-            return self.vars
         self.vars = self.left.variablesin() + self.right.variablesin()
         vars_unique = [v for (i, v) in enumerate(self.vars) if v not in self.vars[:i]]
         self.vars = vars_unique

@@ -930,7 +930,7 @@ def type_constraint(variable, symbol_table):
 def type_constraint_from_act(act, symbol_table):
     constraints = set()
     constraints.add(next_type_constraint_from_act(act, symbol_table))
-    vars = act.right.variablesin()
+    vars = [v for v in act.right.variablesin()]
     if act.left in vars:
         vars.remove(act.left)
     constraints.update(type_constraints_from_vars(vars, symbol_table))

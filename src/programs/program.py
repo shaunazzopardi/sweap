@@ -131,11 +131,15 @@ class Program:
         self.transitions = transitions
 
         if len(self.transitions) == 0:
-            self.transitions = [Transition(s, true(), [], [], s) for s in self.states]
+            self.transitions = [
+                Transition(self.initial_state, true(), [], [], self.initial_state)
+            ]
 
         all_vars = self.local_vars
         self.transitions = [
-            t.complete_outputs(self.out_events).complete_action_set(all_vars)
+            self.add_type_constraints_to_guards(t)
+            .complete_outputs(self.out_events)
+            .complete_action_set(all_vars)
             for t in self.transitions
         ]
 
@@ -408,18 +412,10 @@ class Program:
     def add_type_constraints_to_guards(self, transition: Transition):
         constraints = type_constraints_acts(transition, self.symbol_table)
         # constraints += list(type_constraints(transition.condition, self.symbol_table))
-        ts = []
         if len(constraints) == 0:
-            ts.append(transition)
+            return transition
         else:
-            # if not is_tautology(
-            #     implies(transition.condition, constraints), self.symbol_table
-            # ):
-            ts.append(transition.add_condition(conjunct_formula_set(constraints)))
-        # else:
-        #     return transition
-
-        return ts
+            return transition.add_condition(conjunct_formula_set(constraints))
 
     def is_finite_state(self):
         return all(is_finite(type_obj) for type_obj in self.symbol_table.values())
