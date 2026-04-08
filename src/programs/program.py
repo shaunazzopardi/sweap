@@ -246,11 +246,14 @@ class Program:
                 k: v for k, v in self.state_to_trans.items() if k in self.states
             }
 
-        self.only_init_transitions: list[Transition] = [
-            t
-            for t in self.state_to_trans.get(self.initial_state, [])
-            if self.initial_state not in self.reachable_from.get(t.tgt, set())
-        ]
+        self.only_init_transitions: list[Transition] = self.state_to_trans.get(
+            self.initial_state, []
+        )
+        tgts = set(t.tgt for t in self.transitions)
+        if any(
+            s for s in tgts if self.initial_state in self.reachable_from.get(s, set())
+        ):
+            self.only_init_transitions.clear()
 
         # if not config.Config.getConfig().no_binary_enc:
         self.bin_state_vars, self.states_binary_map = binary_rep_states(
