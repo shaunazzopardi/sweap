@@ -747,18 +747,51 @@ class Program:
             if len(locals_plus_inputs) > 0
             else ""
         )
-        maintain_prevs = "!(turn = cs)" + (
-            " & "
-            + " & ".join(
-                [
-                    "next(" + str(var) + "_prev) = " + str(var) + "_prev"
-                    for var in locals_plus_inputs
-                ]
+        if dual2:
+            init_prevs = "(turn = init1)" + (
+                " & "
+                + " & ".join(
+                    [
+                        "next(" + str(var) + "_prev) = next(" + str(var) + ")"
+                        for var in locals_plus_inputs
+                    ]
+                )
+                if len(locals_plus_inputs) > 0
+                else ""
             )
-            if len(locals_plus_inputs) > 0
-            else ""
-        )
-        prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
+            maintain_prevs = "(!(turn = cs) & !(turn = init1))" + (
+                " & "
+                + " & ".join(
+                    [
+                        "next(" + str(var) + "_prev) = " + str(var) + "_prev"
+                        for var in locals_plus_inputs
+                    ]
+                )
+                if len(locals_plus_inputs) > 0
+                else ""
+            )
+            prev_logic = (
+                "(("
+                + update_prevs
+                + ") | ("
+                + init_prevs
+                + ") | ("
+                + maintain_prevs
+                + "))"
+            )
+        else:
+            maintain_prevs = "!(turn = cs)" + (
+                " & "
+                + " & ".join(
+                    [
+                        "next(" + str(var) + "_prev) = " + str(var) + "_prev"
+                        for var in locals_plus_inputs
+                    ]
+                )
+                if len(locals_plus_inputs) > 0
+                else ""
+            )
+            prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
         trans += [prev_logic]
 
         invar = mutually_exclusive_rules(self.states)

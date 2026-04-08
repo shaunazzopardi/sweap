@@ -268,7 +268,9 @@ def create_nuxmv_model_for_compatibility_checking(
 
     compatible_input_predicates = (
         "\tcompatible_inputs := "
-        + "(("
+        + "(turn = "
+        + ("prog" if dual2 else "cs")
+        + " -> ("
         + conjunct_formula_set(input_predicate_truth).to_nuxmv()
         + "))"
         + ";\n"
@@ -395,18 +397,6 @@ def create_nuxmv_model_for_compatibility_checking(
         )
 
     if dual2:
-        preds = []
-        preds.extend(
-            str(p.left) + " <-> next(" + str(p.left) + ")"
-            for p in safety_predicate_truth
-        )
-        preds.extend(
-            str(p.left) + " <-> next(" + str(p.left) + ")" for p in tran_predicate_truth
-        )
-        preds.extend(
-            str(v) + " <-> next(" + str(v) + ")" for v in program.bin_state_vars
-        )
-
         normal_trans = (
             "\t((turn != init1) -> ("
             + normal_trans
@@ -420,10 +410,6 @@ def create_nuxmv_model_for_compatibility_checking(
             + "identity_"
             + program_model.name
             + "))"
-            + " & "
-            + "(turn = cs -> (("
-            + ") & (".join(preds)
-            + ")))"
         )
 
     text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
