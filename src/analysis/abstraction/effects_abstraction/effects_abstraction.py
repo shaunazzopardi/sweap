@@ -144,6 +144,12 @@ class EffectsAbstraction(PredicateAbstraction):
 
         self.symbol_table = {v: t for v, t in program.symbol_table.items()}
 
+    def tran_formula(self, t):
+        if t not in self.program.only_init_transitions:
+            return t.formula()
+        else:
+            return conjunct(t.formula(), self.init_conf.prev_rep())
+
     def abstract_program_transitions(self, old_to_new_st_preds):
         orig_transitions, stutter = (
             self.program.orig_ts,
@@ -166,14 +172,18 @@ class EffectsAbstraction(PredicateAbstraction):
             )
         }
 
-        self.init_program_gus = {t.formula() for t in self.init_program_trans}
-        self.init_program_gus_to_t = {t.formula(): t for t in self.init_program_trans}
+        self.init_program_gus = {self.tran_formula(t) for t in self.init_program_trans}
+        self.init_program_gus_to_t = {
+            self.tran_formula(t): t for t in self.init_program_trans
+        }
 
         self.non_init_program_trans = all_trans
-        self.non_init_program_gus = {t.formula() for t in self.non_init_program_trans}
+        self.non_init_program_gus = {
+            self.tran_formula(t) for t in self.non_init_program_trans
+        }
 
         for t in self.non_init_program_trans:
-            gu = t.formula()
+            gu = self.tran_formula(t)
             if gu in self.gu_to_trans.keys():
                 self.gu_to_trans[gu].append(t)
             else:
