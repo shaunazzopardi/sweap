@@ -191,34 +191,15 @@ def create_nuxmv_model_for_compatibility_checking(
         + ";\n"
     )
 
-    if not dual2:
-        input_predicate_truth = [
-            BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
-            for p in state_predicates
-            if has_input_preds(p)
-        ]
-        input_predicate_truth += [
-            BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
-            for bool_rep, p in input_pred_rep_to_val.items()
-        ]
-    else:
-        state_to_prev = lambda x: (
-            Variable(x.name + "_prev") if x in program.local_vars else None
-        )
-        input_predicate_truth = [
-            BiOp(p.pred.replace_formulas(state_to_prev), BoolBiOps.IFF, p.bool_var)
-            for p in state_predicates
-            if has_input_preds(p)
-        ]
-
-        input_predicate_truth += [
-            BiOp(
-                p.replace_formulas(state_to_prev),
-                BoolBiOps.IFF,
-                Variable(bool_rep),
-            )
-            for bool_rep, p in input_pred_rep_to_val.items()
-        ]
+    input_predicate_truth = [
+        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
+        for p in state_predicates
+        if has_input_preds(p)
+    ]
+    input_predicate_truth += [
+        BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
+        for bool_rep, p in input_pred_rep_to_val.items()
+    ]
 
     safety_predicate_truth = [
         BiOp(p.bool_var, BoolBiOps.IFF, p.pred)
@@ -268,8 +249,7 @@ def create_nuxmv_model_for_compatibility_checking(
 
     compatible_input_predicates = (
         "\tcompatible_inputs := "
-        + "(turn = "
-        + ("prog" if dual2 else "cs")
+        + "((turn = cs)"
         + " -> ("
         + conjunct_formula_set(input_predicate_truth).to_nuxmv()
         + "))"
@@ -293,8 +273,6 @@ def create_nuxmv_model_for_compatibility_checking(
         + compatible_tran_predicates
         + compatible_input_predicates
     )
-
-    # TODO consider adding checks that state predicates expected by env are true, for debugging predicate abstraction
 
     text += (
         "INIT\n"
@@ -334,18 +312,23 @@ def create_nuxmv_model_for_compatibility_checking(
         + ")\n\t& (".join(
             program_model.invar + strategy_model.invar + ["compatible_inputs"]
         )
+        + (" & !second_state" if not (dual or dual2) else "")
         + "))\n"
     )
 
-    turn_logic = ["(turn = prog -> (!next(init_state) & next(turn) = cs))"]
-    turn_logic += ["(turn = cs -> (!next(init_state) & next(turn) = prog))"]
+    if dual2 or dual:
+        turn_logic = [
+            "(turn = init1 -> (next(compatible) & !next(init_state) & next(second_state) & next(turn) = cs))"
+        ]
+        turn_logic += [
+            "(turn = cs -> (!next(init_state) & !next(second_state) & next(turn) = cs))"
+        ]
+    else:
+        turn_logic = ["(turn = prog -> (!next(init_state) & next(turn) = cs))"]
+        turn_logic += ["(turn = cs -> (!next(init_state) & next(turn) = prog))"]
 
     maintain_prog_vars = conjunct_formula_set(
         [
-            Update(Variable("prog_" + str(m)), Variable("prog_" + str(m)))
-            for m in (program.out_events)
-        ]
-        + [
             Update(Variable(str(m)), Variable(str(m)))
             for m in program.bin_state_vars + bool_preds
         ]
@@ -368,7 +351,7 @@ def create_nuxmv_model_for_compatibility_checking(
         + maintain_prog_vars
         + ")"
     )
-    normal_trans = "(!mismatch -> (next(!second_state) & " + normal_trans + "))"
+    normal_trans = "(!mismatch -> (" + normal_trans + "))"
 
     deadlock = (
         "(mismatch -> (next(mismatch) & identity_"
@@ -393,22 +376,6 @@ def create_nuxmv_model_for_compatibility_checking(
             + "))\n"
             + " & next(turn = cs) & next(!init_state) & next(second_state) & "
             + "next(!mismatch)"
-            + "))"
-        )
-
-    if dual2:
-        normal_trans = (
-            "\t((turn != init1) -> ("
-            + normal_trans
-            + ")) &\n"
-            + "((turn = init1) -> ("
-            + "next(turn = cs) & next(compatible) & next(!init_state) & next(second_state) & "
-            + "(("
-            + ")\n\t| (".join(strategy_model.trans)
-            + "))\n & "
-            + "next(!mismatch) & "
-            + "identity_"
-            + program_model.name
             + "))"
         )
 

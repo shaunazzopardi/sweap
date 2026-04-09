@@ -607,16 +607,8 @@ class Program:
         dual2 = config.Config.getConfig().dual2
         for transition in self.transitions:
             if dualise:
-                # cond = (
-                #     transition.condition.to_nuxmv()
-                # )
                 cond = massage_ltl_for_dual(
                     transition.condition, [v for v, _ in self.env_events], False
-                )
-                cond = cond.to_nuxmv().replace("X(", "next(")
-            elif dual2:
-                cond = massage_action_for_dual(
-                    transition.condition, self.bool_in_out + self.num_in_out, False
                 )
                 cond = cond.to_nuxmv().replace("X(", "next(")
             else:
@@ -637,10 +629,6 @@ class Program:
             for u in self.complete_action_set(transition.action):
                 if dualise:
                     right = massage_ltl_for_dual(u.right, self.env_events, False)
-                elif dual2:
-                    right = massage_action_for_dual(
-                        u.right, self.bool_in_out + self.num_in_out, False
-                    )
                 else:
                     right = u.right
                 bare_acts.append(BiOp(X(u.left), "=", right))
@@ -706,8 +694,10 @@ class Program:
 
         transitions = guard_and_act
 
-        if dualise or dual2:
+        if dualise:
             vars = ["turn : {prog, cs, init1}"]
+        elif dual2:
+            vars = ["turn : {cs, init1}"]
         else:
             vars = ["turn : {prog, cs}"]
         vars += sorted([s + " : boolean" for s in self.states])
@@ -753,37 +743,16 @@ class Program:
             else ""
         )
         if dual2:
-            init_prevs = "(turn = init1)" + (
-                " & "
-                + " & ".join(
-                    [
-                        "next(" + str(var) + "_prev) = next(" + str(var) + ")"
-                        for var in locals_plus_inputs
-                    ]
-                )
-                if len(locals_plus_inputs) > 0
-                else ""
+            maintain_prevs = " & ".join(
+                [
+                    "next(" + str(var) + "_prev) = " + str(var) + ""
+                    for var in locals_plus_inputs
+                ]
             )
-            maintain_prevs = "(!(turn = cs) & !(turn = init1))" + (
-                " & "
-                + " & ".join(
-                    [
-                        "next(" + str(var) + "_prev) = " + str(var) + "_prev"
-                        for var in locals_plus_inputs
-                    ]
-                )
-                if len(locals_plus_inputs) > 0
-                else ""
-            )
-            prev_logic = (
-                "(("
-                + update_prevs
-                + ") | ("
-                + init_prevs
-                + ") | ("
-                + maintain_prevs
-                + "))"
-            )
+            if maintain_prevs == "":
+                maintain_prevs = "TRUE"
+
+            prev_logic = "(" + maintain_prevs + ")"
         else:
             maintain_prevs = "!(turn = cs)" + (
                 " & "

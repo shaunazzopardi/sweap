@@ -138,6 +138,7 @@ class MealyMachine(Machine):
             UniOp("next", x) if (str(x).startswith("bin_") or x in pred_acts) else None
         )
 
+        init_transitions = []
         for src in self.transitions.keys():
             for tgt, env_con_behs in self.transitions[src].items():
                 for env_beh, con_beh in env_con_behs:
@@ -159,6 +160,8 @@ class MealyMachine(Machine):
                         ]
                     ).to_nuxmv()
 
+                    if src == self.init_st:
+                        init_transitions.append(guard + " & " + act)
                     guards_acts[guard].append(act)
 
         define = []
@@ -195,7 +198,7 @@ class MealyMachine(Machine):
         define += ["identity_" + self.name + " := " + " & ".join(identity)]
 
         if dual2:
-            vars = ["turn : {prog, cs, init1}"]
+            vars = ["turn : {cs, init1}"]
         else:
             vars = ["turn : {prog, cs}"]
         vars += [str(st) + " : boolean" for st in self.states]
@@ -242,8 +245,14 @@ class MealyMachine(Machine):
 
         trans = [
             "("
-            + identity
-            + " &\n\t\t((turn != cs) -> ("
+            + (
+                identity
+                if not dual2
+                else "((turn = init1) -> ((" + ") | (".join(init_transitions) + ")))"
+            )
+            + " &\n\t\t("
+            + ("(turn != cs)" if not dual2 else "(turn != init1)")
+            + " -> ("
             + ")\n\t|\t(".join(transitions)
             + ")))"
         ]
