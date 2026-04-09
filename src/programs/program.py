@@ -253,7 +253,7 @@ class Program:
         if any(
             s for s in tgts if self.initial_state in self.reachable_from.get(s, set())
         ):
-            self.only_init_transitions.clear()
+            self.only_init_transitions = []
 
         # if not config.Config.getConfig().no_binary_enc:
         self.bin_state_vars, self.states_binary_map = binary_rep_states(
