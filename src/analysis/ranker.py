@@ -32,7 +32,7 @@ class Ranker:
                 out = str(out)
                 logging.info(out)
                 if "Verification result: UNKNOWN" in out:
-                    return False, None
+                    return False, "Unknown"
                 elif "Verification result: FALSE" in out:
                     return False, None
                 elif "Verification result: TRUE" in out:

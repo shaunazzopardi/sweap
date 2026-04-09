@@ -312,6 +312,8 @@ def liveness_step(
             add_natural_conditions,
         )
         if not success:
+            if cond == conditions[-1] and output != None:
+                sufficient_entry_condition = output
             continue
         elif output == "already seen":
             return False, (None, None)
