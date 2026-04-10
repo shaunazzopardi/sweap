@@ -17,6 +17,7 @@ from analysis.refinement.fairness_refinement.structural_refinement import (
 )
 from analysis.smt_checker import quantifier_elimination
 from config import Config
+import config
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import add_prev_suffix, ground_predicate_on_vars
@@ -208,6 +209,7 @@ def liveness_step(
     counter,
     symbol_table,
 ):
+    debug = config.Config.getConfig().debug
     body = [t.action for t, _, _ in concrete_body]
 
     init_valuation = concrete_body[0][1] | concrete_body[0][2]
@@ -282,7 +284,7 @@ def liveness_step(
     if cond not in conditions:
         conditions.append(cond)
     # 5. actual initial valuation
-    if entry_valuation not in conditions:
+    if debug and entry_valuation not in conditions:
         conditions.append(entry_valuation)
 
     # 4. if the above all don t terminate, then failed to weaken loop
@@ -312,8 +314,6 @@ def liveness_step(
             add_natural_conditions,
         )
         if not success:
-            if cond == conditions[-1] and output != None:
-                sufficient_entry_condition = output
             continue
         elif output == "already seen":
             return False, (None, None)
@@ -340,7 +340,7 @@ def liveness_step(
                         )
 
         if not conf.only_ranking:
-            if conditions[-1] == cond:
+            if debug and conditions[-1] == cond:
                 return False, (None, None)
             else:
                 ts = [(true(), t) for t in reduced_body]
@@ -353,7 +353,10 @@ def liveness_step(
                     return True, (None, ref)
 
     if sufficient_entry_condition == None:
-        raise Exception("Bug: Not even concrete loop is terminating..")
+        if debug:
+            return False, (None, None)
+        else:
+            raise Exception("Bug: Not even concrete loop is terminating..")
 
     if not conf.only_ranking and sufficient_entry_condition != conditions[-1]:
         ts = [(true(), t) for t in reduced_body]
