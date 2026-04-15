@@ -98,28 +98,28 @@ class Test(TestCase):
         with open("./test-problems/program.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)
 
     def test_synthesize_2(self):
         logging.info("Starting test_synthesize_2")
         with open("./test-problems/program2.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)
 
     def test_synthesize_3(self):
         logging.info("Starting test_synthesize_3")
         with open("./test-problems/program3.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertFalse(wrapped_hoa.is_controller)
+            self.assertFalse(wrapped_hoa.realisable)
 
     def test_synthesize_4(self):
         logging.info("Starting test_synthesize_4")
         with open("./test-problems/program4.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)
 
     def test_synthesize_5(self):
         logging.info("Starting test_synthesize_5")
@@ -127,7 +127,7 @@ class Test(TestCase):
         with open("./test-problems/program5.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)
 
     def test_synthesize_6(self):
         logging.info("Starting test_synthesize_6")
@@ -154,14 +154,14 @@ class Test(TestCase):
         with open("./test-problems/program8.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertFalse(wrapped_hoa.is_controller)
+            self.assertFalse(wrapped_hoa.realisable)
 
     def test_synthesize_9(self):
         logging.info("Starting test_synthesize_9")
         with open("./test-problems/program9.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)
 
     def test_synthesize_10(self):
         logging.info("Starting test_synthesize_10")
@@ -169,17 +169,17 @@ class Test(TestCase):
         with open("./test-problems/program10.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)
 
     def test_synthesize_11(self):
         logging.info("Starting test_synthesize_11")
         with open("./test-problems/program11.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertFalse(wrapped_hoa.is_controller)
+            self.assertFalse(wrapped_hoa.realisable)
 
     def test_road(self):
         with open("./test-problems/road.prog") as program_file:
             program, ltl_spec = string_to_program(program_file.read())
             wrapped_hoa = synthesize(program, ltl_spec, None)
-            self.assertTrue(wrapped_hoa.is_controller)
+            self.assertTrue(wrapped_hoa.realisable)

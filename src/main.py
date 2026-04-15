@@ -372,8 +372,7 @@ def _main(args: Namespace):
 
         print(
             "Realisable"
-            if (args.dual and not mm.is_controller)
-            or (not args.dual and mm.is_controller)
+            if (args.dual and not mm.realisable) or (not args.dual and mm.realisable)
             else "Unrealisable"
         )
         print("Synthesis took: ", (end - start) * 10**3, "ms")

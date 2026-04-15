@@ -12,18 +12,18 @@ from synthesis.machines.moore_machine import MooreMachine
 
 class WrappedHOA:
     hoa: str
-    is_controller: bool
+    realisable: bool
     machine: Machine
 
     def __init__(
         self,
         _hoa: str,
-        _is_controller: bool,
+        realisable: bool,
         symbol_table,
         synthesis_problem: AbstractLTLSynthesisProblem,
     ):
         self.hoa = _hoa
-        self.is_controller = _is_controller
+        self.realisable = realisable
 
         print("massaging hoa")
         self.__to_machine(symbol_table, synthesis_problem)
@@ -35,7 +35,7 @@ class WrappedHOA:
     ):
         start = time.time()
 
-        init_st, trans = hoa_to_transitions(self.hoa, self.is_controller)
+        init_st, trans = hoa_to_transitions(self.hoa, self.realisable)
 
         env_props = (
             synthesis_problem.get_env_props()
@@ -62,14 +62,14 @@ class WrappedHOA:
         dual = config.Config.getConfig().dual
         dual2 = config.Config.getConfig().dual2
         if dual:
-            if self.is_controller:
+            if self.realisable:
                 name = "counterstrategy"
                 logging.info("Unrealizable")
             else:
                 name = "controller"
                 logging.info("Realizable")
         else:
-            if self.is_controller:
+            if self.realisable:
                 name = "controller"
                 logging.info("Realizable")
             else:
@@ -80,7 +80,7 @@ class WrappedHOA:
             # to add env_int props
             symbol_table.update({v.name: BOOLEAN for v in env_props})
 
-        if not self.is_controller:
+        if not self.realisable:
             mm = MooreMachine(name, init_st, env_props, con_props)
             mm.add_transitions(trans, symbol_table)
         else:

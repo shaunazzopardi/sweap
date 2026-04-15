@@ -174,7 +174,6 @@ def there_is_mismatch_between_program_and_controller(
 ):
     model_checker = ModelChecker()
     dual = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
     logging.info(system)
     # Sanity check
     result, out = model_checker.invar_check(system, "F FALSE", None, True)
@@ -192,8 +191,6 @@ def there_is_mismatch_between_program_and_controller(
         loop_constraints_str = ""
 
     spec = str(normalize_ltl(ltlspec))
-    if dual2:
-        spec = "!" + spec
     objective = loop_constraints_str + " (" + spec + ")"
     if dual:
         objective = "X(" + objective + ")"

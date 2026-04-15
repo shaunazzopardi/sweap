@@ -46,6 +46,8 @@ from synthesis.ltl.syfco_adapter import syfco_ltl, syfco_ltl_in, syfco_ltl_out
 from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 from pathlib import Path
 
+from synthesis.machines.mealy_machine import MealyMachine
+from synthesis.machines.moore_machine import MooreMachine
 from synthesis.machines.wrapped_hoa import WrappedHOA
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from typing import List, Tuple
@@ -251,13 +253,15 @@ def abstract_synthesis_loop(
                 conjunct_formula_set(ltl_guarantees),
             )
         )
-        original_ltl_spec = (
-            base_ltl_spec if current_wrapped_hoa.is_controller else neg(base_ltl_spec)
-        )
+        machine = current_wrapped_hoa.machine
+        should_negate = (
+            config.Config.getConfig().dual and isinstance(machine, MealyMachine)
+        ) or (not config.Config.getConfig().dual and isinstance(machine, MooreMachine))
+        original_ltl_spec = neg(base_ltl_spec) if should_negate else base_ltl_spec
 
         logging.info("Verifying: " + str(original_ltl_spec))
         print(str(original_ltl_spec))
-        role = "controller" if current_wrapped_hoa.is_controller else "counterstrategy"
+        role = "counterstrategy" if should_negate else "controller"
         print(
             "Verifying whether "
             + role
@@ -341,8 +345,8 @@ def abstract_synthesis_loop(
             + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
         )
 
-        if (wrapped_hoa.is_controller and not config.Config.getConfig().dual2) or (
-            not wrapped_hoa.is_controller and config.Config.getConfig().dual2
+        if (wrapped_hoa.realisable and not config.Config.getConfig().dual2) or (
+            not wrapped_hoa.realisable and config.Config.getConfig().dual2
         ):
             new_index = "-unreal" if config.Config.getConfig().dual else "-real"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
@@ -365,7 +369,7 @@ def abstract_synthesis_loop(
             program,
             predicate_abstraction,
             wrapped_hoa.machine,
-            wrapped_hoa.is_controller,
+            wrapped_hoa.realisable,
             signatures,
             loop_counter,
             abstract_ltl_problem,
