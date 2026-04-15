@@ -21,7 +21,8 @@ class MooreMachine(Machine):
         self.name = name
         self.init_index = init_index
         self.init_st = {"st_" + str(init_index)}
-        self.states = self.init_st
+        # Keep state set independent from initial-state set.
+        self.states = set(self.init_st)
         self.env_events = env_events
         self.con_events = con_events
         self.transitions: dict[str, list[tuple[Formula, str]]] = {}
