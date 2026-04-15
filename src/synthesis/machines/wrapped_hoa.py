@@ -81,7 +81,7 @@ class WrappedHOA:
             symbol_table.update({v.name: BOOLEAN for v in env_props})
 
         if not self.is_controller:
-            mm = MooreMachine(name, init_st, env_props, con_props, {})
+            mm = MooreMachine(name, init_st, env_props, con_props)
             mm.add_transitions(trans, symbol_table)
         else:
             mm = MealyMachine(

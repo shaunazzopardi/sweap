@@ -1,85 +1,71 @@
-import logging
-import re
+from __future__ import annotations
 
-import config
+import logging
+
 from analysis.abstraction.concretisation import concretize_transitions
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
-from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
-    StatePredicate,
-)
-from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import (
-    TransitionPredicate,
-)
-from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from analysis.model_checker import ModelChecker
 from config import Config
 from programs.program import Program
 from programs.util import parse_nuxmv_ce_output_finite
-from prop_lang.biop import BiOp
-from prop_lang.types.ops_and_rels import BoolBiOps, MathRels
-from prop_lang.update import Update
-from prop_lang.util import conjunct_formula_set, stringify_pred
-from prop_lang.variable import Variable
+from synthesis.machines.mealy_machine import MealyMachine
 from synthesis.machines.moore_machine import MooreMachine
+
+from analysis.compatibility_checking.compatibility_builder import (
+    create_nuxmv_model_for_compatibility_checking,
+)
+from analysis.compatibility_checking.strategy_to_nuxmv import strategy_to_nuxmv_model
 
 
 def compatibility_checking(
     program: Program,
     predicate_abstraction: EffectsAbstraction,
-    moore_machine: MooreMachine,
+    strategy_machine: MooreMachine | MealyMachine,
     abstract_ltl_problem,
     is_controller: bool,
-    prefer_lasso_counterexamples: bool,
 ):
-    moore_nuxmv = moore_machine.to_nuXmv_with_turns(
-        predicate_abstraction.get_program().bin_state_vars,
-        predicate_abstraction.get_program().out_events,
+    conf = Config.getConfig()
+    if conf.dual and conf.dual2:
+        raise ValueError("dual and dual2 are mutually exclusive")
+    if conf.dual2:
+        if not isinstance(strategy_machine, MealyMachine):
+            raise TypeError("dual2 flow expects a MealyMachine strategy")
+    else:
+        if not isinstance(strategy_machine, MooreMachine):
+            raise TypeError("base/dual flow expects a MooreMachine strategy")
+
+    prog = predicate_abstraction.get_program()
+    prog_state_props = list(prog.states) + list(prog.bin_state_vars)
+    strategy_nuxmv = strategy_to_nuxmv_model(
+        strategy_machine,
+        prog_state_props,
+        prog.out_events,
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
+        init_choice_logic=abstract_ltl_problem.init_choice_logic,
     )
 
-    if prefer_lasso_counterexamples:
-        # try looking for a lasso mismatch first
-        strategy_states = sorted(
-            [
-                "("
-                + str(s).split(" : ")[0]
-                + " & "
-                + str(s).split(" : ")[0]
-                + "_seen_more_than_once)"
-                for s in moore_nuxmv.vars
-                if str(s).startswith("st_")
-            ]
-        )
-        lasso_mismatch = "(" + " | ".join(strategy_states) + ")"
-
-        mismatch_condition = "!mismatch &" + lasso_mismatch
-    else:
-        mismatch_condition = None
+    mismatch_condition = None
 
     system = create_nuxmv_model_for_compatibility_checking(
         program,
-        moore_nuxmv,
+        strategy_nuxmv,
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
         abstract_ltl_problem,
         not program.deterministic,
-        not program.deterministic,
-        predicate_mismatch=True,
-        prefer_lassos=prefer_lasso_counterexamples,
     )
+
     logging.info(system)
-    (
-        contradictory,
-        there_is_mismatch,
-        out,
-    ) = there_is_mismatch_between_program_and_strategy(
-        system,
-        is_controller,
-        mismatch_condition=mismatch_condition,
+    contradictory, there_is_mismatch, out = (
+        there_is_mismatch_between_program_and_strategy(
+            system,
+            is_controller,
+            mismatch_condition=mismatch_condition,
+        )
     )
 
     if contradictory:
@@ -92,20 +78,24 @@ def compatibility_checking(
 
     if not there_is_mismatch:
         logging.info("No mismatch found.")
-
-        ## Finished
-
-        result = moore_machine.to_dot(predicate_abstraction.get_all_raw_preds())
-
-        return True, result
+        return True, strategy_machine.to_dot(predicate_abstraction.get_all_raw_preds())
 
     logging.info(out)
-    ## Compute mismatch trace
-    cs_alphabet = [v.split(":")[0].strip() for v in moore_nuxmv.vars]
-    (
-        agreed_on_transitions_indexed,
-        incompatible_state,
-    ) = parse_nuxmv_ce_output_finite(program, out, cs_alphabet)
+    cs_alphabet = [v.name for v in strategy_nuxmv.vars]
+    injected_cs_constants = None
+    if (
+        len(getattr(strategy_machine, "states", [])) == 1
+        and "strategy_state" not in cs_alphabet
+    ):
+        only_state = sorted([str(s) for s in strategy_machine.states], key=str)[0]
+        injected_cs_constants = {"strategy_state": only_state}
+
+    agreed_on_transitions_indexed, incompatible_state = parse_nuxmv_ce_output_finite(
+        program,
+        out,
+        cs_alphabet,
+        injected_cs_constants=injected_cs_constants,
+    )
     agreed_on_execution, disagreed_on_state = concretize_transitions(
         program,
         agreed_on_transitions_indexed,
@@ -113,333 +103,6 @@ def compatibility_checking(
     )
 
     return None, (agreed_on_execution, disagreed_on_state)
-
-
-def create_nuxmv_model_for_compatibility_checking(
-    program: Program,
-    strategy_model: NuXmvModel,
-    state_predicates: set[StatePredicate],
-    transition_predicates: set[TransitionPredicate],
-    chain_preds,
-    abstract_ltl_problem,
-    include_mismatches_due_to_nondeterminism=False,
-    colloborate=False,
-    predicate_mismatch=False,
-    prefer_lassos=False,
-):
-    program_model = program.to_nuXmv_with_turns()
-    bool_preds = [p.bool_var for p in state_predicates]
-    bool_preds.extend([t for p in transition_predicates for t in p.bool_rep.values()])
-    dual = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
-
-    new_state_preds = set()
-    new_tran_preds = []
-    for p in state_predicates:
-        if "_prev" in str(p.pred):
-            new_tran_preds.append(p)
-        else:
-            new_state_preds.add(p)
-    state_predicates = new_state_preds
-    transition_predicates = transition_predicates.union(new_tran_preds)
-
-    text = "MODULE main\n"
-    strategy_states = sorted(
-        [
-            v
-            for v in strategy_model.vars
-            if v not in program_model.vars and str(v).startswith("st_")
-        ]
-    )
-    seen_strategy_states_decs = [
-        str(s).replace(" : ", "_seen_once : ") for s in strategy_states
-    ]
-    seen_strategy_states_decs += [
-        str(s).replace(" : ", "_seen_more_than_once : ") for s in strategy_states
-    ]
-
-    vars = (
-        sorted(program_model.vars)
-        + sorted([v for v in strategy_model.vars if v not in program_model.vars])
-        + (seen_strategy_states_decs if prefer_lassos else [])
-        + ["mismatch : boolean"]
-        + ["init_state : boolean"]
-        + ["second_state : boolean"]
-    )
-    text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
-    has_input_preds = lambda p: any(
-        v for v in p.variablesin() if v in program.num_in_out
-    )
-
-    pred_rep_to_val = {}
-    input_pred_rep_to_val = {}
-    binned_preds = []
-    for ch_p in chain_preds:
-        d = {}
-        for p, rep in ch_p.bin_rep.items():
-            bool_rep = stringify_pred(p).name
-            d[bool_rep] = p
-            binned_preds.append(bool_rep + " := (" + rep.to_nuxmv() + ")")
-        if has_input_preds(ch_p.term):
-            input_pred_rep_to_val |= d
-        else:
-            pred_rep_to_val |= d
-    text += (
-        "DEFINE\n"
-        + "\t"
-        + ";\n\t".join(program_model.define + strategy_model.define + binned_preds)
-        + ";\n"
-    )
-
-    input_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
-        for p in state_predicates
-        if has_input_preds(p)
-    ]
-    input_predicate_truth += [
-        BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
-        for bool_rep, p in input_pred_rep_to_val.items()
-    ]
-
-    safety_predicate_truth = [
-        BiOp(p.bool_var, BoolBiOps.IFF, p.pred)
-        for p in state_predicates
-        if not has_input_preds(p)
-    ]
-
-    safety_predicate_truth += [
-        BiOp(Variable(bool_rep), BoolBiOps.IFF, p)
-        for bool_rep, p in pred_rep_to_val.items()
-    ]
-
-    tran_predicate_truth = [
-        BiOp(bool_var, BoolBiOps.IFF, pred)
-        for p in transition_predicates
-        for pred, bool_var in p.bool_rep.items()
-        if not has_input_preds(p)
-    ]
-
-    prog_state_equality = [
-        BiOp(Variable(s), BoolBiOps.IFF, program.states_binary_map[s])
-        for s in program.states
-    ]
-
-    compatible_states = (
-        "\tcompatible_states := "
-        + "((turn = cs) -> ("
-        + conjunct_formula_set(prog_state_equality).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    compatible_state_predicates = (
-        "\tcompatible_state_predicates := "
-        + "((turn = cs) -> ("
-        + conjunct_formula_set(safety_predicate_truth).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-
-    compatible_tran_predicates = (
-        "\tcompatible_tran_predicates := "
-        + "((turn = cs & !init_state & !second_state) -> ("
-        + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-
-    compatible_input_predicates = (
-        "\tcompatible_inputs := "
-        + "((turn = cs)"
-        + " -> ("
-        + conjunct_formula_set(input_predicate_truth).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    compatible = (
-        "\tcompatible := "
-        + (
-            "compatible_state_predicates & compatible_tran_predicates & "
-            if predicate_mismatch
-            else ""
-        )
-        + " compatible_states"
-        + ";\n"
-    )
-
-    text += (
-        compatible
-        + compatible_states
-        + compatible_state_predicates
-        + compatible_tran_predicates
-        + compatible_input_predicates
-    )
-
-    text += (
-        "INIT\n"
-        + "\t("
-        + ")\n\t& (".join(
-            program_model.init
-            + strategy_model.init
-            + [
-                "compatible",
-                "turn = cs" if not dual and not dual2 else "turn = init1",
-                "mismatch = FALSE",
-                "init_state = TRUE",
-                "second_state = FALSE",
-            ]
-            + (
-                (
-                    (
-                        [
-                            s.split(" : ")[0] + "_seen_once = FALSE"
-                            for s in strategy_states
-                        ]
-                        + [
-                            s.split(" : ")[0] + "_seen_more_than_once = FALSE"
-                            for s in strategy_states
-                        ]
-                    )
-                )
-                if prefer_lassos
-                else []
-            )
-        )
-        + ")\n"
-    )
-    text += (
-        "INVAR\n"
-        + "\t(("
-        + ")\n\t& (".join(
-            program_model.invar + strategy_model.invar + ["compatible_inputs"]
-        )
-        + (" & !second_state" if not (dual or dual2) else "")
-        + "))\n"
-    )
-
-    if dual2 or dual:
-        turn_logic = [
-            "(turn = init1 -> (next(compatible) & !next(init_state) & next(second_state) & next(turn) = cs))"
-        ]
-        turn_logic += [
-            "(turn = cs -> (!next(init_state) & !next(second_state) & next(turn) = cs))"
-        ]
-    else:
-        turn_logic = ["(turn = prog -> (!next(init_state) & next(turn) = cs))"]
-        turn_logic += ["(turn = cs -> (!next(init_state) & next(turn) = prog))"]
-
-    maintain_prog_vars = conjunct_formula_set(
-        [
-            Update(Variable(str(m)), Variable(str(m)))
-            for m in program.bin_state_vars + bool_preds
-        ]
-    ).to_nuxmv()
-    new_trans = (
-        ["compatible", "!next(mismatch)"]
-        + program_model.trans
-        + strategy_model.trans
-        + turn_logic
-    )
-    normal_trans = "\t((" + ")\n\t& (".join(new_trans) + "))\n"
-
-    normal_trans += (
-        "\t | (!compatible & "
-        + " next(mismatch) & identity_"
-        + program_model.name
-        + " & identity_"
-        + strategy_model.name
-        + " & next(turn) = turn & "
-        + maintain_prog_vars
-        + ")"
-    )
-    normal_trans = "(!mismatch -> (" + normal_trans + "))"
-
-    deadlock = (
-        "(mismatch -> (next(mismatch) & identity_"
-        + program_model.name
-        + " & identity_"
-        + strategy_model.name
-        + " & next(turn) = turn & "
-        + maintain_prog_vars
-        + "))"
-    )
-
-    if dual:
-        normal_trans = (
-            "\t((turn != init1) -> ("
-            + normal_trans
-            + ")) &\n"
-            + "((turn = init1) -> (next(compatible) & next("
-            + (" & ".join(program_model.init) if program_model.init else "TRUE")
-            + ") &"
-            + "(("
-            + ")\n\t| (".join(strategy_model.trans)
-            + "))\n"
-            + " & next(turn = cs) & next(!init_state) & next(second_state) & "
-            + "next(!mismatch)"
-            + "))"
-        )
-
-    text += "TRANS\n" + normal_trans + "\n\t& " + deadlock + "\n"
-
-    if prefer_lassos:
-        report_if_state_seen = "\n\t& ".join(
-            [
-                "((((turn = cs) & "
-                + s.split(" : ")[0]
-                + ") "
-                + " | "
-                + s.split(" : ")[0]
-                + "_seen_once) "
-                + "<-> next("
-                + s.split(" : ")[0]
-                + "_seen_once))"
-                for s in strategy_states
-            ]
-        )
-
-        report_if_state_seen += "\n\t& " + "\n\t& ".join(
-            [
-                "((("
-                + "(turn = cs)"
-                + " & "
-                + s.split(" : ")[0]
-                + " & "
-                + s.split(" : ")[0]
-                + "_seen_once "
-                + ") "
-                + " | "
-                + s.split(" : ")[0]
-                + "_seen_more_than_once) "
-                + "<-> next("
-                + s.split(" : ")[0]
-                + "_seen_more_than_once))"
-                for s in strategy_states
-            ]
-        )
-
-        text += "\t&" + report_if_state_seen + "\n"
-
-    return text
-
-
-def create_nuxmv_model(nuxmvModel):
-    text = "MODULE main\n"
-    text += (
-        "VAR\n"
-        + "\t"
-        + ";\n\t".join([v for v in nuxmvModel.vars if not v.startswith("turn :")])
-        + ";\n"
-    )
-    text += "DEFINE\n" + "\t" + ";\n\t".join(nuxmvModel.define) + ";\n"
-    text += "INIT\n" + "\t(" + ")\n\t& (".join(nuxmvModel.init) + ")\n"
-    text += "INVAR\n" + "\t(" + ")\n\t& (".join(nuxmvModel.invar) + ")\n"
-
-    text += "TRANS\n" + "\t(" + ")\n\t& (".join(nuxmvModel.trans) + ")\n"
-    text = text.replace("%", "mod")
-    text = text.replace("&&", "&")
-    text = text.replace("||", "|")
-    text = text.replace("==", "=")
-    return text
 
 
 def there_is_mismatch_between_program_and_strategy(
@@ -464,9 +127,14 @@ def there_is_mismatch_between_program_and_strategy(
                 system, "compatible" + env_lose_logic, None, config.mc
             )
         else:
+            mismatch_condition_s = (
+                mismatch_condition
+                if isinstance(mismatch_condition, str)
+                else str(mismatch_condition)
+            )
             there_is_no_mismatch, out = model_checker.invar_check(
                 system,
-                "!(!compatible" + " & " + mismatch_condition + ")" + env_lose_logic,
+                "!(!compatible" + " & " + mismatch_condition_s + ")" + env_lose_logic,
                 None,
                 config.mc,
             )

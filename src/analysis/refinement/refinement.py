@@ -21,8 +21,6 @@ def refinement_standard(
     signatures,
     loop_counter,
     abstract_ltl_problem,
-    # TODO put all the below parameters in a dictionary
-    prefer_lasso_counterexamples,
     allow_user_input,
 ):
     start = time.time()
@@ -34,7 +32,6 @@ def refinement_standard(
         mm,
         abstract_ltl_problem,
         real,
-        prefer_lasso_counterexamples,
     )
 
     logging.info(
@@ -150,7 +147,7 @@ def write_counterexample_state(
         logging.info(
             "var values: " + ", ".join([str(v) + "=" + state[str(v)] for v in vs])
         )
-        logging.info(("env: " if "env" == state["turn"] else "con: ") + str(t))
+        logging.info(str(t))
 
     logging.info("Environment wanted state to satisfy:")
 

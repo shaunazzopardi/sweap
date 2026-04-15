@@ -1,6 +1,6 @@
 import typing
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Self
 from pysmt.fnode import FNode
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ class Formula(ABC):
         pass
 
     @abstractmethod
-    def simplify(self):
+    def simplify(self) -> Self:
         pass
 
     @abstractmethod

@@ -475,7 +475,11 @@ class EffectsAbstraction(PredicateAbstraction):
                     raise Exception("QE produced unsat models for input preds")
 
             self.sat_input_models = new_models
-            print("Adding preds for input models: " + ", ".join(map(str, new_qe_preds)))
+            if len(new_qe_preds) > 0:
+                print(
+                    "Adding preds for input models: "
+                    + ", ".join(map(str, new_qe_preds))
+                )
             new_state_predicates.update(new_qe_preds)
 
         # NOTE: important that process_preds for state predicates is done after new_qe_preds are discovered

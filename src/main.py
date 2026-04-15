@@ -2,13 +2,15 @@ import argparse
 import logging
 import os
 import time
+
+from analysis.compatibility_checking.program_to_nuxmv import (
+    create_nuxmv_model,
+    program_to_nuxmv_model,
+)
 import config
 
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from analysis.compatibility_checking.compatibility_checking import (
-    create_nuxmv_model,
-)
 from analysis.model_checker import ModelChecker
 from config import Config
 from parsing import string_to_issy
@@ -18,7 +20,6 @@ from parsing.string_to_program import string_to_program
 from parsing.string_to_rpg import rpg_parsec
 from programs.program import Program
 from prop_lang.formula import Formula
-from synthesis.machines.machine import Machine
 from synthesis.machines.wrapped_hoa import WrappedHOA
 from synthesis.synthesis import synthesize
 
@@ -182,7 +183,7 @@ def setup_argument_parser() -> ArgumentParser:
     return parser
 
 
-def process_args(args: Namespace) -> (Program, Formula):
+def process_args(args: Namespace) -> tuple[Program, Formula]:
     conf = Config.getConfig()
     conf.debug = args.debug
 
@@ -273,19 +274,27 @@ def process_args(args: Namespace) -> (Program, Formula):
         with open(args.issy) as issy_str:
             result = string_to_issy.string_to_issy(issy_str.read(), conf.name)
             return result
+    else:
+        raise Exception(
+            "No input given! " "(Specify one of --p, --issy, --rpg, or --tsl.)"
+        )
 
 
 def handle_translation(target, program, ltl_spec) -> str:
     if target.lower() == "dot":
         return str(program.to_dot())
     elif target.lower() == "nuxmv":
-        return create_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
+        return create_nuxmv_model(
+            program_to_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
+        )
     elif target.lower() == "prog":
         return program.to_prog(ltl_spec)
     elif target.lower() == "issy":
         return program.to_issy(ltl_spec)
     elif target.lower() == "vmt":
-        model = create_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
+        model = create_nuxmv_model(
+            program_to_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
+        )
         model_checker = ModelChecker()
         model_checker.to_vmt(model, ltl_spec, "model")
         vmt = open("model.vmt").read()
@@ -307,17 +316,6 @@ def main():
 
 
 def _main(args: Namespace):
-
-    if (
-        args.program is None
-        and args.tsl is None
-        and args.rpg is None
-        and args.issy is None
-    ):
-        raise Exception(
-            "No input given! " "(Specify one of --p, --issy, --rpg, or --tsl.)"
-        )
-
     program, ltl_spec = process_args(args)
 
     if args.log:

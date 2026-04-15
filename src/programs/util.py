@@ -44,7 +44,8 @@ from prop_lang.util import (
     var_to_predicate,
     fnode_to_formula,
     run_with_timeout,
-    false, disjunct,
+    false,
+    disjunct,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -170,58 +171,87 @@ def ce_state_to_predicate_abstraction_trans(
     return []
 
 
-def check_for_nondeterminism_last_step(
-    state_before_mismatch, program, raise_exception=False, exception=None
+def parse_nuxmv_ce_output_finite(
+    program,
+    out,
+    cs_alphabet,
+    monitor_turn="cs",
+    injected_cs_constants: dict[str, str] | None = None,
 ):
-    transitions = program.transitions + program.con_transitions
-
-    guards = []
-    for key, value in state_before_mismatch.items():
-        if (
-            key.startswith("guard_")
-            and value == "TRUE"
-            and len(transitions) != int(key.replace("guard_", ""))
-        ):
-            guards.append(
-                looping_to_normal(transitions[int(key.replace("guard_", ""))])
-            )
-
-    if len(guards) > 1:
-        message = (
-            "Nondeterminism in last step of counterexample; program has choice between: \n"
-            + "\n".join([str(t) for t in guards])
-            + "\nWe do not handle this yet."
-            + "\nIf you suspect the problem to be realisabile, "
-            + "give control to the environment of the transitions (e.g., with a new variable).\n"
-            + "Otherwise, if you suspect unrealisability, give control of the transitions to the controller."
-        )
-        if raise_exception:
-            if exception == None:
-                raise Exception(message)
-            else:
-                raise Exception(message) from exception
-        else:
-            logging.info("WARNING: " + message)
-
-
-def parse_nuxmv_ce_output_finite(program, out, cs_alphabet, monitor_turn="cs"):
     prefix, _ = get_ce_from_nuxmv_output(out)
 
     (
         agreed_on_transitions,
         incompatible_state,
     ) = prog_transition_indices_and_state_from_ce(
-        program, prefix, cs_alphabet, monitor_turn
+        program,
+        prefix,
+        cs_alphabet,
+        monitor_turn,
+        injected_cs_constants=injected_cs_constants,
     )
 
     return agreed_on_transitions, incompatible_state
 
 
 def prog_transition_indices_and_state_from_ce(
-    program, prefix, cs_alphabet, monitor_turn="cs"
+    program,
+    prefix,
+    cs_alphabet,
+    monitor_turn="cs",
+    injected_cs_constants: dict[str, str] | None = None,
 ):
+    def _canonical_key(key: str) -> str:
+        # nuXmv module instances expose local symbols as "instance.symbol".
+        # We normalize those to plain symbol names for downstream processing.
+        return key.rsplit(".", 1)[-1]
+
+    def _scope_segments(key: str):
+        parts = key.split(".")
+        return parts[:-1], parts[-1]
+
+    def _is_program_scoped(key: str) -> bool:
+        scope, _ = _scope_segments(key)
+        if not scope:
+            return True
+        return "prog_m" in scope and "strat_m" not in scope
+
+    def _program_guard_index(key: str):
+        # Accept unqualified and nested-qualified program guards:
+        #   guard_i, prog_m.guard_i, main.prog_m.guard_i, ...
+        if not _is_program_scoped(key):
+            return None
+        match = re.match(r"^(?:[A-Za-z_][A-Za-z0-9_]*\.)*guard_(\d+)$", key)
+        return match.group(1) if match else None
+
+    def _has_matching_program_act(
+        dic: dict[str, str], guard_key: str, idx: str
+    ) -> bool:
+        _, guard_tail = _scope_segments(guard_key)
+        act_tail = guard_tail.replace("guard_", "act_", 1)
+        # Fast path: same scope path as guard.
+        if "." in guard_key:
+            guard_scope = guard_key.rsplit(".", 1)[0]
+            if dic.get(guard_scope + "." + act_tail) == "TRUE":
+                return True
+        else:
+            if dic.get(act_tail) == "TRUE":
+                return True
+        # Robust path: any program-scoped key with matching act tail.
+        for k, v in dic.items():
+            if v != "TRUE":
+                continue
+            if not _is_program_scoped(k):
+                continue
+            _, tail = _scope_segments(k)
+            if tail == act_tail:
+                return True
+        return False
+
     transition_no = len(program.transitions)
-    program_alphabet = [str(s) for s in program.states] + program.local_vars_str
+    program_alphabet = (
+        [str(s) for s in program.states] + ["program_state"] + program.local_vars_str
+    )
 
     program_states = []
     program_transitions = []
@@ -244,20 +274,38 @@ def prog_transition_indices_and_state_from_ce(
             program_state = {}
             cs_state = {}
             for key, value in dic.items():
-                if key.split("_prev")[0] in program_alphabet:
-                    program_state[key] = value
+                ckey = _canonical_key(key)
+                if ckey.split("_prev")[0] in program_alphabet:
+                    program_state[ckey] = value
                 elif (
-                    key in cs_alphabet
-                    or key.startswith("compatible")
-                    or key.startswith("pred")
-                    or key in numerical_in_outs
+                    ckey in cs_alphabet
+                    or ckey in {"init_state", "second_state"}
+                    or ckey.startswith("compatible")
+                    or ckey.startswith("comp_")
+                    or ckey.startswith("inp_comp_")
+                    or ckey.startswith("pred")
+                    or ckey in numerical_in_outs
                 ):
-                    cs_state[key] = value
-                elif key.startswith("guard_") and value == "TRUE":
-                    if dic[key.replace("guard_", "act_")] == "TRUE":
-                        no = key.replace("guard_", "")
-                        if no != str(transition_no):
-                            transition = no
+                    cs_state[ckey] = value
+
+                guard_idx = _program_guard_index(key)
+                if guard_idx is not None and value == "TRUE":
+                    if _has_matching_program_act(dic, key, guard_idx):
+                        if guard_idx != str(transition_no):
+                            transition = guard_idx
+
+            # Tandem v2 can encode program control state as an enum variable.
+            # Reconstruct legacy one-hot view expected downstream.
+            if "program_state" in program_state:
+                current = program_state["program_state"]
+                for st in program.states:
+                    s = str(st)
+                    if s not in program_state:
+                        program_state[s] = "TRUE" if current == s else "FALSE"
+
+            if injected_cs_constants:
+                for k, v in injected_cs_constants.items():
+                    cs_state.setdefault(k, v)
 
             program_states.append(program_state)
             cs_states.append(cs_state)

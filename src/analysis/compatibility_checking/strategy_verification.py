@@ -1,32 +1,79 @@
+from __future__ import annotations
+
 import logging
-import re
 
 import config
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
     EffectsAbstraction,
 )
-from analysis.abstraction.effects_abstraction.predicates.StatePredicate import (
-    StatePredicate,
-)
-from analysis.abstraction.effects_abstraction.predicates.TransitionPredicate import (
-    TransitionPredicate,
-)
-from analysis.compatibility_checking.nuxmv_model import NuXmvModel
-from analysis.model_checker import ModelChecker
-from config import Config
 from programs.program import Program
 from prop_lang.biop import BiOp
-from prop_lang.types.ops_and_rels import BoolBiOps, MathRels
-from prop_lang.util import (
-    conjunct_formula_set,
-    normalize_ltl,
-    stringify_pred,
-    conjunct,
-    X,
-    implies,
-)
-from prop_lang.variable import Variable
+from prop_lang.uniop import UniOp
+from prop_lang.util import implies, conjunct, X, normalize_ltl
 from synthesis.machines.machine import Machine
+from synthesis.machines.mealy_machine import MealyMachine
+from synthesis.machines.moore_machine import MooreMachine
+
+from analysis.compatibility_checking.compatibility_builder import (
+    create_nuxmv_model_for_compatibility_checking,
+)
+from analysis.compatibility_checking.strategy_to_nuxmv import strategy_to_nuxmv_model
+from analysis.model_checker import ModelChecker
+
+
+def _append_invariants(system: str, invariants: list[str]) -> str:
+    extra = [inv for inv in invariants if inv]
+    if not extra:
+        return system
+    suffix = "".join(f"\nINVAR\n\t({inv})" for inv in extra)
+    return system + suffix + "\n"
+
+
+def create_nuxmv_model_for_verification_checking(
+    program: Program,
+    strategy_model,
+    predicate_abstraction: EffectsAbstraction,
+    abstract_ltl_problem,
+    init_choice_logic_expr: str | None = None,
+) -> str:
+    system = create_nuxmv_model_for_compatibility_checking(
+        program,
+        strategy_model,
+        predicate_abstraction.get_state_predicates(),
+        predicate_abstraction.get_transition_predicates(),
+        predicate_abstraction.v_to_chain_pred.values(),
+        abstract_ltl_problem,
+        init_choice_logic_expr=init_choice_logic_expr,
+    )
+
+    env_lose = any(v.name == "env_lose" for v in strategy_model.vars)
+    return _append_invariants(system, ["compatible", "!env_lose" if env_lose else ""])
+
+
+def _init_choice_logic_for_main_init(
+    machine: Machine, abstract_ltl_problem
+) -> str | None:
+    init_choice_logic = getattr(abstract_ltl_problem, "init_choice_logic", None)
+    if init_choice_logic is None:
+        return None
+
+    # for the dual and dual2 cases we are performing the init transition in one step
+    init_choice_logic = init_choice_logic.replace_formulas(
+        lambda f: (
+            f.right
+            if isinstance(f, UniOp) and (f.op == "next" or f.op == "X")
+            else None
+        )
+    )
+
+    conf = config.Config.getConfig()
+    if conf.dual2 and isinstance(machine, MooreMachine):
+        return init_choice_logic.to_nuxmv()
+
+    if conf.dual and isinstance(machine, MealyMachine):
+        return init_choice_logic.to_nuxmv()
+
+    return None
 
 
 def verify_strategy(
@@ -36,33 +83,33 @@ def verify_strategy(
     original_ltl_spec,
     abstract_ltl_problem,
 ):
-    strategy_nuxmv = machine.to_nuXmv_with_turns_for_verif(
+    conf = config.Config.getConfig()
+
+    strategy_nuxmv = strategy_to_nuxmv_model(
+        machine,
         predicate_abstraction.get_program().bin_state_vars,
         predicate_abstraction.get_program().out_events,
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
+        for_verification=True,
+        init_choice_logic=abstract_ltl_problem.init_choice_logic,
+    )
+    init_choice_logic_expr = _init_choice_logic_for_main_init(
+        machine, abstract_ltl_problem
     )
 
     system = create_nuxmv_model_for_verification_checking(
         program,
         strategy_nuxmv,
-        predicate_abstraction.get_state_predicates(),
-        predicate_abstraction.get_transition_predicates(),
-        predicate_abstraction.v_to_chain_pred.values(),
+        predicate_abstraction,
         abstract_ltl_problem,
-        not program.deterministic,
-        not program.deterministic,
-        predicate_mismatch=True,
-        prefer_lassos=False,
+        init_choice_logic_expr=init_choice_logic_expr,
     )
     logging.info(system)
+
     bin_conditions = []
     for chain_pred in predicate_abstraction.v_to_chain_pred.values():
-        if (
-            not config.Config.getConfig().dual
-            and not config.Config.getConfig().dual2
-            and chain_pred.is_input
-        ):
+        if not conf.dual and not conf.dual2 and chain_pred.is_input:
             continue
         ch_pred_bin_conds = []
         bin_vars = set(chain_pred.bin_vars)
@@ -75,35 +122,35 @@ def verify_strategy(
         bin_conditions.extend(ch_pred_bin_conds)
 
     bound = 50
-    (
-        contradictory,
-        there_is_mismatch,
-        out,
-    ) = there_is_mismatch_between_program_and_controller(
-        system,
-        original_ltl_spec,
-        predicate_abstraction.structural_loop_constraints + bin_conditions,
-        (
-            True
-            if any(v for v in strategy_nuxmv.vars if re.match(r"^env_lose *:?$", v))
-            else False
-        ),
-        bound,
+    contradictory, there_is_mismatch, out = (
+        there_is_mismatch_between_program_and_controller(
+            system,
+            original_ltl_spec,
+            predicate_abstraction.structural_loop_constraints + bin_conditions,
+            any(v.name == "env_lose" for v in strategy_nuxmv.vars),
+            bound,
+        )
     )
 
-    dual2 = config.Config.getConfig().dual2
-    type = "controller" if not dual2 else "counterstrategy"
+    role_name = str(getattr(machine, "name", "")).lower()
+    if "counterstrategy" in role_name:
+        role = "counterstrategy"
+    elif "controller" in role_name:
+        role = "controller"
+    else:
+        role = "counterstrategy" if conf.dual2 else "controller"
+
     if contradictory:
         raise Exception(
-            "I have no idea what's gone wrong. Strix thinks the previous mealy machine is a "
-            + type
+            "I have no idea what's gone wrong. Strix thinks the previous strategy machine is a "
+            + role
             + ", but nuxmv thinks it is non consistent with the program."
         )
 
     if there_is_mismatch:
         if "Maximum bound reached" in out:
             print(
-                type
+                role
                 + " correct up to "
                 + str(bound)
                 + " IC3 steps, I do not verify beyond this."
@@ -112,277 +159,23 @@ def verify_strategy(
         logging.info(out)
         logging.info(str(machine))
         print(str(machine))
-        logging.info(
-            type
-            + " does not enforce the required LTL property on the program:\n"
-            + str(out)
-        )
-
         raise Exception(
-            type
+            role
             + " does not enforce the required LTL property on the program:\n"
             + str(out)
         )
-    else:
-        print(out)
-        print(type + " enforces the required LTL property!")
-        logging.info(
-            type
-            + " does not enforce the required LTL property on the program:\n"
-            + str(out)
-        )
-        return True
 
-
-def create_nuxmv_model_for_verification_checking(
-    program: Program,
-    strategy_model: NuXmvModel,
-    state_predicates: set[StatePredicate],
-    transition_predicates: set[TransitionPredicate],
-    chain_preds,
-    abstract_ltl_problem,
-    include_mismatches_due_to_nondeterminism=False,
-    colloborate=False,
-    predicate_mismatch=False,
-    prefer_lassos=False,
-):
-    program_model = program.to_nuXmv_with_turns_for_con_verif()
-    bool_preds = [p.bool_var for p in state_predicates]
-    bool_preds.extend([t for p in transition_predicates for t in p.bool_rep.values()])
-    dual = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
-
-    text = "MODULE main\n"
-
-    vars = (
-        sorted(program_model.vars)
-        + sorted([v for v in strategy_model.vars if v not in program_model.vars])
-        + ["init_state : boolean"]
-        + ["second_state : boolean"]
-    )
-    text += "VAR\n" + "\t" + ";\n\t".join(vars) + ";\n"
-    has_input_preds = lambda p: any(
-        v for v in p.variablesin() if v in program.num_in_out
-    )
-    pred_rep_to_val = {}
-    input_pred_rep_to_val = {}
-    binned_preds = []
-    for ch_p in chain_preds:
-        d = {}
-        for p, rep in ch_p.bin_rep.items():
-            bool_rep = stringify_pred(p).name
-            d[bool_rep] = p
-            binned_preds.append(bool_rep + " := " + str(rep))
-        if has_input_preds(ch_p.term):
-            input_pred_rep_to_val |= d
-        else:
-            pred_rep_to_val |= d
-
-    text += (
-        "DEFINE\n"
-        + "\t"
-        + ";\n\t".join(program_model.define + strategy_model.define + binned_preds)
-        + ";\n"
-    )
-
-    if not dual2:
-        input_predicate_truth = [
-            BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
-            for p in state_predicates
-            if has_input_preds(p)
-        ]
-        input_predicate_truth += [
-            BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
-            for bool_rep, p in input_pred_rep_to_val.items()
-        ]
-    else:
-        state_to_prev = lambda x: (
-            Variable(x.name + "_prev") if x in program.local_vars else None
-        )
-        input_predicate_truth = [
-            BiOp(p.pred.replace_formulas(state_to_prev), BoolBiOps.IFF, p.bool_var)
-            for p in state_predicates
-            if has_input_preds(p)
-        ]
-
-        input_predicate_truth += [
-            BiOp(
-                p.replace_formulas(state_to_prev),
-                BoolBiOps.IFF,
-                Variable(bool_rep),
-            )
-            for bool_rep, p in input_pred_rep_to_val.items()
-        ]
-
-    safety_predicate_truth = [
-        BiOp(p.pred, BoolBiOps.IFF, p.bool_var)
-        for p in state_predicates
-        if not has_input_preds(p)
-    ]
-
-    safety_predicate_truth += [
-        BiOp(Variable(bool_rep), BoolBiOps.IFF, p)
-        for bool_rep, p in pred_rep_to_val.items()
-    ]
-
-    tran_predicate_truth = [
-        BiOp(pred, BoolBiOps.IFF, bool_var)
-        for p in transition_predicates
-        for pred, bool_var in p.bool_rep.items()
-        if not has_input_preds(p)
-    ]
-
-    prog_output_equality = [
-        BiOp(o, MathRels.EQ, Variable("prog_" + o.name)) for o in program.out_events
-    ]
-
-    prog_state_equality = [
-        BiOp(Variable(s), MathRels.EQ, program.states_binary_map[s])
-        for s in program.states
-    ]
-
-    compatible_output = (
-        "\tcompatible_outputs := "
-        + "(("
-        + conjunct_formula_set(prog_output_equality).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    compatible_states = (
-        "\tcompatible_states := "
-        + "(("
-        + conjunct_formula_set(prog_state_equality).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    compatible_state_predicates = (
-        "\tcompatible_state_predicates := "
-        + "(("
-        + conjunct_formula_set(safety_predicate_truth).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    # TODO there is something wrong when refining abstract counterstrategy into env - con steps, the transition predicates are not being computed correctly
-    compatible_tran_predicates = (
-        "\tcompatible_tran_predicates := "
-        + "((!init_state) -> ("
-        + conjunct_formula_set(tran_predicate_truth).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    compatible_input_predicates = (
-        "\tcompatible_inputs := "
-        + "((!init_state) -> ("
-        + conjunct_formula_set(input_predicate_truth).to_nuxmv()
-        + "))"
-        + ";\n"
-    )
-    compatible = (
-        "\tcompatible := "
-        + (
-            "compatible_state_predicates & compatible_tran_predicates & "
-            if predicate_mismatch
-            else ""
-        )
-        + "compatible_outputs & compatible_states"
-        + ";\n"
-    )
-
-    text += (
-        compatible_output
-        + compatible_states
-        + compatible
-        + compatible_state_predicates
-        + compatible_tran_predicates
-        + compatible_input_predicates
-    )
-
-    text += (
-        "INIT\n"
-        + "\t("
-        + ")\n\t& (".join(
-            (
-                program_model.init
-                + strategy_model.init
-                + ["init_state", "!second_state", "compatible"]
-                # + (
-                #     []
-                #     if not abstract_ltl_problem.init_choice_logic
-                #     else [abstract_ltl_problem.init_choice_logic.to_nuxmv()]
-                # )
-            )
-        )
-        + ")\n"
-    )
-
-    if any(v for v in strategy_model.vars if "env_lose" in v):
-        env_lose = True
-    else:
-        env_lose = False
-    text += (
-        "INVAR\n"
-        + "\t(("
-        + ")\n\t& (".join(
-            program_model.invar
-            + strategy_model.invar
-            + ["compatible_inputs", "compatible"]
-            + ([] if not env_lose else ["!env_lose"])
-        )
-        + "))\n"
-    )
-
-    turn_logic = ["!next(init_state)"]
-
-    if dual:
-        init_choice_logic = abstract_ltl_problem.init_choice_logic
-        if init_choice_logic:
-            init_choice_logic = init_choice_logic.to_nuxmv()
-        env_lose_logic = None
-        normal_trans = (
-            "(("
-            + ")\n\t| (".join(strategy_model.trans)
-            + "))\n &"
-            + "\t((!init_state -> (next(!second_state) & "
-            + "(("
-            + ")\n\t\t& (".join(program_model.trans + turn_logic)
-            + ")))) & next(!init_state)) &\n"
-            + "(init_state -> (next(!init_state) & next(second_state) & "
-            + (" next(" if dual else "(")
-            + (" & ".join(program_model.init) if program_model.init else "TRUE")
-            + ")"
-            + (" & (" + init_choice_logic + ")" if init_choice_logic else "")
-            + (" & (" + env_lose_logic + ")" if env_lose_logic else "")
-            + ")"
-            + ")"
-        )
-    else:
-        new_trans = program_model.trans + strategy_model.trans + turn_logic
-        normal_trans = (
-            "\t((init_state <-> next(second_state)) & ("
-            + ")\n\t& (".join(new_trans)
-            + "))\n"
-        )
-        if dual2:
-            init_choice_logic = abstract_ltl_problem.init_choice_logic
-            if init_choice_logic and dual2:
-                init_choice_logic = init_choice_logic.to_nuxmv().replace("next(", "(")
-
-            normal_trans += (
-                "& (init_state -> "
-                + (" (" + init_choice_logic + ")" if init_choice_logic else "")
-                + ")\n"
-            )
-
-    text += "TRANS\n" + normal_trans + "\n"
-
-    return text
+    print(out)
+    print(role + " enforces the required LTL property!")
+    return True
 
 
 def there_is_mismatch_between_program_and_controller(
     system, ltlspec, loop_constraints, env_lose, bound
 ):
     model_checker = ModelChecker()
-    config = Config.getConfig()
+    dual = config.Config.getConfig().dual
+    dual2 = config.Config.getConfig().dual2
     logging.info(system)
     # Sanity check
     result, out = model_checker.invar_check(system, "F FALSE", None, True)
@@ -400,10 +193,10 @@ def there_is_mismatch_between_program_and_controller(
         loop_constraints_str = ""
 
     spec = str(normalize_ltl(ltlspec))
-    if config.getConfig().dual2:
+    if dual2:
         spec = "!" + spec
     objective = loop_constraints_str + " (" + spec + ")"
-    if config.getConfig().dual:
+    if dual:
         objective = "X(" + objective + ")"
 
     print(objective)

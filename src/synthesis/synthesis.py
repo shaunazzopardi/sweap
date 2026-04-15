@@ -15,9 +15,7 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
     LTLAbstractionType,
     LTLAbstractionOutputType,
 )
-from analysis.compatibility_checking.strategy_verification import (
-    verify_strategy,
-)
+from analysis.compatibility_checking.strategy_verification import verify_strategy
 from analysis.refinement.refinement import refinement_standard
 from parsing.string_to_ltl import string_to_ltl_with_predicates
 from programs.program import Program
@@ -81,6 +79,7 @@ def synthesize(
         program,
         ltl_assumptions,
         ltl_guarantees,
+        ltl,
         in_acts,
         out_acts,
         bound,
@@ -186,6 +185,7 @@ def abstract_synthesis_loop(
     program: Program,
     ltl_assumptions: list[Formula],
     ltl_guarantees: list[Formula],
+    original_ltl: Formula,
     in_acts: list[Variable],
     out_acts: list[Variable],
     bound: int,
@@ -217,7 +217,7 @@ def abstract_synthesis_loop(
         LTLAbstractionOutputType.no_output,
     )
 
-    original_LTL_problem = LTLSynthesisProblem(
+    LTL_problem = LTLSynthesisProblem(
         in_acts, out_acts, ltl_assumptions, ltl_guarantees
     )
 
@@ -234,6 +234,43 @@ def abstract_synthesis_loop(
     cegar_loop_counter = -1
     loop_counter = 0
     in_loop_vars = []
+
+    def verify_if_requested(
+        current_wrapped_hoa: WrappedHOA,
+        current_predicate_abstraction: EffectsAbstraction,
+        current_abstract_ltl_problem: AbstractLTLSynthesisProblem,
+    ) -> None:
+        if not config.Config.getConfig().verify_controller:
+            return
+
+        base_ltl_spec = (
+            original_ltl
+            if config.Config.getConfig().dual2
+            else implies(
+                conjunct_formula_set(ltl_assumptions),
+                conjunct_formula_set(ltl_guarantees),
+            )
+        )
+        original_ltl_spec = (
+            base_ltl_spec if current_wrapped_hoa.is_controller else neg(base_ltl_spec)
+        )
+
+        logging.info("Verifying: " + str(original_ltl_spec))
+        print(str(original_ltl_spec))
+        role = "controller" if current_wrapped_hoa.is_controller else "counterstrategy"
+        print(
+            "Verifying whether "
+            + role
+            + " enforces required LTL specification on program.."
+        )
+        verify_strategy(
+            program,
+            current_predicate_abstraction,
+            current_wrapped_hoa.machine,
+            original_ltl_spec,
+            current_abstract_ltl_problem,
+        )
+
     print("Starting abstract synthesis loop.")
     while bound != 0:
         bound -= 1
@@ -260,7 +297,7 @@ def abstract_synthesis_loop(
             new_structural_loop_constraints,
             in_loop_vars,
             signatures,
-            original_LTL_problem,
+            LTL_problem,
             ltl_abstraction_type,
         )
         took = str(time.time() - start)
@@ -277,6 +314,20 @@ def abstract_synthesis_loop(
         wrapped_hoa: WrappedHOA = ltl_synthesis.ltl_synthesis(
             abstract_ltl_problem, predicate_abstraction.symbol_table
         )
+        base_ltl_spec = (
+            original_ltl
+            if config.Config.getConfig().dual2 and original_ltl is not None
+            else implies(
+                conjunct_formula_set(ltl_assumptions),
+                conjunct_formula_set(ltl_guarantees),
+            )
+        )
+        wrapped_hoa.verification_context = {
+            "program": program,
+            "base_ltl_spec": base_ltl_spec,
+            "predicate_abstraction": predicate_abstraction,
+            "abstract_ltl_problem": abstract_ltl_problem,
+        }
         took = str(time.time() - start)
         logging.info("abstract ltl synthesis took " + took + " seconds")
         print("abstract ltl synthesis took " + took + " seconds")
@@ -296,33 +347,16 @@ def abstract_synthesis_loop(
             new_index = "-unreal" if config.Config.getConfig().dual else "-real"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
 
-            if config.Config.getConfig().verify_controller:
-                original_ltl_spec = implies(
-                    conjunct_formula_set(ltl_assumptions),
-                    conjunct_formula_set(ltl_guarantees),
-                )
-                logging.info("Verifying: " + str(original_ltl_spec))
-                print(str(original_ltl_spec))
-                print(
-                    "Verifying whether "
-                    + (
-                        "controller"
-                        if not config.Config.getConfig().dual
-                        else "counterstrategy"
-                    )
-                    + " enforces required LTL specification on program.."
-                )
-                verify_strategy(
-                    program,
-                    predicate_abstraction,
-                    wrapped_hoa.machine,
-                    original_ltl_spec,
-                    abstract_ltl_problem,
-                )
+            verify_if_requested(
+                wrapped_hoa, predicate_abstraction, abstract_ltl_problem
+            )
             print_binary_rep_tables_at_end(program, predicate_abstraction)
             return wrapped_hoa
 
         if config.Config.getConfig().finite_synthesis:
+            verify_if_requested(
+                wrapped_hoa, predicate_abstraction, abstract_ltl_problem
+            )
             print_binary_rep_tables_at_end(program, predicate_abstraction)
             return wrapped_hoa
 
@@ -335,18 +369,18 @@ def abstract_synthesis_loop(
             signatures,
             loop_counter,
             abstract_ltl_problem,
-            prefer_lasso_counterexamples,
             allow_user_input,
         )
 
         if compatible:
             if config.Config.getConfig().dual:
                 new_index = "-real"
-                if config.Config.getConfig().verify_controller:
-                    print("Controller enforces the required LTL property!")
             else:
                 new_index = "-unreal"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
+            verify_if_requested(
+                wrapped_hoa, predicate_abstraction, abstract_ltl_problem
+            )
             print_binary_rep_tables_at_end(program, predicate_abstraction)
             return wrapped_hoa
         else:

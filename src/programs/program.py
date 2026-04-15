@@ -9,7 +9,6 @@ from typing import Set, Union
 from graphviz import Digraph
 from analysis.sat_context import IncrementalSatContext, NonIncrementalSatContext
 import config
-from analysis.compatibility_checking.nuxmv_model import NuXmvModel
 from programs.dfa import (
     program_sccs,
     reachable_states,
@@ -20,8 +19,6 @@ from prop_lang.formula import Formula
 from prop_lang.util import (
     reset_caches as prop_lang_util_reset_caches,
     type_constraint,
-    X,
-    massage_action_for_dual,
 )
 from programs.util import (
     reset_caches,
@@ -420,6 +417,103 @@ class Program:
         else:
             return transition.add_condition(conjunct_formula_set(constraints))
 
+    def add_type_constraints_to_arena(self):
+        is_constrained = (
+            lambda v: (
+                isinstance(type := self.symbol_table[v.name], Number)
+                and type.interval is not None
+            )
+            or self.symbol_table[v.name] == NATURAL
+        )
+
+        dual = config.Config.getConfig().dual
+
+        new_transitions = []
+
+        for t in self.transitions:
+            modified = [
+                a.left for a in t.action if a.left != a.right and is_constrained(a.left)
+            ]
+
+            if len(modified) == 0:
+                new_transitions.append(t)
+                continue
+
+            # can the modifications lead to a type constraint violation?
+            constraints = conjunct_formula_set(
+                {type_constraint(v, self.symbol_table) for v in modified}
+            )
+            if not check(
+                implies(transition_formula(t), neg(constraints)).to_smt(
+                    self.symbol_table
+                )[0]
+            ):
+                continue
+            # quantifier elimination to identify when controller can force the transition to be triggered
+            # for which env and arena state can the controller force the condition to be true?
+            env = [v for v in (self.inputs if not dual else self.outputs)]
+            con = [v for v in (self.outputs if not dual else self.inputs)]
+
+            exist_vars = [
+                Symbol(str(v), BOOL if v in self.bool_in_out else INT) for v in con
+            ]
+            exist_vars += [
+                Symbol(str(v), BOOL if self.symbol_table[str(v)] == BOOLEAN else INT)
+                for v in self.local_vars
+            ]
+            in_fnode = t.condition.to_smt(self.symbol_table)
+            in_fnode = Implies(in_fnode[1], Not(in_fnode[0]))
+            # when can the controller make the condition true?
+            form = Exists(exist_vars, in_fnode)
+            cond_fnode = quantifier_elimination(form)
+            cond = fnode_to_formula(cond_fnode)
+            # TODO we need to only add constraints that are relevant
+            #       e.g. if var is decr, then only need lower bound
+
+            # TODO: the env or con may be able, in arena, to force a value
+            #       to, e.g., the higher bound and move to a next state
+            #       where the other party is forced to increment
+            #       thus making it lose
+            #       give warning to user that the arena has been modified
+            #       and that winning/losing may be because of this
+
+            # TODO: is it ok this analysis is per transition?
+            #       should be per state instead?
+            #       e.g. from a state we have two transitions
+            #       one with env event a as condition that increments
+            #       one with !a as condition that also increments
+            #       this would make the env lose, when the controller should lose
+            new_constraints = constraints.replace_formulas(
+                {a.left: a.right for a in t.action}
+            )
+            new_cond = conjunct(t.condition, neg(new_constraints))
+
+            if not sat(cond, self.symbol_table):
+                # TODO:
+                print(
+                    f"transition: {t}\ncon cond for failure: {neg(new_constraints)}\n\n"
+                )
+                print(
+                    f"new trans condition: {conjunct(t.condition, new_constraints)}\n\n"
+                )
+            else:
+                print(f"transition: {t}\n")
+                done_something = False
+                if not is_tautology(cond, self.symbol_table):
+                    print(
+                        f"env cond for failure: {conjunct(neg(cond), neg(new_constraints))}\n"
+                    )
+                    done_something = True
+                con_cond = conjunct(cond, new_cond)
+                if sat(con_cond, self.symbol_table):
+                    print(f"con cond for failure: {con_cond}\n")
+                    done_something = True
+                if done_something:
+                    print(
+                        f"new trans condition: {conjunct(t.condition, new_constraints)}\n\n"
+                    )
+        return None
+
     def is_finite_state(self):
         return all(is_finite(type_obj) for type_obj in self.symbol_table.values())
 
@@ -599,414 +693,6 @@ class Program:
         #     dot.edge(to_str(t.src), to_str(t.tgt), label, style="dotted")
 
         return dot
-
-    def to_nuXmv_with_turns(self):
-        guards = []
-        acts = []
-        dualise = config.Config.getConfig().dual
-        dual2 = config.Config.getConfig().dual2
-        for transition in self.transitions:
-            if dualise:
-                cond = massage_ltl_for_dual(
-                    transition.condition, [v for v, _ in self.env_events], False
-                )
-                cond = cond.to_nuxmv().replace("X(", "next(")
-            else:
-                cond = transition.condition.to_nuxmv()
-            pred_upgrades_cond = conjunct_formula_set(
-                transition.pred_upgrades
-            ).to_nuxmv()
-            guard = (
-                "turn = cs & "
-                + str(transition.src)
-                + " & "
-                + cond
-                + " & "
-                + pred_upgrades_cond
-            )
-
-            bare_acts = []
-            for u in self.complete_action_set(transition.action):
-                if dualise:
-                    right = massage_ltl_for_dual(u.right, self.env_events, False)
-                else:
-                    right = u.right
-                bare_acts.append(BiOp(X(u.left), "=", right))
-
-            bare_acts = (
-                conjunct_formula_set(bare_acts).to_nuxmv().replace("X(", "next(")
-            )
-
-            act = (
-                "next("
-                + str(transition.tgt)
-                + ") &"
-                + bare_acts
-                + "".join(
-                    [
-                        " & !next(" + st + ")"
-                        for st in self.states
-                        if st != transition.tgt
-                    ]
-                )
-            )
-            guards.append(guard)
-            acts.append(act)
-
-        define = []
-        guard_and_act = []
-        guard_ids = []
-
-        i = 0
-        while i < len(guards):
-            define += ["guard_" + str(i) + " := " + guards[i]]
-            define += ["act_" + str(i) + " := " + acts[i]]
-            guard_ids.append("guard_" + str(i))
-            guard_and_act.append("(guard_" + str(i) + " & " + "act_" + str(i) + ")")
-            i += 1
-
-        identity = []
-        for var in self.local_vars:
-            identity.append("next(" + str(var) + ") = " + str(var))
-        for var in self.num_in_out:
-            identity.append("next(" + str(var) + ") = " + str(var))
-        for st in self.states:
-            identity.append("next(" + str(st) + ") = " + str(st))
-
-        identity += ["!next(" + str(event) + ")" for event in self.out_events]
-
-        define += ["identity_" + self.name + " := " + " & ".join(identity)]
-
-        # if no guard holds, then keep the same state and output no program events
-        guards.append("!(" + " | ".join(guard_ids) + ")")
-        acts.append("identity_" + self.name)
-        define += ["guard_" + str(len(guards) - 1) + " := " + guards[len(guards) - 1]]
-        define += ["act_" + str(len(guards) - 1) + " := " + acts[len(guards) - 1]]
-
-        guard_and_act.append(
-            "(guard_"
-            + str(len(guards) - 1)
-            + " & "
-            + "act_"
-            + str(len(guards) - 1)
-            + ")"
-        )
-
-        transitions = guard_and_act
-
-        if dualise:
-            vars = ["turn : {prog, cs, init1}"]
-        elif dual2:
-            vars = ["turn : {cs, init1}"]
-        else:
-            vars = ["turn : {prog, cs}"]
-        vars += sorted([s + " : boolean" for s in self.states])
-
-        for v in self.local_vars + self.num_in_out:
-            var = v.name
-            var_type = self.symbol_table[var]
-            if var_type == BOOLEAN:
-                vars.append(var + " : " + "boolean")
-                vars.append(var + "_prev : " + "boolean")
-            elif (
-                isinstance(var_type, Number)
-                and var_type.number_type in countable_number_types
-            ):
-                vars.append(var + " : " + "integer")
-                vars.append(var + "_prev : " + "integer")
-                vars.append(var + "_prev_prev : " + "integer")
-            else:
-                raise Exception("Unsupported type for variable: " + str(var_type))
-
-        vars += [str(var) + " : boolean" for var in self.out_events + self.bool_in_out]
-
-        init = [self.initial_state]
-        init += ["!" + st for st in self.states if st != self.initial_state]
-        init += [
-            str(var) + " = " + str(value.to_nuxmv())
-            for var, value in self.init_var_values.items()
-            if not isinstance(value, NonDeterministic)
-        ]
-        # init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
-        init += ["!" + str(event) for event in self.out_events]
-        trans = ["\n\t|\t".join(transitions)]
-        locals_plus_inputs = self.local_vars + self.num_in_out
-        update_prevs = "(turn = cs)" + (
-            " & "
-            + " & ".join(
-                [
-                    "next(" + str(var) + "_prev) = " + str(var)
-                    for var in locals_plus_inputs
-                ]
-            )
-            if len(locals_plus_inputs) > 0
-            else ""
-        )
-        if dual2:
-            maintain_prevs = " & ".join(
-                [
-                    "next(" + str(var) + "_prev) = " + str(var) + ""
-                    for var in locals_plus_inputs
-                ]
-            )
-            if maintain_prevs == "":
-                maintain_prevs = "TRUE"
-
-            prev_logic = "(" + maintain_prevs + ")"
-        else:
-            maintain_prevs = "!(turn = cs)" + (
-                " & "
-                + " & ".join(
-                    [
-                        "next(" + str(var) + "_prev) = " + str(var) + "_prev"
-                        for var in locals_plus_inputs
-                    ]
-                )
-                if len(locals_plus_inputs) > 0
-                else ""
-            )
-            prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
-        trans += [prev_logic]
-
-        invar = mutually_exclusive_rules(self.states)
-        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
-
-        all_numeric_vars = map(str, self.local_vars + self.num_in_out)
-
-        invar += [
-            str(var) + " >= 0"
-            for var in all_numeric_vars
-            if self.symbol_table[var] == NATURAL
-        ]
-        invar.extend(
-            [
-                var + "_prev" + " >= 0"
-                for var in all_numeric_vars
-                if self.symbol_table[var] == NATURAL
-            ]
-        )
-        # add interval constraints
-
-        invar.extend(
-            [
-                var
-                + (">= " if n.interval.lower_inclusive else ">")
-                + str(n.interval.lower)
-                for var in all_numeric_vars
-                if isinstance(n := self.symbol_table[var], Number)
-                and n.interval
-                and n.interval.lower != ""
-            ]
-        )
-        invar.extend(
-            [
-                var
-                + ("<= " if n.interval.upper_inclusive else "<")
-                + str(n.interval.upper)
-                for var in all_numeric_vars
-                if isinstance(n := self.symbol_table[var], Number)
-                and n.interval
-                and n.interval.upper != ""
-            ]
-        )
-
-        return NuXmvModel(self.name, vars, define, init, invar, trans)
-
-    def to_nuXmv_with_turns_for_con_verif(
-        self,
-        include_pred_upgrades: bool = False,
-        stutter_when_other_game_in_minigame: bool = False,
-    ):
-        real_acts = []
-        guards = []
-        acts = []
-        dualise = config.Config.getConfig().dual
-        dual2 = config.Config.getConfig().dual2
-        for transition in self.transitions:
-            if dualise:
-                cond = massage_ltl_for_dual(
-                    transition.condition, [v for v, _ in self.env_events], False
-                )
-                cond = cond.to_nuxmv().replace("X(", "next(")
-            elif dual2:
-                cond = massage_action_for_dual(
-                    transition.condition, self.bool_in_out + self.num_in_out, False
-                )
-                cond = cond.to_nuxmv().replace("X(", "next(")
-            else:
-                cond = transition.condition.to_nuxmv()
-            guard = str(transition.src) + " & " + cond
-            if include_pred_upgrades and len(transition.pred_upgrades) > 0:
-                pred_upgrades_cond = conjunct_formula_set(
-                    transition.pred_upgrades
-                ).to_nuxmv()
-                guard = guard + " & " + pred_upgrades_cond
-            if stutter_when_other_game_in_minigame:
-                guard = "(" + guard + ") & !other_game_in_minigame"
-
-            bare_acts = []
-            for u in self.complete_action_set(transition.action):
-                if dualise:
-                    right = massage_ltl_for_dual(u.right, self.env_events, False)
-                elif dual2:
-                    right = massage_action_for_dual(
-                        u.right, self.bool_in_out + self.num_in_out, False
-                    )
-                else:
-                    right = u.right
-                bare_acts.append(BiOp(X(u.left), "=", right))
-
-            bare_acts = (
-                conjunct_formula_set(bare_acts).to_nuxmv().replace("X(", "next(")
-            )
-
-            act = (
-                "next("
-                + str(transition.tgt)
-                + ") &"
-                + bare_acts
-                + "".join(
-                    [
-                        " & !next(" + st + ")"
-                        for st in self.states
-                        if st != transition.tgt
-                    ]
-                )
-            )
-
-            guards.append(guard)
-            acts.append(act)
-            real_acts.append((transition.action, transition.output, transition.tgt))
-
-        real_acts.append(([], [], None))  # for the stutter transition
-
-        define = []
-        guard_and_act = []
-        guard_ids = []
-
-        i = 0
-        while i < len(guards):
-            define += ["guard_" + str(i) + " := " + guards[i]]
-            define += ["act_" + str(i) + " := " + acts[i]]
-            guard_ids.append("guard_" + str(i))
-            guard_and_act.append("(guard_" + str(i) + " & " + "act_" + str(i) + ")")
-            i += 1
-
-        identity = []
-        for var in self.local_vars_str:
-            identity.append("next(" + var + ") = " + var)
-        for st in self.states:
-            identity.append("next(" + str(st) + ") = " + str(st))
-        if stutter_when_other_game_in_minigame:
-            identity.append("next(other_game_in_minigame) = other_game_in_minigame")
-
-        identity += ["!next(" + str(event) + ")" for event in self.out_events]
-
-        identity_macro_name = "identity_" + self.name
-        define += [identity_macro_name + " := " + " & ".join(identity)]
-
-        # if no guard holds, then keep the same state and output no program events
-        guards.append("!(" + " | ".join(guard_ids) + ")")
-        acts.append(identity_macro_name)
-        define += ["guard_" + str(len(guards) - 1) + " := " + guards[len(guards) - 1]]
-        define += ["act_" + str(len(guards) - 1) + " := " + acts[len(guards) - 1]]
-
-        guard_and_act.append(
-            "(guard_"
-            + str(len(guards) - 1)
-            + " & "
-            + "act_"
-            + str(len(guards) - 1)
-            + ")"
-        )
-
-        transitions = guard_and_act
-
-        vars = sorted([s + " : boolean" for s in self.states])
-        if stutter_when_other_game_in_minigame:
-            vars.append("other_game_in_minigame : boolean")
-
-        prev_logic = []
-
-        for v in self.local_vars + self.num_in_out:
-            var = v.name
-            var_type = self.symbol_table[var]
-            if var_type == BOOLEAN:
-                vars.append(var + " : " + "boolean")
-                vars.append(var + "_prev : " + "boolean")
-                vars.append(var + "_prev_prev : " + "boolean")
-            elif (
-                isinstance(var_type, Number)
-                and var_type.number_type in countable_number_types
-            ):
-                vars.append(var + " : " + "integer")
-                vars.append(var + "_prev : " + "integer")
-                vars.append(var + "_prev_prev : " + "integer")
-            else:
-                raise Exception("Unsupported type for variable: " + str(var_type))
-
-            prev_logic += ["next(" + str(var) + "_prev) = " + str(var)]
-            prev_logic += ["next(" + str(var) + "_prev_prev) = " + str(var + "_prev")]
-
-        vars += [str(var) + " : boolean" for var in self.out_events + self.bool_in_out]
-
-        init = [self.initial_state]
-        init += ["!" + st for st in self.states if st != self.initial_state]
-        init += [
-            var + " = " + str(value.to_nuxmv())
-            for var, value in self.init_var_values.items()
-            if not isinstance(value, NonDeterministic)
-        ]
-        if stutter_when_other_game_in_minigame:
-            init += ["!other_game_in_minigame"]
-        # init += [str(var) + "_prev" + " = " + str(var) for var in self.local_vars]
-        init += ["!" + str(event) for event in self.out_events]
-        trans = ["\n\t|\t".join(transitions)]
-        trans += prev_logic
-
-        invar = mutually_exclusive_rules(self.states)
-        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
-
-        all_numeric_vars = map(str, self.local_vars + self.num_in_out)
-
-        invar += [
-            var + " >= 0"
-            for var in all_numeric_vars
-            if self.symbol_table[var] == NATURAL
-        ]
-        invar.extend(
-            [
-                var + "_prev" + " >= 0"
-                for var in all_numeric_vars
-                if self.symbol_table[var] == NATURAL
-            ]
-        )
-
-        invar.extend(
-            [
-                str(var)
-                + (">= " if n.interval.lower_inclusive else ">")
-                + str(n.interval.lower)
-                for var in all_numeric_vars
-                if isinstance(n := self.symbol_table[str(var)], Number)
-                and n.interval
-                and n.interval.lower != ""
-            ]
-        )
-
-        invar.extend(
-            [
-                str(var)
-                + ("<= " if n.interval.upper_inclusive else "<")
-                + str(n.interval.upper)
-                for var in all_numeric_vars
-                if isinstance(n := self.symbol_table[str(var)], Number)
-                and n.interval
-                and n.interval.upper != ""
-            ]
-        )
-
-        return NuXmvModel(self.name, vars, define, init, invar, trans)
 
     def complete_transitions(self):
         complete_trans = []

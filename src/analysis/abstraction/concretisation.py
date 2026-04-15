@@ -1,3 +1,4 @@
+import config
 from pysmt.shortcuts import And
 
 from analysis.smt_checker import check
@@ -37,10 +38,49 @@ def _is_initial_compat_phase(cs_state: dict[str, str]):
 
 def _filter_preds_for_compat_state(preds, cs_state):
     # Transition predicates are intentionally not enforced during the initial
-    # compatibility phase, so they must not be used to derive refinement facts.
+    # compatibility phase, so they must be filtered out.
     if _is_initial_compat_phase(cs_state):
         return [p for p in preds if not _is_transition_like_predicate_formula(p)]
     return preds
+
+
+def _mismatched_preds_from_comp_macros(cs_state):
+    mismatches = []
+    for key, value in cs_state.items():
+        if value != "FALSE" or not key.startswith("comp_pred_"):
+            continue
+        pred_name = key.removeprefix("comp_")
+        if pred_name not in cs_state:
+            continue
+        base = var_to_predicate(Variable(pred_name))
+        pred_value = cs_state[pred_name]
+        if pred_value == "TRUE":
+            mismatch = base
+        elif pred_value == "FALSE":
+            mismatch = neg(base)
+        else:
+            continue
+        if mismatch not in mismatches:
+            mismatches.append(mismatch)
+    return mismatches
+
+
+def _reduce_to_mismatched_predicates(
+    pred_state, incompatible_state, symbol_table
+) -> set:
+    reduced = set()
+    for p in pred_state:
+        var_state = [
+            BiOp(
+                v,
+                "=",
+                Value((incompatible_state[1] | incompatible_state[2])[str(v)]),
+            )
+            for v in p.variablesin()
+        ]
+        if not sat(conjunct_formula_set([p] + var_state), symbol_table):
+            reduced.add(p)
+    return reduced
 
 
 def concretize_transitions(program, indices_and_state_list, incompatible_state):
@@ -63,10 +103,9 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                 program,
                 [q for q in program.states if program_state[str(q)] == "TRUE"][0],
             )
-            if stutter_trans == None:
+            if stutter_trans is None:
                 raise Exception("stuttering transition not found")
-            else:
-                concretized += [(stutter_trans, program_state, cs_state)]
+            concretized += [(stutter_trans, program_state, cs_state)]
 
     # two options, either we stopped because of a state mismatch or a predicate mismatch
     incompatibility_formula = []
@@ -105,115 +144,103 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                 ],
                 incompatible_state[2],
             )
-            predicate_state_before_incompatibility = _filter_preds_for_compat_state(
-                [
-                    add_prev_suffix(p)
-                    for p in preds_in_state(concretized[-1][2])
-                    if not any(v for v in p.variablesin() if "_prev" in str(v))
-                ],
-                concretized[-1][2],
-            )
-            # we check if this incompatible state formula is ever possibly true after the last transition
-            # if it is then the problem is with the predicate state
-            if sat(
-                conjunct_formula_set(
-                    pred_state
-                    + predicate_state_before_incompatibility
-                    + [transition_formula(concretized[-1][0])]
-                ),
-                program.symbol_table,
-            ):
-                # reduce predicate mismatch to the actually mismatched predicates
-                for p in pred_state:
-                    # TODO: here using (incompatible_state[1] | incompatible_state[2])
-                    #       since program variable state may be split between them
-                    #       instead of just incompatible_state[1], in error
-                    #       this is a bandaid fix, should be fixed properly later
-                    var_state = [
-                        BiOp(
-                            v,
-                            "=",
-                            Value(
-                                (incompatible_state[1] | incompatible_state[2])[str(v)]
-                            ),
-                        )
-                        for v in p.variablesin()
-                    ]
-                    if not sat(
-                        conjunct_formula_set([p] + var_state),
-                        program.symbol_table,
-                    ):
-                        incompatibility_formula.append(p)
+            macro_mismatches = _mismatched_preds_from_comp_macros(incompatible_state[2])
+            if len(macro_mismatches) > 0:
+                return concretized, (macro_mismatches, incompatible_state)
 
-                if len(incompatibility_formula) == 0:
-                    for p in pred_state:
-                        # TODO: here using (incompatible_state[1] | incompatible_state[2])
-                        #       since program variable state may be split between them
-                        #       instead of just incompatible_state[1], in error
-                        #       this is a bandaid fix, should be fixed properly later
-                        var_state = [
-                            BiOp(
-                                v,
-                                "=",
-                                Value(
-                                    (incompatible_state[1] | incompatible_state[2])[
-                                        str(v)
-                                    ]
-                                ),
-                            )
-                            for v in p.variablesin()
-                        ]
-                        if not sat(
-                            conjunct_formula_set([p] + var_state),
-                            program.symbol_table,
-                        ):
-                            incompatibility_formula.append(p)
+            # incompatibility_formula = _reduce_to_mismatched_predicates(
+            #     pred_state,
+            #     incompatible_state,
+            #     program.symbol_table,
+            # )
+            # if len(incompatibility_formula) > 0:
+            #     return concretized, (incompatibility_formula, incompatible_state)
 
-                    raise Exception(
-                        "Incompatibility formula is not correct; no predicate mismatches found."
+            if config.Config.getConfig().debug and len(concretized) > 0:
+                incompatibility_formula = _reduce_to_mismatched_predicates(
+                    pred_state,
+                    incompatible_state,
+                    program.symbol_table,
+                )
+                if incompatibility_formula != set(macro_mismatches):
+                    diff = incompatibility_formula.difference(macro_mismatches)
+                    err = (
+                        "nuXmv determined the following mismatches: "
+                        + ", ".join(map(str, macro_mismatches))
+                        + "\n"
+                        + "However, the actual mismatches are: "
+                        + ", ".join(map(str, macro_mismatches))
+                        + "\n"
+                        + "They disagree on: "
+                        + ", ".join(map(str, diff))
                     )
+                    raise Exception(err)
 
-                env_pred_state = (incompatibility_formula, incompatible_state)
-                return concretized, env_pred_state
-            # if not, then we choose the wrong transition
-            else:
-                if program.deterministic is None:
-                    if not is_deterministic(program):
-                        raise Exception(
-                            "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
-                        )
-                elif not program.deterministic:
-                    raise Exception(
-                        "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
-                    )
+                predicate_state_before_incompatibility = _filter_preds_for_compat_state(
+                    [
+                        add_prev_suffix(p)
+                        for p in preds_in_state(concretized[-1][2])
+                        if not any(v for v in p.variablesin() if "_prev" in str(v))
+                    ],
+                    concretized[-1][2],
+                )
 
-                core_unsat = unsat_core(
+                if not sat(
                     conjunct_formula_set(
                         pred_state
                         + predicate_state_before_incompatibility
                         + [transition_formula(concretized[-1][0])]
                     ),
                     program.symbol_table,
-                )
-                print("UNSAT CORE: ")
-                for c in core_unsat:
-                    print("\t" + str(c))
-                raise Exception(
-                    "Something wrong in abstraction.\nAbstract transition is not satisfiable:\n\n"
-                    + str(conjunct_formula_set(predicate_state_before_incompatibility))
-                    + "\n"
-                    + str(conjunct_formula_set(pred_state))
-                    + "\n"
-                    + str(transition_formula(concretized[-1][0]))
-                    + "\n\n\nAgreed on transitions:\n"
-                    + "\n\n".join(map(lambda x: str(x[0]), concretized[:-1]))
-                    + "\n\n\nInit state:\n"
-                    + str(
+                ):
+
+                    if program.deterministic is None:
+                        if not is_deterministic(program):
+                            raise Exception(
+                                "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
+                            )
+                    elif not program.deterministic:
+                        raise Exception(
+                            "Program is non-deterministic, concretisation of abstract counterexample may not work in this case."
+                        )
+
+                    core_unsat = unsat_core(
                         conjunct_formula_set(
-                            preds_in_state(concretized[0][1] | concretized[0][2])
+                            pred_state
+                            + predicate_state_before_incompatibility
+                            + [transition_formula(concretized[-1][0])]
+                        ),
+                        program.symbol_table,
+                    )
+                    print("UNSAT CORE: ")
+                    for c in core_unsat:
+                        print("\t" + str(c))
+                    raise Exception(
+                        "Something wrong in abstraction.\nAbstract transition is not satisfiable:\n\n"
+                        + str(
+                            conjunct_formula_set(predicate_state_before_incompatibility)
+                        )
+                        + "\n"
+                        + str(conjunct_formula_set(pred_state))
+                        + "\n"
+                        + str(transition_formula(concretized[-1][0]))
+                        + "\n\n\nAgreed on transitions:\n"
+                        + "\n\n".join(map(lambda x: str(x[0]), concretized[:-1]))
+                        + "\n\n\nInit state:\n"
+                        + str(
+                            conjunct_formula_set(
+                                preds_in_state(concretized[0][1] | concretized[0][2])
+                            )
                         )
                     )
-                )
+                else:
+                    raise Exception(
+                        "Somethings going wrong.. Run with --log and inspect nuXmv model."
+                    )
+
+            raise Exception(
+                "Incompatibility formula is not correct; no predicate mismatches found."
+            )
         else:
             raise Exception("No incompatibility, what are you doin in here?")
 

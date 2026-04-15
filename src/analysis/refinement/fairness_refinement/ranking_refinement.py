@@ -52,12 +52,12 @@ from synthesis.machines.mealy_machine import MealyMachine
 seen_loops_cache = {}
 
 
-def _prev_rep_only_for_vars(formula: Formula, vars_to_snapshot: set[Variable]) -> Formula:
+def _prev_rep_only_for_vars(
+    formula: Formula, vars_to_snapshot: set[Variable]
+) -> Formula:
     return formula.replace_formulas(
         lambda f: (
-            f.prev_rep()
-            if isinstance(f, Variable) and f in vars_to_snapshot
-            else None
+            f.prev_rep() if isinstance(f, Variable) and f in vars_to_snapshot else None
         )
     )
 
@@ -348,17 +348,11 @@ def loop_to_c(
         )
         if len(t.action) == 1:
             acts = "\n\t\t" + "\n\t\t".join(
-                [
-                    str(act.left) + " = " + str(act.right) + ";"
-                    for act in updated_acts
-                ]
+                [str(act.left) + " = " + str(act.right) + ";" for act in updated_acts]
             )
         else:
             acts_prev = "\n\t\t".join(
-                [
-                    str(var) + "_prev = " + str(var) + ";"
-                    for var in vars_to_snapshot
-                ]
+                [str(var) + "_prev = " + str(var) + ";" for var in vars_to_snapshot]
             )
             acts = (
                 acts_prev
@@ -562,7 +556,7 @@ def use_liveness_refinement_state_joined(
         if is_mealy:
             pred_state_wo_props = conjunct_formula_set(preds_in_state(ce_state))
         else:
-            cs_st = [str(st) for st in Cs.states if ce_state[str(st)] == "TRUE"][0]
+            cs_st = ce_state["strategy_state"]
             pred_state_wo_props = ground_predicate_on_vars(
                 program,
                 Cs.out[cs_st],
@@ -770,11 +764,8 @@ def use_fairness_refinement(
     ):
         return False, None, None, None, None
 
-    last_counterstrategy_state = [
-        st
-        for st, v in disagreed_on_state[1][2].items()
-        if st in Cs.states and v == "TRUE"
-    ][0]
+    last_counterstrategy_state = disagreed_on_state[1][2]["strategy_state"]
+
     yes_state, first_index_state = use_liveness_refinement_state(
         ce,
         last_counterstrategy_state,
