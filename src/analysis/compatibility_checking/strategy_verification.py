@@ -42,7 +42,6 @@ def create_nuxmv_model_for_verification_checking(
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
-        abstract_ltl_problem,
         init_choice_logic_expr=init_choice_logic_expr,
     )
 

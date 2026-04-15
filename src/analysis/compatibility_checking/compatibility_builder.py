@@ -259,7 +259,6 @@ def create_nuxmv_model_for_compatibility_checking(
     state_predicates,
     transition_predicates,
     chain_preds,
-    abstract_ltl_problem,
     init_choice_logic_expr: str | None = None,
 ):
     program_model = program_to_nuxmv_model(program)

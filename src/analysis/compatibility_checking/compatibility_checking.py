@@ -55,8 +55,6 @@ def compatibility_checking(
         predicate_abstraction.get_state_predicates(),
         predicate_abstraction.get_transition_predicates(),
         predicate_abstraction.v_to_chain_pred.values(),
-        abstract_ltl_problem,
-        not program.deterministic,
     )
 
     logging.info(system)
