@@ -340,7 +340,7 @@ def liveness_step(
                         )
 
         if not conf.only_ranking:
-            if debug and conditions[-1] == cond:
+            if conditions[-1] == cond:
                 return False, (None, None)
             else:
                 ts = [(true(), t) for t in reduced_body]
@@ -353,26 +353,6 @@ def liveness_step(
                     return True, (None, ref)
 
     if sufficient_entry_condition == None:
-        if debug:
-            return False, (None, None)
-        else:
-            raise Exception("Bug: Not even concrete loop is terminating..")
-
-    if not conf.only_ranking and sufficient_entry_condition != conditions[-1]:
-        ts = [(true(), t) for t in reduced_body]
-        ref = structural_refinement(
-            ts,
-            sufficient_entry_condition,
-            exit_cond,
-            counter,
-            signatures,
-            symbol_table,
-        )
-        if check_if_repeated_refinement(ts, sufficient_entry_condition, exit_cond):
-            return False, (None, None)
-        else:
-            return True, (None, ref)
-    else:
         return False, (None, None)
 
 
