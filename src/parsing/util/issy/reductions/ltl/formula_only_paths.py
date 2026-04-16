@@ -1284,7 +1284,7 @@ def _build_formula_only_explicit_choice_program(
     lose_transitions = _complete_raw_transitions_with_lose(
         raw_transitions, det_symbol_table
     )
-    det_transitions, _det_lose_transitions, det_con_vars = determinise(
+    det_transitions, det_con_vars = determinise(
         raw_transitions,
         "formula",
         det_symbol_table,

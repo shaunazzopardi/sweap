@@ -8,6 +8,7 @@ from pysmt.shortcuts import Exists, And, Symbol
 from pysmt.typing import INT
 
 from analysis.smt_checker import quantifier_elimination
+from analysis.sat_context import IncrementalSatContext, NonIncrementalSatContext
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import binary_rep
@@ -43,195 +44,217 @@ from parsing.util.issy.reductions.ltl.formula_utils import (
 )
 
 
-def determinise(raw_transitions: dict[str, list[Transition]], game_index, symbol_table):
-    """Determinise outgoing transitions by adding fresh propositions controlled by controller.
+def _merge_partition_regions(
+    regions: list[tuple[Formula, frozenset[int]]],
+    symbol_table,
+    sat_ctx=None,
+) -> list[tuple[Formula, frozenset[int]]]:
+    grouped: dict[frozenset[int], list[Formula]] = {}
+    for cond, enabled in regions:
+        if len(enabled) == 0:
+            continue
+        if not sat(cond, symbol_table, sat_ctx=sat_ctx):
+            continue
+        grouped.setdefault(enabled, []).append(cond)
 
-    Guards produced per source must be mutually exclusive and complete to avoid
-    introducing implicit stutter transitions in later completion steps.
+    merged = []
+    for enabled, conds in grouped.items():
+        merged_cond = simplify_formula_with_math(
+            disjunct_formula_set(conds), symbol_table
+        )
+        if sat(merged_cond, symbol_table, sat_ctx=sat_ctx):
+            merged.append((merged_cond, enabled))
+    return merged
+
+
+def _add_guard_to_partition(
+    regions: list[tuple[Formula, frozenset[int]]],
+    guard: Formula,
+    transition_index: int,
+    symbol_table,
+    overlap_adjacency: Optional[list[set[int]]] = None,
+    sat_ctx=None,
+) -> list[tuple[Formula, frozenset[int]]]:
+    if not sat(guard, symbol_table, sat_ctx=sat_ctx):
+        return regions
+
+    if len(regions) == 0:
+        return [
+            (
+                guard,
+                frozenset({transition_index}),
+            )
+        ]
+
+    out: list[tuple[Formula, frozenset[int]]] = []
+    remaining = guard
+
+    for region_cond, enabled in regions:
+        if overlap_adjacency is not None:
+            neighbors = overlap_adjacency[transition_index]
+            # region_cond implies every guard in `enabled`. If any enabled guard
+            # is disjoint from incoming guard, overlap is impossible.
+            if any(e != transition_index and e not in neighbors for e in enabled):
+                out.append((region_cond, enabled))
+                continue
+
+        overlap = conjunct(region_cond, guard)
+        region_only = conjunct(region_cond, neg(guard))
+        if sat(overlap, symbol_table, sat_ctx=sat_ctx):
+            out.append((overlap, frozenset(set(enabled) | {transition_index})))
+        if sat(region_only, symbol_table, sat_ctx=sat_ctx):
+            out.append((region_only, enabled))
+        remaining = conjunct(remaining, neg(region_cond))
+
+    if sat(remaining, symbol_table, sat_ctx=sat_ctx):
+        out.append((remaining, frozenset({transition_index})))
+
+    return _merge_partition_regions(out, symbol_table, sat_ctx=sat_ctx)
+
+
+def _transition_overlap_components(
+    trans: list[Transition],
+    symbol_table,
+    sat_ctx=None,
+) -> tuple[list[list[int]], list[set[int]]]:
+    """Partition transitions into overlap-connected components.
+
+    Transitions in different components are pairwise disjoint, so they do not need
+    joint selector encoding/partitioning.
+    """
+    if len(trans) == 0:
+        return [], []
+    if len(trans) == 1:
+        return [[0]], [set()]
+
+    adjacency: dict[int, set[int]] = {i: set() for i in range(len(trans))}
+
+    def _connect(i: int, j: int):
+        adjacency[i].add(j)
+        adjacency[j].add(i)
+
+    # Build overlap graph directly: edge(i, j) iff guards overlap.
+    for i in range(len(trans)):
+        cond_i = trans[i].condition
+        for j in range(i + 1, len(trans)):
+            cond_j = trans[j].condition
+            if sat(conjunct(cond_i, cond_j), symbol_table, sat_ctx=sat_ctx):
+                _connect(i, j)
+
+    seen = set()
+    components = []
+    for i in range(len(trans)):
+        if i in seen:
+            continue
+        stack = [i]
+        seen.add(i)
+        component = []
+        while stack:
+            cur = stack.pop()
+            component.append(cur)
+            for nxt in adjacency[cur]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        components.append(sorted(component))
+    adjacency_list = [adjacency[i] for i in range(len(trans))]
+    return components, adjacency_list
+
+
+def determinise(raw_transitions: dict[str, list[Transition]], game_index, symbol_table):
+    """Determinise transitions by explicit disjoint region partitioning.
+
+    For each source state:
+    - build disjoint guard regions labelled with the set of enabled raw transitions
+    - add selector bits only on regions with multiple enabled transitions
+    - emit one guarded transition per original transition index
+
+    This guarantees:
+    - pairwise disjoint emitted guards
+    - coverage of raw guard region for all selector valuations
     """
     con_vars = set()
     debug = config.Config.getConfig().debug
     new_transitions = []
-    lose_transitions = []
+
     for src, trans in raw_transitions.items():
-        src_no_guard_enabled = neg(disjunct_formula_set(t.condition for t in trans))
+        if len(trans) == 0:
+            continue
 
-        (
-            equiv_map,
-            sat_map,
-            equiv_parts,
-            _,
-        ) = condition_choices(trans, symbol_table)
-        new_src_trans = []
-        equiv_index = 0
-        sat_index = 0
+        sat_ctx_cls = (
+            IncrementalSatContext
+            if config.Config.getConfig().opt_incremental_smt
+            else NonIncrementalSatContext
+        )
+        with sat_ctx_cls(symbol_table) as sat_ctx:
+            guard_terms_by_transition: dict[int, list[Formula]] = {
+                idx: [] for idx in range(len(trans))
+            }
 
-        eq_trigger_to_add = {t: [] for t in trans}
-        sat_trigger_to_add = {t: [] for t in trans}
-
-        def _assert_distinguishable(trigger_list, base_transition: Transition):
-            if debug and not sat(
-                conjunct_formula_set(trigger_list),
-                symbol_table | {str(v): BOOLEAN for v in con_vars},
-            ):
-                raise Exception(
-                    "In processing transitions from state "
-                    + str(src)
-                    + ", could not distinguish transition: \n"
-                    + str(base_transition)
-                )
-
-        for t, equiv_part_minus_t in equiv_map.items():
-            raw_equiv_triggers = [
-                Variable("equiv_" + str(no))
-                for no in range(0, len(equiv_part_minus_t) + 1)
-            ]
-            eq_con_events, equiv_binary_map = binary_rep(
-                raw_equiv_triggers,
-                "eq_con_" + str(game_index) + "_" + str(equiv_index) + "_",
-                printing=False,
+            components, overlap_adjacency = _transition_overlap_components(
+                trans, symbol_table, sat_ctx=sat_ctx
             )
-            equiv_index += 1
-            con_vars.update(eq_con_events)
-            eq_trigger_to_add[t].append(equiv_binary_map[raw_equiv_triggers[0]])
-            for i, tt in enumerate(equiv_part_minus_t):
-                eq_trigger_to_add[tt].append(
-                    equiv_binary_map[raw_equiv_triggers[i + 1]]
-                )
-
-        # order is important here
-        # for t = trans[n], sat_map[t] only contains sat tt in trans[n + 1:]
-        for t in trans:
-            if t in sat_map.keys():
-                if len(sat_map[t]) == 0 or t in equiv_parts.keys():
+            selector_region_index = 0
+            for component in components:
+                if len(component) == 1:
+                    idx = component[0]
+                    guard_terms_by_transition[idx].append(trans[idx].condition)
                     continue
 
-                ts_to_distinguish = set()
-                for _t in sat_map[t]:
-                    if _t in equiv_parts.keys():
-                        ts_to_distinguish.add(equiv_parts[_t])
-                    else:
-                        ts_to_distinguish.add(_t)
-                ts_to_distinguish = list(ts_to_distinguish)
+                regions: list[tuple[Formula, frozenset[int]]] = []
+                for idx in component:
+                    regions = _add_guard_to_partition(
+                        regions,
+                        trans[idx].condition,
+                        idx,
+                        symbol_table,
+                        overlap_adjacency=overlap_adjacency,
+                        sat_ctx=sat_ctx,
+                    )
 
-                if debug:
-                    if t in equiv_map.keys():
-                        for tt in equiv_map[t]:
-                            if tt in sat_map.keys():
-                                raise Exception(
-                                    "Later equiv transition also in sat map"
-                                )
-
-                raw_sat_triggers = [
-                    Variable("sat_" + str(no))
-                    for no in range(0, len(ts_to_distinguish) + 1)
-                ]
-                sat_con_events, sat_binary_map = binary_rep(
-                    raw_sat_triggers,
-                    "sat_con_" + str(game_index) + "_" + str(sat_index) + "_",
-                    printing=False,
-                )
-                sat_index += 1
-                con_vars.update(sat_con_events)
-
-                one_of_the_rest = disjunct_formula_set(
-                    {tt.condition for tt in ts_to_distinguish}
-                )
-
-                # need to add below trans also to equiv transitions
-                equiv_to_t = [t]
-                if t in equiv_map.keys():
-                    equiv_to_t.extend(equiv_map[t])
-                elif t in equiv_parts.keys():
-                    equiv_to_t.extend(equiv_map[equiv_parts[t]])
-
-                if len(equiv_to_t) > 1:
-                    if not is_tautology(one_of_the_rest, symbol_table):
-                        if not sat(
-                            conjunct(t.condition, neg(one_of_the_rest)),
-                            symbol_table,
-                        ):
-                            for eq_t in equiv_to_t:
-                                sat_trigger_to_add[eq_t].append(
-                                    sat_binary_map[raw_sat_triggers[0]]
-                                )
-                                _assert_distinguishable(sat_trigger_to_add[eq_t], t)
-                        else:
-                            trigger_cond = implies(
-                                one_of_the_rest,
-                                sat_binary_map[raw_sat_triggers[0]],
-                            )
-                            for eq_t in equiv_to_t:
-                                sat_trigger_to_add[eq_t].append(trigger_cond)
-                    else:
-                        for eq_t in equiv_to_t:
-                            sat_trigger_to_add[eq_t].append(
-                                sat_binary_map[raw_sat_triggers[0]]
-                            )
-                            _assert_distinguishable(sat_trigger_to_add[eq_t], t)
-
-                if len(ts_to_distinguish) > 0:
-                    if len(equiv_to_t) == 1:
-                        sat_trigger_to_add[t].append(
-                            sat_binary_map[raw_sat_triggers[0]]
+                for region_cond, enabled in regions:
+                    ordered_enabled = sorted(enabled)
+                    if len(ordered_enabled) == 1:
+                        guard_terms_by_transition[ordered_enabled[0]].append(
+                            region_cond
                         )
-                    for i, tt in enumerate(ts_to_distinguish):
-                        equiv_to_tt = [tt]
-                        if tt in equiv_map.keys():
-                            equiv_to_tt.extend(equiv_map[tt])
-                        elif tt in equiv_parts.keys():
-                            equiv_to_tt.extend(equiv_map[equiv_parts[tt]])
+                        continue
 
-                        one_of_the_rest = disjunct_formula_set(
-                            {ttt.condition for ttt in ts_to_distinguish if ttt != tt}
-                            | {t.condition}
-                        )
-                        if not is_tautology(one_of_the_rest, symbol_table):
-                            if not sat(
-                                conjunct(tt.condition, neg(one_of_the_rest)),
-                                symbol_table,
-                            ):
-                                for eq_tt in equiv_to_tt:
-                                    sat_trigger_to_add[eq_tt].append(
-                                        sat_binary_map[raw_sat_triggers[i + 1]]
-                                    )
-                                    _assert_distinguishable(
-                                        sat_trigger_to_add[eq_tt], t
-                                    )
-                            else:
-                                trigger_cond = implies(
-                                    one_of_the_rest,
-                                    sat_binary_map[raw_sat_triggers[i + 1]],
-                                )
-                                for eq_tt in equiv_to_tt:
-                                    sat_trigger_to_add[eq_tt].append(trigger_cond)
-                                    _assert_distinguishable(
-                                        sat_trigger_to_add[eq_tt], t
-                                    )
-                        else:
-                            for eq_tt in equiv_to_tt:
-                                sat_trigger_to_add[eq_tt].append(
-                                    sat_binary_map[raw_sat_triggers[i + 1]]
-                                )
-                                _assert_distinguishable(sat_trigger_to_add[eq_tt], t)
+                    raw_selector_choices = [
+                        Variable(f"sat_choice_{i}") for i in range(len(ordered_enabled))
+                    ]
+                    sat_con_events, sat_binary_map = binary_rep(
+                        raw_selector_choices,
+                        "sat_con_" + str(game_index) + "_",
+                        printing=False,
+                    )
+                    selector_region_index += 1
+                    con_vars.update(sat_con_events)
 
-        for t in trans:
-            trigger_terms = eq_trigger_to_add[t] + sat_trigger_to_add[t]
-            trigger_condition = conjunct_formula_set(trigger_terms)
-            guarded_conditions = [
-                simplify_formula_with_math(
-                    conjunct(
-                        t.condition,
-                        trigger_condition,
-                    ),
-                    symbol_table | {str(v): BOOLEAN for v in con_vars},
+                    for local_choice_idx, transition_idx in enumerate(ordered_enabled):
+                        selector_guard = sat_binary_map[
+                            raw_selector_choices[local_choice_idx]
+                        ]
+                        guarded_piece = conjunct(region_cond, selector_guard)
+                        guard_terms_by_transition[transition_idx].append(guarded_piece)
+
+        sem_symbol_table = symbol_table | {str(v): BOOLEAN for v in con_vars}
+        new_src_transitions: list[Transition] = []
+        sem_sat_ctx_cls = (
+            IncrementalSatContext
+            if config.Config.getConfig().opt_incremental_smt
+            else NonIncrementalSatContext
+        )
+        with sem_sat_ctx_cls(sem_symbol_table) as sem_sat_ctx:
+            for idx, t in enumerate(trans):
+                terms = guard_terms_by_transition[idx]
+                if len(terms) == 0:
+                    continue
+                guarded_cond = simplify_formula_with_math(
+                    disjunct_formula_set(terms),
+                    sem_symbol_table,
                 )
-            ]
-
-            for guarded_cond in guarded_conditions:
-                if not sat(
-                    guarded_cond, symbol_table | {str(v): BOOLEAN for v in con_vars}
-                ):
+                if not sat(guarded_cond, sem_symbol_table, sat_ctx=sem_sat_ctx):
                     continue
                 new_t = Transition(
                     t.src,
@@ -241,36 +264,32 @@ def determinise(raw_transitions: dict[str, list[Transition]], game_index, symbol
                     t.tgt,
                 )
                 new_t.set_predicate_upgrades(t.pred_upgrades)
-                new_src_trans.append(new_t)
-
-        new_transitions.extend(new_src_trans)
-        if sat(
-            src_no_guard_enabled,
-            symbol_table | {str(v): BOOLEAN for v in con_vars},
-        ):
-            lose_transitions.append(
-                Transition(src, src_no_guard_enabled, [], [], "lose")
-            )
+                new_src_transitions.append(new_t)
+        new_transitions.extend(new_src_transitions)
 
         if debug:
-            for t in new_transitions + lose_transitions:
-                for tt in new_transitions + lose_transitions:
-                    if t == tt or t.src != tt.src:
-                        continue
-                    if sat(
-                        conjunct(t.condition, tt.condition),
-                        symbol_table | {str(v): BOOLEAN for v in con_vars},
-                    ):
+            for i, t in enumerate(new_src_transitions):
+                for tt in new_src_transitions[i + 1 :]:
+                    if sat(conjunct(t.condition, tt.condition), sem_symbol_table):
                         raise Exception(
-                            "After processing, transitions from state "
+                            "determinise produced overlapping source guards for "
                             + str(src)
-                            + " still have non-distinguishable conditions: \n"
+                            + ":\n"
                             + str(t)
                             + "\n"
                             + str(tt)
                         )
+            raw_coverage = disjunct_formula_set(t.condition for t in trans)
+            det_coverage = disjunct_formula_set(
+                t.condition for t in new_src_transitions
+            )
+            uncovered_raw = conjunct(raw_coverage, neg(det_coverage))
+            if sat(uncovered_raw, sem_symbol_table):
+                raise Exception(
+                    "determinise produced incomplete source coverage for " + str(src)
+                )
 
-    return new_transitions, lose_transitions, con_vars
+    return new_transitions, con_vars
 
 
 def condition_choices(transitions: List[Transition], symbol_table) -> tuple[
@@ -741,7 +760,7 @@ def _resolve_nondeterminism(
         det_symbol_table,
     )
 
-    det_transitions, _lose_transitions, new_con_vars = determinise(
+    det_transitions, new_con_vars = determinise(
         raw_transitions,
         "cp",
         det_symbol_table,
