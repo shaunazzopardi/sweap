@@ -247,7 +247,8 @@ def abstract_synthesis_loop(
 
         base_ltl_spec = (
             original_ltl
-            if config.Config.getConfig().dual2
+            if (config.Config.getConfig().dual or config.Config.getConfig().dual2)
+            and original_ltl is not None
             else implies(
                 conjunct_formula_set(ltl_assumptions),
                 conjunct_formula_set(ltl_guarantees),
@@ -320,7 +321,8 @@ def abstract_synthesis_loop(
         )
         base_ltl_spec = (
             original_ltl
-            if config.Config.getConfig().dual2 and original_ltl is not None
+            if (config.Config.getConfig().dual or config.Config.getConfig().dual2)
+            and original_ltl is not None
             else implies(
                 conjunct_formula_set(ltl_assumptions),
                 conjunct_formula_set(ltl_guarantees),

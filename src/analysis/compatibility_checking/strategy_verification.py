@@ -173,13 +173,9 @@ def there_is_mismatch_between_program_and_controller(
     system, ltlspec, loop_constraints, env_lose, bound
 ):
     model_checker = ModelChecker()
-    dual = config.Config.getConfig().dual
+    conf = config.Config.getConfig()
+    dual = conf.dual
     logging.info(system)
-    # Sanity check
-    result, out = model_checker.invar_check(system, "F FALSE", None, True)
-    if result:
-        logging.info("Are you sure the controller given is complete?")
-        return True, False, None
 
     if len(loop_constraints) > 0:
         loop_constraints_str = (
@@ -191,9 +187,9 @@ def there_is_mismatch_between_program_and_controller(
         loop_constraints_str = ""
 
     spec = str(normalize_ltl(ltlspec))
-    objective = loop_constraints_str + " (" + spec + ")"
     if dual:
-        objective = "X(" + objective + ")"
+        spec = "X(" + spec + ")"
+    objective = loop_constraints_str + " (" + spec + ")"
 
     print(objective)
 
@@ -203,5 +199,15 @@ def there_is_mismatch_between_program_and_controller(
         bound,
         True,
     )
+
+    if there_is_no_mismatch and conf.debug:
+        logging.info("Deadlock check")
+        compat_atom = "next(compatible)" if dual else "compatible"
+        result, deadlock_out = model_checker.invar_check(
+            system, f"(G {compat_atom}) -> F FALSE", None, True
+        )
+        if result:
+            logging.info("Are you sure the controller given is complete?")
+            return True, False, deadlock_out
 
     return False, not there_is_no_mismatch, out

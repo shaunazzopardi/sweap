@@ -108,13 +108,7 @@ def there_is_mismatch_between_program_and_strategy(
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
-    if config.debug:
-        logging.info("Deadlock check")
-        # Sanity check
-        result, out = model_checker.invar_check(system, "F FALSE", None, True)
-        if result:
-            logging.info("Are you sure the counterstrategy given is complete?")
-            return True, None, out
+    compat_atom = "next(compatible)" if config.dual else "compatible"
 
     # hack: if env_lose is used in system, i.e. it appears as a word
     env_lose_logic = " | env_lose" if "\tenv_lose :" in system else ""
@@ -122,7 +116,7 @@ def there_is_mismatch_between_program_and_strategy(
     if not controller or config.getConfig().dual2:
         if not mismatch_condition:
             there_is_no_mismatch, out = model_checker.invar_check(
-                system, "compatible" + env_lose_logic, None, config.mc
+                system, compat_atom + env_lose_logic, None, config.mc
             )
         else:
             mismatch_condition_s = (
@@ -132,14 +126,22 @@ def there_is_mismatch_between_program_and_strategy(
             )
             there_is_no_mismatch, out = model_checker.invar_check(
                 system,
-                "!(!compatible" + " & " + mismatch_condition_s + ")" + env_lose_logic,
+                "!(!" + compat_atom + " & " + mismatch_condition_s + ")" + env_lose_logic,
                 None,
                 config.mc,
-            )
+                )
             if there_is_no_mismatch:
                 there_is_no_mismatch, out = model_checker.invar_check(
-                    system, "compatible" + env_lose_logic, None, config.mc
+                    system, compat_atom + env_lose_logic, None, config.mc
                 )
+        if there_is_no_mismatch and config.debug:
+            logging.info("Deadlock check")
+            result, deadlock_out = model_checker.invar_check(
+                system, f"(G {compat_atom}) -> F FALSE", None, True
+            )
+            if result:
+                logging.info("Are you sure the counterstrategy given is complete?")
+                return True, None, deadlock_out
         return False, not there_is_no_mismatch, out
 
     else:
