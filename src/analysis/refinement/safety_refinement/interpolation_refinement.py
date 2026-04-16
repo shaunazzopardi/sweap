@@ -11,7 +11,7 @@ from programs.program import Program
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
-from prop_lang.types.types import typed_var_to_pysmt_type
+from prop_lang.types.types import BOOLEAN, typed_var_to_pysmt_type
 from prop_lang.types.values import BoolAtoms
 from prop_lang.util import (
     neg,
@@ -89,6 +89,7 @@ def safety_refinement_seq_int(
                     {
                         e: Value(cs_state[str(e)])
                         for e, _ in program.env_events + program.con_events
+                        if symbol_table[str(e)] == BOOLEAN
                     }
                 )
                 g_0 = g.replace_vars(ith_vars(0))
