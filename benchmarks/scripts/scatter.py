@@ -52,6 +52,7 @@ print(f"[INFO] min_time: {min_time}", file=sys.stderr)
 
 csv1 = (
     csv0.filter(pl.col("tool").is_in(TOOLS))
+    .filter(pl.col("goal") == "ltl")
     .with_columns((pl.col("time(ms)")/1000).clip(0, TIMEOUT/1000).alias("time(s)"))
     .pivot(values=["time(s)", "verdict", "real", "goal"], index="benchmark", on="tool")
 )
@@ -289,9 +290,9 @@ scatter.get_legend().remove()
 fig.subplots_adjust(left=-0.1)
 for fmt in ("png", "pdf"):
     pass
-    # fig.savefig(
-    #     DIR / f"scatter_{TOOLS[0]}_{TOOLS[1]}.{fmt}",
-    #     dpi=300, bbox_inches='tight', pad_inches=0.05)
+    fig.savefig(
+        DIR / f"scatter_{TOOLS[0]}_{TOOLS[1]}.{fmt}",
+        dpi=300, bbox_inches='tight', pad_inches=0.05)
 
 # save legend separately
 fig_legend = mpl.figure.Figure(figsize=(3, 1))

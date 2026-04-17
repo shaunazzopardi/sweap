@@ -155,7 +155,6 @@ tacas26_benchs = {
     "tacas26-nested-x-y-z-u-v": (True, "reach"),
     "tacas26-nondet-exit-swap-input": (True, "reach"),
     "tacas26-nondet-exit-swap": (True, "reach"),
-    # "tacas26-prevent-zeno": (True, "reach"),
     "tacas26-prioritized-tasks-real-100": (True, "reach"),
     "tacas26-prioritized-tasks-real-200": (True, "reach"),
     "tacas26-prioritized-tasks-unreal-100": (False, "reach"),
@@ -163,7 +162,6 @@ tacas26_benchs = {
     "tacas26-ranking-choice-3": (True, "buechi"),
     "tacas26-ranking-choice-4": (True, "buechi"),
     "tacas26-reach-either-or": (True, "reach"),
-    # "tacas26-rect-patrol-buchi": (True, "buechi"),
     "tacas26-service-10": (True, "buechi"),
     "tacas26-service-2": (True, "buechi"),
     "tacas26-service-4": (True, "buechi"),
@@ -179,16 +177,12 @@ tacas26_benchs = {
     "tacas26-ex-4-18": (True, "buechi"),
     "tacas26-ex-4-21": (True, "buechi"),
     "tacas26-ex-5-01": (True, "buechi"),
-
-    # "tacas26-torus-game": (True, "buechi"),
-    # "tacas26-transfer-linear-constraint": (True, "reach"),
-    # "tacas26-uav-chaotic": (True, "buechi"),
-    # "tacas26-uav-chaotic-unreal": (False, "buechi"),
 }
 
 ltl_benchs = {
     "arbiter": (True, "ltl"),
     "arbiter-failure": (True, "ltl"),
+    "arbiter-failure-variant": (False, "ltl"),
     "elevator": (True, "ltl"),
     "infinite-race": (True, "ltl"),
     "infinite-race-u": (False, "ltl"),
@@ -464,8 +458,14 @@ def get_result(tool, tool_info, bench, b_real):
     except (ValueError):
         search_137 = [i for i in range(len(log_lines)) if log_lines[i] == "137"]
         if search_137:
+            runtime=0
             return_code = 137
-            runtime = int(log_lines[search_137[0]+1])
+            for line in log_lines[search_137[0]+1:]:
+                try:
+                    runtime = int(line)
+                    break
+                except ValueError:
+                    continue
         else:
             raise ValueError(f"Invalid or empty log file: {log[0]}")
     if runtime >= timeout:
