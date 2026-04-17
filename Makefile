@@ -56,19 +56,19 @@ ISSY2_RPG_LOGS :=		$(addsuffix .issy2-rpg.log,			$(RPG_BENCHS))
 ISSY2_TSL_LOGS :=		$(addsuffix .issy2-tsl.log,			$(TSLMT2RPG_BENCHS))
 
 # Tool command-line invocation
-$(SWEAP_STRIX_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend strix --p
-$(SWEAP_SEMML_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --p
-$(SWEAP_DUAL_LOGS): cmd =		python3 src/main.py --synthesise --dual --synthesis_backend semml --p
-$(SWEAP_STRIX_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual --synthesis_backend strix --p
-$(SWEAP_RPG_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --rpg
-$(SWEAP_RPG_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual --synthesis_backend semml --rpg
-$(SWEAP_TSL_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --tsl
-$(SWEAP_TSL_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual --synthesis_backend semml --tsl
-$(SWEAP_ISSY_LOGS): cmd = 		python3 src/main.py --synthesise --synthesis_backend semml --issy
-$(SWEAP_ISSY_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual --synthesis_backend semml --issy
-$(ISSY2_LOGS): cmd =			apptainer exec -c /scratch/luca.di.stefano/issy2.sif issy --pruning 2 --synt <
-$(ISSY2_RPG_LOGS): cmd =		apptainer exec -c /scratch/luca.di.stefano/issy2.sif issy --pruning 2 --synt --rpg <
-$(ISSY2_TSL_LOGS): cmd =		apptainer exec -c /scratch/luca.di.stefano/issy2.sif issy --pruning 2 --synt --tslmt <
+$(SWEAP_STRIX_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend strix --log --p
+$(SWEAP_SEMML_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --p
+$(SWEAP_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --p
+$(SWEAP_STRIX_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend strix --log --p
+$(SWEAP_RPG_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --rpg
+$(SWEAP_RPG_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --rpg
+$(SWEAP_TSL_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --tsl
+$(SWEAP_TSL_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --tsl
+$(SWEAP_ISSY_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --issy
+$(SWEAP_ISSY_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --issy
+$(ISSY2_LOGS): cmd =		apptainer exec -c issy2.sif issy --synt <
+$(ISSY2_RPG_LOGS): cmd =	apptainer exec -c issy2.sif issy --synt --rpg <
+$(ISSY2_TSL_LOGS): cmd =	apptainer exec -c issy2.sif issy --synt --tslmt <
 
 
 # paths that the tool needs in $PATH
@@ -161,7 +161,7 @@ $(SWEAP_ISSY_DUAL_LOGS): %.sweap-issy-dual.log: %.issy
 
 $(ISSY2_LOGS): %.issy2.log : %.issy
 	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) /scratch/luca.di.stefano/$< >> $$LOGFILE 2>&1 ; $(FOOTER)
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
 $(ISSY2_RPG_LOGS): %.issy2-rpg.log : %.rpg
 	@echo "$(cmd) $< $(TIMEOUT)"
@@ -169,7 +169,7 @@ $(ISSY2_RPG_LOGS): %.issy2-rpg.log : %.rpg
 
 $(ISSY2_TSL_LOGS): %.issy2-tsl.log : %.tslmt
 	@echo "$(cmd) $< $(TIMEOUT)"
-	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) /scratch/luca.di.stefano/$< >> $$LOGFILE 2>&1 ; $(FOOTER)
+	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
 
 ################################################################################
