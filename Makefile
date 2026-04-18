@@ -8,37 +8,39 @@ TIMEOUT := 600
 # Directory that contains this Makefile
 ROOT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-.PHONY: all clean clean-timeouts confirm check-ulimit tables plots count $(TOOLS)
+BENCH_DIR := /benchmarks
+
+.PHONY: all clean clean-timeouts confirm setup tables plots count $(TOOLS)
 
 # Paths to benchmark files
-SWEAP_BENCHS :=		$(basename $(wildcard benchmarks/sweap/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/tacas16/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/cav24/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/isola24/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl24/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/basic/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/limitations/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/misc/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/robot-missions/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/tasks/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/popl25/thermostat/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/full-ltl/*.prog))
-SWEAP_BENCHS +=		$(basename $(wildcard benchmarks/sweap/full-ltl/hard/*.prog))
-RPG_BENCHS :=		$(basename $(wildcard benchmarks/rpgsolve/*.rpg))
-RABONIEL_BENCHS :=	$(basename $(wildcard benchmarks/raboniel/*.tslmt))
-TSLMT2RPG_BENCHS :=	$(basename $(wildcard benchmarks/tslmt2rpg/*.tslmt))
+SWEAP_BENCHS :=		$(basename $(wildcard $(BENCH_DIR)/sweap/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/tacas16/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/cav24/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/isola24/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl24/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/basic/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/limitations/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/misc/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/robot-missions/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/tasks/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/popl25/thermostat/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/full-ltl/*.prog))
+SWEAP_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/sweap/full-ltl/hard/*.prog))
+RPG_BENCHS :=		$(basename $(wildcard $(BENCH_DIR)/rpgsolve/*.rpg))
+RABONIEL_BENCHS :=	$(basename $(wildcard $(BENCH_DIR)/raboniel/*.tslmt))
+TSLMT2RPG_BENCHS :=	$(basename $(wildcard $(BENCH_DIR)/tslmt2rpg/*.tslmt))
 
-ISSY_BENCHS :=		$(basename $(wildcard benchmarks/issy/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/balancers/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/buechi/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/counters/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/example/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/parity/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/system-level/*.issy))
+ISSY_BENCHS :=		$(basename $(wildcard $(BENCH_DIR)/issy/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/balancers/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/buechi/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/counters/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/example/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/parity/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/system-level/*.issy))
 
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/tacas26/*.issy))
-ISSY_BENCHS +=		$(basename $(wildcard benchmarks/issy/tacas26/verification/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/tacas26/*.issy))
+ISSY_BENCHS +=		$(basename $(wildcard $(BENCH_DIR)/issy/tacas26/verification/*.issy))
 
 SWEAP_STRIX_LOGS :=		$(addsuffix .sweap-strix.log, 		$(SWEAP_BENCHS))
 SWEAP_DUAL_LOGS :=		$(addsuffix .sweap-dual.log, 		$(SWEAP_BENCHS))
@@ -66,13 +68,13 @@ $(SWEAP_TSL_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend s
 $(SWEAP_TSL_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --tsl
 $(SWEAP_ISSY_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --issy
 $(SWEAP_ISSY_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --issy
-$(ISSY2_LOGS): cmd =		apptainer exec -c issy2.sif issy --synt <
-$(ISSY2_RPG_LOGS): cmd =	apptainer exec -c issy2.sif issy --synt --rpg <
-$(ISSY2_TSL_LOGS): cmd =	apptainer exec -c issy2.sif issy --synt --tslmt <
+$(ISSY2_LOGS): cmd =		issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --issy
+$(ISSY2_RPG_LOGS): cmd =	issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --rpg
+$(ISSY2_TSL_LOGS): cmd =	issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --tslmt
 
 
 # paths that the tool needs in $PATH
-path = binaries:binaries/CPAchecker-2.3-unix/scripts
+path = $(ROOT_DIR)/binaries:$(ROOT_DIR)/binaries/CPAchecker-2.3-unix/scripts
 
 # Set up environment variables, create temporary log file, record start time
 define HEADER
@@ -178,36 +180,30 @@ $(ISSY2_TSL_LOGS): %.issy2-tsl.log : %.tslmt
 # Cleanup commands
 clean: confirm
 	@echo "Cleaning up all logs..."
-	@find benchmarks/ -iname "*.*.log" -delete || true
+	@find $(BENCH_DIR)/ -iname "*.*.log" -delete || true
 
 clean-timeouts: confirm
 	@echo "Cleaning up logs for experiments that timed out..."
-	-@find benchmarks/ -iname "*.*.log" | xargs tail -n2 | grep -B1 -e '^124$$' -e '^255$$' | grep "==>" | xargs rm -v 2>/dev/null || true
+	-@find $(BENCH_DIR)/ -iname "*.*.log" | xargs tail -n2 | grep -B1 -e '^124$$' -e '^255$$' | grep "==>" | xargs rm -v 2>/dev/null || true
 
 confirm:
 	@echo -n "Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
 ################################################################################
 
-ULIM := $(shell ulimit -v)
-
-# Checks whether a memory limit has been set
-check-ulimit:
-ifeq ("$(ULIM)", "unlimited")
-	@echo -n "memory unlimited! Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
-endif
-
-
 tables:
-	(benchmarks/scripts/process_logs.py benchmarks | tee benchmarks/results/results.csv) 2> >(tee benchmarks/results/stats.csv)
+	($(BENCH_DIR)/scripts/process_logs.py benchmarks | tee $(BENCH_DIR)/results/results.csv) 2> >(tee $(BENCH_DIR)/results/stats.csv)
 
 plots:
-	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-pf sweap-strix > benchmarks/results/table_sweap-pf_sweap-strix.tex
-	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-issy-pf issy2 > benchmarks/results/table_sweap-issy-pf_issy2.tex
-	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-rpg-pf issy2-rpg > benchmarks/results/table_sweap-rpg-pf_issy2-rpg.tex
-	benchmarks/scripts/scatter.py benchmarks/results/results.csv sweap-tsl-pf issy2-tsl > benchmarks/results/table_sweap-tsl-pf_issy2-tsl.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-pf sweap-strix > $(BENCH_DIR)/results/table_sweap-pf_sweap-strix.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-issy-pf issy2 > $(BENCH_DIR)/results/table_sweap-issy-pf_issy2.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-rpg-pf issy2-rpg > $(BENCH_DIR)/results/table_sweap-rpg-pf_issy2-rpg.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-tsl-pf issy2-tsl > $(BENCH_DIR)/results/table_sweap-tsl-pf_issy2-tsl.tex
 
 count:
 	@echo -n "sweap: " && echo $(SWEAP_BENCHS) | wc -w
 	@echo -n "issy: " && echo $(ISSY_BENCHS) | wc -w
 	@echo -n "rpg: " && echo $(RPG_BENCHS) | wc -w
 	@echo -n "tslmt: " && echo $(TSLMT2RPG_BENCHS) | wc -w
+
+setup:
+	cp -r $(ROOT_DIR)/benchmarks $(BENCH_DIR)
