@@ -206,4 +206,4 @@ count:
 	@echo -n "tslmt: " && echo $(TSLMT2RPG_BENCHS) | wc -w
 
 setup:
-	cp -r $(ROOT_DIR)/benchmarks $(BENCH_DIR)
+	cp -r $(ROOT_DIR)/benchmarks/* $(BENCH_DIR)
