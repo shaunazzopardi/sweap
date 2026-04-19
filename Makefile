@@ -2,8 +2,8 @@
 SHELL := $(shell which bash)
 # Shortnames we give to the tools
 SWEAP_ALL := sweap-strix sweap-dual sweap-issy sweap-issy-dual sweap-rpg sweap-rpg-dual sweap-tsl sweap-tsl-dual sweap-semml
-ISSY2_ALL := issy2 issy2-rpg issy2-tsl 
-TOOLS := $(SWEAP_ALL) $(ISSY2_ALL)
+ISSY3_ALL := issy3 issy3-rpg issy3-tsl 
+TOOLS := $(SWEAP_ALL) $(ISSY3_ALL)
 # Timeout for each benchmark, in seconds
 TIMEOUT := 600
 
@@ -55,24 +55,24 @@ SWEAP_TSL_DUAL_LOGS :=	$(addsuffix .sweap-tsl-dual.log, 	$(RABONIEL_BENCHS))
 SWEAP_ISSY_LOGS :=		$(addsuffix .sweap-issy.log, 		$(ISSY_BENCHS))
 SWEAP_ISSY_DUAL_LOGS :=	$(addsuffix .sweap-issy-dual.log, 	$(ISSY_BENCHS))
 
-ISSY2_LOGS :=			$(addsuffix .issy2.log,				$(ISSY_BENCHS))
-ISSY2_RPG_LOGS :=		$(addsuffix .issy2-rpg.log,			$(RPG_BENCHS))
-ISSY2_TSL_LOGS :=		$(addsuffix .issy2-tsl.log,			$(TSLMT2RPG_BENCHS))
+ISSY3_LOGS :=			$(addsuffix .issy3.log,				$(ISSY_BENCHS))
+ISSY3_RPG_LOGS :=		$(addsuffix .issy3-rpg.log,			$(RPG_BENCHS))
+ISSY3_TSL_LOGS :=		$(addsuffix .issy3-tsl.log,			$(TSLMT2RPG_BENCHS))
 
 # Tool command-line invocation
-$(SWEAP_STRIX_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend strix --log --p
-$(SWEAP_SEMML_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --p
-$(SWEAP_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --p
-$(SWEAP_STRIX_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend strix --log --p
-$(SWEAP_RPG_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --rpg
-$(SWEAP_RPG_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --rpg
-$(SWEAP_TSL_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --tsl
-$(SWEAP_TSL_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --tsl
-$(SWEAP_ISSY_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --log --issy
-$(SWEAP_ISSY_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --log --issy
-$(ISSY2_LOGS): cmd =		issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --issy
-$(ISSY2_RPG_LOGS): cmd =	issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --rpg
-$(ISSY2_TSL_LOGS): cmd =	issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --tslmt
+$(SWEAP_STRIX_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend strix --p
+$(SWEAP_SEMML_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --p
+$(SWEAP_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --p
+$(SWEAP_STRIX_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend strix --p
+$(SWEAP_RPG_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --rpg
+$(SWEAP_RPG_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --rpg
+$(SWEAP_TSL_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --tsl
+$(SWEAP_TSL_DUAL_LOGS): cmd =	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --tsl
+$(SWEAP_ISSY_LOGS): cmd = 	python3 src/main.py --synthesise --synthesis_backend semml --issy
+$(SWEAP_ISSY_DUAL_LOGS): cmd = 	python3 src/main.py --synthesise --dual2 --workers 1 --synthesis_backend semml --issy
+$(ISSY3_LOGS): cmd =		issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --issy
+$(ISSY3_RPG_LOGS): cmd =	issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --rpg
+$(ISSY3_TSL_LOGS): cmd =	issy-bin --synt --caller-z3 /usr/bin/z3-4.15.1 --caller-muval /usr/bin/call-muval --caller-aut /usr/local/bin/ltl2tgba --tslmt
 
 
 # paths that the tool needs in $PATH
@@ -111,9 +111,9 @@ sweap-tsl-dual:		$(SWEAP_TSL_DUAL_LOGS)
 sweap-issy:			$(SWEAP_ISSY_LOGS)
 sweap-issy-dual:	$(SWEAP_ISSY_DUAL_LOGS)
 
-issy2:		$(ISSY2_LOGS)
-issy2-rpg:	$(ISSY2_RPG_LOGS)
-issy2-tsl:	$(ISSY2_TSL_LOGS)
+issy3:		$(ISSY3_LOGS)
+issy3-rpg:	$(ISSY3_RPG_LOGS)
+issy3-tsl:	$(ISSY3_TSL_LOGS)
 
 
 ################################################################################
@@ -162,15 +162,15 @@ $(SWEAP_ISSY_DUAL_LOGS): %.sweap-issy-dual.log: %.issy
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
-$(ISSY2_LOGS): %.issy2.log : %.issy
+$(ISSY3_LOGS): %.issy3.log : %.issy
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
-$(ISSY2_RPG_LOGS): %.issy2-rpg.log : %.rpg
+$(ISSY3_RPG_LOGS): %.issy3-rpg.log : %.rpg
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
-$(ISSY2_TSL_LOGS): %.issy2-tsl.log : %.tslmt
+$(ISSY3_TSL_LOGS): %.issy3-tsl.log : %.tslmt
 	@echo "$(cmd) $< $(TIMEOUT)"
 	@$(HEADER) ; timeout $(TIMEOUT) $(cmd) $< >> $$LOGFILE 2>&1 ; $(FOOTER)
 
@@ -196,9 +196,9 @@ tables:
 
 plots:
 	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-pf sweap-strix > $(BENCH_DIR)/results/table_sweap-pf_sweap-strix.tex
-	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-issy-pf issy2 > $(BENCH_DIR)/results/table_sweap-issy-pf_issy2.tex
-	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-rpg-pf issy2-rpg > $(BENCH_DIR)/results/table_sweap-rpg-pf_issy2-rpg.tex
-	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-tsl-pf issy2-tsl > $(BENCH_DIR)/results/table_sweap-tsl-pf_issy2-tsl.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-issy-pf issy3 > $(BENCH_DIR)/results/table_sweap-issy-pf_issy3.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-rpg-pf issy3-rpg > $(BENCH_DIR)/results/table_sweap-rpg-pf_issy3-rpg.tex
+	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-tsl-pf issy3-tsl > $(BENCH_DIR)/results/table_sweap-tsl-pf_issy3-tsl.tex
 
 count:
 	@echo -n "sweap: " && echo $(SWEAP_BENCHS) | wc -w

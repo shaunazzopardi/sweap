@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 import csv
-import math
-import os
 import re
 from subprocess import CalledProcessError, check_output
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional, Sequence
+from typing import Optional
 from collections import defaultdict, Counter
-from itertools import product
 
 OUT_DIR = "results"
 OUT_CSV = "results.csv"
@@ -63,7 +60,7 @@ tools = {
     },
     **{
         f"issy{conf}": ToolInfo(name=f"issy{conf}", real=rpg_real_re, unreal=rpg_unreal_re)
-        for conf in ("2", "2-rpg", "2-tsl")
+        for conf in ("3", "3-rpg", "3-tsl")
     }
 }
 
@@ -182,7 +179,7 @@ tacas26_benchs = {
 ltl_benchs = {
     "arbiter": (True, "ltl"),
     "arbiter-failure": (True, "ltl"),
-    "arbiter-failure-variant": (False, "ltl"),
+    "arbiter-with-failure-variant": (False, "ltl"),
     "elevator": (True, "ltl"),
     "infinite-race": (True, "ltl"),
     "infinite-race-u": (False, "ltl"),
@@ -304,9 +301,6 @@ issy_benchs = {
     "test-12": (True, "buechi"),
     "test-13": (True, "buechi"),
     "test-14": (True, "safety"),
-    # "test-15": (True, "reach"),
-    # "test-16": (False, "reach"),
-    # "test-17": (True, "reach"),
     "test-extract-input": (True, "safety"),
     "test-extract-lemma": (True, "reach")
 }
@@ -327,8 +321,6 @@ infinite_benchs = {
     **buechi_benchs_popl24,
     **buechi_benchs_popl25,
     **ltl_benchs,
-    # **other_benchs,
-    # **nondet_input_benchs,
     **issy_benchs,
     **tacas26_benchs
 }
@@ -572,37 +564,6 @@ for b, (b_real, b_goal) in infinite_benchs.items():
             sys.stdout.flush()
 
 
-    # for i, b in enumerate(infinite_benchs, start=2):
-    #     print(i-1, b, "...", file=sys.stderr)
-    #     row = [i, b]
-    #     b_real = infinite_benchs[b]
-    #     for tool, tool_info in tools.items():
-    #         result = get_result(tool, tool_info, b, b_real)
-    #         results[b][tool] = result
-    #         update_stats(result, tool, b)
-    #         row.append(result)
-    #     writer.writerow(row)
-
-# Portfolio: sweap-semml, sweap-dual
-# for b, b_real in infinite_benchs.items():
-#     _, semml = get_result("sweap-semml", tools["sweap-semml"], b, b_real)
-#     _, dual = get_result("sweap-dual", tools["sweap-dual"], b, b_real)
-#     portfolio = "error"
-#     results = set((semml, dual))
-#     if len(results) == 1:  # Tools agree
-#         portfolio = results.pop()
-#     elif "realizable" in results and "unrealizable" in results:  # Tools disagree
-#         portfolio = "error"
-#     elif "timeout" in results and "oom" in results:
-#         portfolio = "oom"
-#     else: 
-#         results -= set(("error", "timeout", "oom", "missing"))
-#         if len(results) == 1:
-#             portfolio = results.pop()
-#         else:
-#             portfolio = "error"
-#     update_stats(portfolio, "sweap-pf", b_real)
-
 VERDICTS = ("right", "wrong", "timeout", "oom", "unsupported", "error")
 
 stderr_writer = csv.writer(sys.stderr, dialect="excel", lineterminator="\n")
@@ -760,7 +721,3 @@ for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11
         if len(good_times) == 1:
             uniq_tool, *_ = good_times.keys()
             uniq[uniq_tool] += 1
-
-
-
-
