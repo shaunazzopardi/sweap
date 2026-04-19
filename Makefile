@@ -93,7 +93,7 @@ define FOOTER
 	echo >> $$LOGFILE ;\
 	echo $$exitcode >> $$LOGFILE ;\
 	echo $$(((endtime - starttime)/1000000)) >> $$LOGFILE ;\
-	mv $$LOGFILE $(ROOT_DIR)/$@
+	mv $$LOGFILE $@
 endef
 
 all: $(TOOLS)
@@ -190,7 +190,7 @@ confirm:
 ################################################################################
 
 tables:
-	($(BENCH_DIR)/scripts/process_logs.py benchmarks | tee $(BENCH_DIR)/results/results.csv) 2> >(tee $(BENCH_DIR)/results/stats.csv)
+	($(BENCH_DIR)/scripts/process_logs.py $(BENCH_DIR) | tee $(BENCH_DIR)/results/results.csv) 2> >(tee $(BENCH_DIR)/results/stats.csv)
 
 plots:
 	$(BENCH_DIR)/scripts/scatter.py $(BENCH_DIR)/results/results.csv sweap-pf sweap-strix > $(BENCH_DIR)/results/table_sweap-pf_sweap-strix.tex
