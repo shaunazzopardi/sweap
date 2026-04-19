@@ -77,6 +77,11 @@ def pprint(row, tool):
     else:
         return fmt("unrealizable")
 
+for i in range(2):
+    if "real_" + TOOLS[i] not in csv1.columns:
+        print(f"[ERROR] No data for {TOOLS[i]}", file=sys.stderr)
+        sys.exit(0)
+
 xx = csv1.select([
     pl.col("benchmark"),
     pl.col(f"real_{TOOLS[0]}").map_elements(lambda x: r"$\bullet$" if x else r"\phantom{X}").alias("R"),
