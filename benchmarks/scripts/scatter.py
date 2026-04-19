@@ -27,9 +27,9 @@ pretty_tool_names = {
     "sweap-issy": "Sweap (Issy format)",
     "sweap-issy-dual": "Sweap (Issy format, Dual)",
     "sweap-semml": "Sweap (SemML)",
-    "issy2": "Issy",
-    "issy2-rpg": "Issy (RPG)",
-    "issy2-tsl": "Issy (TSL)",
+    "issy3": "Issy",
+    "issy3-rpg": "Issy (RPG)",
+    "issy3-tsl": "Issy (TSL)",
     "sweap-tsl-pf": "Sweap (TSL, portfolio)",
     "sweap-rpg-pf": "Sweap (RPG, portfolio)",
     "sweap-issy-pf": "Sweap (ISSY, portfolio)",
@@ -57,9 +57,6 @@ csv1 = (
     .pivot(values=["time(s)", "verdict", "real", "goal"], index="benchmark", on="tool")
 )
 
-# print all rows of csv1
-# pl.Config.set_tbl_rows(csv1.height)
-# print(csv1)
 
 def pprint(row, tool):
     def fmt(expected):
