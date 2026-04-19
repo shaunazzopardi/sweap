@@ -82,7 +82,6 @@ define HEADER
 	export PATH=$(path):$$PATH ;\
 	export LOGFILE=$$(mktemp tmp-bench.XXXXXXX.log) ;\
 	echo "[$$(date)] timeout $(TIMEOUT) $(cmd) $<" >> $$LOGFILE ;\
-	echo "git commit:" `git rev-parse --short HEAD` >> $$LOGFILE ;\
 	starttime=`date +%s%N`
 endef
 
