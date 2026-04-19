@@ -1,3 +1,5 @@
+# Force bash as the shell
+SHELL := $(shell which bash)
 # Shortnames we give to the tools
 SWEAP_ALL := sweap-strix sweap-dual sweap-issy sweap-issy-dual sweap-rpg sweap-rpg-dual sweap-tsl sweap-tsl-dual sweap-semml
 ISSY2_ALL := issy2 issy2-rpg issy2-tsl 
