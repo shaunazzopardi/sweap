@@ -1,11 +1,14 @@
+import logging
 import os
 import time
 
 import psutil
 from pysmt.environment import Environment
 
-from analysis import smt_checker
 import config
+from analysis.compatibility_checking.log_replay_verifier import (
+    verify_wrapped_hoa_against_program,
+)
 from parsing.string_to_issy import string_to_issy
 from programs.util import reset_caches as program_util_reset_caches
 from prop_lang.util import reset_caches as prop_lang_util_reset_caches
@@ -17,6 +20,17 @@ strix_path = str(os.path.join(dirname, "../../../binaries"))
 
 os.environ["PATH"] = strix_path + ":" + os.environ["PATH"]
 
+RESULT_FIELDNAMES = [
+    "file",
+    "realisable",
+    "verification_10s",
+    "parse_time_seconds",
+    "synthesis_time_seconds",
+    "total_time_seconds",
+]
+# Retry a failed synthesis attempt by reparsing and rerunning with fallback mode.
+DUAL_FALLBACK_ENABLED = False
+
 
 def test_synthesis():
     import csv
@@ -27,47 +41,132 @@ def test_synthesis():
     csv_dir = os.path.join(dirname, "../../issy/results")
     if not os.path.exists(csv_dir):
         os.makedirs(csv_dir)
-    csv_path = os.path.join(csv_dir, "synthesis_results-latest-3Mar-notsatguided.csv")
+    csv_name = "synthesis_results-20Apr.csv"
+    csv_path = os.path.join(csv_dir, csv_name)
 
     cnt = 0
     ignore = """"""
 
     # verifies controller
-    # config.Config.getConfig()._set_v_c(False)
+    # config.Config.getConfig()._set_v_c(True)
     # config.Config.getConfig().backend = "semml"
-    # config.Config.getConfig().dual = True
+    config.Config.getConfig().debug = True
+    config.Config.getConfig().dual = False
+    config.Config.getConfig().backend = "strix"
+    print(f"ISSY dual fallback enabled: {DUAL_FALLBACK_ENABLED}")
 
     # Read existing results to avoid reprocessing
     processed_files = set()
     if os.path.exists(csv_path):
+        existing_rows = []
         with open(csv_path, "r", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
+            existing_fieldnames = reader.fieldnames or []
             for row in reader:
                 file_key = row["file"]
                 processed_files.add(file_key)
+                existing_rows.append(row)
         print(f"Found {len(processed_files)} already processed files.")
+        if "verification_10s" not in existing_fieldnames:
+            with open(csv_path, "w", newline="") as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=RESULT_FIELDNAMES)
+                writer.writeheader()
+                for row in existing_rows:
+                    writer.writerow(
+                        {
+                            field: row.get(
+                                field,
+                                ("N/A" if field == "verification_10s" else ""),
+                            )
+                            for field in RESULT_FIELDNAMES
+                        }
+                    )
     else:
         # Initialize CSV file with headers if it doesn't exist
         with open(csv_path, "w", newline="") as csvfile:
-            fieldnames = [
-                "file",
-                "realisable",
-                "parse_time_seconds",
-                "synthesis_time_seconds",
-                "total_time_seconds",
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer = csv.DictWriter(csvfile, fieldnames=RESULT_FIELDNAMES)
             writer.writeheader()
 
     # iterate over all files in the directory and subdirectories
     for root, dirs, files in os.walk(benchmarks_dir):
         for file in files:
             if file.endswith(".issy") and file not in ignore:
+                #                 if not any(
+                #                     v
+                #                     for v in """
+                # counter-2-10-game
+                # tacas26-prioritized-tasks-unreal-100""".split(
+                #                         "\n"
+                #                     )
+                #                     if v in file
+                #                 ):
+                #                     continue
                 import gc
 
-                gc.collect()
-                program_util_reset_caches()
-                prop_lang_util_reset_caches()
+                config.Config.getConfig().name = str(file)
+
+                logdir = (
+                    os.getcwd()
+                    + "/logs/"
+                    + str(file).split(".")[0]
+                    + "/"
+                    + (str(time.time()))
+                )
+                config.Config.getConfig().log = (
+                    logdir + "/issy/" + csv_name.replace(".csv", "")
+                )
+
+                if not os.path.exists(logdir):
+                    os.makedirs(logdir)
+
+                logging.basicConfig(
+                    filename=(str(logdir + "/.log")),
+                    encoding="utf-8",
+                    level=logging.INFO,
+                    format="%(asctime)s %(levelname)-8s %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    force=True,
+                )
+                conf_snapshot = config.Config.getConfig()
+                initial_replay_input_args = {
+                    "program": None,
+                    "tsl": None,
+                    "rpg": None,
+                    "issy": os.path.join(root, file),
+                    "translate": None,
+                    "synthesise": -1,
+                    "finite_synthesise": bool(
+                        getattr(conf_snapshot, "finite_synthesis", False)
+                    ),
+                    "model_check": None,
+                    "out_dot": None,
+                    "debug": bool(conf_snapshot.debug),
+                    "log": conf_snapshot.log,
+                    "tlsf": None,
+                    "synthesis_backend": conf_snapshot.backend,
+                    "abstraction_backend": conf_snapshot.abstraction_backend,
+                    "verify_controller": bool(conf_snapshot.verify_controller),
+                    "workers": getattr(conf_snapshot, "workers", None),
+                    "synthesis_memory_limit_mb": getattr(
+                        conf_snapshot, "synthesis_memory_limit_mb", None
+                    ),
+                    "lazy": getattr(conf_snapshot, "lazy", None),
+                    "only_safety": getattr(conf_snapshot, "only_safety", None),
+                    "no_binary_enc": bool(conf_snapshot.no_binary_enc),
+                    "dual": bool(conf_snapshot.dual),
+                }
+                logging.info("Input args: %s", initial_replay_input_args)
+                logging.info(
+                    "Config args: %s",
+                    {
+                        "dual": bool(conf_snapshot.dual),
+                        "verify_controller": bool(conf_snapshot.verify_controller),
+                        "backend": conf_snapshot.backend,
+                        "abstraction_backend": conf_snapshot.abstraction_backend,
+                        "workers": getattr(conf_snapshot, "workers", None),
+                        "no_binary_enc": bool(conf_snapshot.no_binary_enc),
+                    },
+                )
 
                 file_key = file
 
@@ -75,6 +174,10 @@ def test_synthesis():
                 if file_key in processed_files:
                     print(f"Skipping {file} from {root} (already processed).")
                     continue
+
+                gc.collect()
+                program_util_reset_caches()
+                prop_lang_util_reset_caches()
 
                 file_path = os.path.join(root, file)
                 with open(file_path, "r") as f:
@@ -84,6 +187,7 @@ def test_synthesis():
                     result = {
                         "file": file,
                         "realisable": "N/A",
+                        "verification_10s": "N/A",
                         "parse_time_seconds": 0.0,
                         "synthesis_time_seconds": 0.0,
                         "total_time_seconds": 0.0,
@@ -98,6 +202,9 @@ def test_synthesis():
                         try:
 
                             def _run_parse_attempt(dual_mode: bool):
+                                gc.collect()
+                                program_util_reset_caches()
+                                prop_lang_util_reset_caches()
                                 config.Config.getConfig().dual = dual_mode
                                 return run_with_timeout_and_memory_limit(
                                     string_to_issy,
@@ -107,7 +214,7 @@ def test_synthesis():
                                 )
 
                             success, res = _run_parse_attempt(
-                                config.Config.getConfig().dual
+                                config.Config.getConfig().dual,
                             )
 
                             parse_end_time = time.time()
@@ -135,22 +242,107 @@ def test_synthesis():
                                     proc_names = ["strix", "semml"]
                                     for proc in psutil.process_iter():
                                         if proc.name() in proc_names:
-                                            proc.kill()
+                                            try:
+                                                proc.kill()
+                                            except:
+                                                continue
 
                                 def _run_synthesis_attempt(
-                                    dual_mode: bool, attempt_prog, attempt_ltl
+                                    dual_mode: bool,
+                                    attempt_prog,
+                                    attempt_ltl,
+                                    timeout_seconds=synthesis_timeout_seconds,
+                                    verify_controller=False,
                                 ):
-                                    config.Config.getConfig().dual = dual_mode
-                                    attempt_success, attempt_result = (
-                                        run_with_timeout_and_memory_limit(
-                                            synthesize,
-                                            [attempt_prog, attempt_ltl, None, -1],
-                                            timeout=synthesis_timeout_seconds,
-                                            max_memory_gb=50,
-                                        )
+                                    original_verify_controller = (
+                                        config.Config.getConfig().verify_controller
                                     )
-                                    _kill_solver_processes()
+                                    config.Config.getConfig().dual = dual_mode
+                                    if verify_controller is not None:
+                                        config.Config.getConfig().verify_controller = (
+                                            verify_controller
+                                        )
+                                    # Keep replay verifier reconstruction stable by logging
+                                    # an args-like snapshot for the current attempt.
+                                    conf = config.Config.getConfig()
+                                    replay_input_args = {
+                                        "program": None,
+                                        "tsl": None,
+                                        "rpg": None,
+                                        "issy": file_path,
+                                        "translate": None,
+                                        "synthesise": -1,
+                                        "finite_synthesise": bool(
+                                            getattr(conf, "finite_synthesis", False)
+                                        ),
+                                        "model_check": None,
+                                        "out_dot": None,
+                                        "debug": bool(conf.debug),
+                                        "log": conf.log,
+                                        "tlsf": None,
+                                        "synthesis_backend": conf.backend,
+                                        "abstraction_backend": conf.abstraction_backend,
+                                        "verify_controller": bool(
+                                            verify_controller
+                                            if verify_controller is not None
+                                            else conf.verify_controller
+                                        ),
+                                        "workers": getattr(conf, "workers", None),
+                                        "synthesis_memory_limit_mb": getattr(
+                                            conf, "synthesis_memory_limit_mb", None
+                                        ),
+                                        "lazy": getattr(conf, "lazy", None),
+                                        "only_safety": getattr(
+                                            conf, "only_safety", None
+                                        ),
+                                        "no_binary_enc": bool(conf.no_binary_enc),
+                                        "dual": bool(dual_mode),
+                                    }
+                                    logging.info("Input args: %s", replay_input_args)
+                                    try:
+                                        attempt_success, attempt_result = (
+                                            run_with_timeout_and_memory_limit(
+                                                synthesize,
+                                                [attempt_prog, attempt_ltl, None, -1],
+                                                timeout=timeout_seconds,
+                                                max_memory_gb=50,
+                                            )
+                                        )
+                                    finally:
+                                        _kill_solver_processes()
+                                        config.Config.getConfig().verify_controller = (
+                                            original_verify_controller
+                                        )
                                     return attempt_success, attempt_result
+
+                                def _verify_wrapped_hoa(
+                                    verify_prog,
+                                    verify_ltl,
+                                    wrapped_hoa,
+                                ):
+                                    original_log = config.Config.getConfig().log
+                                    original_verify = (
+                                        config.Config.getConfig().verify_controller
+                                    )
+                                    try:
+                                        # Keep benchmark verification side-effect free:
+                                        # no nested logging and no synthesis-time verify flag use.
+                                        config.Config.getConfig().log = None
+                                        config.Config.getConfig().verify_controller = (
+                                            False
+                                        )
+                                        verify_wrapped_hoa_against_program(
+                                            verify_prog,
+                                            verify_ltl,
+                                            None,
+                                            wrapped_hoa,
+                                        )
+                                        return True
+                                    finally:
+                                        config.Config.getConfig().log = original_log
+                                        config.Config.getConfig().verify_controller = (
+                                            original_verify
+                                        )
 
                                 try:
                                     success, hoa = _run_synthesis_attempt(
@@ -159,10 +351,17 @@ def test_synthesis():
                                     used_dual_fallback = False
                                     dual_retry_parse_failed = False
 
-                                    if not success:
+                                    verification_prog = prog
+                                    verification_ltl = ltl
+                                    if (
+                                        not success
+                                        and DUAL_FALLBACK_ENABLED
+                                        and (not used_dual_fallback)
+                                    ):
+                                        fallback_dual = not original_dual
                                         dual_parse_start_time = time.time()
                                         dual_parse_success, dual_parse_res = (
-                                            _run_parse_attempt(True)
+                                            _run_parse_attempt(fallback_dual)
                                         )
                                         dual_parse_end_time = time.time()
                                         result["parse_time_seconds"] = round(
@@ -177,54 +376,96 @@ def test_synthesis():
                                         if dual_parse_success:
                                             dual_prog, dual_ltl = dual_parse_res
                                             success, hoa = _run_synthesis_attempt(
-                                                True, dual_prog, dual_ltl
+                                                fallback_dual,
+                                                dual_prog,
+                                                dual_ltl,
                                             )
+                                            verification_prog = dual_prog
+                                            verification_ltl = dual_ltl
                                             used_dual_fallback = True
                                         else:
                                             dual_retry_parse_failed = True
                                             if dual_parse_res == "Timeout":
-                                                result["realisable"] = "TO(parse-dual)"
+                                                result["realisable"] = (
+                                                    "TO(parse-dual-alt)"
+                                                )
                                             elif (
                                                 dual_parse_res
                                                 == "Memory limit exceeded"
                                             ):
-                                                result["realisable"] = "OOM(parse-dual)"
+                                                result["realisable"] = (
+                                                    "OOM(parse-dual-alt)"
+                                                )
                                             else:
                                                 result["realisable"] = (
-                                                    f"ERR(parse-dual): {dual_parse_res}"
+                                                    f"ERR(parse-dual-alt): {dual_parse_res}"
                                                 )
 
                                     if dual_retry_parse_failed:
                                         pass
                                     elif success:
-                                        if config.Config.getConfig().dual:
-                                            realisable = (
-                                                not hoa.is_controller
-                                                if hoa is not None
-                                                else "N/A"
-                                            )
-                                        else:
-                                            realisable = (
-                                                hoa.is_controller
-                                                if hoa is not None
-                                                else "N/A"
-                                            )
+                                        realisable = (
+                                            hoa.realisable if hoa is not None else "N/A"
+                                        )
                                         if used_dual_fallback:
                                             if realisable in [True, False]:
                                                 result["realisable"] = (
-                                                    f"{str(realisable)} (dual)"
+                                                    f"{str(realisable)} (dual-alt)"
                                                 )
                                             else:
                                                 result["realisable"] = (
-                                                    f"{realisable} (dual)"
+                                                    f"{realisable} (dual-alt)"
                                                 )
                                         else:
                                             result["realisable"] = realisable
+
+                                        if hoa is not None:
+                                            (
+                                                verification_success,
+                                                verification_result,
+                                            ) = run_with_timeout_and_memory_limit(
+                                                _verify_wrapped_hoa,
+                                                [
+                                                    verification_prog,
+                                                    verification_ltl,
+                                                    hoa,
+                                                ],
+                                                timeout=10,
+                                                max_memory_gb=50,
+                                            )
+                                            if verification_success:
+                                                result["verification_10s"] = True
+                                            elif (
+                                                verification_result
+                                                == "Memory limit exceeded"
+                                            ):
+                                                result["verification_10s"] = "OOM"
+                                            elif verification_result == "Timeout":
+                                                result["verification_10s"] = "TO"
+                                            elif (
+                                                "does not enforce the required LTL property"
+                                                in str(verification_result)
+                                            ):
+                                                result["verification_10s"] = False
+                                            else:
+                                                result["verification_10s"] = (
+                                                    f"ERR(verif): {verification_result}"
+                                                )
                                     else:
                                         if hoa == "Memory limit exceeded":
                                             result["realisable"] = "OOM"
                                         elif hoa == "Timeout":
                                             result["realisable"] = "TO"
+                                        # elif "OOM or TO or error." in str(hoa):
+                                        #     result["realisable"] = (
+                                        #         "ERR(synthesis): OOM or TO"
+                                        #     )
+                                        elif "This is nuXmv" in str(
+                                            hoa
+                                        ) and "does not enforce" not in str(hoa):
+                                            result["realisable"] = (
+                                                "ERR(nuXmv): OOM or TO"
+                                            )
                                         else:
                                             result["realisable"] = f"ERR: {hoa}"
                                 finally:
@@ -252,18 +493,15 @@ def test_synthesis():
 
                     # Append result to CSV file immediately
                     with open(csv_path, "a", newline="") as csvfile:
-                        fieldnames = [
-                            "file",
-                            "realisable",
-                            "parse_time_seconds",
-                            "synthesis_time_seconds",
-                            "total_time_seconds",
-                        ]
-                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                        writer = csv.DictWriter(csvfile, fieldnames=RESULT_FIELDNAMES)
                         writer.writerow(result)
 
                     print(
-                        f"Result for {file}: Realisable={result['realisable']}, Parse: {result['parse_time_seconds']}s, Synthesis: {result['synthesis_time_seconds']}s, Total: {result['total_time_seconds']}s"
+                        f"Result for {file}: Realisable={result['realisable']}, "
+                        f"Verification={result['verification_10s']}, "
+                        f"Parse: {result['parse_time_seconds']}s, "
+                        f"Synthesis: {result['synthesis_time_seconds']}s, "
+                        f"Total: {result['total_time_seconds']}s"
                     )
 
     print(f"Finished parsing with {cnt} errors.")
@@ -280,32 +518,32 @@ def test_parsing():
     for root, _, files in os.walk(benchmarks_dir):
         for file in files:
             if file.endswith(".issy"):
+                print("Processing file: " + file)
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(file_path, benchmarks_dir)
                 with open(file_path, "r") as f:
                     content = f.read()
                     with Environment() as env:
-                        print("Parsing " + rel_path)
-                        try:
-                            success, res = run_with_timeout_and_memory_limit(
-                                string_to_issy,
-                                [content, "name"],
-                                timeout=30,
-                                max_memory_gb=50,
-                            )
-                            if not success:
-                                print(f"parsing {res} timedout")
-                        except Exception as e:
-                            if "real" not in str(e) and "We do not handle" not in str(
-                                e
+                        success, res = run_with_timeout_and_memory_limit(
+                            string_to_issy,
+                            [content, "name"],
+                            timeout=30,
+                            max_memory_gb=50,
+                        )
+                        if not success:
+                            print(f"parsing {res} timedout")
+                            if (
+                                "real" not in str(res)
+                                and "We do not handle" not in str(res)
+                                and "timeout" not in str(res).lower()
                             ):
-                                raise e
+                                raise Exception(str(res))
                         print("Parsed " + rel_path)
     print(f"Finished parsing with {cnt} errors.")
 
 
 if __name__ == "__main__":
     start = time.time()
-    test_parsing()
+    test_synthesis()
     end = time.time()
-    print(f"Parsing benchmark completed in {round(end - start, 3)} seconds.")
+    print(f"Completed in {round(end - start, 3)} seconds.")
