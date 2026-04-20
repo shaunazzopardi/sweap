@@ -51,16 +51,35 @@ state = regex(r"[a-zA-Z0-9@$_-]+")
 
 @generate
 def program_parser():
-    yield spaces() << string("program") >> spaces()
+    yield spaces() << regex("(program)|(arena)") >> spaces()
     program_name = yield name << spaces()
     yield string("{") >> spaces()
-    (states, initial_state) = yield state_parser
-    yield spaces()
-    env = yield string("ENVIRONMENT EVENTS") >> typed_event_parser
-    yield spaces()
-    con = yield string("CONTROLLER EVENTS") >> typed_event_parser
-    yield spaces()
-    initial_vals = yield initial_val_parser
+    sections = yield parsec.many(spaces() >> program_section_parser << spaces())
+    yield spaces() >> string("}") >> spaces()
+
+    section_values = {}
+    for section_name, section_value in sections:
+        if section_name in section_values:
+            raise Exception(f"Duplicate section {section_name}.")
+        section_values[section_name] = section_value
+
+    required_sections = {"states", "env", "con", "initial_vals", "transitions"}
+    missing = sorted(required_sections - set(section_values.keys()))
+    if missing:
+        raise Exception("Missing required section(s): " + ", ".join(missing))
+
+    (states, initial_state) = section_values["states"]
+    env = section_values["env"]
+    con = section_values["con"]
+    initial_vals = section_values["initial_vals"]
+    semantics, transitions = section_values["transitions"]
+    ltl_spec = section_values.get("ltl_spec")
+
+    program_var_names = {v[0] for v in initial_vals}
+    for t in transitions:
+        if isinstance(t.action, Formula):
+            _validate_program_action_formula_vars(t.action, program_var_names)
+
     state_vars = [Variable(v[0]) for v in initial_vals]
     if len(set(env + con + states + state_vars)) < len(env + con + states + state_vars):
         raise Exception(
@@ -73,11 +92,6 @@ def program_parser():
                 ]
             )
         )
-    yield spaces()
-    semantics, transitions = yield transitions_parser({v[0] for v in initial_vals})
-    yield spaces()
-    ltl_spec = yield parsec.optional(specification_parser)
-    yield spaces() >> string("}") >> spaces()
 
     symbol_table = {v[0]: v[1] for v in initial_vals}
     guard_symbol_table = dict(symbol_table)
@@ -138,6 +152,56 @@ def program_parser():
     )
     print(program.to_prog(ltl_spec))
     return program, ltl_spec
+
+
+@generate
+def program_section_parser():
+    return (
+        yield parsec.try_choices(
+            states_section_parser,
+            env_section_parser,
+            con_section_parser,
+            initial_vals_section_parser,
+            transitions_section_parser,
+            spec_section_parser,
+        )
+    )
+
+
+@generate
+def states_section_parser():
+    states = yield state_parser
+    return "states", states
+
+
+@generate
+def env_section_parser():
+    env = yield regex("(ENVIRONMENT EVENTS)|(INPUTS)") >> typed_event_parser
+    return "env", env
+
+
+@generate
+def con_section_parser():
+    con = yield regex("(CONTROLLER EVENTS)|(OUTPUTS)") >> typed_event_parser
+    return "con", con
+
+
+@generate
+def initial_vals_section_parser():
+    initial_vals = yield initial_val_parser
+    return "initial_vals", initial_vals
+
+
+@generate
+def transitions_section_parser():
+    transitions = yield transitions_parser(None)
+    return "transitions", transitions
+
+
+@generate
+def spec_section_parser():
+    ltl_spec = yield specification_parser
+    return "ltl_spec", ltl_spec
 
 
 def apply_transition_semantics_by_order(
@@ -208,7 +272,7 @@ def var_implicit_bool_type_parser():
 
 @generate
 def state_parser():
-    yield string("STATES") >> spaces() >> string("{") >> spaces()
+    yield regex("(STATES)|(CONTROL STATES)") >> spaces() >> string("{") >> spaces()
     tagged_states = yield sepBy(
         tagged_state_parser << spaces(), regex("(,|;)") << spaces()
     )
@@ -236,22 +300,6 @@ def tagged_state_parser():
         string(":") >> spaces() >> regex("(init|flag)"), ""
     )
     return state_name, state_label
-
-
-@generate
-def initial_state_parser():
-    yield string("INITIAL") >> spaces() >> string("{") >> spaces()
-    state_id = yield state << spaces()
-    yield spaces() >> string("}")
-    return state_id
-
-
-@generate
-def flagging_states_parser():
-    yield string("FLAGGING") >> spaces() >> string("{") >> spaces()
-    state_id = yield sepBy(state, regex("(,|;)")) << spaces()
-    yield spaces() >> string("}")
-    return state_id
 
 
 @generate
@@ -355,7 +403,7 @@ def action_guard():
 
 @generate
 def initial_val_parser():
-    yield string("VALUATION") >> spaces() >> string("{") >> spaces()
+    yield regex("(VALUATION)|(STATE VARIABLES)") >> spaces() >> string("{") >> spaces()
     vals = yield sepBy(
         parsec.try_choices(
             bool_decl_parser, num_decl_parser, var_bool_type_parser, var_num_type_parser
@@ -394,6 +442,7 @@ def transition_parser(program_var_names: set[str] | None = None):
             [],
         )
         yield spaces()
+        yield parsec.optional(regex("(,|;)") >> spaces())
         raw_events = yield parsec.optional(outputs, [])
         events = [string_to_negated_atom(e) for e in raw_events]
         yield spaces()
@@ -692,7 +741,7 @@ def transitions_parser(program_var_names: set[str] | None = None):
 
 @generate
 def specification_parser():
-    yield string("SPECIFICATION") >> spaces()
+    yield regex("(SPECIFICATION)|(OBJECTIVE)") >> spaces()
     yield string("{") >> spaces()
     ltl_spec_string = yield regex("[^}]*")
     yield spaces() >> string("}")
@@ -704,6 +753,6 @@ def specification_parser():
 parser = program_parser
 
 
-def string_to_program(input: str) -> (Program, Formula):
+def string_to_program(input: str) -> tuple[Program, Formula]:
     program, ltl_spec = (parser << parsec.eof()).parse(input)
     return program, ltl_spec
