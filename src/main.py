@@ -88,7 +88,9 @@ def setup_argument_parser() -> ArgumentParser:
     parser.add_argument(
         "--debug",
         dest="debug",
-        help="Debugging mode (sanity checks enabled).",
+        help="Debugging mode (sanity checks enabled). "
+        "Note this may get stuck during compatibility checking or verification, "
+        "since given a positive result it model checks whether there is eventually a deadlock.",
         type=bool,
         nargs="?",
         const=True,
