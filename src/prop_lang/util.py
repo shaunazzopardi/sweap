@@ -513,18 +513,15 @@ def sympi_to_formula(basic: Basic):
     elif isinstance(basic, sympy.Symbol):
         return Variable(str(basic))
     elif isinstance(basic, BooleanAtom):
-        if basic == BooleanTrue:
+        if isinstance(basic, BooleanTrue):
             return Value(BoolAtoms.TRUE)
-        elif basic == BooleanFalse:
+        elif isinstance(basic, BooleanFalse):
             return Value(BoolAtoms.FALSE)
         else:
             raise Exception("Could not parse Sympy BooleanAtom: " + str(basic))
     else:
         raise Exception("Could not parse Sympy Basic: " + str(basic))
         # string_to_prop(str(basic))
-
-
-sympy.logic.boolalg.BooleanAtom
 
 
 def simplify_formula_with_math(formula, symbol_table):

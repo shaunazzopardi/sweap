@@ -2,7 +2,6 @@ import sympy.core.symbol
 
 from pysmt.fnode import FNode
 
-import config
 from prop_lang.atom import Atom
 from prop_lang.types.types import typed_var_to_pysmt_type
 
@@ -59,6 +58,8 @@ class Variable(Atom):
         return self.name
 
     def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
+        import config
+
         cache = config.Config.getConfig().cache_smt
 
         if cache and self.smt_representation:
