@@ -1191,9 +1191,7 @@ class MinigameFiller:
                     else:
                         raise Exception("Unknown transition type: " + str(typ))
 
-                    stop_t = Transition(start_state, stop, [], [], end_state)
                     new_trans.append(modify_t)
-                    new_trans.append(stop_t)
 
                 unrestricted_non_det_vars = []
                 for u in unrestricted_updates:
@@ -1322,7 +1320,7 @@ class MinigameFiller:
                                 )
                             )
 
-                if len(unrestricted_updates) > 0:
+                if len(unrestricted_updates) > 0 or len(restricted_updates) > 0:
                     stop_guard = conjunct(stop, stop_prop)
                     if sat(stop_guard, self.symbol_table):
                         stop_t = Transition(
