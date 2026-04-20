@@ -5,8 +5,6 @@ from unittest.mock import patch
 from pysmt.shortcuts import reset_env
 
 from parsing import string_to_issy as string_to_issy_module
-from parsing.util import issy_game_transition_utils as issy_game_transition_utils_module
-from programs import program as program_module
 from programs import util as program_util_module
 
 
@@ -160,6 +158,7 @@ class TestStringToIssyProcessCharacterization(unittest.TestCase):
             any(
                 "((int_x + -x) > 0)" in str(t.condition)
                 or "(int_x > (0 + x))" in str(t.condition)
+                or "(int_x > x)" in str(t.condition)
                 for t in exit_to_l1
             )
         )

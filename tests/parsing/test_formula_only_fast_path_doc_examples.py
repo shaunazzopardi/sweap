@@ -78,7 +78,7 @@ class TestFormulaOnlyFastPathDocExamples(unittest.TestCase):
         )
 
         con_event_names = {str(v.name) for v, _ in program.con_events}
-        self.assertTrue(any(n.startswith("eq_con_formula_") for n in con_event_names))
+        self.assertTrue(any(n.startswith("sat_con_formula_") for n in con_event_names))
         self.assertFalse(any(n.startswith("formula_con_act_") for n in con_event_names))
         self.assertFalse(any(s.startswith("c_") for s in program.states))
 

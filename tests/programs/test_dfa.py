@@ -5,6 +5,109 @@ from programs.dfa import program_sccs
 
 
 class Test(TestCase):
+    def test_only_init_transitions_when_initial_state_is_not_reachable_again(self):
+        program_text = """
+        program init_once_demo {
+            STATES {
+                q0 : init, q1
+            }
+
+            ENVIRONMENT EVENTS {
+            }
+
+            CONTROLLER EVENTS {
+            }
+
+            VALUATION {
+                x : integer := 0;
+            }
+
+            TRANSITIONS {
+                q0 -> q1 [true],
+                q1 -> q1 [true]
+            }
+
+            SPECIFICATION {
+                G true
+            }
+        }
+        """
+
+        program, _ = string_to_program(program_text)
+
+        self.assertEqual(1, len(program.only_init_transitions))
+        self.assertEqual("q0", program.only_init_transitions[0].src)
+        self.assertEqual("q1", program.only_init_transitions[0].tgt)
+
+    def test_only_init_transitions_when_init_state_reachable_in_rest_of_program(self):
+        program_text = """
+        program init_branch_filter_demo {
+            STATES {
+                q0 : init, q1, q2
+            }
+
+            ENVIRONMENT EVENTS {
+            }
+
+            CONTROLLER EVENTS {
+            }
+
+            VALUATION {
+                x : integer := 0;
+            }
+
+            TRANSITIONS {
+                q0 -> q0 [true],
+                q0 -> q1 [true],
+                q1 -> q2 [true],
+                q2 -> q2 [true]
+            }
+
+            SPECIFICATION {
+                G true
+            }
+        }
+        """
+
+        program, _ = string_to_program(program_text)
+
+        self.assertEqual(0, len(program.only_init_transitions))
+        self.assertEqual("q0", program.only_init_transitions[0].src)
+        self.assertEqual("q1", program.only_init_transitions[0].tgt)
+
+    def test_only_init_transitions_empty_when_all_init_branches_can_return(self):
+        program_text = """
+        program init_all_return_demo {
+            STATES {
+                q0 : init, q1
+            }
+
+            ENVIRONMENT EVENTS {
+            }
+
+            CONTROLLER EVENTS {
+            }
+
+            VALUATION {
+                x : integer := 0;
+            }
+
+            TRANSITIONS {
+                q0 -> q0 [true],
+                q0 -> q1 [true],
+                q1 -> q0 [true]
+            }
+
+            SPECIFICATION {
+                G true
+            }
+        }
+        """
+
+        program, _ = string_to_program(program_text)
+
+        self.assertEqual([], program.only_init_transitions)
+
     def test_program_sccs_transitions(self):
         program_text = """
         program scc_demo {

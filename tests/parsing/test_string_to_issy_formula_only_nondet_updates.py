@@ -7,7 +7,6 @@ import parsec
 
 import config
 from parsing import string_to_issy as string_to_issy_module
-from programs import program as program_module
 from programs import util as program_util_module
 from prop_lang.nondet import NonDeterministic
 from prop_lang.variable import Variable

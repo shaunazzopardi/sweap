@@ -3,26 +3,13 @@ from time import perf_counter
 
 import config
 
-try:
-    from tests.parsing._legacy_sat_guided_transition_utils import (
-        extract_updates_from_formula,
-        generate_update_combinations,
-        handle_update_combination, handle_update_partition,
-    )
-except ModuleNotFoundError:
-    try:
-        from parsing._legacy_sat_guided_transition_utils import (
-            extract_updates_from_formula,
-            generate_update_combinations,
-            handle_update_combination,
-        )
-    except ModuleNotFoundError:
-        from _legacy_sat_guided_transition_utils import (
-            extract_updates_from_formula,
-            generate_update_combinations,
-            handle_update_combination,
-        )
-from parsing.util import issy_game_transition_utils as issy_game_transition_utils_module
+from tests.parsing._legacy_sat_guided_transition_utils import (
+    extract_updates_from_formula,
+    generate_update_combinations,
+    handle_update_combination,
+    handle_update_partition,
+)
+
 from parsing.string_to_ltl import string_to_issy_ltl
 from prop_lang.util import (
     conjunct,

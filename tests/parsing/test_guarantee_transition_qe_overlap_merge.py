@@ -3,7 +3,7 @@ from time import perf_counter
 from unittest.mock import patch
 
 from parsing import string_to_issy as string_to_issy_module
-from parsing.util.issy_game_transition_utils import determinise
+from parsing.util.game_transition_utils import determinise
 from programs.binary_rep_map import BinaryRepMap
 from programs.transition import Transition
 from prop_lang.biop import BiOp
@@ -87,7 +87,7 @@ class TestGuaranteeTransitionQeOverlapMerge(unittest.TestCase):
         _, _, t_pos, t_neg = self._build_overlap_transitions()
         symbol_table = {"q": INTEGER, "y": INTEGER}
 
-        _, _, con_vars_before = determinise(
+        _, con_vars_before = determinise(
             {"eval": [t_pos, t_neg]},
             "formula",
             dict(symbol_table),
@@ -100,7 +100,7 @@ class TestGuaranteeTransitionQeOverlapMerge(unittest.TestCase):
                 symbol_table,
             )
         )
-        _, _, con_vars_after = determinise(
+        _, con_vars_after = determinise(
             {"eval": merged},
             "formula",
             dict(symbol_table),
@@ -134,7 +134,7 @@ class TestGuaranteeTransitionQeOverlapMerge(unittest.TestCase):
             side_effect=lambda _self, f: f,
         ):
             start = perf_counter()
-            transitions, lose_transitions, con_vars = determinise(
+            transitions, con_vars = determinise(
                 raw_transitions,
                 "formula",
                 dict(symbol_table),
@@ -143,11 +143,11 @@ class TestGuaranteeTransitionQeOverlapMerge(unittest.TestCase):
 
         sem_symbol_table = dict(symbol_table)
         sem_symbol_table.update({str(v): BOOLEAN for v in set(con_vars)})
-        self._assert_pairwise_disjoint(transitions + lose_transitions, sem_symbol_table)
+        self._assert_pairwise_disjoint(transitions, sem_symbol_table)
 
         print(
             f"\nDeterminisation profile ({label}):"
-            f" transitions={len(transitions)} lose={len(lose_transitions)}"
+            f" transitions={len(transitions)}"
             f" time={elapsed:.6f}s helpers={len(con_vars)}"
         )
 
@@ -216,7 +216,9 @@ class TestGuaranteeTransitionQeOverlapMerge(unittest.TestCase):
     def test_region_local_determinisation_profile_complex_counter_overlap(self):
         transitions, symbol_table = self._build_complex_overlap_transitions()
         raw_transitions = {"eval": transitions}
-        self._profile_determinise(raw_transitions, symbol_table, "complex-counter-overlap")
+        self._profile_determinise(
+            raw_transitions, symbol_table, "complex-counter-overlap"
+        )
 
     @staticmethod
     def _build_complex_arithmetic_overlap_transitions():
@@ -294,7 +296,9 @@ class TestGuaranteeTransitionQeOverlapMerge(unittest.TestCase):
     def test_region_local_determinisation_profile_complex_arithmetic_overlap(self):
         transitions, symbol_table = self._build_complex_arithmetic_overlap_transitions()
         raw_transitions = {"eval": transitions}
-        self._profile_determinise(raw_transitions, symbol_table, "complex-arithmetic-overlap")
+        self._profile_determinise(
+            raw_transitions, symbol_table, "complex-arithmetic-overlap"
+        )
 
 
 if __name__ == "__main__":

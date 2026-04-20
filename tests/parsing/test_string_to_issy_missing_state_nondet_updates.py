@@ -5,8 +5,6 @@ from unittest.mock import patch
 import parsec
 
 from parsing import string_to_issy as string_to_issy_module
-from parsing.util import issy_game_transition_utils as issy_game_transition_utils_module
-from programs import program as program_module
 from programs import util as program_util_module
 from prop_lang.nondet import NonDeterministic
 

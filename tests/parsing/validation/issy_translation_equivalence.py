@@ -8,7 +8,9 @@ from tempfile import NamedTemporaryFile
 
 import parsec
 
-from analysis.compatibility_checking.nuxmv_model import NuXmvModel
+from analysis.compatibility_checking.program_to_nuxmv import program_to_nuxmv_model
+from analysis.compatibility_checking.renderer import render_structured_model
+from analysis.compatibility_checking.types import StructuredNuXmvModel, VarDecl
 from analysis.model_checker import ModelChecker, nuxmv_path
 from parsing.string_to_issy import (
     parser as issy_parser,
@@ -38,7 +40,7 @@ class BareIssySpec:
     symbol_table: dict[str, object]
     loc_var_names: list[str]
     objective: Formula
-    model: NuXmvModel
+    model: StructuredNuXmvModel
 
 
 @dataclass
@@ -151,17 +153,16 @@ def _ltl_check_with_trace(
     return holds, checker_out, trace
 
 
-def _nu_model_to_module(model: NuXmvModel, module_name: str) -> str:
-    text = f"MODULE {module_name}\n"
-    text += _emit_section("VAR", model.vars)
-    text += _emit_section("DEFINE", model.define)
-    if model.init:
-        text += "INIT\n\t(" + ")\n\t& (".join(model.init) + ")\n"
-    if model.invar:
-        text += "INVAR\n\t(" + ")\n\t& (".join(model.invar) + ")\n"
-    if model.trans:
-        text += "TRANS\n\t(" + ")\n\t& (".join(model.trans) + ")\n"
-    return _sanitize_nuxmv_text(text)
+def _nu_model_to_module(model: StructuredNuXmvModel, module_name: str) -> str:
+    module_model = StructuredNuXmvModel(
+        name=module_name,
+        vars=list(model.vars),
+        define=list(model.define),
+        init=list(model.init),
+        invar=list(model.invar),
+        trans=list(model.trans),
+    )
+    return _sanitize_nuxmv_text(render_structured_model(module_model))
 
 
 def _prefix_vars(expr: str, var_names: set[str], instance: str) -> str:
@@ -172,8 +173,8 @@ def _prefix_vars(expr: str, var_names: set[str], instance: str) -> str:
     return out
 
 
-def _model_var_names(model: NuXmvModel) -> set[str]:
-    return {v.split(":", 1)[0].strip() for v in model.vars}
+def _model_var_names(model: StructuredNuXmvModel) -> set[str]:
+    return {v.name for v in model.vars}
 
 
 def _one_hot_invars(vars_here: list[str]) -> list[str]:
@@ -307,13 +308,19 @@ def build_bare_issy_spec(issy_text: str, issy_name: str = "issy_input") -> BareI
 
     # Ignore formula blocks by design for this validator; focus on game semantics.
     objective = conjunct_formula_set(game_objectives)
-    model = NuXmvModel(
-        issy_name + "_bare",
-        vars_decl,
-        [],
-        init,
-        invar,
-        trans,
+    vars_typed = []
+    for decl in vars_decl:
+        if ":" not in decl:
+            raise ValueError(f"Invalid nuXmv var declaration: {decl}")
+        name, typ = decl.split(":", 1)
+        vars_typed.append(VarDecl(name.strip(), typ.strip()))
+    model = StructuredNuXmvModel(
+        name=issy_name + "_bare",
+        vars=vars_typed,
+        define=[],
+        init=init,
+        invar=invar,
+        trans=trans,
     )
     return BareIssySpec(
         name=issy_name,
@@ -335,9 +342,7 @@ def build_issy_translation_equivalence_model(
         raise ValueError("Generated program has no objective.")
 
     left_model = bare_spec.model
-    right_model = generated_program.to_nuXmv_with_turns_for_con_verif(
-        include_pred_upgrades=True
-    )
+    right_model = program_to_nuxmv_model(generated_program)
 
     left_module_name = _module_name(bare_spec.name + "_bare_issy")
     right_module_name = _module_name(generated_program.name + "_generated_prog")

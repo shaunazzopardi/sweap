@@ -11,9 +11,9 @@ from pysmt.shortcuts import And, Solver
 
 import config
 from parsing.util import (
-    issy_game_transition_utils as issy_game_transition_utils_module,
+    game_transition_utils as issy_game_transition_utils_module,
 )
-from parsing.util.issy_game_transition_utils import (
+from parsing.util.game_transition_utils import (
     _contains_next_var,
 )
 from prop_lang.biop import BiOp

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import parsec
 
+from analysis.compatibility_checking.program_to_nuxmv import program_to_nuxmv_model
 from parsing.string_to_issy import (
     parser as issy_parser,
     _build_intermediate_game_program_data,
@@ -191,11 +192,8 @@ def build_cross_product_minigame_equivalence_model(
     synchronised_controller_var_prefixes: tuple[str, ...] = (),
     stutter_left_while_right_in_minigame: bool = False,
 ) -> tuple[str, str, str | None, bool]:
-    left_model = pre_program.to_nuXmv_with_turns_for_verif(
-        include_pred_upgrades=True,
-        stutter_when_other_game_in_minigame=stutter_left_while_right_in_minigame,
-    )
-    right_model = post_program.to_nuXmv_with_turns_for_verif(include_pred_upgrades=True)
+    left_model = program_to_nuxmv_model(pre_program)
+    right_model = program_to_nuxmv_model(post_program)
 
     left_module_name = _module_name(pre_program.name + "_pre_minigame")
     right_module_name = _module_name(post_program.name + "_post_minigame")
@@ -333,11 +331,7 @@ def build_cross_product_minigame_equivalence_model(
     if current_match != "TRUE":
         main_init.append(current_match)
     main_init.extend([f"left.{v} = right.{v}" for v in synchronised_controller_vars])
-    if stutter_left_while_right_in_minigame:
-        if "other_game_in_minigame" not in left_var_names:
-            raise ValueError(
-                "Left model missing 'other_game_in_minigame' required for stutter synchronisation."
-            )
+    if stutter_left_while_right_in_minigame and "other_game_in_minigame" in left_var_names:
         main_init.append(f"(left.other_game_in_minigame = {right_in_minigame})")
     main_init.append(f"compatible = {init_compatible}")
 
@@ -345,7 +339,7 @@ def build_cross_product_minigame_equivalence_model(
     main_trans.extend(
         [f"next(left.{v}) = next(right.{v})" for v in synchronised_controller_vars]
     )
-    if stutter_left_while_right_in_minigame:
+    if stutter_left_while_right_in_minigame and "other_game_in_minigame" in left_var_names:
         main_trans.append(f"(left.other_game_in_minigame = {right_in_minigame})")
         main_trans.append(
             f"(next(left.other_game_in_minigame) = {right_next_in_minigame})"
