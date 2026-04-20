@@ -32,13 +32,8 @@ def _or(parts: list[str]) -> str:
 
 def _mode() -> str:
     dual = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
-    if dual and dual2:
-        raise ValueError("dual and dual2 are mutually exclusive")
     if dual:
         return "dual"
-    if dual2:
-        return "dual2"
     return "base"
 
 
@@ -89,7 +84,7 @@ def _project_out_env_props(formula, env_props):
     return simplify_formula_without_math(fnode_to_formula(smt))
 
 
-def _dual2_init_qe_quantified_props(
+def _dual_init_qe_quantified_props(
     machine: Machine,
     pred_acts,
     prog_states,
@@ -116,7 +111,7 @@ def _dual2_init_qe_quantified_props(
     return quantified
 
 
-def _dual2_init_qe_quantified_env_init_props(machine: Machine):
+def _dual_init_qe_quantified_env_init_props(machine: Machine):
     env_init_from_env = [
         v for v in machine.env_events if str(v).startswith("env_init_")
     ]
@@ -149,7 +144,7 @@ def _mealy_to_nuxmv_tandem_model(
     trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
     pred_acts = state_pred_acts + trans_pred_acts
 
-    dual2_next_events = set(pred_acts).union(
+    dual_next_events = set(pred_acts).union(
         v
         for v in machine.con_events
         if str(v).startswith("pred__") or str(v).startswith("bin_")
@@ -158,7 +153,7 @@ def _mealy_to_nuxmv_tandem_model(
     init_transition_terms_by_tgt: dict[str, list] = {}
     single_state = _single_state_value(machine.states)
 
-    # In dual2, only state-predicate/bin vars are shifted to next-step facts.
+    # In dual, only state-predicate/bin vars are shifted to next-step facts.
     strip_next = lambda f: (
         f.right if isinstance(f, UniOp) and (f.op == "next" or f.op == "X") else None
     )
@@ -210,12 +205,12 @@ def _mealy_to_nuxmv_tandem_model(
 
             for env_beh, con_beh in env_con_behs:
                 guard_formula = (
-                    massage_ltl_for_dual(con_beh, dual2_next_events, False)
+                    massage_ltl_for_dual(con_beh, dual_next_events, False)
                     if next_shift_pred_bin_vars
                     else con_beh
                 )
                 con_beh_effect = (
-                    massage_ltl_for_dual(con_beh, dual2_next_events, False)
+                    massage_ltl_for_dual(con_beh, dual_next_events, False)
                     if next_shift_pred_bin_vars
                     else con_beh
                 )
@@ -282,7 +277,7 @@ def _mealy_to_nuxmv_tandem_model(
 
     if next_shift_pred_bin_vars:
         init_choice = init_choice_logic if init_choice_logic is not None else true()
-        qe_quantified_props = _dual2_init_qe_quantified_props(
+        qe_quantified_props = _dual_init_qe_quantified_props(
             machine, pred_acts, prog_states
         )
         projected_init_terms: list[str] = []
@@ -340,13 +335,12 @@ def _moore_to_nuxmv_tandem_model(
     init_choice_logic=None,
     project_init_with_qe: bool = False,
 ) -> StructuredNuXmvModel:
-    dual_mode = config.Config.getConfig().dual
     state_pred_acts = [p.bool_var for p in state_pred_list]
     trans_pred_acts = [t for p in trans_pred_list for t in p.bool_rep.values()]
     pred_acts = state_pred_acts + trans_pred_acts
-    dual2_mode = config.Config.getConfig().dual2
-    base_mode = (not dual_mode) and (not dual2_mode)
-    dual2_guard_next_events = set(pred_acts).union(
+    dual_mode = config.Config.getConfig().dual
+    base_mode = not dual_mode
+    dual_guard_next_events = set(pred_acts).union(
         v
         for v in machine.con_events
         if str(v).startswith("pred__") or str(v).startswith("bin_")
@@ -361,11 +355,10 @@ def _moore_to_nuxmv_tandem_model(
     )
     if project_init_with_qe:
         init_choice = init_choice_logic if init_choice_logic is not None else true()
-        keep_init_vars = {"env_lose"} if dual_mode else None
-        qe_quantified_props = _dual2_init_qe_quantified_props(
-            machine, pred_acts, prog_states, keep_var_names=keep_init_vars
+        qe_quantified_props = _dual_init_qe_quantified_props(
+            machine, pred_acts, prog_states, keep_var_names=set()
         )
-        qe_quantified_out_props = _dual2_init_qe_quantified_env_init_props(machine)
+        qe_quantified_out_props = _dual_init_qe_quantified_env_init_props(machine)
         init_transition_terms_by_tgt: dict[str, list] = {}
         for src in machine.init_st:
             for con_beh, tgt in machine.transitions.get(src, []):
@@ -445,8 +438,8 @@ def _moore_to_nuxmv_tandem_model(
 
         for con_beh, tgt in machine.transitions[src]:
             guard_formula = (
-                massage_ltl_for_dual(con_beh, dual2_guard_next_events, False)
-                if dual2_mode
+                massage_ltl_for_dual(con_beh, dual_guard_next_events, False)
+                if dual_mode
                 else con_beh
             )
             state_guard = "TRUE" if single_state is not None else f"{state_var} = {src}"
@@ -539,7 +532,7 @@ def strategy_to_nuxmv_model(
                 state_pred_list,
                 trans_pred_list,
                 state_var=state_var,
-                next_shift_pred_bin_vars=(mode == "dual2"),
+                next_shift_pred_bin_vars=(mode == "dual"),
                 init_choice_logic=init_choice_logic,
             )
         if isinstance(strategy_machine, MooreMachine):
@@ -551,15 +544,15 @@ def strategy_to_nuxmv_model(
                 trans_pred_list,
                 state_var=state_var,
                 init_choice_logic=init_choice_logic,
-                project_init_with_qe=(mode == "dual2"),
+                project_init_with_qe=(mode == "dual"),
             )
         raise TypeError(
             "verification expects strategy machine to be MealyMachine or MooreMachine"
         )
 
-    if mode == "dual2":
+    if mode == "dual":
         if not isinstance(strategy_machine, MealyMachine):
-            raise TypeError("dual2 compatibility expects a MealyMachine strategy")
+            raise TypeError("dual compatibility expects a MealyMachine strategy")
         return _mealy_to_nuxmv_tandem_model(
             strategy_machine,
             prog_states,
@@ -572,7 +565,7 @@ def strategy_to_nuxmv_model(
         )
 
     if not isinstance(strategy_machine, MooreMachine):
-        raise TypeError("base/dual compatibility expects a MooreMachine strategy")
+        raise TypeError("base compatibility expects a MooreMachine strategy")
 
     return _moore_to_nuxmv_tandem_model(
         strategy_machine,
@@ -582,5 +575,5 @@ def strategy_to_nuxmv_model(
         trans_pred_list,
         state_var=state_var,
         init_choice_logic=init_choice_logic,
-        project_init_with_qe=(mode == "dual"),
+        project_init_with_qe=False,
     )

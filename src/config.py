@@ -35,7 +35,6 @@ class Config:
     _eager_fairness = True
     _no_binary_enc = False
     _dual = False
-    _dual2 = False
     _verify_controller = False
     _add_all_preds_in_prog = True
     _mc = False
@@ -111,12 +110,6 @@ class Config:
 
     def _set_d(self, value: bool):
         self._dual = value
-
-    def _get_d2(self):
-        return self._dual2
-
-    def _set_d2(self, value: bool):
-        self._dual2 = value
 
     def _get_n_b_e(self):
         return self._no_binary_enc
@@ -210,7 +203,6 @@ class Config:
     log = property(_get_l, _set_l, _do_nothing, "")
     finite_synthesis = property(_get_f_s, _set_f_s, _do_nothing, "")
     dual = property(_get_d, _set_d, _do_nothing, "")
-    dual2 = property(_get_d2, _set_d2, _do_nothing, "")
     no_binary_enc = property(_get_n_b_e, _set_n_b_e, _do_nothing, "")
     prefer_ranking = property(_get_p_r, _set_p_r, _do_nothing, "")
     only_structural = property(_get_o_struct, _set_o_struct, _do_nothing, "")

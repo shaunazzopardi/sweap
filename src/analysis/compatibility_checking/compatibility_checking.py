@@ -27,14 +27,12 @@ def compatibility_checking(
     is_controller: bool,
 ):
     conf = Config.getConfig()
-    if conf.dual and conf.dual2:
-        raise ValueError("dual and dual2 are mutually exclusive")
-    if conf.dual2:
+    if conf.dual:
         if not isinstance(strategy_machine, MealyMachine):
-            raise TypeError("dual2 flow expects a MealyMachine strategy")
+            raise TypeError("dual flow expects a MealyMachine strategy")
     else:
         if not isinstance(strategy_machine, MooreMachine):
-            raise TypeError("base/dual flow expects a MooreMachine strategy")
+            raise TypeError("base flow expects a MooreMachine strategy")
 
     prog = predicate_abstraction.get_program()
     prog_state_props = list(prog.states) + list(prog.bin_state_vars)
@@ -108,15 +106,12 @@ def there_is_mismatch_between_program_and_strategy(
 ):
     model_checker = ModelChecker()
     config = Config.getConfig()
-    compat_atom = "next(compatible)" if config.dual else "compatible"
+    compat_atom = "compatible"
 
-    # hack: if env_lose is used in system, i.e. it appears as a word
-    env_lose_logic = " | env_lose" if "\tenv_lose :" in system else ""
-
-    if not controller or config.getConfig().dual2:
+    if not controller or config.getConfig().dual:
         if not mismatch_condition:
             there_is_no_mismatch, out = model_checker.invar_check(
-                system, compat_atom + env_lose_logic, None, config.mc
+                system, compat_atom, None, config.mc
             )
         else:
             mismatch_condition_s = (
@@ -126,13 +121,13 @@ def there_is_mismatch_between_program_and_strategy(
             )
             there_is_no_mismatch, out = model_checker.invar_check(
                 system,
-                "!(!" + compat_atom + " & " + mismatch_condition_s + ")" + env_lose_logic,
+                "!(!" + compat_atom + " & " + mismatch_condition_s + ")",
                 None,
                 config.mc,
-                )
+            )
             if there_is_no_mismatch:
                 there_is_no_mismatch, out = model_checker.invar_check(
-                    system, compat_atom + env_lose_logic, None, config.mc
+                    system, compat_atom, None, config.mc
                 )
         if there_is_no_mismatch and config.debug:
             logging.info("Deadlock check")

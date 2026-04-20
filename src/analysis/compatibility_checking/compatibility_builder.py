@@ -161,7 +161,7 @@ def _parse_define_map(defines: list[str]) -> dict[str, str]:
     return out
 
 
-def _extract_dual2_initial_transition_predicates(
+def _extract_dual_initial_transition_predicates(
     strategy_model: StructuredNuXmvModel, state_var: str
 ) -> str:
     # this should be of length one, but keeping it general here
@@ -265,10 +265,7 @@ def create_nuxmv_model_for_compatibility_checking(
 
     options = CompatOptions(
         dual=config.Config.getConfig().dual,
-        dual2=config.Config.getConfig().dual2,
     )
-    if options.dual and options.dual2:
-        raise ValueError("dual and dual2 are mutually exclusive")
 
     state_predicates, transition_predicates = (
         _partition_state_and_transition_predicates(
@@ -438,7 +435,7 @@ def create_nuxmv_model_for_compatibility_checking(
     strat_init = "strat_m.__init"
     strat_trans = "strat_m.__trans"
 
-    if options.dual2 or init_choice_logic_expr is None:
+    if options.dual or init_choice_logic_expr is None:
         init_choice_logic_expr = "TRUE"
     elif isinstance(init_choice_logic_expr, bool):
         init_choice_logic_expr = "TRUE" if init_choice_logic_expr else "FALSE"
@@ -454,11 +451,11 @@ def create_nuxmv_model_for_compatibility_checking(
     ]
 
     invar = [prog_invar, "compatible_inputs"] + (
-        [] if (options.dual or options.dual2) else ["!second_state"]
+        [] if (options.dual) else ["!second_state"]
     )
 
     turn_logic = ["!next(init_state)"]
-    if options.dual or options.dual2:
+    if options.dual:
         trans_terms = [
             "init_state <-> next(second_state)",
             prog_trans,

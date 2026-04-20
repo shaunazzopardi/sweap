@@ -60,23 +60,14 @@ class WrappedHOA:
                 )
 
         dual = config.Config.getConfig().dual
-        dual2 = config.Config.getConfig().dual2
-        if dual:
-            if self.realisable:
-                name = "counterstrategy"
-                logging.info("Unrealizable")
-            else:
-                name = "controller"
-                logging.info("Realizable")
+        if self.realisable:
+            name = "controller"
+            logging.info("Realizable")
         else:
-            if self.realisable:
-                name = "controller"
-                logging.info("Realizable")
-            else:
-                name = "counterstrategy"
-                logging.info("Unrealizable")
+            name = "counterstrategy"
+            logging.info("Unrealizable")
 
-        if dual or dual2:
+        if dual:
             # to add env_int props
             symbol_table.update({v.name: BOOLEAN for v in env_props})
 
@@ -92,10 +83,7 @@ class WrappedHOA:
             )
             mm.add_transitions(trans)
 
-            if config.Config.getConfig().dual:
-                logging.info("Unrealizable")
-            else:
-                logging.info("Realizable")
+            logging.info("Realizable")
 
         logging.info(mm)
         logging.info("massaging hoa took " + str(time.time() - start))

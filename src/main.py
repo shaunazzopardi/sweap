@@ -167,15 +167,7 @@ def setup_argument_parser() -> ArgumentParser:
     parser.add_argument(
         "--dual",
         dest="dual",
-        help="Tries the dual problem (exchanges environment and controller propositions and objectives).",
-        type=bool,
-        nargs="?",
-        const=True,
-    )
-    parser.add_argument(
-        "--dual2",
-        dest="dual2",
-        help="Experimental secondary dual-mode toggle.",
+        help="Tries the dual problem (gives controller control of state predicates).",
         type=bool,
         nargs="?",
         const=True,
@@ -206,15 +198,8 @@ def process_args(args: Namespace) -> tuple[Program, Formula]:
     else:
         conf._verify_controller = False
 
-    if args.dual2:
-        conf.dual2 = True
-    else:
-        conf.dual2 = False
-
     if args.dual:
         conf.dual = True
-        if conf.dual2:
-            raise Exception("--dual cannot be used with dual2 flag.")
     else:
         conf.dual = False
 
@@ -370,11 +355,7 @@ def _main(args: Namespace):
         if args.out_dot:
             print(mm.machine.to_dot())
 
-        print(
-            "Realisable"
-            if (args.dual and not mm.realisable) or (not args.dual and mm.realisable)
-            else "Unrealisable"
-        )
+        print("Realisable" if mm.realisable else "Unrealisable")
         print("Synthesis took: ", (end - start) * 10**3, "ms")
 
     else:

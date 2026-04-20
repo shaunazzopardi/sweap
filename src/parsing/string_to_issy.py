@@ -1242,6 +1242,7 @@ def process(
             vars_or_macros,
             formula_objectives,
         )
+
     return _process_games_mode(
         name_str,
         vars_or_macros,
@@ -1255,8 +1256,6 @@ def _process_formula_only_mode(
     vars_or_macros,
     formula_objectives,
 ) -> tuple[Program, Formula]:
-    dual = config.Config.getConfig().dual
-    config.Config.getConfig().dual = False
     optimisation_summary = _new_optimisation_summary(name_str)
     problem_context = _prepare_context(
         vars_or_macros=vars_or_macros,
@@ -1285,7 +1284,6 @@ def _process_formula_only_mode(
         declared_state_vars=declared_state_vars,
         formula_objectives=formula_objectives,
         games=[],
-        dual=dual,
         optimisation_summary=optimisation_summary,
     )
     _set_last_optimisation_summary(optimisation_summary)
@@ -1301,8 +1299,6 @@ def _process_games_mode(
     if len(games) == 0:
         raise Exception("_process_games_mode expected at least one game.")
 
-    dual = config.Config.getConfig().dual
-    config.Config.getConfig().dual = False
     optimisation_summary = _new_optimisation_summary(name_str)
     problem_context = _prepare_context(
         vars_or_macros=vars_or_macros,
@@ -1323,6 +1319,7 @@ def _process_games_mode(
         problem_context=problem_context,
         optimisation_summary=optimisation_summary,
     )
+
     program, new_objective = _process_pipeline_post_stage1(
         name_str=name_str,
         sub_programs=sub_programs,
@@ -1332,7 +1329,6 @@ def _process_games_mode(
         declared_state_vars=declared_state_vars,
         formula_objectives=formula_objectives,
         games=games,
-        dual=dual,
         optimisation_summary=optimisation_summary,
     )
     _set_last_optimisation_summary(optimisation_summary)
@@ -1661,7 +1657,6 @@ def _process_pipeline_post_stage1(
     declared_state_vars,
     formula_objectives,
     games,
-    dual: bool,
     optimisation_summary: dict,
 ) -> tuple[Program, Formula]:
     # Stage 2: cross product of intermediate programs.
@@ -1697,9 +1692,6 @@ def _process_pipeline_post_stage1(
             raise Exception(
                 "Program from ISSY parsing is not deterministic after post-cross-product resolution."
             )
-
-    if dual:
-        config.Config.getConfig().dual = dual
 
     # Stage 4: resolve minigames and finalise formula objectives.
     # we do not need to add minigames at some states:

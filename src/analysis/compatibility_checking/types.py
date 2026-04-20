@@ -12,7 +12,6 @@ class VarDecl:
 @dataclass(frozen=True)
 class CompatOptions:
     dual: bool = False
-    dual2: bool = False
 
 
 @dataclass

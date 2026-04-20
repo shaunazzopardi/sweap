@@ -45,8 +45,7 @@ def create_nuxmv_model_for_verification_checking(
         init_choice_logic_expr=init_choice_logic_expr,
     )
 
-    env_lose = any(v.name == "env_lose" for v in strategy_model.vars)
-    return _append_invariants(system, ["compatible", "!env_lose" if env_lose else ""])
+    return _append_invariants(system, ["compatible"])
 
 
 def _init_choice_logic_for_main_init(
@@ -56,7 +55,7 @@ def _init_choice_logic_for_main_init(
     if init_choice_logic is None:
         return None
 
-    # for the dual and dual2 cases we are performing the init transition in one step
+    # for the dual case we are performing the init transition in one step
     init_choice_logic = init_choice_logic.replace_formulas(
         lambda f: (
             f.right
@@ -66,10 +65,7 @@ def _init_choice_logic_for_main_init(
     )
 
     conf = config.Config.getConfig()
-    if conf.dual2 and isinstance(machine, MooreMachine):
-        return init_choice_logic.to_nuxmv()
-
-    if conf.dual and isinstance(machine, MealyMachine):
+    if conf.dual and isinstance(machine, MooreMachine):
         return init_choice_logic.to_nuxmv()
 
     return None
@@ -108,7 +104,7 @@ def verify_strategy(
 
     bin_conditions = []
     for chain_pred in predicate_abstraction.v_to_chain_pred.values():
-        if not conf.dual and not conf.dual2 and chain_pred.is_input:
+        if not conf.dual and chain_pred.is_input:
             continue
         ch_pred_bin_conds = []
         bin_vars = set(chain_pred.bin_vars)
@@ -126,7 +122,6 @@ def verify_strategy(
             system,
             original_ltl_spec,
             predicate_abstraction.structural_loop_constraints + bin_conditions,
-            any(v.name == "env_lose" for v in strategy_nuxmv.vars),
             bound,
         )
     )
@@ -137,7 +132,7 @@ def verify_strategy(
     elif "controller" in role_name:
         role = "controller"
     else:
-        role = "counterstrategy" if conf.dual2 else "controller"
+        role = "counterstrategy" if conf.dual else "controller"
 
     if contradictory:
         raise Exception(
@@ -170,11 +165,10 @@ def verify_strategy(
 
 
 def there_is_mismatch_between_program_and_controller(
-    system, ltlspec, loop_constraints, env_lose, bound
+    system, ltlspec, loop_constraints, bound
 ):
     model_checker = ModelChecker()
     conf = config.Config.getConfig()
-    dual = conf.dual
     logging.info(system)
 
     if len(loop_constraints) > 0:
@@ -187,8 +181,6 @@ def there_is_mismatch_between_program_and_controller(
         loop_constraints_str = ""
 
     spec = str(normalize_ltl(ltlspec))
-    if dual:
-        spec = "X(" + spec + ")"
     objective = loop_constraints_str + " (" + spec + ")"
 
     print(objective)
@@ -202,7 +194,7 @@ def there_is_mismatch_between_program_and_controller(
 
     if there_is_no_mismatch and conf.debug:
         logging.info("Deadlock check")
-        compat_atom = "next(compatible)" if dual else "compatible"
+        compat_atom = "compatible"
         result, deadlock_out = model_checker.invar_check(
             system, f"(G {compat_atom}) -> F FALSE", None, True
         )

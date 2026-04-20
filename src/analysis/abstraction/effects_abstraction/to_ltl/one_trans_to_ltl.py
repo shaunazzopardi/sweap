@@ -31,24 +31,18 @@ from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
 def to_ltl_organised_by_pred_effects_guard_updates(
-    predicate_abstraction: EffectsAbstraction, env_lose, env_pred_props, con_pred_props
+    predicate_abstraction: EffectsAbstraction, env_pred_props, con_pred_props
 ):
     rename_pred = lambda x: x.replace_formulas(predicate_abstraction.var_relabellings)
     program = predicate_abstraction.program
-    dualise = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
+    dual = config.Config.getConfig().dual
     strix_backend = config.Config.getConfig().backend == "strix"
 
     init_explicit_state = program.states_binary_map[
         predicate_abstraction.program.initial_state
     ]
 
-    if dualise:
-        init_explicit_state = conjunct(init_explicit_state, X(init_explicit_state))
-        if strix_backend:
-            init_explicit_state = propagate_nexts(init_explicit_state)
-
-    if (dualise or dual2) and len(predicate_abstraction.init_state_abstraction) > 1:
+    if dual and len(predicate_abstraction.init_state_abstraction) > 1:
         raw_env_vars = [
             i for i in range(0, len(predicate_abstraction.init_state_abstraction))
         ]
@@ -58,7 +52,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             printing=False,
             log=False,
         )
-        if dual2:
+        if dual:
             vars_to_reuse = (
                 len(new_env_vars)
                 if len(env_pred_props) >= len(new_env_vars)
@@ -83,15 +77,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             (
                 [bin_map[raw_env_vars[i]]]
                 + [
-                    (
-                        (
-                            X(rename_pred(p))
-                            if not strix_backend
-                            else propagate_nexts(X(rename_pred(p)))
-                        )
-                        if dualise  # else dual2
-                        else rename_pred(p)
-                    )
+                    rename_pred(p)
                     for p in f
                     if not (isinstance(p, Value) and p.is_true())
                     if not predicate_abstraction.has_input_vars(p)
@@ -122,15 +108,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         init_preds = [
             conjunct_formula_set(
                 [
-                    (
-                        rename_pred(p)
-                        if not dualise
-                        else (
-                            X(rename_pred(p))
-                            if not strix_backend
-                            else propagate_nexts(X(rename_pred(p)))
-                        )
-                    )
+                    rename_pred(p)
                     for p in f
                     if not (isinstance(p, Value) and p.is_true())
                 ]
@@ -140,29 +118,14 @@ def to_ltl_organised_by_pred_effects_guard_updates(
         init = (disjunct_formula_set(init_preds), [])
     print("No of init models: " + str(len(init_preds)))
 
-    init_constants = [
-        (
-            rename_pred(p)
-            if not dualise
-            else (
-                conjunct(rename_pred(p), X(rename_pred(p)))
-                if not strix_backend
-                else propagate_nexts(X(rename_pred(p)))
-            )
-        )
-        for p in predicate_abstraction.init_constants
-    ]
+    init_constants = [rename_pred(p) for p in predicate_abstraction.init_constants]
 
     transition_terms_by_src = {}
     for gu in predicate_abstraction.gu_to_trans.keys():
         tt = predicate_abstraction.gu_to_trans[gu][0]
         cond = tt.condition
 
-        if dualise:
-            cond: Formula = massage_ltl_for_dual(
-                cond, [v for v, _ in predicate_abstraction.program.env_events], False
-            )
-        elif dual2:
+        if dual:
             cond: Formula = massage_ltl_for_dual(
                 cond,
                 predicate_abstraction.program.bool_in_out
@@ -171,26 +134,11 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             )
 
         cond = cond.replace_formulas(predicate_abstraction.var_relabellings)
-        if dualise:
-            cond = X(cond)
-            if strix_backend:
-                cond = propagate_nexts(cond)
         # effects comes with X already applied, and propagated in case of using strix
         effect = predicate_abstraction.abstract_effect_ltl[gu]
 
         for t in predicate_abstraction.gu_to_trans[gu]:
             bin_src = program.states_binary_map[t.src]
-            if dualise:
-                if env_lose:
-                    bin_src = X(
-                        # conjunct(neg(F(env_lose)), bin_src)
-                        conjunct(conjunct(neg(env_lose), X(neg(env_lose))), bin_src)
-                    )
-                else:
-                    bin_src = X(bin_src)
-                if strix_backend:
-                    bin_src = propagate_nexts(bin_src)
-
             pred_effect_formula = effect
             if len(t.output) > 0:
                 output_formula = conjunct_formula_set([X(o) for o in t.output])
@@ -199,8 +147,6 @@ def to_ltl_organised_by_pred_effects_guard_updates(
                 effect_formula = pred_effect_formula
 
             bin_tgt = program.states_binary_map[t.tgt]
-            if dualise:
-                bin_tgt = X(bin_tgt)
 
             next = conjunct(
                 effect_formula,
@@ -257,12 +203,11 @@ def abstract_ltl_problem(
 ):
     env_predicate_vars = set()
     con_predicate_vars = set()
-    dualise = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
+    dual = config.Config.getConfig().dual
     strix_backend = config.Config.getConfig().backend == "strix"
     program = effects_abstraction.program
     relabellings = {}
-    if dual2:
+    if dual:
         for var, label in effects_abstraction.var_relabellings.items():
             if var not in effects_abstraction.input_preds:
                 relabellings[var] = label
@@ -276,27 +221,18 @@ def abstract_ltl_problem(
         relabellings = effects_abstraction.var_relabellings
 
     models = effects_abstraction.sat_input_models
-    env_lose = None
     model_f = None
-    models_are_sane = None
-    relabel_for_dual2 = lambda x: massage_ltl_for_dual(
+    relabel_for_dual = lambda x: massage_ltl_for_dual(
         x,
         program.bool_in_out + program.num_in_out,
         False,
     )
     if len(models) > 0:
-        if dualise:
-            model_f, models_are_sane = massage_models_for_dual(
-                models, effects_abstraction
-            )
-            if models_are_sane:
-                env_lose = Variable("env_lose")
-                effects_abstraction.symbol_table[str(env_lose)] = BOOLEAN
-        elif dual2:
+        if dual:
             model_f = G(
                 disjunct_formula_set(
                     [
-                        (relabel_for_dual2(m).replace_formulas(relabellings))
+                        (relabel_for_dual(m).replace_formulas(relabellings))
                         for m in models
                     ]
                 )
@@ -309,12 +245,7 @@ def abstract_ltl_problem(
             )
 
     for p in effects_abstraction.state_predicates:
-        if dualise:
-            if any(v for v in p.variablesin() if v in program.num_in_out):
-                con_predicate_vars.add(p.bool_var)
-            else:
-                env_predicate_vars.add(p.bool_var)
-        elif dual2:
+        if dual:
             if any(v for v in p.variablesin() if v in program.num_in_out):
                 env_predicate_vars.add(p.bool_var)
             else:
@@ -323,18 +254,13 @@ def abstract_ltl_problem(
             env_predicate_vars.add(p.bool_var)
 
     for p in effects_abstraction.transition_predicates:
-        if dual2:
+        if dual:
             con_predicate_vars.update(p.bool_rep.values())
         else:
             env_predicate_vars.update(p.bool_rep.values())
 
     for _, p in effects_abstraction.v_to_chain_pred.items():
-        if dualise:
-            if any(v for v in p.variablesin() if v in program.num_in_out):
-                con_predicate_vars.update(p.bin_vars)
-            else:
-                env_predicate_vars.update(p.bin_vars)
-        elif dual2:
+        if dual:
             if any(v for v in p.variablesin() if v in program.num_in_out):
                 env_predicate_vars.update(p.bin_vars)
             else:
@@ -346,7 +272,7 @@ def abstract_ltl_problem(
     env_pred_props = list(env_predicate_vars)
     con_pred_props = con_predicate_vars
 
-    if dual2:
+    if dual:
         con_pred_props.update(program.bin_state_vars)
     else:
         env_pred_props.extend(program.bin_state_vars)
@@ -375,19 +301,12 @@ def abstract_ltl_problem(
 
     for f in effects_abstraction.structural_loop_constraints:
         f = f.replace_formulas(dict_to_replace | relabellings)
-        if dualise:
-            f = X(f)
         if strix_backend:
             f = propagate_nexts(f)
         loop_constraints.append(f)
 
     for p in effects_abstraction.loop_vars:
-        if dualise:
-            if any(v for v in p.variablesin() if v in program.num_in_out):
-                con_predicate_vars.add(p)
-            else:
-                env_predicate_vars.add(p)
-        elif dual2:
+        if dual:
             if any(v for v in p.variablesin() if v in program.num_in_out):
                 env_predicate_vars.add(p)
             else:
@@ -400,22 +319,14 @@ def abstract_ltl_problem(
         new_ass = ass.replace_formulas(
             dict_to_replace | effects_abstraction.var_relabellings
         )
-        orig_assumptions.append(
-            new_ass
-            if not dualise
-            else X(new_ass) if not strix_backend else propagate_nexts(X(new_ass))
-        )
+        orig_assumptions.append(new_ass)
 
     orig_guarantees = []
     for guar in original_LTL_problem.guarantees:
         new_guar = guar.replace_formulas(
             dict_to_replace | effects_abstraction.var_relabellings
         )
-        orig_guarantees.append(
-            new_guar
-            if not dualise
-            else X(new_guar) if not strix_backend else propagate_nexts(X(new_guar))
-        )
+        orig_guarantees.append(new_guar)
 
     env_pred_props = set(env_pred_props) | env_predicate_vars
     con_pred_props = con_pred_props | con_predicate_vars
@@ -427,7 +338,7 @@ def abstract_ltl_problem(
         con_pred_props.add(v)
 
     _, ltl_abstraction, init_preds = to_ltl_organised_by_pred_effects_guard_updates(
-        effects_abstraction, env_lose, env_pred_props | set(env_props), con_pred_props
+        effects_abstraction, env_pred_props | set(env_props), con_pred_props
     )
 
     assumptions = (
@@ -435,7 +346,7 @@ def abstract_ltl_problem(
     )
     guarantees = orig_guarantees
 
-    if dual2:
+    if dual:
         assumptions = []
         guarantees = (
             [init_preds[0]]
@@ -450,24 +361,12 @@ def abstract_ltl_problem(
         )
 
     if model_f:
-        if dualise:
-            env_props.append(env_lose)
-            assumptions += [
-                neg(env_lose),
-                neg(X(env_lose)),
-                (
-                    X(G(iff(neg(X(env_lose)), models_are_sane)))
-                    if not strix_backend
-                    else propagate_nexts(X(G(iff(neg(X(env_lose)), models_are_sane))))
-                ),
-            ]
-            guarantees += [G(neg(env_lose))]
-        elif dual2:
+        if dual:
             assumptions.append(model_f)
         else:
             assumptions += [model_f]
 
-    if dual2:
+    if dual:
         for p in init_preds[1]:
             if p not in env_props:
                 env_pred_props.add(p)
@@ -481,7 +380,7 @@ def abstract_ltl_problem(
         list(con_pred_props),
         assumptions,
         guarantees,
-        init_preds[0] if dualise or dual2 else None,
+        init_preds[0] if dual else None,
     )
 
     return ltl_synthesis_problem

@@ -47,7 +47,6 @@ from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 from pathlib import Path
 
 from synthesis.machines.mealy_machine import MealyMachine
-from synthesis.machines.moore_machine import MooreMachine
 from synthesis.machines.wrapped_hoa import WrappedHOA
 from synthesis.abstract_ltl_synthesis_problem import AbstractLTLSynthesisProblem
 from typing import List, Tuple
@@ -141,25 +140,6 @@ def process_specifications(
 
     if config.Config.getConfig().dual:
         ltl_assumptions = [
-            massage_ltl_for_dual(f, [c for c, _ in program.env_events], False)
-            for f in ltl_assumptions
-        ]
-        ltl_guarantees = [
-            massage_ltl_for_dual(f, [c for c, _ in program.env_events], False)
-            for f in ltl_guarantees
-        ]
-        ltl_guarantees = [
-            neg(
-                implies(
-                    conjunct_formula_set(ltl_assumptions),
-                    conjunct_formula_set(ltl_guarantees),
-                )
-            )
-        ]
-        ltl_assumptions = []
-
-    if config.Config.getConfig().dual2:
-        ltl_assumptions = [
             massage_ltl_for_dual(f, program.num_in_out + program.bool_in_out, False)
             for f in ltl_assumptions
         ]
@@ -247,17 +227,14 @@ def abstract_synthesis_loop(
 
         base_ltl_spec = (
             original_ltl
-            if (config.Config.getConfig().dual or config.Config.getConfig().dual2)
-            and original_ltl is not None
+            if config.Config.getConfig().dual and original_ltl is not None
             else implies(
                 conjunct_formula_set(ltl_assumptions),
                 conjunct_formula_set(ltl_guarantees),
             )
         )
         machine = current_wrapped_hoa.machine
-        should_negate = (
-            config.Config.getConfig().dual and isinstance(machine, MealyMachine)
-        ) or (not config.Config.getConfig().dual and isinstance(machine, MooreMachine))
+        should_negate = not current_wrapped_hoa.realisable
         original_ltl_spec = neg(base_ltl_spec) if should_negate else base_ltl_spec
 
         logging.info("Verifying: " + str(original_ltl_spec))
@@ -271,11 +248,12 @@ def abstract_synthesis_loop(
         verify_strategy(
             program,
             current_predicate_abstraction,
-            current_wrapped_hoa.machine,
+            machine,
             original_ltl_spec,
             current_abstract_ltl_problem,
         )
 
+    dual = config.Config.getConfig().dual
     print("Starting abstract synthesis loop.")
     while bound != 0:
         bound -= 1
@@ -321,8 +299,7 @@ def abstract_synthesis_loop(
         )
         base_ltl_spec = (
             original_ltl
-            if (config.Config.getConfig().dual or config.Config.getConfig().dual2)
-            and original_ltl is not None
+            if dual and original_ltl is not None
             else implies(
                 conjunct_formula_set(ltl_assumptions),
                 conjunct_formula_set(ltl_guarantees),
@@ -347,10 +324,10 @@ def abstract_synthesis_loop(
             + str(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
         )
 
-        if (wrapped_hoa.realisable and not config.Config.getConfig().dual2) or (
-            not wrapped_hoa.realisable and config.Config.getConfig().dual2
+        if (wrapped_hoa.realisable and not dual) or (
+            not wrapped_hoa.realisable and dual
         ):
-            new_index = "-unreal" if config.Config.getConfig().dual else "-real"
+            new_index = "-real" if not dual else "-unreal"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
 
             verify_if_requested(
@@ -379,10 +356,7 @@ def abstract_synthesis_loop(
         )
 
         if compatible:
-            if config.Config.getConfig().dual:
-                new_index = "-real"
-            else:
-                new_index = "-unreal"
+            new_index = "-unreal"
             safe_rename_logging(file_name_template, str(cegar_loop_counter), new_index)
             verify_if_requested(
                 wrapped_hoa, predicate_abstraction, abstract_ltl_problem

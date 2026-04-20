@@ -5,7 +5,7 @@ from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import BOOLEAN, NATURAL, Number, countable_number_types
-from prop_lang.util import X, conjunct_formula_set, massage_ltl_for_dual
+from prop_lang.util import X, conjunct_formula_set
 
 from analysis.compatibility_checking.renderer import render_structured_model
 from analysis.compatibility_checking.types import StructuredNuXmvModel, VarDecl
@@ -28,20 +28,14 @@ def program_to_nuxmv_model(
     real_acts = []
     guards = []
     acts = []
-    dualise = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
+    dual = config.Config.getConfig().dual
     state_symbols = program_state_symbol_map(program.states)
     single_state = len(program.states) == 1
     only_state = sorted(list(program.states), key=str)[0] if single_state else None
 
     for transition in program.transitions:
-        if dualise:
-            cond = massage_ltl_for_dual(
-                transition.condition, [v for v, _ in program.env_events], False
-            )
-            cond = cond.to_nuxmv().replace("X(", "next(")
-        elif dual2:
-            # In dual2 compatibility/verification tandem models, program guards
+        if dual:
+            # In dual compatibility/verification tandem models, program guards
             # are evaluated on the current step (no automatic next-shift).
             cond = transition.condition.to_nuxmv()
         else:
@@ -56,9 +50,7 @@ def program_to_nuxmv_model(
 
         bare_acts = []
         for u in program.complete_action_set(transition.action):
-            if dualise:
-                right = massage_ltl_for_dual(u.right, program.env_events, False)
-            elif dual2:
+            if dual:
                 right = u.right
             else:
                 right = u.right

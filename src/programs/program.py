@@ -39,8 +39,6 @@ from prop_lang.types.types import (
     is_finite,
     BaseNumberTypes,
     BOOLEAN,
-    countable_number_types,
-    NATURAL,
 )
 from prop_lang.update import Update
 from prop_lang.util import (
@@ -96,16 +94,10 @@ class Program:
         self.num_in_out = [v for v, t in env_events + con_events if not t == BOOLEAN]
         self.bool_in_out = [v for v in inputs + outputs if v not in self.num_in_out]
 
-        if config.Config.getConfig().dual:
-            self.env_events = con_events
-            self.con_events = env_events
-            self.inputs = outputs
-            self.outputs = inputs
-        else:
-            self.env_events = env_events
-            self.con_events = con_events
-            self.inputs = inputs
-            self.outputs = outputs
+        self.env_events = env_events
+        self.con_events = con_events
+        self.inputs = inputs
+        self.outputs = outputs
 
         # check that non-boolean events only in env events
         for ev, t in con_events:
@@ -416,103 +408,6 @@ class Program:
             return transition
         else:
             return transition.add_condition(conjunct_formula_set(constraints))
-
-    def add_type_constraints_to_arena(self):
-        is_constrained = (
-            lambda v: (
-                isinstance(type := self.symbol_table[v.name], Number)
-                and type.interval is not None
-            )
-            or self.symbol_table[v.name] == NATURAL
-        )
-
-        dual = config.Config.getConfig().dual
-
-        new_transitions = []
-
-        for t in self.transitions:
-            modified = [
-                a.left for a in t.action if a.left != a.right and is_constrained(a.left)
-            ]
-
-            if len(modified) == 0:
-                new_transitions.append(t)
-                continue
-
-            # can the modifications lead to a type constraint violation?
-            constraints = conjunct_formula_set(
-                {type_constraint(v, self.symbol_table) for v in modified}
-            )
-            if not check(
-                implies(transition_formula(t), neg(constraints)).to_smt(
-                    self.symbol_table
-                )[0]
-            ):
-                continue
-            # quantifier elimination to identify when controller can force the transition to be triggered
-            # for which env and arena state can the controller force the condition to be true?
-            env = [v for v in (self.inputs if not dual else self.outputs)]
-            con = [v for v in (self.outputs if not dual else self.inputs)]
-
-            exist_vars = [
-                Symbol(str(v), BOOL if v in self.bool_in_out else INT) for v in con
-            ]
-            exist_vars += [
-                Symbol(str(v), BOOL if self.symbol_table[str(v)] == BOOLEAN else INT)
-                for v in self.local_vars
-            ]
-            in_fnode = t.condition.to_smt(self.symbol_table)
-            in_fnode = Implies(in_fnode[1], Not(in_fnode[0]))
-            # when can the controller make the condition true?
-            form = Exists(exist_vars, in_fnode)
-            cond_fnode = quantifier_elimination(form)
-            cond = fnode_to_formula(cond_fnode)
-            # TODO we need to only add constraints that are relevant
-            #       e.g. if var is decr, then only need lower bound
-
-            # TODO: the env or con may be able, in arena, to force a value
-            #       to, e.g., the higher bound and move to a next state
-            #       where the other party is forced to increment
-            #       thus making it lose
-            #       give warning to user that the arena has been modified
-            #       and that winning/losing may be because of this
-
-            # TODO: is it ok this analysis is per transition?
-            #       should be per state instead?
-            #       e.g. from a state we have two transitions
-            #       one with env event a as condition that increments
-            #       one with !a as condition that also increments
-            #       this would make the env lose, when the controller should lose
-            new_constraints = constraints.replace_formulas(
-                {a.left: a.right for a in t.action}
-            )
-            new_cond = conjunct(t.condition, neg(new_constraints))
-
-            if not sat(cond, self.symbol_table):
-                # TODO:
-                print(
-                    f"transition: {t}\ncon cond for failure: {neg(new_constraints)}\n\n"
-                )
-                print(
-                    f"new trans condition: {conjunct(t.condition, new_constraints)}\n\n"
-                )
-            else:
-                print(f"transition: {t}\n")
-                done_something = False
-                if not is_tautology(cond, self.symbol_table):
-                    print(
-                        f"env cond for failure: {conjunct(neg(cond), neg(new_constraints))}\n"
-                    )
-                    done_something = True
-                con_cond = conjunct(cond, new_cond)
-                if sat(con_cond, self.symbol_table):
-                    print(f"con cond for failure: {con_cond}\n")
-                    done_something = True
-                if done_something:
-                    print(
-                        f"new trans condition: {conjunct(t.condition, new_constraints)}\n\n"
-                    )
-        return None
 
     def is_finite_state(self):
         return all(is_finite(type_obj) for type_obj in self.symbol_table.values())

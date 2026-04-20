@@ -41,9 +41,8 @@ def refinement_standard(
         + str(time.time() - start)
     )
     dual = config.Config.getConfig().dual
-    dual2 = config.Config.getConfig().dual2
     if determination:
-        if dual or dual2:
+        if dual:
             logging.info("Problem confirmed realisable.")
         else:
             logging.info("Problem confirmed unrealisable.")

@@ -44,7 +44,6 @@ from prop_lang.types.types import BOOLEAN
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct,
-    massage_ltl_for_dual,
     neg,
     conjunct_formula_set,
     conjunct_typed_valuation_set,
@@ -489,23 +488,22 @@ class EffectsAbstraction(PredicateAbstraction):
         new_preds.update(new_input_preds)
         all_preds = self.state_predicates | set(self.v_to_chain_pred.values())
 
-        relabelling_for_dual2 = {}
-        if config.Config.getConfig().dual2:
+        relabelling_for_dual = {}
+        if config.Config.getConfig().dual:
             for var, label in self.var_relabellings.items():
                 if isinstance(var, UniOp):
                     continue
                 if not self.has_input_vars(var):
-                    relabelling_for_dual2[var] = label
+                    relabelling_for_dual[var] = label
                 else:
-                    relabelling_for_dual2[var] = X(label)
+                    relabelling_for_dual[var] = X(label)
             for v in self.program.bool_in_out:
-                relabelling_for_dual2[v] = X(v)
+                relabelling_for_dual[v] = X(v)
 
         gus = []
         gu_invars = []
         gu_constants = []
         configs = []
-        dual_env_props = []
         gu_effects = []
         all_predss = []
         new_predss = []
@@ -525,7 +523,6 @@ class EffectsAbstraction(PredicateAbstraction):
             gu_invars.append(self.abstract_effect_invars[gu])
             gu_constants.append(self.abstract_effect_constant[gu])
             configs.append(config.Config.getConfig())
-            dual_env_props.append([v for v, _ in self.program.env_events])
             gu_effects.append(self.abstract_effect[gu])
             all_predss.append(all_preds)
             new_predss.append(new_preds)
@@ -538,7 +535,7 @@ class EffectsAbstraction(PredicateAbstraction):
             ignore_in_nows.append(self.t_ignore_in_nows[gu])
             ignore_in_nexts.append(self.t_ignore_in_nexts[gu])
             relabelling.append(self.var_relabellings)
-            relabelling2.append(relabelling_for_dual2)
+            relabelling2.append(relabelling_for_dual)
             symbol_tables.append(self.symbol_table)
         with Pool(no_of_workers) as pool:
             results = pool.map(
@@ -548,7 +545,6 @@ class EffectsAbstraction(PredicateAbstraction):
                     gu_invars,
                     gu_constants,
                     configs,
-                    dual_env_props,
                     gu_effects,
                     all_predss,
                     new_predss,
@@ -1032,7 +1028,6 @@ def compute_abstract_effect_for_guard_update(arg):
         invars,
         constants,
         conf,
-        dual_env_props,
         effects,
         all_preds,
         new_preds,
@@ -1275,7 +1270,6 @@ def compute_abstract_effect_for_guard_update(arg):
         constants,
         invars,
         conf,
-        dual_env_props,
         symbol_table,
         vars_relabelling,
         relabelling2,
@@ -1287,7 +1281,6 @@ def compute_abstract_effect_for_guard_update(arg):
             constants,
             invars,
             conf,
-            dual_env_props,
             symbol_table,
         )
         print("\n\n" + str(gu_ltl))
@@ -1400,7 +1393,6 @@ def effects_to_ltl(
     constants,
     invars,
     conf: config.Config,
-    dual_env_props,
     symbol_table,
     vars_relabelling,
     relabelling2,
@@ -1417,11 +1409,6 @@ def effects_to_ltl(
                 ):
                     continue
             if conf.dual:
-                E_now = now.replace_formulas(vars_relabelling)
-                E_now = X(E_now)
-                if conf.backend == "strix":
-                    E_now = propagate_nexts(E_now)
-            elif conf.dual2:
                 E_now = now.replace_formulas(relabelling2)
                 if conf.backend == "strix":
                     E_now = propagate_nexts(E_now)
@@ -1432,8 +1419,6 @@ def effects_to_ltl(
             # if not (len(nexts) == 1 and nexts[0] == true()):
             for next in nexts:
                 next_f = X(next.replace_formulas(vars_relabelling))
-                if conf.dual:
-                    next_f = X(next_f)
                 if conf.backend == "strix":
                     next_f = propagate_nexts(next_f)
                 next_disjuncts.append(next_f)
@@ -1456,8 +1441,6 @@ def effects_to_ltl(
     ]
     for u in bool_updates:
         if conf.dual:
-            part = iff(X(massage_ltl_for_dual(u.right, dual_env_props)), X(X(u.left)))
-        elif conf.dual2:
             part = iff(X(u.left), u.right.replace_formulas(relabelling2))
         else:
             part = iff(u.right, X(u.left))
@@ -1470,26 +1453,18 @@ def effects_to_ltl(
     invars = sorted(set(invars), key=lambda p: str(p))
     for p in invars:
         if isinstance(p, ChainPredicate):
-            if conf.dual:
-                invar_preds_effects.update(iff(X(b), X(X(b))) for b in p.bin_vars)
-            else:
-                invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
+            invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
         else:
             if "prev" not in str(p):
-                if conf.dual:
-                    invar_preds_effects.add(iff(X(p), X(X(p))))
-                else:
-                    invar_preds_effects.add(iff(p, X(p)))
+                invar_preds_effects.add(iff(p, X(p)))
 
     constant_effects = []
     constants = sorted(set(constants), key=lambda p: str(p))
     for p in constants:
-        if conf.dual2:
+        if conf.dual:
             const = p.replace_formulas(relabelling2)
         else:
             const = p.replace_formulas(vars_relabelling)
-        if conf.dual:
-            const = X(const)
         if conf.backend == "strix":
             constant_effects.append(propagate_nexts(const))
         else:
@@ -1508,7 +1483,6 @@ def effects_to_ltl_non_bin(
     constants,
     invars,
     conf: config.Config,
-    dual_env_props,
     symbol_table,
 ):
     parts_ltl = []
@@ -1518,14 +1492,10 @@ def effects_to_ltl_non_bin(
         part_ltl_wo_next = []
         for now, nexts in effects[part]:
             E_now = now
-            if conf.dual:
-                E_now = X(massage_ltl_for_dual(E_now, dual_env_props))
             next_disjuncts = []
             # if not (len(nexts) == 1 and nexts[0] == true()):
             for next in nexts:
                 next_f = X(next)
-                if conf.dual:
-                    next_f = X(next_f)
                 next_disjuncts.append(next_f)
 
             E_next = disjunct_formula_set(next_disjuncts)
@@ -1547,10 +1517,7 @@ def effects_to_ltl_non_bin(
         and symbol_table[str(u.left)] == BOOLEAN
     ]
     for u in bool_updates:
-        if conf.dual:
-            part = iff(X(massage_ltl_for_dual(u.right, dual_env_props)), X(X(u.left)))
-        else:
-            part = iff(u.right, X(u.left))
+        part = iff(u.right, X(u.left))
         if conf.backend == "strix":
             part = propagate_nexts(part)
         parts_ltl.append(part)
@@ -1574,16 +1541,10 @@ def effects_to_ltl_non_bin(
                             "Neg of invar sat with gu: " + str(gu) + " pred: " + str(p)
                         )
 
-            if conf.dual:
-                invar_preds_effects.update(iff(X(b), X(X(b))) for b in p.bin_vars)
-            else:
-                invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
+            invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
         else:
             if "prev" not in str(p):
-                if conf.dual:
-                    invar_preds_effects.add(iff(X(p), X(X(p))))
-                else:
-                    invar_preds_effects.add(iff(p, X(p)))
+                invar_preds_effects.add(iff(p, X(p)))
             else:
                 print("prev state predicate as invar")
 
@@ -1596,8 +1557,6 @@ def effects_to_ltl_non_bin(
     constant_effects = []
     constants = sorted(set(constants), key=lambda p: str(p))
     for const in constants:
-        if conf.dual:
-            const = X(const)
         constant_effects.append(const)
 
     gu_ltl = conjunct_formula_set(
