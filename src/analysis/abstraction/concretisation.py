@@ -1,7 +1,4 @@
 import config
-from pysmt.shortcuts import And
-
-from analysis.smt_checker import check
 from programs.util import (
     is_deterministic,
     stutter_transition,
@@ -13,12 +10,9 @@ from prop_lang.biop import BiOp
 from prop_lang.util import (
     neg,
     conjunct_formula_set,
-    disjunct_formula_set,
-    propagate_negations,
     sat,
     simplify_formula_with_math,
     var_to_predicate,
-    is_predicate_var,
     normalise_mathexpr,
     unsat_core,
 )
