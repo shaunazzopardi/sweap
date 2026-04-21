@@ -499,6 +499,8 @@ refinements = defaultdict(dict)
 def update_stats(verdict: str, tool: str, bench_real: bool):
     if verdict == "realizable":
         STATS[tool]["right" if bench_real else "wrong"] += 1
+        if bench_real:
+            STATS[tool]["right_real"] += 1
     elif verdict == "unrealizable":
         STATS[tool]["wrong" if bench_real else "right"] += 1
     elif verdict != "missing":
@@ -507,7 +509,7 @@ def update_stats(verdict: str, tool: str, bench_real: bool):
 stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
 stdout_writer.writerow(["benchmark", "goal", "real","tool","time(ms)","verdict"])
 
-
+COUNT_REAL = Counter()
 for b, (b_real, b_goal) in infinite_benchs.items():
     for tool, tool_info in tools.items():
         runtime, timeout_val, verdict = get_result(tool, tool_info, b, b_real)
@@ -518,6 +520,7 @@ for b, (b_real, b_goal) in infinite_benchs.items():
         row = (b, b_goal, b_real, tool, abs(runtime), verdict)
         if runtime > 0:
             stdout_writer.writerow(row)
+            COUNT_REAL[tool] += 1 if b_real else 0
             sys.stdout.flush()
 
 def get_portfolio_result(tool1, tool2, b, b_real):
@@ -564,14 +567,15 @@ for b, (b_real, b_goal) in infinite_benchs.items():
             sys.stdout.flush()
 
 
-VERDICTS = ("right", "wrong", "timeout", "oom", "unsupported", "error")
+VERDICTS = (
+    "right", "right_real", "wrong", "timeout", "oom", "unsupported", "error")
 
 stderr_writer = csv.writer(sys.stderr, dialect="excel", lineterminator="\n")
-stderr_writer.writerow(["tool", *VERDICTS, "total"])
+stderr_writer.writerow(["tool", *VERDICTS, "total", "total_real"])
 for k in (sorted(STATS.keys())):
     v = STATS[k]
     values = [v.get(x, 0) for x in VERDICTS]
-    stderr_writer.writerow([k, *values,sum(values)])
+    stderr_writer.writerow([k, *values,sum(values), COUNT_REAL.get(k, 0)])
     sys.stderr.flush()
 
 
