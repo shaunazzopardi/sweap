@@ -245,10 +245,10 @@ def process_args(args: Namespace) -> tuple[Program, Formula]:
         name = ".".join(os.path.basename(args.tsl).split(".")[0:-1])
         conf.name = name + "_tsl"
         with open(args.tsl) as ltlmt_formula:
-            ltlmt = string_to_ltlmt(ltlmt_formula.read())
+            ltlmt, var_decs = string_to_ltlmt(ltlmt_formula.read())
             tp = ToProgram()
             prog_name = Path(args.tsl).stem + "_tsl"
-            return tp.ltlmt2prog(ltlmt, prog_name)
+            return tp.ltlmt2prog(ltlmt, prog_name, var_decs=var_decs)
     elif args.rpg is not None:
         name = ".".join(os.path.basename(args.rpg).split(".")[0:-1])
         conf.name = name + "_rpg"
