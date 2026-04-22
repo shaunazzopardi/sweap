@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from typing import Optional
 
 from tatsu.walkers import NodeWalker
 
@@ -15,7 +16,7 @@ from prop_lang.formula import Formula
 from prop_lang.update import Update
 from prop_lang.mathexpr import MathExpr
 from prop_lang.types.ops_and_rels import MathOps, MathRels
-from prop_lang.types.types import BOOLEAN, INTEGER
+from prop_lang.types.types import BOOLEAN, INTEGER, NATURAL, parse_type
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct_formula_set,
@@ -67,6 +68,13 @@ class ToProgram(NodeWalker):
             "==",
             "!=",
         }
+
+    @staticmethod
+    def _decl_kind(kind: str) -> str:
+        k = kind.strip().lower()
+        if k not in {"var", "inp"}:
+            raise Exception("Unknown LTLMT declaration kind '" + kind + "'")
+        return k
 
     def walk_BiOp(self, node: BiOp):
         if self._is_math_op(node.op):
@@ -142,7 +150,28 @@ class ToProgram(NodeWalker):
 
         self.walk(node.left)
 
-    def ltlmt2prog(self, formulas, name="fromTSL"):
+    def ltlmt2prog(
+        self,
+        formulas,
+        name="fromTSL",
+        var_decs: Optional[dict[str, tuple[str, str]]] = None,
+    ):
+        var_decs = {} if var_decs is None else var_decs
+        declared_kinds: dict[str, str] = {}
+        declared_types: dict[str, object] = {}
+        declared_bool_vars: set[Variable] = set()
+        declared_numeric_vars: set[Variable] = set()
+        for var_name, (kind, type_name) in var_decs.items():
+            declared_kinds[var_name] = self._decl_kind(kind)
+            declared_type = parse_type(type_name)
+            declared_types[var_name] = declared_type
+            v = Variable(var_name)
+            self.vars.add(v)
+            if declared_type == BOOLEAN:
+                declared_bool_vars.add(v)
+            else:
+                declared_numeric_vars.add(v)
+
         # First pass to collect stuff
         assumptions = []
         guarantees = []
@@ -221,6 +250,27 @@ class ToProgram(NodeWalker):
                         "Unknown TSL section " + str(node[0]) + str(node[1])
                     )
 
+        for var_name in declared_types.keys():
+            v = Variable(var_name)
+            self.vars.add(v)
+            if declared_types[var_name] == BOOLEAN:
+                self.bool_vars.add(v)
+                self.int_vars.discard(v)
+            else:
+                self.int_vars.add(v)
+                self.bool_vars.discard(v)
+
+        for var_name, kind in declared_kinds.items():
+            v = Variable(var_name)
+            if kind == "inp":
+                if v in self.state_vars:
+                    raise Exception(
+                        "Variable declared as input but appears in updates: " + var_name
+                    )
+                self.state_vars.discard(v)
+            else:
+                self.state_vars.add(v)
+
         vars_to_preds = {v: set() for v in self.vars}
         for f in assumptions:
             self.walk(f)
@@ -238,26 +288,59 @@ class ToProgram(NodeWalker):
                     vars_to_preds[v].add(p)
 
         self.inputs = self.vars.difference(self.state_vars)
+        for var_name, kind in declared_kinds.items():
+            v = Variable(var_name)
+            if kind == "inp":
+                self.inputs.add(v)
+                self.state_vars.discard(v)
+            else:
+                self.inputs.discard(v)
+                self.state_vars.add(v)
         changed = True
         while changed:
             to_add_to_int = set()
             to_add_to_bool = set()
             changed = False
             for v1, v2 in self.related_vars:
-                if v1 in self.int_vars and v2 not in self.int_vars:
+                if (
+                    v1 in self.int_vars
+                    and v2 not in self.int_vars
+                    and v2 not in declared_bool_vars
+                ):
                     to_add_to_int.add(v2)
                     changed = True
-                elif v1 in self.bool_vars and v2 not in self.bool_vars:
+                elif (
+                    v1 in self.bool_vars
+                    and v2 not in self.bool_vars
+                    and v2 not in declared_numeric_vars
+                ):
                     to_add_to_bool.add(v2)
                     changed = True
-                elif v1 not in self.int_vars and v2 in self.int_vars:
+                elif (
+                    v1 not in self.int_vars
+                    and v2 in self.int_vars
+                    and v1 not in declared_bool_vars
+                ):
                     to_add_to_int.add(v1)
                     changed = True
-                elif v1 not in self.bool_vars and v2 in self.bool_vars:
+                elif (
+                    v1 not in self.bool_vars
+                    and v2 in self.bool_vars
+                    and v1 not in declared_numeric_vars
+                ):
                     to_add_to_bool.add(v1)
                     changed = True
             self.int_vars.update(to_add_to_int)
             self.bool_vars.update(to_add_to_bool)
+
+        for var_name, decl_type in declared_types.items():
+            v = Variable(var_name)
+            if decl_type == BOOLEAN:
+                self.bool_vars.add(v)
+                self.int_vars.discard(v)
+            else:
+                self.int_vars.add(v)
+                self.bool_vars.discard(v)
 
         if len(self.int_vars.intersection(self.bool_vars)) > 0:
             raise Exception(
@@ -270,6 +353,7 @@ class ToProgram(NodeWalker):
                 len(ps) == 1
                 and v not in self.bool_vars
                 and not v in self.vars_used_in_updates
+                and v.name not in declared_types
             ):
                 print("Booleanised input variable " + str(v))
                 new_assumptions = []
@@ -287,6 +371,10 @@ class ToProgram(NodeWalker):
 
         types = {v.name: BOOLEAN for v in self.bool_vars}
         types.update({v.name: INTEGER for v in self.int_vars})
+        for var_name, decl_type in declared_types.items():
+            types[var_name] = decl_type
+        for v in self.vars:
+            types.setdefault(v.name, BOOLEAN)
 
         chain = build_partitioned_update_chain(
             self.updates,

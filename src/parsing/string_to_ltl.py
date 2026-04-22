@@ -1,4 +1,3 @@
-from ast import For
 import re
 from enum import Enum
 import sys
@@ -119,7 +118,7 @@ GRAMMAR = r"""
         | atom;
         
     math_predicate_ltlmt
-        = ('lt' | 'le' | 'gt' | 'ge' | 'eq' | 'neq') math_expression_ltlmt math_expression_ltlmt;
+        = ('lt' | 'le' | 'lte' | 'gt' | 'ge' | 'gte' | 'eq' | 'neq') math_expression_ltlmt math_expression_ltlmt;
 
     math_expression_ltl
         = ('+' | '-' !'>')%{ math_term_ltl }+
@@ -179,7 +178,9 @@ translate_ops = {
     "neq": "!=",
     "lt": "<",
     "le": "<=",
+    "lte": "<=",
     "gt": ">",
+    "gte": ">=",
     "ge": ">=",
     "add": "+",
     "sub": "-",
@@ -538,7 +539,38 @@ def string_to_negated_atom(text: str) -> Formula:
     return formula
 
 
-def string_to_ltlmt(text: str) -> Formula:
+def string_ltlmt_var_decs(text: str) -> tuple[dict[str, tuple[str, str]], str]:
+    spec_matches = list(re.finditer(r"(?mi)^\s*SPECIFICATION\s*$", text))
+    if len(spec_matches) > 1:
+        raise Exception(
+            "Unexpectedly found multiple SPECIFICATION sections in LTLMT text"
+        )
+    if len(spec_matches) == 0:
+        return {}, text
+
+    spec_match = spec_matches[0]
+    dec_block = text[: spec_match.start()]
+    formula_text = text[spec_match.end() :].lstrip("\r\n")
+
+    var_decs: dict[str, tuple[str, str]] = {}
+    for raw_line in dec_block.splitlines():
+        line = re.sub(r"//.*$", "", raw_line).strip()
+        if line == "":
+            continue
+        m = re.match(
+            r"^(var|inp)\s+([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_][A-Za-z0-9_]*)$", line
+        )
+        if m is None:
+            raise Exception(f"Invalid LTLMT declaration line: '{raw_line.strip()}'")
+        kind, var_type, name = m.groups()
+        if name in var_decs:
+            raise Exception(f"Duplicate LTLMT declaration for '{name}'")
+        var_decs[name] = (kind, var_type)
+
+    return var_decs, formula_text
+
+
+def string_to_ltlmt(text: str) -> tuple[Formula, dict[str, tuple[str, str]]]:
     def strip_outer_parens(s: str) -> str:
         s = s.strip()
         if not (s.startswith("(") and s.endswith(")")):
@@ -565,6 +597,7 @@ def string_to_ltlmt(text: str) -> Formula:
             s = re.sub(r"\(\s*\(([^()]+)\)\s*\)", r"(\1)", s)
         return s
 
+    var_decs, text = string_ltlmt_var_decs(text)
     text = re.sub("//.*$", "", text)
     text = normalize_ltlmt_text(text)
     regex_keywords.extend(
@@ -575,12 +608,13 @@ def string_to_ltlmt(text: str) -> Formula:
             )
         )
     )
-    return parser_ltlmt.parse(
+    parsed = parser_ltlmt.parse(
         text,
         semantics=Semantics(),
         comments="(\\/\\*.*?\\*\\/)",
         eol_comments="\\/\\/.*?(\n|$)",
     )
+    return parsed, var_decs
 
 
 def string_to_issy_ltl(text: str) -> Formula:

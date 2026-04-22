@@ -187,8 +187,8 @@ def test_synthesis():
                         try:
 
                             def _parse_tsl_content(tsl_text: str, tsl_file: str):
-                                parsed = string_to_ltlmt(tsl_text)
-                                return ToProgram().ltlmt2prog(parsed, tsl_file)
+                                f, var_decs = string_to_ltlmt(tsl_text)
+                                return ToProgram().ltlmt2prog(f, tsl_file, var_decs)
 
                             def _run_parse_attempt(dual_mode: bool):
                                 config.Config.getConfig().dual = dual_mode
@@ -496,11 +496,11 @@ def test_parsing():
                 with Environment() as env:
                     try:
                         print("parsing " + file)
-                        f = string_to_ltlmt(content)
+                        f, vardecs = string_to_ltlmt(content)
                     except Exception as e:
                         print(f"Error parsing {file}: {e}")
                         raise (e)
-                    ToProgram().ltlmt2prog(f, file)
+                    ToProgram().ltlmt2prog(f, file, vardecs)
     print(f"Finished parsing with {cnt} errors.")
 
 
