@@ -1,5 +1,5 @@
 var Int numE
-var Int process
+var Int _process
 
 SPECIFICATION
 
@@ -9,7 +9,7 @@ moreElems = (gt numE MINELEMS);
 fewElems = (lt numE MINELEMS);
 empty  = (lte numE i0());
 
-processing =  !(eq process i0());
+processing =  !(eq _process i0());
 
 assume {
     (eq numE i0());
@@ -19,20 +19,20 @@ assume {
 guarantee{
 
     G (gte numE i0());
-    G ((eq process i0()) || (eq process i1()));
+    G ((eq _process i0()) || (eq _process i1()));
 
     // fill storage
-    G (empty -> [numE <- add numE i1()] && ([process <- i0()] || [process <- i1()]));
-    G (!empty && !processing -> [numE <- add numE i1()] && ([process <- i0()] || [process <- i1()]));
+    G (empty -> [numE <- add numE i1()] && ([_process <- i0()] || [_process <- i1()]));
+    G (!empty && !processing -> [numE <- add numE i1()] && ([_process <- i0()] || [_process <- i1()]));
 
     // if more than MINE elements, remove one
-    G (!empty && processing && moreElems -> [numE <- sub numE i1()] && [process <- process]);
+    G (!empty && processing && moreElems -> [numE <- sub numE i1()] && [_process <- _process]);
 
     // if too few elems then stuck
-    G (!empty && processing && fewElems -> [numE <- numE] && [process <- process]);
+    G (!empty && processing && fewElems -> [numE <- numE] && [_process <- _process]);
 
     // batch-process remaining elements
-    G (!empty && processing && !fewElems && !moreElems -> [numE <- i0()] && [process <- i0()]);
+    G (!empty && processing && !fewElems && !moreElems -> [numE <- i0()] && [_process <- i0()]);
     
     // infinitely often storage empty
     G F (empty);

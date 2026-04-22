@@ -2,19 +2,15 @@ var Int x
 var Int y
 
 inp Int i_x
-inp Int i_y
 
 SPECIFICATION
 
 assume {
-  G(gte i_x i0());
-  G(gte i_y i0());
+  G(gte x i0());
+  G(gte y i0());
 }
 
 guarantee {
-[x <- i_x];
-[y <- i_y];
-
 G((gt x i0() && gt y i0()) -> ([x <- sub x i1()] && [y <- y]));
 G((eq x i0() && gt y i0()) -> ([x <- i_x] && [y <- sub y i1()]));
 }
