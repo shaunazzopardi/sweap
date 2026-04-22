@@ -1,0 +1,25 @@
+program robot-tasks {
+    STATES {
+        q: init
+    }
+    ENVIRONMENT EVENTS {
+        i_x: natural
+    }
+    CONTROLLER EVENTS {
+        c
+    }
+    VALUATION {
+        x : natural;
+        y : natural;
+    }
+    TRANSITIONS {
+        q -> q [x > 0 & y > 0 & c $ x := x - 1],
+        q -> q [x == 0 & y > 0 & !c $ y := y - 1; x := i_x]
+    }
+
+    SPECIFICATION {
+        F y == 0
+    }
+}
+
+
