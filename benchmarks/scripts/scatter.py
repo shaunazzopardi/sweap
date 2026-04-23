@@ -7,7 +7,6 @@ from pathlib import Path
 import polars as pl
 import seaborn as sns
 import matplotlib as mpl
-from functools import reduce
 
 
 mpl.rc("font", family="serif", size=11)
@@ -26,7 +25,7 @@ pretty_tool_names = {
     "sweap-tsl-dual": "Sweap (TSL, Dual)",
     "sweap-issy": "Sweap (Issy format)",
     "sweap-issy-dual": "Sweap (Issy format, Dual)",
-    "sweap-semml": "Sweap (SemML)",
+    "sweap-semml": "Sweap",
     "issy3": "Issy",
     "issy3-rpg": "Issy (RPG)",
     "issy3-tsl": "Issy (TSL)",
@@ -49,10 +48,8 @@ min_time /= 1000  # convert to seconds
 print(f"[INFO] min_time: {min_time}", file=sys.stderr)
 
 
-
 csv1 = (
     csv0.filter(pl.col("tool").is_in(TOOLS))
-    .filter(pl.col("goal") == "ltl")
     .with_columns((pl.col("time(ms)")/1000).clip(0, TIMEOUT/1000).alias("time(s)"))
     .pivot(values=["time(s)", "verdict", "real", "goal"], index="benchmark", on="tool")
 )

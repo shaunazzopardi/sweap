@@ -379,7 +379,7 @@ try:
 except FileExistsError:
     pass
 
-STATS = defaultdict(lambda: defaultdict(int))
+STATS = defaultdict(lambda: Counter())
 GET_TR_PREDS = (
     """tr '" ()!' '\n' | tr "'" '\n' | """
     "grep prev | grep pred | sort | uniq | wc -l")
@@ -503,6 +503,8 @@ def update_stats(verdict: str, tool: str, bench_real: bool):
             STATS[tool]["right_real"] += 1
     elif verdict == "unrealizable":
         STATS[tool]["wrong" if bench_real else "right"] += 1
+        if not bench_real:
+            STATS[tool]["right_unreal"] += 1
     elif verdict != "missing":
         STATS[tool][verdict] += 1
 
@@ -553,6 +555,7 @@ def get_portfolio_result(tool1, tool2, b, b_real):
 for b, (b_real, b_goal) in infinite_benchs.items():
     for (pf, tool1, tool2) in (
         ("sweap-pf", "sweap-semml", "sweap-dual"),
+        ("sweap-strix-pf", "sweap-strix", "sweap-strix-dual"),
         ("sweap-rpg-pf", "sweap-rpg", "sweap-rpg-dual"),
         ("sweap-tsl-pf", "sweap-tsl", "sweap-tsl-dual"),
         ("sweap-issy-pf", "sweap-issy", "sweap-issy-dual"),
@@ -568,161 +571,24 @@ for b, (b_real, b_goal) in infinite_benchs.items():
 
 
 VERDICTS = (
-    "right", "right_real", "wrong", "timeout", "oom", "unsupported", "error")
+    "right", "right_real", "right_unreal", "wrong",
+    "timeout", "oom", "unsupported", "error")
 
 stderr_writer = csv.writer(sys.stderr, dialect="excel", lineterminator="\n")
-stderr_writer.writerow(["tool", *VERDICTS, "total", "total_real"])
-for k in (sorted(STATS.keys())):
+stderr_writer.writerow(["tool", *VERDICTS, "total", "total_real", "total_unreal"])
+keys_ordered = (
+    "issy3", "sweap-issy-pf", "sweap-issy", "sweap-issy-dual",
+    "issy3-rpg", "sweap-rpg-pf", "sweap-rpg", "sweap-rpg-dual",
+    "issy3-tsl", "sweap-tsl-pf", "sweap-tsl", "sweap-tsl-dual",
+    "sweap-strix", "sweap-strix-dual", "sweap-strix-pf",
+    "sweap-semml", "sweap-dual", "sweap-pf")
+
+for k in keys_ordered:
     v = STATS[k]
     values = [v.get(x, 0) for x in VERDICTS]
-    total = sum(values) - v.get("right_real", 0)
-    stderr_writer.writerow([k, *values, total, COUNT_REAL.get(k, 0)])
+    total = sum(values) - v.get("right", 0)
+    k_no_pf = k.replace("-pf", "-dual")
+    total_real = COUNT_REAL.get(k, COUNT_REAL.get(k_no_pf, 0))
+    total_unreal = total - total_real
+    stderr_writer.writerow([k, *values, total, total_real, total_unreal])
     sys.stderr.flush()
-
-
-
-sys.exit(0)
-
-# Results (latex) #############################################################
-latex_order = (
-    # "rpgsolve", "tslmt2rpg", "rpg-stela",
-    # "rpgsolve-syn", "tslmt2rpg-syn",
-    "sweap", 
-    # "sweap-noacc"
-    )
-fmt_names = " & ".join(tools[x].latex_name for x in latex_order)
-
-
-latex_header = rf"""
-\begin{{tabular}}{{|c|lr|c||c|c|c||c|c|c|c||c|c|}}\hline
-\multirow{{2}}{{*}}{{G.}}
-& \multirow{{2}}{{*}}{{Name, source}} &
-& \multirow{{2}}{{*}}{{U}}
-& \multicolumn{{3}}{{c||}}{{Realisability (s)}}
-& \multicolumn{{6}}{{c|}}{{Synthesis (s)}}\\\cline{{5-13}}
-& & & & {fmt_names}\\\hline\hline
-"""
-
-def fmt_result(x: int, real: bool=False):
-    if x == 0:
-        return ""
-    if x == 1:
-        return r"\ERROR"
-    if x < 0:
-        return r"\textsf{x}"
-    if x >= timeout:
-        return r"\TIMEOUT"
-    return f"{x/1000:.2f}{'$_r$' if real else ''}"
-
-
-syn_tools = ("rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
-r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap-noacc")
-
-def do_latex_body(benchs, source):
-    for b, is_realizable in benchs.items():
-
-        # Sort & Format results for this benchmark b
-        r = {x: fmt_result(results[b].get(x, 0), False) for x in latex_order}
-
-        # Highlight best (synthesis) time
-        positive_results = {
-            tool: results[b][tool]
-            for tool in latex_order
-            if tool in syn_tools and results[b].get(tool, 0) > 2}
-        if positive_results:
-            best = min(positive_results, key=positive_results.get)
-            r[best] = f"\\textbf{{{r[best]}}}" if results[b][best] < timeout else r[best]
-        fmt_r = " & ".join(r.values())
-        yield rf"&  \textsf{{{b.replace('_', '-')}}} & {source} & {'' if is_realizable else bullet} & {fmt_r} \\"
-        yield '\n'
-
-
-with open(out_dir / OUT_LATEX, "w") as latex:
-    latex.write(latex_header)
-    how_many_safety = len(safety_benchs_popl24) + len(safety_benchs_popl25)
-    latex.write(rf"\multirow{{{how_many_safety}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Safety}}}}" "\n") 
-    latex.writelines(do_latex_body(safety_benchs_popl24, popl24))
-    latex.writelines(do_latex_body(safety_benchs_popl25, popl25))
-    latex.write("\\hline\\hline\n")
-    how_many_reach = len(reach_benchs_popl24) + len(reach_benchs_popl25) + len(reach_benchs_isola24) + len(reach_benchs_novel)
-    latex.write(rf"\multirow{{{how_many_reach}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Reachability}}}}" "\n") 
-    latex.writelines(do_latex_body(reach_benchs_popl24, popl24))
-    latex.writelines(do_latex_body(reach_benchs_isola24, isola24))
-    latex.writelines(do_latex_body(reach_benchs_popl25, popl25))
-    latex.writelines(do_latex_body(reach_benchs_novel, ""))
-    latex.write("\\hline\\hline\n")
-    how_many_buechi = len(buechi_benchs_cav24) + len(buechi_benchs_popl24) + len(buechi_benchs_popl25)
-    latex.write(rf"\multirow{{{how_many_buechi}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Deterministic B\"uchi}}}}" "\n") 
-    latex.writelines(do_latex_body(buechi_benchs_popl24, popl24))
-    latex.writelines(do_latex_body(buechi_benchs_cav24, cav24))
-    latex.writelines(do_latex_body(buechi_benchs_popl25, popl25))
-    latex.write("\\hline\n")
-    latex.write(r"\end{tabular}")
-    latex.write("\n")
-
-with open(out_dir / LTL_LATEX, "w") as latex:
-    latex.write(dedent(rf"""
-        \begin{{tabular}}{{|c|c||c|c|}}
-        \hline
-        \multirow{{2}}{{*}}{{Name}} & \multirow{{2}}{{*}}{{U}} & \multicolumn{{2}}{{c|}}{{Time (s)}}\\\cline{{3-4}}
-        & & S$_{{\textit{{acc}}}}$ & S\\\hline\hline
-        """[1:]))
-    for b in ltl_benchs:
-        latex.write(dedent(rf"""
-            \textsf{{{b.replace("_", "-")}}} & {{{"" if ltl_benchs[b] else bullet}}}"""[1:]))
-        best = None 
-        # best = min(("sweap", "sweap-noacc"), key=results[b].get)
-        # if not 1 < results[b].get(best, 0) < timeout:
-        #     best = None
-        for tool in ("sweap",):
-            latex.write(" & ")
-            latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
-        latex.write(r"\\\hline" "\n")
-
-    latex.write("\n" r"\end{tabular}")
-
-
-
-# Refinements #################################################################
-with open(out_dir / REF_LATEX, "w") as latex:
-    begin_tabular = dedent(r"""
-        \begin{tabular}[t]{|l||c||c|c|c|c|c|c||}
-        \hline
-        && \multicolumn{2}{c|}{init}
-        & \multicolumn{2}{c|}{ref}
-        & \multicolumn{2}{c||}{add}\\\hline
-        \multicolumn{1}{|c||}{Name} & acc & s & t &sf. &sl. & sp & tp\\\hline\hline""")
-    all_keys = [k for k in sorted(refinements.keys(), key=lambda x: x.lower())]
-    keys_1, keys_2 = all_keys[:len(all_keys)//2], all_keys[len(all_keys)//2:]
-    for keys in (keys_1, keys_2):
-        latex.write(begin_tabular[1:])
-        for k in keys:
-            latex.write(rf"\multirow{{2}}{{*}}[0em]{{{k.replace('_', '-')}}}")
-            latex.write("\n")
-            for tool in ("sweap", "sweap-noacc"):
-                init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[k].get(tool, ["--"] * 6)
-                latex.write(dedent(rf"""
-                    & {bullet if tool == 'sweap' else ''}
-                    & {init_st} & {init_tr} & {count_safe_ref} & {count_fair_ref} & {add_st} & {add_tr}"""))
-                latex.write(r"\\\cline{2-8}" if tool == "sweap" else r"\\\hline")
-        latex.write("\n")
-        latex.write(r"\end{tabular}")
-
-# Aggregates ##################################################################
-syn_best, syn_uniq, r11y_best, r11y_uniq = (Counter() for _ in range(4))
-
-for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11y_uniq, r11y_tools)):
-    for b in infinite_benchs:
-        # Exclude LTL benchmarks
-        if b in ltl_benchs:
-            continue
-        good_times = {
-            tool: t
-            for tool, t in results[b].items()
-            if tool in which_tools and 2 < t < timeout}
-        if (good_times):
-            best_tool = min(good_times, key=good_times.get)
-            best[best_tool] += 1
-        if len(good_times) == 1:
-            uniq_tool, *_ = good_times.keys()
-            uniq[uniq_tool] += 1
