@@ -575,7 +575,8 @@ stderr_writer.writerow(["tool", *VERDICTS, "total", "total_real"])
 for k in (sorted(STATS.keys())):
     v = STATS[k]
     values = [v.get(x, 0) for x in VERDICTS]
-    stderr_writer.writerow([k, *values,sum(values), COUNT_REAL.get(k, 0)])
+    total = sum(values) - v.get("right_real", 0)
+    stderr_writer.writerow([k, *values, total, COUNT_REAL.get(k, 0)])
     sys.stderr.flush()
 
 
