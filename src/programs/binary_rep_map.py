@@ -17,6 +17,7 @@ from prop_lang.util import (
 
 class BinaryRepMap(dict):
     """Binary-encoding map with subset-disjunction simplification support."""
+
     _SUPPRESSED_TABLE_PREFIXES = (
         "formula_con_act_",
         "eq_con_",
@@ -110,13 +111,7 @@ class BinaryRepMap(dict):
 
         if len(codes) <= cls._TABLE_COMPLEMENT_PREVIEW_LIMIT:
             return "NOT(" + " OR ".join(codes) + ")"
-        return (
-            "NOT("
-            + codes[0]
-            + " OR ... OR "
-            + codes[-1]
-            + f") [{len(codes)} terms]"
-        )
+        return "NOT(" + codes[0] + " OR ... OR " + codes[-1] + f") [{len(codes)} terms]"
 
     def _rhs_to_str(self, key, value):
         return self._table_rhs_display.get(key, str(value))
@@ -162,17 +157,16 @@ class BinaryRepMap(dict):
 
     @classmethod
     def build_binary_rep(cls, vars_to_encode, label: str):
-        vars_sorted = sorted(vars_to_encode, key=lambda x: str(x))
-        if len(vars_sorted) == 0:
+        if len(vars_to_encode) == 0:
             raise Exception("Cannot create binary representation of empty set")
 
-        width = max(1, math.ceil(math.log(len(vars_sorted), 2)))
+        width = max(1, math.ceil(math.log(len(vars_to_encode), 2)))
         bin_vars = [Variable(label + str(i)) for i in range(0, width)]
         rep = cls(bin_vars=bin_vars)
         base = "{0:0" + str(width) + "b}"
         binary_codes = {}
 
-        for i, v in enumerate(vars_sorted):
+        for i, v in enumerate(vars_to_encode):
             binary_code = base.format(i)
             binary_codes[v] = binary_code
             bit_formula = None
@@ -184,8 +178,8 @@ class BinaryRepMap(dict):
 
         # For non-power-of-two domains, replace the last encoding by the
         # complement of all previous encodings to keep it exact and compact.
-        if len(vars_sorted) > 2 and len(vars_sorted) < 2**width:
-            last = vars_sorted[-1]
+        if len(vars_to_encode) > 2 and len(vars_to_encode) < 2**width:
+            last = vars_to_encode[-1]
             others = [k for k in rep.keys() if k != last]
             rep[last] = rep._normalise_boolean_formula(
                 neg(rep.disjunct_for_keys(others, use_complement=False))
