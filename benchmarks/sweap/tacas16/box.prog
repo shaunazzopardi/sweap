@@ -12,7 +12,7 @@ program box {
         x : integer := 1;
         y : integer := 1;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         move0 -> move1 [!decxc & !(((decyc | (!incyc & !decyc)) & incxc) | !incxc) $ x := (x + 1); y := (y + 1)],
         move0 -> move1 [(decyc & !(!incyc | (incyc & (!decxc | (decxc & incxc))))) | (!(incyc | (!incyc & (!decxc | (decxc & incxc)))) & !decyc) $ x := (x - 1); y := y],
         move0 -> move1 [!decxc & !(((!decyc | (incyc & decyc)) & incxc) | !incxc) $ x := (x + 1); y := (y - 1)],

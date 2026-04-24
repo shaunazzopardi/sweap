@@ -12,7 +12,7 @@ program precise_reachability {
         x : integer := 1;
         y : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [!done &  incy $ x := x; y := (y + 1)],
         q0 -> q0 [!done & !incy $ x := x; y := (y - 1)],
         q0 -> q1 [ done],

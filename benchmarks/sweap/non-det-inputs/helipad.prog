@@ -19,7 +19,7 @@ program helipad {
         ack : integer := 0;
         evacTimer : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q [$ free := set_free; ack := set_ack; evacTimer := set_EvacTime],
 
         q -> q [ $

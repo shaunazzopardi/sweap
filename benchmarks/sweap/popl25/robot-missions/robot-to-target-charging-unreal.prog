@@ -14,7 +14,7 @@ program robot-to-target-charging-unreal {
         atStation : bool := true;
         distToTarget : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setDistToTarget -> setDistToTarget [ed1 $ distToTarget := distToTarget + 1],
         setDistToTarget -> setDistToTarget [!ed1 & ed2 $ distToTarget := distToTarget - 1],
         setDistToTarget -> q [!ed1 & !ed2 && distToTarget >= 50 && distToTarget <= 70 $ cDist := distToTarget; atStation := false],

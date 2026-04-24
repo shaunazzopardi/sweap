@@ -12,7 +12,7 @@ program tasks {
         y : integer := 10;
         done : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) && !changex && !decy $ x := x; y := y; done := done],
         q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) && !changex &&  decy $ x := x; y := (y - 1); done := done],
         q0 -> q0 [(done == 0) && !(y == 0) && !(x == 0) &&  changex && !decy $ x := (x - 1); y := y; done := done],

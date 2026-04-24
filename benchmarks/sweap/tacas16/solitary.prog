@@ -15,7 +15,7 @@ program solitary {
         y : integer := 1;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q -> q [$
                      x := x + 1 if incx;
                      x := x - 1 if !incx;

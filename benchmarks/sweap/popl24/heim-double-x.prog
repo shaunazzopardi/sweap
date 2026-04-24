@@ -15,7 +15,7 @@ program heim-double-x {
         y : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         l0 -> l0 [dec $ y := y + 1],
         l0 -> l1 [!dec $ x := 1],
         l1 -> l1 [x != 64 && y > 0 $ x := x + x; y := y - 1],

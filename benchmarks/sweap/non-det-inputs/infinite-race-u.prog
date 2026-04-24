@@ -17,7 +17,7 @@ program infinite-race {
         c : natural := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q -> q1 [ $ e := set_e; c:= set_c],
         q1 -> q1 [incc $ c := c + 1],
         q1 -> q [!incc]

@@ -13,7 +13,7 @@ program discharge-GF {
         c : integer := 0;
         e : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setC -> setC [e1 $ c := c + 1],
         setC -> setC [!e1 & e2 $ c := c - 1],
         setC -> setE [!e1 & !e2],

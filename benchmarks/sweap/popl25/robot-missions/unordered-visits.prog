@@ -16,7 +16,7 @@ program unordered-visits-charging{
         dx: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         setDx -> q [e1 $ dx := dx + 1],
         setDx -> q [!e1 $ dx := dx - 1],
 

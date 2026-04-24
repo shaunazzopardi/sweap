@@ -12,7 +12,7 @@ program vacuous {
         y : integer := 0;
         e : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setE -> setE [e1 $ e := e + 1],
         setE -> setE [!e1 & e2 $ e := e - 1],
         setE -> q [!e1 & !e2],

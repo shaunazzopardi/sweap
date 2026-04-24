@@ -15,7 +15,7 @@ program f-unreal{
         a: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         q0 -> q0 [e0 $ a := a + 1],
         q0 -> q0 [!e0 & e1 $ a := a - 1],
         q0 -> q1 [!e0 & !e1],

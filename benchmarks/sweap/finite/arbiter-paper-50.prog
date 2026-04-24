@@ -16,7 +16,7 @@ program arbiter-paper-50 {
         roomA : bool := true;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [request & !changeRoom $ cnt := cnt + 1],
         q0 -> q0 [!request & changeRoom $ roomA := !roomA],
         q0 -> q1 [!request & !changeRoom],

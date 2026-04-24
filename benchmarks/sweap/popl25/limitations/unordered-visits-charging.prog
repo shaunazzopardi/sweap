@@ -16,7 +16,7 @@ program unordered-visits-charging{
         charge: int := 60;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         q -> q [$ x := x if cx1 & cx2;
                   x := x + dx if cx1 & !cx2;
                   x := x + 1 if !cx1 & cx2;

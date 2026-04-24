@@ -16,7 +16,7 @@ program arbiter-non-det-inps {
         roomA : bool := true;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q1 [i >= 0 $ cnt := i; roomA := room],
         q1 -> q1 [roomA & grantA & !grantB & !finished $ cnt := cnt - 1],
         q1 -> q1 [!roomA & grantB & !grantA & !finished $ cnt := cnt - 1],

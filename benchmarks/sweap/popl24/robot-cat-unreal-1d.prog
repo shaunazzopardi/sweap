@@ -16,7 +16,7 @@ program robot-cat-unreal-1d {
         ox : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setvars -> setvars [stay $
                                 rx := rx + 1 if rxorox & inc;
                                 rx := rx - 1 if rxorox & !inc;

@@ -74,6 +74,7 @@ class Program:
         preprocess=True,
         is_determ=None,
         emit_state_binary_map=True,
+        transition_completion: str | None = None,
     ):
         config.Config.getConfig().cache_smt = False
         reset_caches()
@@ -83,6 +84,7 @@ class Program:
         self.name = name
         self.initial_state = init_st
         self.states: Set = set(sts)
+        self.added_completion_lose_transitions = False
         self.constants = {}
         self.binary_rep_tables: dict[str, str] = {}
 
@@ -123,6 +125,8 @@ class Program:
             self.transitions = [
                 Transition(self.initial_state, true(), [], [], self.initial_state)
             ]
+
+        self._materialize_otherwise_transitions()
 
         all_vars = self.local_vars
         self.transitions = [
@@ -172,31 +176,6 @@ class Program:
         ) or config.Config.getConfig().debug:
             self.deterministic = is_deterministic(self)
 
-        otherwise = [t for t in self.transitions if str(t.condition) == "otherwise"]
-        if len(otherwise) > 1:
-            raise Exception("Too many environment otherwise transitions")
-        elif len(otherwise) == 1:
-            otherwise_trans = otherwise[0]
-            condition = neg(
-                disjunct_formula_set(
-                    [
-                        t.condition
-                        for t in transitions
-                        if t.src == otherwise_trans.src and t != otherwise_trans
-                    ]
-                )
-            )
-            if sat(condition, self.symbol_table):
-                concrete_trans = Transition(
-                    otherwise_trans.src,
-                    condition,
-                    otherwise_trans.action,
-                    otherwise_trans.output,
-                    otherwise_trans.tgt,
-                )
-                self.transitions.append(concrete_trans)
-            self.transitions.remove(otherwise_trans)
-
         if config.Config.getConfig().opt_location_constant_simplify:
             simplified, removed_unsat = simplify_with_location_constants(self)
             if simplified > 0 or removed_unsat > 0:
@@ -211,7 +190,7 @@ class Program:
         (
             self.orig_ts,
             self.stutter_ts,
-        ) = self.complete_transitions_stutter_explicit()
+        ) = self.complete_transitions(transition_completion)
         self.transitions = self.orig_ts + self.stutter_ts
         # TODO this can take a long time, see concurrent-safety-response
         self.state_to_trans = {}
@@ -409,6 +388,56 @@ class Program:
         else:
             return transition.add_condition(conjunct_formula_set(constraints))
 
+    @staticmethod
+    def _is_otherwise_transition(transition: Transition) -> bool:
+        return str(transition.condition) == "otherwise"
+
+    def _materialize_otherwise_transitions(self) -> None:
+        otherwise_by_src = {}
+        for t in self.transitions:
+            if self._is_otherwise_transition(t):
+                otherwise_by_src.setdefault(t.src, set()).add(t)
+
+        duplicate_srcs = [
+            str(src) for src, trs in otherwise_by_src.items() if len(trs) > 1
+        ]
+        if duplicate_srcs:
+            raise Exception(
+                "Too many 'otherwise' transitions from state(s): "
+                + ", ".join(sorted(duplicate_srcs))
+            )
+
+        if len(otherwise_by_src) == 0:
+            return
+
+        resolved_transitions = []
+        for t in self.transitions:
+            if not self._is_otherwise_transition(t):
+                resolved_transitions.append(t)
+                continue
+
+            fallback_condition = neg(
+                disjunct_formula_set(
+                    [
+                        tt.condition
+                        for tt in self.transitions
+                        if tt.src == t.src and tt is not t
+                    ]
+                )
+            )
+            if sat(fallback_condition, self.symbol_table):
+                resolved_transitions.append(
+                    Transition(
+                        t.src,
+                        fallback_condition,
+                        t.action,
+                        t.output,
+                        t.tgt,
+                    )
+                )
+
+        self.transitions = resolved_transitions
+
     def is_finite_state(self):
         return all(is_finite(type_obj) for type_obj in self.symbol_table.values())
 
@@ -589,37 +618,13 @@ class Program:
 
         return dot
 
-    def complete_transitions(self):
+    def complete_transitions(self, transition_completion: str | None = None):
         complete_trans = []
 
         reachable_states = set(
             [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state]
         )
-
-        for s in reachable_states:
-            from_s = [t for t in self.transitions if t.src == s]
-            stutter_from_s = stutter_transition(self, s, True)
-            if stutter_from_s != None:
-                from_s += [stutter_from_s]
-            complete_trans += from_s
-
-        unsat_trans = [
-            t for t in self.transitions if not sat(t.condition, self.symbol_table)
-        ]
-        if len(unsat_trans) > 0:
-            raise Exception(
-                "There are some unsat transitions: "
-                + ",\n".join([str(t) for t in unsat_trans])
-            )
-        return complete_trans
-
-    def complete_transitions_stutter_explicit(self):
-        complete_trans = []
-
-        reachable_states = set(
-            [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state]
-        )
-        stutter_trans_candidates = []
+        missing_coverage = []
         for s in reachable_states:
             from_s = [
                 t.complete_outputs(self.out_events)
@@ -628,19 +633,47 @@ class Program:
             ]
             stutter_from_s = stutter_transition(self, s, True)
             if stutter_from_s != None:
-                stutter_trans_candidates += [
-                    stutter_from_s.complete_outputs(self.out_events)
-                ]
+                missing_coverage += [stutter_from_s.complete_outputs(self.out_events)]
             complete_trans += from_s
 
-        stutter_trans = stutter_trans_candidates
-        # stutter_trans_con = []
-        # for stutter_t in stutter_trans_candidates:
-        #     if any(t for t in complete_con + stutter_trans_con_candidates if t.tgt == stutter_t.src):
-        #         complete_env += [stutter_t]
-        #         stutter_trans_env += [stutter_t]
+        if transition_completion in (None, "stutter"):
+            return complete_trans, missing_coverage
 
-        return complete_trans, stutter_trans
+        if transition_completion == "":
+            if len(missing_coverage) > 0:
+                incomplete_states = sorted(
+                    {str(t.src) for t in missing_coverage}, key=str
+                )
+                raise Exception(
+                    "Incomplete transitions from state(s): "
+                    + ", ".join(incomplete_states)
+                    + ". Specify TRANSITIONS [completion=stutter] or [completion=lose]."
+                )
+            return complete_trans, []
+
+        if transition_completion == "lose":
+            lose_trans = [
+                Transition(t.src, t.condition, list(t.action), list(t.output), "lose")
+                for t in missing_coverage
+            ]
+            if len(lose_trans) > 0:
+                self.added_completion_lose_transitions = True
+                self.states.add("lose")
+                has_lose_self_loop = any(
+                    str(t.src) == "lose" and str(t.tgt) == "lose"
+                    for t in complete_trans + lose_trans
+                )
+                if not has_lose_self_loop:
+                    lose_trans.append(
+                        Transition("lose", true(), [], [], "lose")
+                        .complete_outputs(self.out_events)
+                        .complete_action_set(self.local_vars)
+                    )
+            return complete_trans + lose_trans, []
+
+        raise ValueError(
+            f"Unsupported transition completion mode: {transition_completion}"
+        )
 
     def complete_action_set(self, actions: list[BiOp]):
         non_updated_vars = [

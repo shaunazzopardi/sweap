@@ -9,7 +9,7 @@ program gf-unreal {
     VALUATION {
         x : integer := 10000;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q -> q [$ x := x + 1]
     }
 

@@ -16,7 +16,7 @@ program box-limited {
         y : integer := 1;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         move0 -> move0 [(incy && !decy) && stax $ y := y + 1],
         move0 -> move0 [(!incy && decy) && stax $ y := y - 1],
         move0 -> move0 [(incy <-> decy) && stax],

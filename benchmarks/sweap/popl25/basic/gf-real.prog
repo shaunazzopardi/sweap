@@ -11,7 +11,7 @@ program gf_real {
     VALUATION {
         x : integer := 1;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [!done && !incx $ x := (x - 1)],
         q0 -> q0 [!done &&  incx $ x := (x + 1)],
         q0 -> q1 [done],

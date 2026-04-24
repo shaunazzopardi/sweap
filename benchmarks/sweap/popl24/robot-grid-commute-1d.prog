@@ -16,7 +16,7 @@ program robot-grid-comute-1d {
         tx : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         movezero -> goal [!(x > 0 || x < 0)],
         movezero -> movezero [(x > 0 || x < 0) && (cinc <-> cdec)],
         movezero -> movezero [(x > 0 || x < 0) && cinc && !cdec $ x := x + 1],

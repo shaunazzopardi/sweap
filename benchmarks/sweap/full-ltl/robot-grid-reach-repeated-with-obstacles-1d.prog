@@ -15,7 +15,7 @@ program robot-grid-reach-with-obstacles-1d {
         x : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setvars -> setvars [estay && einc $ x := x + 1],
         setvars -> setvars [estay && !einc $ x := x - 1],
         setvars -> move [!estay],

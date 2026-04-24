@@ -18,7 +18,7 @@ program robot-grid-comute-2d {
         ty : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         movezero -> goal [x == 0 && y == 0],
         movezero -> movezero [!(x == 0 && y == 0) && (cinc <-> cdec)],
         movezero -> movezero [!(x == 0 && y == 0) && cinc && !cdec && xory $ x := x + 1],

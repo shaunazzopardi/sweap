@@ -15,7 +15,7 @@ program robot-cat-real-1d {
         x : [0..50] := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setvars -> setvars [estay $
                                 x := x + 1 if einc;
                                 x := x - 1 if !einc;

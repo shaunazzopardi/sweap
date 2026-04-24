@@ -16,7 +16,7 @@ program heim-buechi {
         y : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         l -> l [!ipos && !ineg $ y := y + 1],
         l -> l [!ipos && ineg $ y := y - 1],
         l -> l0 [ipos],
