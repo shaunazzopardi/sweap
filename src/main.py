@@ -271,17 +271,13 @@ def handle_translation(target, program, ltl_spec) -> str:
     if target.lower() == "dot":
         return str(program.to_dot())
     elif target.lower() == "nuxmv":
-        return create_nuxmv_model(
-            program_to_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
-        )
+        return create_nuxmv_model(program_to_nuxmv_model(program))
     elif target.lower() == "prog":
         return program.to_prog(ltl_spec)
     elif target.lower() == "issy":
         return program.to_issy(ltl_spec)
     elif target.lower() == "vmt":
-        model = create_nuxmv_model(
-            program_to_nuxmv_model(program.to_nuXmv_with_turns_for_verif())
-        )
+        model = create_nuxmv_model(program_to_nuxmv_model(program))
         model_checker = ModelChecker()
         model_checker.to_vmt(model, ltl_spec, "model")
         vmt = open("model.vmt").read()
