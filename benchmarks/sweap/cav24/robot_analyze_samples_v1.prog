@@ -17,7 +17,7 @@ program robot_analyze_samples_v1 {
         trackPos : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         moveToBase -> base [trackPos == 23 $ samples := 0; reqSamples := 0],
         moveToBase -> moveToBase [a && trackPos != 23],
         moveToBase -> moveToBase [!a & b & trackPos != 23 $ trackPos := trackPos + 1],

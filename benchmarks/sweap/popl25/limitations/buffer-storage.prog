@@ -12,7 +12,7 @@ program buffer_storage {
         buffE : integer := 0;
         numE : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
 
         notProcessE -> notProcessE [!done & (buffE < 128) & !swap $ buffE := buffE + 1; numE := numE],
         notProcessE -> notProcessE [!done & (buffE < 128) & swap $ buffE := 0; numE := numE + buffE],

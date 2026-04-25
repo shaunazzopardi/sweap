@@ -17,7 +17,7 @@ program robot-resource-2d {
         resource : integer := 4;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         movetarg -> goal [x <= 0 && y <= 0],
         movetarg -> movetarg [!(x <= 0 && y <= 0) && (cinc <-> cdec)],
         movetarg -> movetarg [!(x <= 0 && y <= 0) && !cinc && cdec && cxory $ x := x + 1],

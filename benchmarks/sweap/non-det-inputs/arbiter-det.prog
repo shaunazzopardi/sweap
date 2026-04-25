@@ -15,7 +15,7 @@ program arbiter-det {
         cnt : integer;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q1 -> q1 [!finished $ cnt := cnt - 1],
         q1 -> q0 [cnt == 0 & finished $]
     }

@@ -21,7 +21,7 @@ program reversible-lane-r {
         cr : natural := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [$
                      cl := cl + 1 if entry_l && !exit_r;
                      cl := cl - 1 if !entry_l && exit_r && cl > 0;

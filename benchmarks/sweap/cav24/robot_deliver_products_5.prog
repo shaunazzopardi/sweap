@@ -24,7 +24,7 @@ program robot_deliver_products_5 {
         money : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         moveToOffice -> office [trackPos == 0],
         moveToOffice -> moveToOffice [trackPos != 0 & !a & b $ trackPos := trackPos + 1],
         moveToOffice -> moveToOffice [trackPos != 0 & !a & !b $ trackPos := trackPos - 1],

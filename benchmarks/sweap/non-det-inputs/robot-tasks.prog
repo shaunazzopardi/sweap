@@ -12,7 +12,7 @@ program robot-tasks {
         x : natural;
         y : natural;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q -> q [x > 0 & y > 0 & c $ x := x - 1],
         q -> q [x == 0 & y > 0 & !c $ y := y - 1; x := i_x]
     }

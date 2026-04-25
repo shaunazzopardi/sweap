@@ -20,7 +20,7 @@ program robot_running {
         trackPos : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         move -> base [trackPos == 23 & task & a $ reqSamples := 0],
         move -> move [trackPos == 23 & task & !a & b $ trackPos := trackPos + 1],
         move -> move [trackPos == 23 & task & !a & !b $ trackPos := trackPos - 1],

@@ -16,7 +16,7 @@ program arbiter-with-failure {
         roomA : bool := true;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [request $ cnt := cnt + 1],
         q0 -> q1 [!request],
         q1 -> q1 [grant & !finished & success $ cnt := cnt - 1],

@@ -16,7 +16,7 @@ program arbiter-paper-unreal-10 {
         roomA : bool := true;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [request & !redrequest & !changeRoom $ cnt := cnt + 1],
         q0 -> q0 [redrequest & request & !changeRoom $ cnt := cnt - 1],
         q0 -> q0 [!request & changeRoom $ roomA := !roomA],

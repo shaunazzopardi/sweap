@@ -17,7 +17,7 @@ program package-delivery {
         deliver : bool := false;
         hasPackage : bool := false;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setDeliver -> setHasPackage [r1 $ deliver := true],
         setDeliver -> setHasPackage [!r1 $ deliver := false],
         setHasPackage -> setMode [r1 $ hasPackage := true],

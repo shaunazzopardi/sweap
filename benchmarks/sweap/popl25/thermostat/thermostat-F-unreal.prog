@@ -17,7 +17,7 @@ program thermostat-F-unreal{
         sense: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         setMode -> setSense [e1 $ mode := 1;],
         setMode -> setSense [!e1 & e2 $ mode := 0;],
         setMode -> setSense [!e1 & !e2 $ mode := -1;],

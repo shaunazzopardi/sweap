@@ -16,13 +16,12 @@ program batch-arbiter {
         roomA : bool := true;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [request & !changeRoom $ cnt := cnt + 1],
         q0 -> q0 [!request & changeRoom $ roomA := !roomA],
-        q0 -> q1 [!request & !changeRoom],
         q1 -> q1 [roomA & grantA & !grantB & cnt > 0 $ cnt := cnt - 1],
         q1 -> q1 [!roomA & grantB & !grantA & cnt > 0 $ cnt := cnt - 1],
-        q1 -> q0 [cnt == 0 & finished $]
+        q1 -> q0 [cnt == 0 & finished $],
     }
 
     SPECIFICATION {

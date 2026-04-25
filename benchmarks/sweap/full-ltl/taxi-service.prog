@@ -18,7 +18,7 @@ program taxi-service {
         car_y : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [!start $
                         target_x := target_x + 1 if xory && inc;
                         target_x := target_x - 1 if xory && !inc;

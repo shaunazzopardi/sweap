@@ -14,7 +14,7 @@ program bloem-elevator-simple-5 {
         at_floor : [0..4] := 1;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         move -> move [ $ at_floor := at_floor + 1 if cinc;
                          at_floor := at_floor - 1 if !cinc;]
     }

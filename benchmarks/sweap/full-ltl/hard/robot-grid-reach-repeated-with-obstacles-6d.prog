@@ -20,7 +20,7 @@ program robot-grid-reach-with-obstacles-2d {
         x6 : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setvars -> setvars [!e1 && !e2 && !e3 && !e4 $ x1 := x1 + 1],
         setvars -> setvars [!e1 && !e2 && !e3 && e4 $ x1 := x1 - 1],
         setvars -> setvars [!e1 && !e2 && e3 && !e4 $ x2 := x2 + 1],

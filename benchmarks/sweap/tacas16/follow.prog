@@ -18,7 +18,7 @@ program follow {
         y1 : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         move0 -> move1 [d],
         move0 -> move1 [a & !b & !c & !d $ x0 := x0 + 1],
         move0 -> move1 [!a & b & !c & !d $ x0 := x0 + 1; y0 := y0 + 1],

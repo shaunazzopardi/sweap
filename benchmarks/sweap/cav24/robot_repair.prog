@@ -18,7 +18,7 @@ program robot_repair {
         workingDevice : boolean := true;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         moveToBase -> base [trackPos == 23],
         moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],
         moveToBase -> moveToBase [trackPos != 23 & !a & !b $ trackPos := trackPos - 1],

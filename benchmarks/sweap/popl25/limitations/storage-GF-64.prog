@@ -15,7 +15,7 @@ program storage-GF-64{
         proc: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         q -> q [numE <= 0 & p $ numE := numE + 1; proc := 0],
         q -> q [numE <= 0 & !p $ numE := numE + 1; proc := 1],
         q -> q [(!(numE <= 0) && proc == 0) & p $ numE := numE + 1; proc := 0],

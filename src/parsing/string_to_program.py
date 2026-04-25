@@ -72,7 +72,7 @@ def program_parser():
     env = section_values["env"]
     con = section_values["con"]
     initial_vals = section_values["initial_vals"]
-    semantics, transitions = section_values["transitions"]
+    semantics, completion, transitions = section_values["transitions"]
     ltl_spec = section_values.get("ltl_spec")
 
     program_var_names = {v[0] for v in initial_vals}
@@ -144,7 +144,13 @@ def program_parser():
         new_transitions,
         env,
         con,
+        transition_completion=completion,
     )
+    if (
+        not had_complex_action
+        and getattr(program, "added_completion_lose_transitions", False)
+    ):
+        ltl_spec = conjunct(ltl_spec, G(neg(Variable("lose"))))
     if had_complex_action:
         program, ltl_spec = postprocess_complex_action_program(program, ltl_spec)
     ltl_spec = ltl_spec.replace_formulas(
@@ -233,18 +239,6 @@ def apply_transition_semantics_by_order(
             )
 
     return rewritten
-
-
-@generate
-def event_parser():
-    yield spaces() >> string("{") >> spaces()
-    events = yield sepBy(name << spaces(), regex("(,|;)") << spaces())
-    yield parsec.optional(regex("(,|;)"))
-    yield spaces()
-    yield string("}")
-    yield spaces()
-    list(map(not_a_keyword, events))
-    return [Variable(s) for s in events]
 
 
 @generate
@@ -429,7 +423,10 @@ def transition_parser(program_var_names: set[str] | None = None):
         dest = yield state << spaces()
         yield string("[") >> spaces()
         raw_cond = yield parsec.optional(spaces() >> regex(r"[^$#\]]+"), "true")
-        cond = string_to_prop(raw_cond)
+        if raw_cond == "otherwise":
+            cond = raw_cond
+        else:
+            cond = string_to_prop(raw_cond)
         yield spaces()
         act = yield parsec.optional(
             parsec.try_choice(
@@ -442,7 +439,6 @@ def transition_parser(program_var_names: set[str] | None = None):
             [],
         )
         yield spaces()
-        yield parsec.optional(regex("(,|;)") >> spaces())
         raw_events = yield parsec.optional(outputs, [])
         events = [string_to_negated_atom(e) for e in raw_events]
         yield spaces()
@@ -645,13 +641,6 @@ def lower_program_action_formula_transition(
             lowered_transition.set_predicate_upgrades(predicate_upgrades)
             lowered.append(lowered_transition)
 
-    uncovered_guard = conjunct(
-        transition.condition,
-        neg(disjunct_formula_set(covered_conditions)),
-    )
-    if sat(uncovered_guard, symbol_table):
-        lowered.append(Transition(transition.src, uncovered_guard, [], [], "lose"))
-
     return lowered
 
 
@@ -714,27 +703,43 @@ def transitions_parser(program_var_names: set[str] | None = None):
     @generate
     def _transitions_parser():
         yield string("TRANSITIONS") >> spaces()
-        options = "by-order"
-        semantics = yield parsec.optional(
-            string("[")
-            >> spaces()
-            >> string("semantics")
-            >> spaces()
-            >> string("=")
-            >> spaces()
-            >> regex(options)
-            << spaces()
-            << string("]")
-            << spaces(),
-            "",
+        semantics = ""
+        completion = ""
+        raw_options = yield parsec.optional(
+            string("[") >> spaces() >> regex(r"[^\]]*") << spaces() << string("]"),
+            None,
         )
+        if raw_options is not None:
+            options = [
+                option.strip()
+                for option in raw_options.replace(";", ",").split(",")
+                if option.strip()
+            ]
+            for option in options:
+                key, sep, value = option.partition("=")
+                if sep == "":
+                    raise ValueError(f"Invalid transition option: {option}")
+                key = key.strip()
+                value = value.strip()
+                if key == "semantics":
+                    if value != "by-order":
+                        raise ValueError(f"Unsupported transition semantics: {value}")
+                    semantics = value
+                elif key == "completion":
+                    if value not in {"stutter", "lose"}:
+                        raise ValueError(f"Unsupported transition completion: {value}")
+                    completion = value
+                else:
+                    raise ValueError(f"Unknown transition option: {key}")
+        yield spaces()
         yield string("{") >> spaces()
         transitions = yield sepBy(
             transition_parser(program_var_names),
             spaces() >> regex("(,|;)") >> spaces(),
         )
+        yield spaces() >> parsec.optional(regex("(,|;)") >> spaces())
         yield spaces() >> string("}")
-        return semantics, transitions
+        return semantics, completion, transitions
 
     return _transitions_parser
 

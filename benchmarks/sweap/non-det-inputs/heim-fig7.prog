@@ -15,7 +15,7 @@ program heim-buechi-u {
         x : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         l -> l01 [$ x := set_x],
         l01 -> l11 [],
         l11 -> l21 [cdec $ x := x - 1],

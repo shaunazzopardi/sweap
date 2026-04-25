@@ -17,7 +17,7 @@ program bloem-elevator-signal-3 {
         signal : [0..50] := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setsignal -> setsignal [inc && !dec $ signal := signal + 1],
         setsignal -> setsignal [!inc && dec $ signal := signal - 1],
         setsignal -> goal [inc && dec],

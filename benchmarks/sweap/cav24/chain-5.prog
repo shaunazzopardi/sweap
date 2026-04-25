@@ -21,7 +21,7 @@ program chain-5 {
         c : int := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         init_st -> goal [$ c := 0],
         sink -> sink [],
         goal -> sink [c == 1],

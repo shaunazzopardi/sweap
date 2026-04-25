@@ -18,7 +18,7 @@ program arbiter-paper {
         l : nat := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         init_st -> goal [$ c := 0],
         sink -> sink [],
         goal -> sink [l == 0 & c == 1],

@@ -14,7 +14,7 @@ program robot-to-target {
         tx : integer := 0;
         target : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setX -> setX [ed1 $ x := x + 1],
         setX -> setX [!ed1 & ed2 $ x := x - 1],
         setX -> setTarget [!ed1 & !ed2],
