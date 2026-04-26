@@ -12,6 +12,10 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 
 ## Installation
 
+### Dockerfile
+
+See the [cav2026 branch of sweap-docker](https://github.com/dSynMa/sweap-docker/tree/cav2026) for the latest (at the time of writing) Dockerfile and instructions for building and running the tool in a containerised environment.
+
 ### Requirements
 
 - This tool was developed and tested on Ubuntu 22.04.04 LTS.
