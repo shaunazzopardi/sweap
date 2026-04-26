@@ -19,13 +19,13 @@ program robot-to-target-charging-unreal {
         setDistToTarget -> setDistToTarget [!ed1 & ed2 $ distToTarget := distToTarget - 1],
         setDistToTarget -> q [!ed1 & !ed2 && distToTarget >= 50 && distToTarget <= 70 $ cDist := distToTarget; atStation := false],
 
-        setDistToTarget1 -> setDistToTarget1 [ed1 $ distToTarget := distToTarget + 1],
-        setDistToTarget1 -> setDistToTarget1 [!ed1 & ed2 $ distToTarget := distToTarget - 1],
-        setDistToTarget1 -> q [],
+        setDistToTarget1 -> setDistToTarget1 [ed1 & ed2 $ distToTarget := distToTarget + 1],
+        setDistToTarget1 -> setDistToTarget1 [ed1 & !ed2 $ distToTarget := distToTarget - 1],
+        setDistToTarget1 -> q [!ed1],
 
         q -> setDistToTarget1 [atStation && (battery < distToTarget) $ atStation := true; battery := battery + 1],
         q -> setDistToTarget1 [atStation && (battery >= distToTarget) & c $ atStation := false; cDist := cDist - 1; battery := battery - 1],
-        q -> setDistToTarget1 [atStation && (battery >= cDist) & !c $ atStation := false;],
+        q -> setDistToTarget1 [atStation && (battery >= distToTarget) & !c $ atStation := false;],
         q -> setDistToTarget1 [!atStation && !(cDist <= 0) $ atStation := false; cDist := cDist - 1; battery := battery - 1],
         q -> setDistToTarget1 [!atStation && (cDist <= 0) $ atStation := false]
     }

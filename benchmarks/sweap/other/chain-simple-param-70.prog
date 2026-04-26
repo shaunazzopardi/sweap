@@ -28,9 +28,9 @@ program chain-simple-param-70 {
         setinp -> goal [stop $ x := y; l := 1],
 
         goal -> goal [x == 0 && l > 0 $ x := y; l := l - 1],
-        goal -> goal [x != 0 & cinc & !setc $ x := x + 1],
-        goal -> goal [x != 0 & !cinc & !setc $ x := x - 1],
-        goal -> goal [x != 0 & setc $ c := 1]
+        goal -> goal [x != 0 && l > 0  & cinc & !setc $ x := x + 1],
+        goal -> goal [x != 0 && l > 0 & !cinc & !setc $ x := x - 1],
+        goal -> goal [x != 0 && l > 0 & setc $ c := 1]
     }
 
     SPECIFICATION {

@@ -27,7 +27,7 @@ program taxi-service {
                         ],
         q0 -> q1 [start],
         q1 -> q0 [(car_x == target_x) && (car_y == target_y) $],
-        q1 -> q0 [((cinc <-> cdec) || obstacle) && !((car_x == target_x) && (car_y == target_y)) $],
+        q1 -> q0 [(obstacle) && !((car_x == target_x) && (car_y == target_y)) $],
         q1 -> q0 [!obstacle && !((car_x == target_x) && (car_y == target_y)) $
                          car_x := car_x + 1 if cinc & !cdec && cxory;
                          car_x := car_x - 1 if !cinc & cdec && cxory;
