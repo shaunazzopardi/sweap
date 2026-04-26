@@ -184,7 +184,7 @@ G((count >= 0) -> F(done & count = 0))
 Transitions define how the state variables values are allowed to evolve. sweap supports two styles of transition specification: guarded assignments, and propositional formulas over current and next variable labels:
 
 ```text
-source -> target [ guard ($ <guarded-assignments)|(# formula(V,V')>)]
+source -> target [<guard> ($ <guarded-assignments>)|(# <formula(V,V')>)]
 ```
 
 The guard is optional and if not present the interpretation defaults to `true`. 
