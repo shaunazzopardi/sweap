@@ -15,7 +15,7 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 ### Requirements
 
 - This tool was developed and tested on Ubuntu 22.04.04 LTS.
-- The tool was developed and tested with Python 3.10 (ensure you also have `pip` installed), we recommend using this version.
+- The tool was developed and tested with Python 3.12 (ensure you also have `pip` installed), we recommend using this version.
 - The tool is distributed with several required binaries:
   - `strix` - Strix 21.0.0, https://github.com/meyerphi/strix/releases/tag/21.0.0
   - `cpa.sh` - CPAchecker 2.3, https://gitlab.com/sosy-lab/software/cpachecker/
@@ -79,105 +79,8 @@ python -c "import spot; print(spot.__file__)"
 
 ### Input: Symbolic Synthesis Problems
 
-The input to the tool is a symbolic reactive synthesis problem that specifies the arena as a symbolic automaton or program, and an LTL objective.
+The input to the tool is a symbolic reactive synthesis problem that specifies the arena as a symbolic automaton or program, and an LTL objective. See [./SYNTAX.md](SYNTAX.md) for an overview of the syntax, with examples.
 
-We describe briefly the format of this input file, starting at a high-level. You can find multiple examples in `./benchmarks/sweap`.
-
-The input file is a text file with the following template:
-
-```
-program <name> {
-    STATES {<states>}
-
-    ENVIRONMENT EVENTS {<events>}
-
-    CONTROLLER EVENTS {<events>}
-
-    VALUATION {<valuation>}
-
-    TRANSITIONS {<transitions>}
-
-    SPECIFICATION {<ltl>}
-}
-```
-Find below the grammar in EBNF and regex for each section:
-```
-<name> := [_a-zA-Z][_a-zA-Z0-9$@\_\-]*
-
-<state> := [a-zA-Z0-9@$_-]+
-<states> := <state> : init [, <state>]*
-
-<event> := <name> 
-<events> := <name> [, <name>]*
-
-<num> := (-)?[0-9]+
-<type> := (bool|int|nat|(<num>\.\.<num>))
-<var> := <name>
-<val> := <var> : <type> := <val>
-<valuation> := (<val> [; <val>]*)?
-
-<LIA-predicate> := <var> == <var> | <var> != <var> | <var> < <var> | <var> <= <var> | <var> > <var> | <var> >= <var>
-<formula> := <var> | <LIA-predicate> | !<formula> | <formula> && <formula> | <formula> || <formula> | <formula> -> <formula>
-
-<guard> := formula
-
-<LIA-term> := <var> | <num> | <LIA-term> + <LIA-term> | <LIA-term> - <LIA-term> 
-<assignment> := <var> := <LIA-term>
-
-<transition> := <state> -> <state> [<guard> $ <assignments>]
-<transitions> := (<transition> [, <transition>]*)?
-
-<ltl> := <formula> | !<ltl> | <ltl> && <ltl> | <ltl> || <ltl> | <ltl> -> <ltl> | X (<formula>) | F (<formula>) | G (<formula>) | (<formula>) U (<formula>)
-```
-
-The real format is a bit less strict, e.g., the long form names for types are also parsed, `;` can be used instead of `,`, and `&` and `|` can be used instead of `&&` and `||`.
-
-An important aspect is that we require the defined transitions to be **deterministic**. That is, we require that from every state the guards of each transition are mutually exclusive. Nonetheless, even if the program is non-deterministic, unless the `--debug` flag is used, the tool will not raise an exception. However, in this case refinement is not complete and may not succeed.
-
-#### Example 
-
-Below is an example problem. This essentially captures the arbiter problem, where the environment can request access to a number of resources, and the controller can grant access to each of these. The controller's objective is to eventually grant access to all the requested resources, and not more.
-
-It defines an arbiter with two states (`q0` and `q1`), where `q0` is the initial state. 
-
-It defines one environment events/variables (`request`) and two controller events/variables (`grant` and `finished`). 
-
-The valuation section defines one natural variables `cnt`. 
-
-The transitions section defines the transitions between the states based on the environment and controller events. Note at state `q0` the environment can increase the value of `cnt` by setting request to true, and force a transition to `q1` by setting `request` to false. In state `q1`, when `cnt != 0`, the controller can grant each request by setting `grant` to `true`. If the controller calls `finished` when `cnt` is `0` then the program transitions back to `q0`. At `q1` the transition function is not complete, the interpretation here is that the arena defines when the arena state transforms, any behaviour that does not activate a guard results in stuttering. Note the defined arena is deterministic.
-
-The specification section defines the LTL formula that the controller should satisfy, namely that the controller should always eventually return to state `q0` from state `q1`.
-
-````
-program arbiter {
-    STATES {
-        q0 : init, q1
-    }
-
-    ENVIRONMENT EVENTS {
-        request
-    }
-
-    CONTROLLER EVENTS {
-        grant, finished
-    }
-
-    VALUATION {
-        cnt : natural := 0;
-    }
-
-    TRANSITIONS {
-        q0 -> q0 [request $ cnt := cnt + 1],
-        q0 -> q1 [!request],
-        q1 -> q1 [grant & cnt != 0 $ cnt := cnt - 1],
-        q1 -> q0 [cnt == 0 & finished $]
-    }
-
-    SPECIFICATION {
-        G(q1 -> F q0)
-    }
-}
-````
 
 ### Output Format
 
@@ -191,8 +94,9 @@ Using HOA format allows for interoperability with other tools that rely on this 
 To validate the correctness of the tool we took several measures:
 
   - the output of the tool is model checked against the inputted problem (by default for counterstrategies, and with the `--verify_controller` flag for controllers);
-  - testing (see `./tests/synthesis/test_synthesis` which checks that some synthesis problems, developed to avoid regression, are given the expected verdict); and
-  - comparison of realisability results for the given benchmarks with other tools.
+  - testing (see `./tests/synthesis/test_synthesis` which checks that some synthesis problems, developed to avoid regression, are given the expected verdict);
+  - comparison of realisability results for the given benchmarks with other tools; and
+  - running synthesis on the benchmarks with the `--debug` flag which performs synthesis with several additional checks (see below).
 
 ### Running the Tool
 
@@ -230,3 +134,4 @@ Other flags may be useful to the interested user:
   - determinism of the arena (i.e., that the guards of the transitions from each state are mutually exclusive);
   - correctness of abstraction refinement; and
   - correctness of certain steps in ISSY translation to sweap problems.
+- ``--log`` outputs a log of the work performed during the synthesis task, including a nuXmv model combining both the arena and the synthesised (counter)strategy, which the user can use to simulate their concurrent execution using nuXmv. 
