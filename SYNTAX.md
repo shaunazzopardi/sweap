@@ -179,6 +179,8 @@ G((count >= 0) -> F(done & count = 0))
 (!idle) U done
 ```
 
+These are usually of the form `Assumptions -> G Guarantees`, where assumptions and guarantees are LTL formulas are as described above.
+
 ## Transitions
 
 Transitions define how the state variables values are allowed to evolve. sweap supports two styles of transition specification: guarded assignments, and propositional formulas over current and next variable labels:
