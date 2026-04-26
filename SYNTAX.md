@@ -446,7 +446,7 @@ The canonical arena for this example will have the following transition section:
 q0 -> q0_minigame_0 [true $ x := x + 2, y := x],
 q0_minigame_0 -> q0_minigame_0 [!minigame_event_0 $ x := x + 1, y := x],
 q0_minigame_0 -> q1 [minigame_event_0],
-q1 -> q1_minigame_1 [true $ x := x - 1, y := x],
+q1 -> q1_minigame_0 [true $ x := x - 1, y := x],
 q1_minigame_0 -> q1_minigame_0 [!minigame_event_0 $ x := x - 1, y := y],
 q1_minigame_0 -> q1 [minigame_event_0]
 ```
