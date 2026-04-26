@@ -157,16 +157,20 @@ class BinaryRepMap(dict):
 
     @classmethod
     def build_binary_rep(cls, vars_to_encode, label: str):
-        if len(vars_to_encode) == 0:
+        if not isinstance(vars_to_encode, list):
+            vars = sorted(vars_to_encode)
+        else:
+            vars = vars_to_encode
+        if len(vars) == 0:
             raise Exception("Cannot create binary representation of empty set")
 
-        width = max(1, math.ceil(math.log(len(vars_to_encode), 2)))
+        width = max(1, math.ceil(math.log(len(vars), 2)))
         bin_vars = [Variable(label + str(i)) for i in range(0, width)]
         rep = cls(bin_vars=bin_vars)
         base = "{0:0" + str(width) + "b}"
         binary_codes = {}
 
-        for i, v in enumerate(vars_to_encode):
+        for i, v in enumerate(vars):
             binary_code = base.format(i)
             binary_codes[v] = binary_code
             bit_formula = None
@@ -178,8 +182,8 @@ class BinaryRepMap(dict):
 
         # For non-power-of-two domains, replace the last encoding by the
         # complement of all previous encodings to keep it exact and compact.
-        if len(vars_to_encode) > 2 and len(vars_to_encode) < 2**width:
-            last = vars_to_encode[-1]
+        if len(vars) > 2 and len(vars) < 2**width:
+            last = vars[-1]
             others = [k for k in rep.keys() if k != last]
             rep[last] = rep._normalise_boolean_formula(
                 neg(rep.disjunct_for_keys(others, use_complement=False))
