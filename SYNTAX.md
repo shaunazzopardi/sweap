@@ -97,6 +97,8 @@ int, integer
 [lower..upper], (lower..upper], [lower..upper), (lower..upper)
 ```
 
+Ranges are always integer ranges.
+
 ### Input and Output Variables
 
 `INPUTS` and `OUTPUTS` declare variables controlled by the environment and
