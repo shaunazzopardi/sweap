@@ -40,7 +40,10 @@ def setup_argument_parser() -> ArgumentParser:
     input_group.add_argument("--tsl", dest="tsl", help="Path to a .tsl file.", type=str)
     input_group.add_argument("--rpg", dest="rpg", help="Path to a .rpg file.", type=str)
     input_group.add_argument(
-        "--issy", dest="issy", help="Path to a .issy file.", type=str
+        "--issy",
+        dest="issy",
+        help="Path to a .issy file. Behaviour is defined only for valid ISSY files.",
+        type=str,
     )
 
     action_group = parser.add_mutually_exclusive_group()
