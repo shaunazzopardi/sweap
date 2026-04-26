@@ -851,6 +851,19 @@ class MinigameFiller:
                         return False, set()
                 return True, local_consts
 
+            stop_preds = []
+            seen_stop_preds = set()
+
+            def _add_stop_preds_for_next_of(v: Variable):
+                next_v = Variable(v.name + "'")
+                for pred in mg_preds:
+                    if next_v in pred.variablesin():
+                        pred_str = str(pred)
+                        if pred_str in seen_stop_preds:
+                            continue
+                        seen_stop_preds.add(pred_str)
+                        stop_preds.append(pred)
+
             one_step_const_candidates = {}
             for u in non_determined_updates:
                 v = u.left
@@ -868,9 +881,11 @@ class MinigameFiller:
                 if self.symbol_table[str(u.left)] == BOOLEAN:
                     bool_updates.add(v)
                     unrestricted_updates.append(u)
+                    _add_stop_preds_for_next_of(v)
                     continue
 
                 unrestricted_updates.append(u)
+                _add_stop_preds_for_next_of(v)
                 local_ok, local_consts = _collect_local_next_consts(v)
                 candidate_consts = set(ltl_cmp_consts.get(str(v), set()))
                 candidate_consts.update(update_consts.get(str(v), set()))
@@ -1012,7 +1027,10 @@ class MinigameFiller:
 
             stop_prop = conjunct_formula_set(
                 sorted(
-                    (p.replace_formulas(to_replace_preds).simplify() for p in mg_preds),
+                    (
+                        p.replace_formulas(to_replace_preds).simplify()
+                        for p in stop_preds
+                    ),
                     key=str,
                 )
             ).simplify()
@@ -1361,6 +1379,11 @@ class MinigameFiller:
         self._assert_no_conflicting_transitions(
             new_trans, self.symbol_table, minigame_states, self.new_con_events
         )
+
+        if config.Config.getConfig().debug:
+            for t in new_trans:
+                if not sat(t.condition, self.program.symbol_table):
+                    raise Exception("Transition condition is unsatisfiable: " + str(t))
 
         return self._finalise_with_minigames_program(
             new_trans=new_trans,
