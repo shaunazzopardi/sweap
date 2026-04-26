@@ -44,7 +44,7 @@ OBJECTIVE        (also accepts SPECIFICATION)
 ```
 
 Commas and semicolons are both accepted as separators in declaration lists and
-transition lists. A trailing comma or semicolon is usually accepted.
+transition lists. A trailing comma or semicolon is accepted.
 
 ## Names
 
@@ -88,9 +88,7 @@ CONTROL STATES {
 
 ## Variables
 
-Accepted variable types are boolean or integers.
-
-Supported types:
+Accepted variable types are the following:
 
 ```text
 bool, boolean
