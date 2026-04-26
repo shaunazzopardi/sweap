@@ -61,6 +61,53 @@ from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
+def is_otherwise_transition(transition: Transition) -> bool:
+    return str(transition.condition) == "otherwise"
+
+
+def materialize_otherwise_transitions(
+    transitions: list[Transition], symbol_table
+) -> list[Transition]:
+    otherwise_by_src = {}
+    for t in transitions:
+        if is_otherwise_transition(t):
+            otherwise_by_src.setdefault(t.src, set()).add(t)
+
+    duplicate_srcs = [str(src) for src, trs in otherwise_by_src.items() if len(trs) > 1]
+    if duplicate_srcs:
+        raise Exception(
+            "Too many 'otherwise' transitions from state(s): "
+            + ", ".join(sorted(duplicate_srcs))
+        )
+
+    if len(otherwise_by_src) == 0:
+        return transitions
+
+    resolved_transitions = []
+    for t in transitions:
+        if not is_otherwise_transition(t):
+            resolved_transitions.append(t)
+            continue
+
+        fallback_condition = neg(
+            disjunct_formula_set(
+                [tt.condition for tt in transitions if tt.src == t.src and tt is not t]
+            )
+        )
+        if sat(fallback_condition, symbol_table):
+            resolved_transitions.append(
+                Transition(
+                    t.src,
+                    fallback_condition,
+                    t.action,
+                    t.output,
+                    t.tgt,
+                )
+            )
+
+    return resolved_transitions
+
+
 class Program:
     def __init__(
         self,
@@ -388,55 +435,10 @@ class Program:
         else:
             return transition.add_condition(conjunct_formula_set(constraints))
 
-    @staticmethod
-    def _is_otherwise_transition(transition: Transition) -> bool:
-        return str(transition.condition) == "otherwise"
-
     def _materialize_otherwise_transitions(self) -> None:
-        otherwise_by_src = {}
-        for t in self.transitions:
-            if self._is_otherwise_transition(t):
-                otherwise_by_src.setdefault(t.src, set()).add(t)
-
-        duplicate_srcs = [
-            str(src) for src, trs in otherwise_by_src.items() if len(trs) > 1
-        ]
-        if duplicate_srcs:
-            raise Exception(
-                "Too many 'otherwise' transitions from state(s): "
-                + ", ".join(sorted(duplicate_srcs))
-            )
-
-        if len(otherwise_by_src) == 0:
-            return
-
-        resolved_transitions = []
-        for t in self.transitions:
-            if not self._is_otherwise_transition(t):
-                resolved_transitions.append(t)
-                continue
-
-            fallback_condition = neg(
-                disjunct_formula_set(
-                    [
-                        tt.condition
-                        for tt in self.transitions
-                        if tt.src == t.src and tt is not t
-                    ]
-                )
-            )
-            if sat(fallback_condition, self.symbol_table):
-                resolved_transitions.append(
-                    Transition(
-                        t.src,
-                        fallback_condition,
-                        t.action,
-                        t.output,
-                        t.tgt,
-                    )
-                )
-
-        self.transitions = resolved_transitions
+        self.transitions = materialize_otherwise_transitions(
+            self.transitions, self.symbol_table
+        )
 
     def is_finite_state(self):
         return all(is_finite(type_obj) for type_obj in self.symbol_table.values())

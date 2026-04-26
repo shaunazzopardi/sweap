@@ -19,9 +19,16 @@ from parsing.util.game_transition_utils import (
     _resolve_nondeterminism,
     formula_to_transitions,
 )
-from programs.program import Program, fill_in_minigames
+from programs.program import (
+    Program,
+    fill_in_minigames,
+    materialize_otherwise_transitions,
+)
 from programs.transition import Transition
-from programs.util import guarded_action_transitions_to_normal_transitions
+from programs.util import (
+    guarded_action_transitions_to_normal_transitions,
+    except_with_non_det_trans,
+)
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.nondet import NonDeterministic
@@ -76,9 +83,14 @@ def program_parser():
     ltl_spec = section_values.get("ltl_spec")
 
     program_var_names = {v[0] for v in initial_vals}
+    in_out_var_names = {ev.name for ev, _ in env + con}
     for t in transitions:
         if isinstance(t.action, Formula):
-            _validate_program_action_formula_vars(t.action, program_var_names)
+            _validate_program_action_formula_vars(
+                t.action,
+                program_var_names,
+                in_out_var_names,
+            )
 
     state_vars = [Variable(v[0]) for v in initial_vals]
     if len(set(env + con + states + state_vars)) < len(env + con + states + state_vars):
@@ -102,6 +114,10 @@ def program_parser():
         )
         for t in transitions
     ]
+    otherwise_symbol_table = dict(guard_symbol_table)
+    otherwise_symbol_table.update({state_name: BOOLEAN for state_name in states})
+    transitions = materialize_otherwise_transitions(transitions, otherwise_symbol_table)
+
     transition_groups = [None] * len(transitions)
     guarded_action_args = []
     guarded_action_indices = []
@@ -110,9 +126,9 @@ def program_parser():
     for i, t in enumerate(transitions):
         if isinstance(t.action, Formula):
             had_complex_action = True
-            transition_groups[i] = lower_program_action_formula_transition(
-                t, initial_vals
-            )
+            t.pred_upgrades = t.action
+            t.action = []
+            transition_groups[i] = [t]
         else:
             guarded_action_indices.append(i)
             guarded_action_args.append((t, initial_vals, env, con, symbol_table))
@@ -146,12 +162,31 @@ def program_parser():
         con,
         transition_completion=completion,
     )
-    if (
-        not had_complex_action
-        and getattr(program, "added_completion_lose_transitions", False)
+
+    if not program.deterministic:
+        print(str(program))
+        except_with_non_det_trans(program)
+
+    if not had_complex_action and getattr(
+        program, "added_completion_lose_transitions", False
     ):
         ltl_spec = conjunct(ltl_spec, G(neg(Variable("lose"))))
     if had_complex_action:
+        new_transitions = []
+        for t in program.transitions:
+            new_transitions.extend(
+                lower_program_action_formula_transition(t, initial_vals)
+            )
+        program = Program(
+            program_name,
+            states_for_program,
+            initial_state,
+            initial_vals,
+            new_transitions,
+            env,
+            con,
+            transition_completion=completion,
+        )
         program, ltl_spec = postprocess_complex_action_program(program, ltl_spec)
     ltl_spec = ltl_spec.replace_formulas(
         {Variable(s): Value(BoolAtoms.FALSE) for s in states if s not in program.states}
@@ -479,44 +514,64 @@ def assignments():
 
 
 def _validate_program_action_formula_vars(
-    formula: Formula, program_var_names: set[str] | None
+    formula: Formula,
+    program_var_names: set[str] | None,
+    in_out_now_var_names: set[str] | None = None,
 ) -> None:
     if program_var_names is None:
         return
+    if in_out_now_var_names is None:
+        in_out_now_var_names = set()
 
-    invalid = sorted(
-        {
-            str(v)
-            for v in formula.variablesin()
-            if (
-                str(v.prev_rep()) if isinstance(v, Variable) and v.is_next() else str(v)
-            )
-            not in program_var_names
-        }
-    )
-    if invalid:
+    invalid_next = set()
+    invalid_now = set()
+    for v in formula.variablesin():
+        if not isinstance(v, Variable):
+            continue
+        if v.is_next():
+            if str(v.prev_rep()) not in program_var_names:
+                invalid_next.add(str(v))
+            continue
+        if str(v) not in program_var_names and str(v) not in in_out_now_var_names:
+            invalid_now.add(str(v))
+
+    if invalid_next or invalid_now:
+        invalid = sorted(invalid_next | invalid_now)
         raise Exception(
-            "Program action formula may only reference program variables (now or next): "
-            + ", ".join(invalid)
+            "Program action formula may only reference local state variables (now/next) "
+            "and input/output variables (now only): " + ", ".join(invalid)
         )
 
 
 def parse_program_action_formula_text(
-    text: str, program_var_names: set[str] | None = None
+    text: str,
+    program_var_names: set[str] | None = None,
+    in_out_now_var_names: set[str] | None = None,
 ) -> Formula:
     stripped = text.strip()
     formula = true() if stripped == "" else string_to_program_action_formula(stripped)
-    _validate_program_action_formula_vars(formula, program_var_names)
+    _validate_program_action_formula_vars(
+        formula,
+        program_var_names,
+        in_out_now_var_names,
+    )
     return formula
 
 
-def make_program_action_formula_parser(program_var_names: set[str] | None = None):
+def make_program_action_formula_parser(
+    program_var_names: set[str] | None = None,
+    in_out_now_var_names: set[str] | None = None,
+):
     @generate
     def program_action_formula_parser():
         raw_value = yield parsec.optional(regex(r"(?s)(?:(?!>>|\]).)+"), "")
         yield spaces()
         try:
-            return parse_program_action_formula_text(raw_value, program_var_names)
+            return parse_program_action_formula_text(
+                raw_value,
+                program_var_names,
+                in_out_now_var_names,
+            )
         except Exception as e:
             yield parsec.fail_with(str(e))
 
@@ -528,14 +583,34 @@ def make_transition_normal_action_parser():
     def transition_normal_action_parser():
         yield string("$") >> spaces()
         empty_body = yield parsec.optional(
-            parsec.lookahead(parsec.try_choice(string(">>"), string("]"))),
+            parsec.lookahead(string("]")),
             None,
         )
         if empty_body is not None:
             return []
-        raw_value = yield parsec.optional(regex(r"(?s)(?:(?!>>|\]).)+"), "")
+        raw_value = yield parsec.optional(regex(r"(?s)(?:(?!\]).)+"), "")
         try:
-            return (assignments << parsec.eof()).parse(raw_value.strip().rstrip(",;"))
+            actions = (assignments << parsec.eof()).parse(
+                raw_value.strip().rstrip(",;")
+            )
+            updated_vars = {}
+            for act in actions:
+                if not isinstance(act[1], Value):
+                    continue
+                if act[0].left in updated_vars.keys():
+                    e = (
+                        "Variable "
+                        + str(act[0].left)
+                        + " assigned multiple times: "
+                        + str(updated_vars[act[0].left])
+                        + " and "
+                        + str(act[0])
+                    )
+                    print(e)
+                    yield parsec.fail_with(e)
+                else:
+                    updated_vars[act[0].left] = act[0]
+            return actions
         except Exception as e:
             yield parsec.fail_with(str(e))
 
@@ -544,6 +619,7 @@ def make_transition_normal_action_parser():
 
 def make_transition_special_action_parser(
     program_var_names: set[str] | None = None,
+    in_out_now_var_names: set[str] | None = None,
 ):
     @generate
     def transition_special_action_parser():
@@ -553,8 +629,15 @@ def make_transition_special_action_parser(
             None,
         )
         if empty_body is not None:
-            return parse_program_action_formula_text("", program_var_names)
-        formula = yield make_program_action_formula_parser(program_var_names)
+            return parse_program_action_formula_text(
+                "",
+                program_var_names,
+                in_out_now_var_names,
+            )
+        formula = yield make_program_action_formula_parser(
+            program_var_names,
+            in_out_now_var_names,
+        )
         yield spaces()
         yield parsec.optional(regex("(,|;)") >> spaces())
         yield parsec.lookahead(parsec.try_choice(string(">>"), string("]")))
@@ -577,13 +660,13 @@ def lower_program_action_formula_transition(
     transition: Transition,
     initial_vals: list[tuple[str, object] | tuple[str, object, object]],
 ) -> list[Transition]:
-    if not isinstance(transition.action, Formula):
+    if not isinstance(transition.pred_upgrades, Formula):
         return [transition]
 
     symbol_table = _program_action_symbol_table(initial_vals)
     program_vars = {Variable(v[0]) for v in initial_vals}
     cond_updates = formula_to_transitions(
-        strip_mathexpr(transition.action), [], symbol_table
+        strip_mathexpr(transition.pred_upgrades), [], symbol_table
     )
     covered_conditions = [cond for cond, _ in cond_updates]
 

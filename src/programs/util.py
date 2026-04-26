@@ -713,6 +713,32 @@ def is_deterministic(program):
     return True
 
 
+def except_with_non_det_trans(program):
+    env_state_dict = {s: [] for s in program.states}
+    for t in program.transitions:
+        env_state_dict.setdefault(t.src, []).append(t.condition)
+
+    symbol_table = program.symbol_table
+
+    for s, conds in env_state_dict.items():
+        # O(n) SAT checks instead of O(n^2):
+        # if cond_i overlaps with disjunction of previous guards, state is nondeterministic.
+        covered = false()
+        for cond in conds:
+            if sat(conjunct(cond, covered), symbol_table):
+                for d in covered.sub_formulas_up_to_associativity():
+                    if sat(conjunct(cond, d), symbol_table):
+                        raise Exception(
+                            "Found non-deterministic transitions with overlapping guards: "
+                            + str(cond)
+                            + " and "
+                            + str(d)
+                            + " in state "
+                            + str(s)
+                        )
+            covered = disjunct(covered, cond)
+
+
 def safe_update_list_vals(d, k, v_arr):
     if k in d.keys():
         d[k] = d[k] + v_arr
