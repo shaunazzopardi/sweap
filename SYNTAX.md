@@ -183,15 +183,17 @@ These are usually of the form `Assumptions -> G Guarantees`, where assumptions a
 
 ## Transitions
 
-Transitions define how the state variables values are allowed to evolve. sweap supports two styles of transition specification: guarded assignments, and propositional formulas over current and next variable labels:
+Transitions define how the state variables values are allowed to evolve. sweap supports two styles of transition specification: guarded assignments, and transition formulas (propositional formulas over current and next variable labels):
 
 ```text
-source -> target [<guard> ($ <guarded-assignments>)|(# <formula(V,V')>)]
+source -> target [<guard> ($ <guarded-assignments>)|(# <transition-formula>)]
 ```
 
-The guard is optional and if not present the interpretation defaults to `true`. 
+The guard is optional and if not present the interpretation defaults to `true`.
 
-Semantically, the label of a transition is a function that given a valuation of the current variables (inputs, outputs, and state variables) returns a set of valuations of the next state variables that are allowed by the transition. The guard is a propositional formula over current variables that restricts when the transition can be taken. The guarded assignments or `#` formula further restrict the allowed next valuations for the transition.
+Note the two flavours of defining transitions can be used in the same arena definition.
+
+Semantically, the label of a transition is a function that given a valuation of the current variables (inputs, outputs, and state variables) returns a set of valuations of the next state variables that are allowed by the transition. The guard is a propositional formula over current variables that restricts when the transition can be taken. The guarded assignments or transition formula further restrict the allowed next valuations for the transition.
 
 ### Canonical Transitions
 
@@ -264,9 +266,9 @@ s0 -> s2 [otherwise $ x := x + 1]
 It is expanded to the negation of the disjunction of the other guards from the same source state.
 At most one `otherwise` transition is allowed per source state.
 
-### Formulas over Current and Next Variables
+### Transition Formula
 
-`#` introduces a relational action formula over current variable values and next state variable values. Use a
+`#` introduces a transition formula over current variable values and next state variable values. Use a
 prime suffix to refer to the next value of a state variable.
 
 Example transitions:
@@ -279,10 +281,10 @@ q0 -> q1 [x > 0 # (x' = 0) | (x' = 1)]
 These propositional formulas may reference state variables (either current
 or primed next values), and input and output variables (only current value).
 
-When such a formula does not constrain a state variable, that
+When a transition formula does not constrain a state variable, that
 variable is treated as **non-deterministically updated, not as an identity assignment**. Note this differs from the guarded assignment style, where unconstrained variables are treated as identity assignments. This allows more concise specification of general relational constraints over next variables, but also requires care to avoid unintentionally leaving variables unconstrained.
 
-An empty `#` therefore allows any next state for all state variables. This means that the following two transitions have different semantics:
+Specifying no formula after `#` therefore allows any next state for all state variables. This means that the following two transitions have different semantics:
 
 ```text
 q0 -> q1 [true #]
@@ -331,7 +333,7 @@ These two options are the only currently supported options. They specify how to 
 
 If no `completion` option is specified, incomplete transition coverage results in an error.
 
-## Complete Example
+## Completion example
 
 ```text
 program small_counter {
@@ -358,7 +360,7 @@ program small_counter {
     }
 
     OBJECTIVE {
-        G(request -> F grant)
+        G((F request) -> (F cnt == 0))
     }
 }
 ```
@@ -366,8 +368,9 @@ program small_counter {
 The canonical arena for this example will add the following transitions:
 
 ```text
-idle -> idle [!request]
-busy -> busy [!grant | count = 0]
+idle -> idle [!request $ count := count; served := served]
+busy -> busy [!grant | count = 0 count := count; served := served]
+```
 
 ## Guarded-Assignment Example
 
@@ -397,7 +400,7 @@ program robot_step {
     }
 
     OBJECTIVE {
-        G(move -> F(x = 0))
+        (F G dec) -> F (x = 0)
     }
 }
 ```
@@ -410,7 +413,7 @@ q -> q [move & dec & x > 0 $ x := x - 1],
 q -> q [!((move & inc) | (move & dec & x > 0)) $]
 ```
 
-## Relational `#` Example
+## Transition Formula Example
 
 ```text
 program relational_step {
@@ -446,9 +449,9 @@ The canonical arena for this example will have the following transition section:
 q0 -> q0_minigame_0 [true $ x := x + 2, y := x],
 q0_minigame_0 -> q0_minigame_0 [!minigame_event_0 $ x := x + 1, y := x],
 q0_minigame_0 -> q1 [minigame_event_0],
-q1 -> q1_minigame_0 [true $ x := x - 1, y := x],
+q1 -> q1_minigame_0 [true $ x := x - 1, y := y],
 q1_minigame_0 -> q1_minigame_0 [!minigame_event_0 $ x := x - 1, y := y],
-q1_minigame_0 -> q1 [minigame_event_0]
+q1_minigame_0 -> q1 [minigame_event_0 $ x := x; y := y]
 ```
 
 Note, if the controller has boolean outputs, we re-use these outputs as the minigame events, so the translation of `#` formulas may not always introduce fresh outputs. Given we massage the LTL objective to ignore behaviour at minigame state equirealisability is preserved, while avoiding introducing unnecessary fresh controller outputs (which would increase the complexity of synthesis).
