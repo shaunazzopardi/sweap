@@ -28,7 +28,7 @@ arena <name> {
 ```
 
 The top-level sections may appear in any order. Section names must not be
-duplicated. The parser requires control states, inputs, outputs, local state
+duplicated. The parser requires control states, inputs, outputs, state
 variables, and transitions. In normal synthesis usage, also provide an
 `OBJECTIVE` section.
 
@@ -72,7 +72,7 @@ matching reserved internal patterns such as `true`, `false`, `lose`, `pred_*`,
 `bin_*`, `guard_*`, `act_*`, `eq_con_*`, `sat_con_*`, and
 `minigame_event_*`.
 
-Control-state names, event names, and local state-variable names must be
+Control-state names, input names, output names, and state variable names must be
 globally unique.
 
 ## Control States
@@ -124,7 +124,7 @@ Empty `INPUTS` and `OUTPUTS` sections are accepted.
 
 ### State Variables
 
-`STATE VARIABLES` declares local state variables owned by the program, for example:
+`STATE VARIABLES` declares state variables owned by the program, for example:
 
 ```text
 STATE VARIABLES {
@@ -184,18 +184,20 @@ G((count >= 0) -> F(done & count = 0))
 Transitions define how the state variables values are allowed to evolve. sweap supports two styles of transition specification: guarded assignments, and propositional formulas over current and next variable labels:
 
 ```text
-source -> target [ guard $ <guarded-assignments|formula(V,V')> ]
+source -> target [ guard ($ <guarded-assignments)|(# formula(V,V')>)]
 ```
 
 The guard is optional and if not present the interpretation defaults to `true`. 
 
+Semantically, the label of a transition is a function that given a valuation of the current variables (inputs, outputs, and state variables) returns a set of valuations of the next state variables that are allowed by the transition. The guard is a propositional formula over current variables that restricts when the transition can be taken. The guarded assignments or `#` formula further restrict the allowed next valuations for the transition.
+
 ### Canonical Transitions
 
-The high-level syntax, while more concise, is not the canonical arena format used internally by sweap. The canonical arena transitions are simpler, consisting of a source state, target state, a guard formula over current variables only, and explicit assignments for each local state variables. 
+The high-level syntax, while more concise, is not the canonical arena format used internally by sweap. The canonical arena transitions are simpler, consisting of a source state, target state, a guard formula over current variables only, and explicit assignments for each state variables. 
 
 In a canonical arena, given a set of transitions from a state `s`, with guards `g_0`, ..., `g_n`, these guards must be mutually exclusive, and they must cover all possible valuations of the variables in `s` (i.e. `g_0 | ... | g_n` must be a tautology). 
 
-Non-mutually exclusive guards introduce nondeterminism, and will result in a parsing error. A user can manually deal with this non-determinism by introducing new input or output variables to allow the environment or controller to choose between the transitions.
+Non-mutually exclusive guards introduce non-determinism, and will result in a parsing error. A user can manually deal with this non-determinism by introducing new input or output variables to allow the environment or controller to choose between the transitions.
 
 For convenience, sweap allows incomplete guards, but the user must specify how to complete them with the `completion` option (see below). 
 
@@ -214,7 +216,7 @@ x := x + 1
 enabled := request & x > 0
 ```
 
-The left-hand side of an assignment must be a local state variable. The right-hand side is a formula over current input, output, and/or state variables; it cannot reference next variables. For boolean variables, it is any boolean formula over the mentioned variables (including LIA predicates). For integer variables, the right-hand side must be an arithmetic expression over the mentioned variables, using addition, subtraction, and negation.
+The left-hand side of an assignment must be a state variable. The right-hand side is a formula over current input, output, and/or state variables; it cannot reference next variables. For boolean variables, it is any boolean formula over the mentioned variables (including LIA predicates). For integer variables, the right-hand side must be an arithmetic expression over the mentioned variables, using addition, subtraction, and negation.
 
 Assignments are optional. When an assignment for a state variable is not defined, the interpretation defaults to the identity assignment. For a list of assignments, a variable can only be assigned once.
 
@@ -263,7 +265,7 @@ At most one `otherwise` transition is allowed per source state.
 ### Formulas over Current and Next Variables
 
 `#` introduces a relational action formula over current variable values and next state variable values. Use a
-prime suffix to refer to the next value of a local variable.
+prime suffix to refer to the next value of a state variable.
 
 Example transitions:
 
@@ -272,13 +274,20 @@ q0 -> q1 [x <= 0 # (x' = x + 1) & (y' = x)]
 q0 -> q1 [x > 0 # (x' = 0) | (x' = 1)]
 ```
 
-These propositional formulas may reference local state variables (either current
+These propositional formulas may reference state variables (either current
 or primed next values), and input and output variables (only current value).
 
-When such a formula does not constrain a local variable, that
-variable is treated as **nondeterministically updated, not as an identity update**. Note this differs from the guarded assignment style, where unconstrained variables are treated as identity updates. This allows more concise specification of general relational constraints over next variables, but also requires care to avoid unintentionally leaving variables unconstrained.
+When such a formula does not constrain a state variable, that
+variable is treated as **non-deterministically updated, not as an identity update**. Note this differs from the guarded assignment style, where unconstrained variables are treated as identity updates. This allows more concise specification of general relational constraints over next variables, but also requires care to avoid unintentionally leaving variables unconstrained.
 
-An empty `#` therefore allows any next local state for all local variables.
+An empty `#` therefore allows any next state for all state variables. This means that the following two transitions have different semantics:
+
+```text
+q0 -> q1 [true #]
+q0 -> q1 [true $]
+```
+
+Note that `q0 -> q1 [true]` is interpreted as `q0 -> q1 [true $]`, so it also allows only identity updates, and does not allow arbitrary next states.
 
 Equality constraints such as `x' = x + 1` are lowered to ordinary updates.
 Branching formulas may lower to several transitions. More general relational
@@ -299,6 +308,8 @@ q0_minigame_0 -> q1 [minigame_event_0],
 ```
 
 If the objective was `F (x = 10)`, it would be automatically modified to `F (!q0_minigame_0 & x = 10) & G(F(!q0_minigame_0))`.
+
+When a variable is unconstrained by the `#` formula, but from the target state onwards this variable is unused and it is also unused in the objective, we do not introduce a minigame for it. Instead we stutter this variable. This creates a game that is equirealisable to the original specification. However, this is not an equivalent specification, although the strategy can be trivially transformed back to a strategy for the original specification.
 
 ## Transition Options
 
