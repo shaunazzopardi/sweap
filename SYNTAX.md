@@ -132,7 +132,7 @@ STATE VARIABLES {
     mode : [0..3] := 0;
     enabled : bool := false;
     unconstrained : integer;
-    arbitrary_start : integer := *;
+    arbitrary_start : integer;
 }
 ```
 
