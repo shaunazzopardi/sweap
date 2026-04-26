@@ -625,7 +625,7 @@ def make_transition_special_action_parser(
     def transition_special_action_parser():
         yield string("#") >> spaces()
         empty_body = yield parsec.optional(
-            parsec.lookahead(parsec.try_choice(string(">>"), string("]"))),
+            parsec.lookahead(string("]")),
             None,
         )
         if empty_body is not None:
@@ -668,7 +668,6 @@ def lower_program_action_formula_transition(
     cond_updates = formula_to_transitions(
         strip_mathexpr(transition.pred_upgrades), [], symbol_table
     )
-    covered_conditions = [cond for cond, _ in cond_updates]
 
     lowered = []
     for cond, raw_update_sets in cond_updates:
