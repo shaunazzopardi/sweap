@@ -19,7 +19,7 @@ arena <name> {
 
     OUTPUTS { <output-events> }
 
-    STATE VARIABLES { <local-state-variables> }
+    STATE VARIABLES { <state-variables> }
 
     TRANSITIONS [<options>] { <transitions> }
 
