@@ -229,13 +229,13 @@ busy -> busy [$ count := count + 1]
 busy -> idle [done $]
 ```
 
-Multiple updates may be separated by commas or semicolons:
+Multiple assignments may be separated by commas or semicolons:
 
 ```text
 q0 -> q1 [request $ count := count + 1; enabled := true]
 ```
 
-An update can have its own condition using the literal token ` if `:
+Assignments of the same variable can be specified under their own condition using the literal token ` if `:
 
 ```text
 q -> q [true $
@@ -245,8 +245,8 @@ q -> q [true $
 ]
 ```
 
-For multiple guarded updates to the same variable, the parser treats them in
-order: later updates only apply where earlier guards for that same variable did
+For multiple guarded assignments to the same variable, the parser treats them in
+order: later assignments only apply where earlier guards for that same variable did
 not apply. If none applies, the variable is left unchanged by normal action
 completion.
 
@@ -278,7 +278,7 @@ These propositional formulas may reference state variables (either current
 or primed next values), and input and output variables (only current value).
 
 When such a formula does not constrain a state variable, that
-variable is treated as **non-deterministically updated, not as an identity update**. Note this differs from the guarded assignment style, where unconstrained variables are treated as identity updates. This allows more concise specification of general relational constraints over next variables, but also requires care to avoid unintentionally leaving variables unconstrained.
+variable is treated as **non-deterministically updated, not as an identity assignment**. Note this differs from the guarded assignment style, where unconstrained variables are treated as identity assignments. This allows more concise specification of general relational constraints over next variables, but also requires care to avoid unintentionally leaving variables unconstrained.
 
 An empty `#` therefore allows any next state for all state variables. This means that the following two transitions have different semantics:
 
@@ -287,9 +287,9 @@ q0 -> q1 [true #]
 q0 -> q1 [true $]
 ```
 
-Note that `q0 -> q1 [true]` is interpreted as `q0 -> q1 [true $]`, so it also allows only identity updates, and does not allow arbitrary next states.
+Note that `q0 -> q1 [true]` is interpreted as `q0 -> q1 [true $]`, so it also allows only identity assignments, and does not allow arbitrary next states.
 
-Equality constraints such as `x' = x + 1` are lowered to ordinary updates.
+Equality constraints such as `x' = x + 1` are lowered to ordinary assignments.
 Branching formulas may lower to several transitions. More general relational
 constraints over next variables can introduce fresh internal (minigame) states, to allow the controller to choose any value of a next variable that satisfies the constraint. Thus, a transition that appears to take one time step in the original specification may take several time steps in the canonical arena. The LTL objective is modified automatically to ignore these extra time steps, maintaining equirealisability of the original specification.
 
@@ -367,7 +367,7 @@ The canonical arena for this example will add the following transitions:
 idle -> idle [!request]
 busy -> busy [!grant | count = 0]
 
-## Guarded-Update Example
+## Guarded-Assignment Example
 
 ```text
 program robot_step {
