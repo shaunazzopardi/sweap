@@ -24,7 +24,7 @@ from programs.program import (
     fill_in_minigames,
 )
 from programs.transition import Transition
-from programs.util import refine_init_values
+from programs.util import refine_init_values, except_with_non_det_trans
 from prop_lang.biop import BiOp
 from prop_lang.factory import (
     create_update,
@@ -1689,9 +1689,10 @@ def _process_pipeline_post_stage1(
         if post_cross_lose_var:
             lose_var = post_cross_lose_var
         if not program.deterministic:
-            raise Exception(
+            print(
                 "Program from ISSY parsing is not deterministic after post-cross-product resolution."
             )
+            except_with_non_det_trans(program)
 
     # Stage 4: resolve minigames and finalise formula objectives.
     # we do not need to add minigames at some states:
@@ -1726,7 +1727,9 @@ def _process_pipeline_post_stage1(
         minigame_optimisation_counters.get("minigame_only_inc_or_dec_vars", 0),
     )
     if config.Config.getConfig().debug and not program.deterministic:
-        raise Exception("Program is non-deterministic after minigame filling.")
+        print("Program is non-deterministic after minigame filling.")
+        except_with_non_det_trans(program)
+
     if len(games) == 0 and len(minigame_states) == 0:
         (
             program,
