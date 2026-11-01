@@ -275,7 +275,10 @@ def prog_transition_indices_and_state_from_ce(
             cs_state = {}
             for key, value in dic.items():
                 ckey = _canonical_key(key)
-                if ckey.split("_prev")[0] in program_alphabet:
+                base_key = ckey
+                while base_key.endswith("_prev") and base_key not in program_alphabet:
+                    base_key = base_key.removesuffix("_prev")
+                if base_key in program_alphabet:
                     program_state[ckey] = value
                 elif (
                     ckey in cs_alphabet

@@ -64,10 +64,11 @@ class Variable(Atom):
 
         if cache and self.smt_representation:
             return self.smt_representation
-        if self.name in symbol_table.keys():
-            type = symbol_table[self.name]
-        elif self.name.split("_prev")[0] in symbol_table.keys():
-            type = symbol_table[self.name.split("_prev")[0]]
+        type_name = self.name
+        while type_name not in symbol_table and type_name.endswith("_prev"):
+            type_name = type_name.removesuffix("_prev")
+        if type_name in symbol_table:
+            type = symbol_table[type_name]
         elif self.is_next():
             type = symbol_table[self.prev_rep().name]
         else:
@@ -117,3 +118,6 @@ class Variable(Atom):
 
     def is_next(self):
         return self.name.endswith("'")
+
+    def is_prev(self) -> bool:
+        return self.name.endswith("_prev")

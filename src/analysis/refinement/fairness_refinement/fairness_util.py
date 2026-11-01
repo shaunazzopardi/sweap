@@ -57,7 +57,7 @@ def try_liveness_refinement(
     disagreed_preds_wo_prev = [
         p
         for p in disagreed_on_state[0]
-        if not any("_prev" in str(v) for v in p.variablesin())
+        if not p.has_prev_vars()
     ]
     if len(disagreed_preds_wo_prev) == 0:
         logging.info(
@@ -214,7 +214,7 @@ def liveness_step(
 
     init_valuation = concrete_body[0][1] | concrete_body[0][2]
     last_valuation = concrete_body[-1][1] | concrete_body[-1][2]
-    prev_vars = [v for v in exit_cond.variablesin() if "_prev" in str(v)]
+    prev_vars = [v for v in exit_cond.variablesin() if v.is_prev()]
     exit_cond = ground_predicate_on_vars(
         program, exit_cond, last_valuation, prev_vars, symbol_table
     ).simplify()

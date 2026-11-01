@@ -77,13 +77,13 @@ def effects_to_explicit_automaton_abstraction(predAbs):
                 nextPs_without_tran_preds = set()
                 tran_preds = []
                 for p in nextPs:
-                    if any(v for v in p.variablesin() if "_prev" in str(v)):
+                    if p.has_prev_vars():
                         tran_preds.append(p)
                     else:
                         nextPs_without_tran_preds.add(p)
                 nextPs_with_constants = set()
                 for p in predAbs.abstract_effect_constant[t]:
-                    if any(v for v in p.variablesin() if "_prev" in str(v)):
+                    if p.has_prev_vars():
                         tran_preds.append(p)
                     else:
                         nextPs_with_constants.add(p)
@@ -167,13 +167,13 @@ def effects_to_explicit_automaton_abstraction(predAbs):
                 nextPs_without_tran_preds = set()
                 tran_preds = []
                 for p in nextPs:
-                    if any(v for v in p.variablesin() if "_prev" in str(v)):
+                    if p.has_prev_vars():
                         tran_preds.append(p)
                     else:
                         nextPs_without_tran_preds.add(p)
                 nextPs_with_constants = set()
                 for p in predAbs.abstract_effect_constant[t]:
-                    if any(v for v in p.variablesin() if "_prev" in str(v)):
+                    if p.has_prev_vars():
                         tran_preds.append(p)
                     else:
                         nextPs_with_constants.add(p)

@@ -21,7 +21,7 @@ from prop_lang.variable import Variable
 
 
 def _is_transition_like_predicate_formula(p):
-    return any("_prev" in str(v) for v in p.variablesin())
+    return p.has_prev_vars()
 
 
 def _is_initial_compat_phase(cs_state: dict[str, str]):
@@ -174,7 +174,7 @@ def concretize_transitions(program, indices_and_state_list, incompatible_state):
                     [
                         add_prev_suffix(p)
                         for p in preds_in_state(concretized[-1][2])
-                        if not any(v for v in p.variablesin() if "_prev" in str(v))
+                        if not p.has_prev_vars()
                     ],
                     concretized[-1][2],
                 )

@@ -454,7 +454,7 @@ class ChainPredicate(Predicate):
         return self.single_pred_bin_rep | self.bin_rep
 
     def init_ranking_refinement(self) -> None:
-        if self.is_input or "_prev" in str(self.term):
+        if self.is_input or self.term.has_prev_vars():
             return
         (
             only_updated_by_constants,
