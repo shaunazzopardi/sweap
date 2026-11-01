@@ -883,24 +883,6 @@ def _build_single_intermediate_game_program(
                 for v in vars_not_updated:
                     updates.append(BiOp(v, "=", NonDeterministic()))
 
-                inputs_updates_depend_on = {
-                    i
-                    for u in predicate_upgrades
-                    for i in u.variablesin()
-                    if i in inputs
-                    and len([v for v in u.variablesin() if v.is_next()]) > 1
-                }
-                to_replace = {}
-                for inp in inputs_updates_depend_on:
-                    new_var = Variable("curr_" + inp.name)
-                    to_replace[inp] = new_var
-                    new_state_vars.add(new_var)
-                    symbol_table[str(new_var)] = symbol_table[str(inp)]
-                    updates.append(Update(new_var, inp))
-                predicate_upgrades = [
-                    x.replace_formulas(to_replace) for x in predicate_upgrades
-                ]
-
                 t = Transition(src, cond, updates, [], tgt)
                 t.set_predicate_upgrades(predicate_upgrades)
                 raw_transitions[src].append(t)
