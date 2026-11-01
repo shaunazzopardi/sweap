@@ -10,6 +10,7 @@ from analysis.sat_context import IncrementalSatContext, NonIncrementalSatContext
 
 import config
 from analysis.abstraction.effects_abstraction.abs_util import (
+    merge_overlapping_update_parts,
     update_var_partition_mult,
 )
 from analysis.abstraction.effects_abstraction.scoped_effects_update import (
@@ -1217,32 +1218,7 @@ def compute_abstract_effect_for_guard_update(arg):
     # new_us_part tells which prev update parts to join together
     # old_us_part_to_pred tells us which preds are considered in effects (now and next) of old_us_part
     # effects will be of the form: old_us_part -> (now, [next])
-    # TODO the below can be optimised
-    no_changes = False
-    new_new_part_to_curr_parts = {}
-    while not no_changes:
-        done_parts = set()
-        no_changes = False
-        for us_part1, old_part1 in new_part_to_curr_parts.items():
-            if us_part1 in done_parts:
-                continue
-            no_changes = True
-            new_us_part1 = set()
-            old_us_part1 = set()
-            new_us_part1.update(us_part1)
-            old_us_part1.update(old_part1)
-            done_parts.add(us_part1)
-            for us_part2, old_part2 in new_part_to_curr_parts.items():
-                if us_part2 not in done_parts:
-                    if len(us_part1.intersection(us_part2)) != 0:
-                        done_parts.add(us_part2)
-                        new_us_part1.update(us_part2)
-                        old_us_part1.update(old_part2)
-                        no_changes = False
-
-            new_new_part_to_curr_parts[frozenset(new_us_part1)] = old_us_part1
-
-        new_part_to_curr_parts = new_new_part_to_curr_parts
+    new_part_to_curr_parts = merge_overlapping_update_parts(new_part_to_curr_parts)
 
     if conf.debug:
         # sanity checking, no overlaps in partitions

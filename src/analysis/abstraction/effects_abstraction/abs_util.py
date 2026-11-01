@@ -4,6 +4,27 @@ from analysis.abstraction.effects_abstraction.predicates.Predicate import (
 from prop_lang.util import atomic_predicates
 
 
+def merge_overlapping_update_parts(
+    parts: dict[frozenset, set],
+) -> dict[frozenset, set]:
+    """Merge connected update groups, preserving their original-part provenance."""
+    pending = dict(parts)
+    merged = {}
+    while pending:
+        part, old_parts = pending.popitem()
+        part = set(part)
+        old_parts = set(old_parts)
+        while True:
+            overlapping = [other for other in pending if part.intersection(other)]
+            if not overlapping:
+                break
+            for other in overlapping:
+                part.update(other)
+                old_parts.update(pending.pop(other))
+        merged[frozenset(part)] = old_parts
+    return merged
+
+
 def relevant_vars(g, us):
     preds_in_g = atomic_predicates(g)
     vars_g = set(v for p in preds_in_g for v in p.variablesin())
