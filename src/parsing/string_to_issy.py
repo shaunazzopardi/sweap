@@ -1,6 +1,8 @@
 import re
 import itertools
 import logging
+
+from parsing.reserved_names import reserved_name_mapping, rename_formula
 from dataclasses import dataclass
 
 import parsec
@@ -101,7 +103,7 @@ from parsing.util.issy.reductions.ltl import (
 from pysmt.shortcuts import Exists, Not, Symbol
 from pysmt.typing import BOOL, INT
 
-name_regex = r"(?!(true|false|sys( |\()|if ))[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
+name_regex = r"(?!(?:true|false)(?![_a-zA-Z0-9$@-])|sys( |\()|if )[_a-zA-Z][_a-zA-Z0-9$@_-]*"
 name = regex(name_regex)
 state = regex(r"[a-zA-Z0-9@$_-]+")
 
@@ -1236,19 +1238,49 @@ def process(
     formula_objectives,
     games,
 ) -> tuple[Program, Formula]:
+    declared = [str(v[0]) for v in vars_or_macros]
+    if len(set(declared)) != len(declared):
+        raise Exception("Duplicate Issy variable or macro declarations.")
+    # Location propositions also become variables in the lowered program.
+    declared += [str(loc[0]) for _, _, locs, _ in games for loc in locs]
+    names = reserved_name_mapping(declared)
+    if names:
+        renamed_declarations = []
+        for item in vars_or_macros:
+            if len(item) == 3:
+                v, kind, typ = item
+                renamed_declarations.append((rename_formula(v, names), kind, typ))
+            else:
+                macro_name, body = item
+                renamed_declarations.append((
+                    names.get(macro_name, macro_name), rename_formula(body, names)
+                ))
+        vars_or_macros = renamed_declarations
+        formula_objectives = [rename_formula(f, names) for f in formula_objectives]
+        games = [
+            (kind, names.get(init, init),
+             [(rename_formula(v, names), tag, colour) for v, tag, colour in locs],
+             [(names.get(src, src), rename_formula(f, names), names.get(tgt, tgt))
+              for src, f, tgt in transitions])
+            for kind, init, locs, transitions in games
+        ]
     if len(games) == 0:
-        return _process_formula_only_mode(
+        program, objective = _process_formula_only_mode(
             name_str,
             vars_or_macros,
             formula_objectives,
         )
-
-    return _process_games_mode(
-        name_str,
-        vars_or_macros,
-        formula_objectives,
-        games,
-    )
+    else:
+        program, objective = _process_games_mode(
+            name_str,
+            vars_or_macros,
+            formula_objectives,
+            games,
+        )
+    program.identifier_renames = names
+    program.input_format = "issy"
+    program.source_identifiers = set(declared)
+    return program, objective
 
 
 def _process_formula_only_mode(

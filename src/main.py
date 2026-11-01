@@ -106,7 +106,9 @@ def setup_argument_parser() -> ArgumentParser:
         nargs="?",
         const=True,
     )
-    parser.add_argument("--tlsf", dest="tlsf", help="Path to a .tlsf file.", type=str)
+    parser.add_argument(
+        "--tlsf", dest="tlsf", help="Path to a .tlsf file (only with --p).", type=str
+    )
 
     parser.add_argument(
         "--synthesis_backend",
@@ -181,6 +183,8 @@ def setup_argument_parser() -> ArgumentParser:
 
 
 def process_args(args: Namespace) -> tuple[Program, Formula]:
+    if args.tlsf is not None and args.program is None:
+        raise ValueError("External TLSF specifications are only supported with .prog inputs (--p).")
     conf = Config.getConfig()
     conf.debug = args.debug
 

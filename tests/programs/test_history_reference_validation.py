@@ -29,12 +29,14 @@ class TestHistoryReferenceValidation(TestCase):
         declarations = [("x", INTEGER), ("flag", BOOLEAN)]
         if constant_flag:
             declarations[1] = ("flag", BOOLEAN, Value("TRUE"))
-        return Program(
+        program = Program(
             "history_validation", {"run"}, "run", declarations, [transition],
             [(Variable("u"), INTEGER), (Variable("request"), BOOLEAN)],
             [(Variable("grant"), BOOLEAN)],
             preprocess=False, is_determ=True, emit_state_binary_map=False,
         )
+        program.input_format = "prog"
+        return program
 
     def test_program_rejects_input_history_in_guards(self):
         guard = BiOp(Variable("u_prev"), ">", Value("0"))

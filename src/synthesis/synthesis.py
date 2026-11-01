@@ -18,6 +18,9 @@ from analysis.abstraction.interface.ltl_abstraction_type import (
 from analysis.compatibility_checking.strategy_verification import verify_strategy
 from analysis.refinement.refinement import refinement_standard
 from parsing.string_to_ltl import string_to_ltl_with_predicates
+from parsing.reserved_names import (
+    fresh_name, rename_formula, reserved_name_mapping, validate_declared_names,
+)
 from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
@@ -89,6 +92,29 @@ def synthesize(
     return wrapped_hoa
 
 
+def _tlsf_identifier_mapping(
+    program: Program, signals: list[Variable], program_sources: set[str]
+) -> dict[str, str]:
+    """Extend source renaming without capturing concrete or generated symbols."""
+    names = dict(program.identifier_renames)
+    names.update({source: str(v) for source, v in program.tlsf_inputs.items()})
+    names.update({source: str(v) for source, v in program.tlsf_outputs.items()})
+    internal_names = set(program.symbol_table) | {str(v) for v in program.constants}
+    occupied = internal_names | program.source_identifiers | set(names.values())
+    occupied.update(v.name for v in signals)
+    for source in sorted({v.name for v in signals} - program_sources):
+        if source in names:
+            continue
+        target = reserved_name_mapping({source}).get(source, source)
+        if target == source and source in internal_names:
+            target = "res_" + source
+        if target != source:
+            target = fresh_name(target, occupied)
+        names[source] = target
+        occupied.add(target)
+    return names
+
+
 def process_specifications(
     program: Program, ltl: Formula | None, tlsf_path: str | None
 ) -> Tuple[
@@ -97,6 +123,31 @@ def process_specifications(
     List[Variable],
     List[Variable],
 ]:
+    """Resolve specification names and register any independent TLSF signals."""
+    assumptions, guarantees, inputs, outputs, _ = _process_specifications(
+        program, ltl, tlsf_path
+    )
+    return assumptions, guarantees, inputs, outputs
+
+
+def _process_specifications(
+    program: Program, ltl: Formula | None, tlsf_path: str | None
+) -> tuple[list[Formula], list[Formula], list[Variable], list[Variable], Formula]:
+    if tlsf_path is not None and program.input_format != "prog":
+        raise ValueError("External TLSF specifications are only supported with .prog inputs.")
+    extra_inputs: dict[str, Variable] = {}
+    extra_outputs: dict[str, Variable] = {}
+    registered = set(program.tlsf_inputs.values()) | set(program.tlsf_outputs.values())
+    in_acts = [v for v, t in program.env_events if t == BOOLEAN and v not in registered]
+    out_acts = [v for v, t in program.con_events if t == BOOLEAN and v not in registered]
+    # Frontends may generate controller actions that are part of the public
+    # interface, unlike private symbols such as binary state bits.
+    interface_names = {str(v) for v, _ in program.env_events + program.con_events}
+    interface_names.update(str(v) for v in program.out_events)
+    program_sources = program.source_identifiers | (
+        interface_names - set(program.identifier_renames.values())
+        - {str(v) for v in registered}
+    )
     if tlsf_path is not None:
         ltl_text = syfco_ltl(tlsf_path)
         if ' Error"' in ltl_text:
@@ -104,10 +155,38 @@ def process_specifications(
                 "Error parsing " + tlsf_path + " see syfco error:\n" + ltl_text
             )
         ltl_text = ltl_text.replace('"', "")
-        in_acts_syfco = syfco_ltl_in(tlsf_path)
-        out_acts_syfco = syfco_ltl_out(tlsf_path)
+        source_inputs = [v for v in syfco_ltl_in(tlsf_path) if v.name]
+        source_outputs = [v for v in syfco_ltl_out(tlsf_path) if v.name]
+        validate_declared_names(v.name for v in source_inputs + source_outputs)
 
-        ltl = string_to_ltl_with_predicates(ltl_text)
+        # TLSF uses source names, including names reserved by the abstraction.
+        # Resolve them with exactly the same mapping as the program frontend.
+        names = _tlsf_identifier_mapping(
+            program, source_inputs + source_outputs, program_sources
+        )
+        ltl = rename_formula(
+            string_to_ltl_with_predicates(ltl_text, keyword_checking=False), names
+        )
+        in_acts_syfco = [Variable(names.get(v.name, v.name)) for v in source_inputs]
+        out_acts_syfco = [Variable(names.get(v.name, v.name)) for v in source_outputs]
+        signals = [v for v in in_acts_syfco + out_acts_syfco if v.name]
+        if len(set(signals)) != len(signals):
+            raise ValueError("TLSF signal names collide after program identifier renaming.")
+        extra_inputs = {
+            v.name: renamed for v, renamed in zip(source_inputs, in_acts_syfco)
+            if v.name not in program_sources
+        }
+        extra_outputs = {
+            v.name: renamed for v, renamed in zip(source_outputs, out_acts_syfco)
+            if v.name not in program_sources
+        }
+        if (
+            set(extra_inputs) & set(program.tlsf_outputs)
+            or set(extra_outputs) & set(program.tlsf_inputs)
+        ):
+            raise ValueError(
+                "A TLSF signal cannot change its input/output role on the same program."
+            )
     elif ltl:
         in_acts_syfco = []
         out_acts_syfco = []
@@ -117,6 +196,45 @@ def process_specifications(
     program.validate_history_references(
         ltl, "LTL specification", max_depth=1, require_next=True
     )
+
+    if tlsf_path is not None:
+        if any(v not in in_acts_syfco for v in in_acts + program.out_events):
+            raise ValueError("TLSF file has different input variables than the program.")
+        if any(v not in out_acts_syfco for v in out_acts):
+            raise ValueError("TLSF file has different output variables than the program.")
+        for source, renamed in zip(source_outputs, out_acts_syfco):
+            if source.name in program_sources and renamed not in out_acts:
+                raise ValueError(
+                    f"TLSF output {source.name!r} refers to a program identifier "
+                    "that is not a controller output."
+                )
+        for role, sources, renamed_signals in (
+            ("input", source_inputs, in_acts_syfco),
+            ("output", source_outputs, out_acts_syfco),
+        ):
+            for source, renamed in zip(sources, renamed_signals):
+                if source.name in program_sources:
+                    program_type = program.symbol_table.get(
+                        renamed.name, program.constant_types.get(renamed)
+                    )
+                    if program_type != BOOLEAN:
+                        raise ValueError(
+                            f"TLSF {role} {source.name!r} requires a Boolean program "
+                            f"binding, but its program type is {program_type}."
+                        )
+        program.add_boolean_events(
+            list(extra_inputs.values()), list(extra_outputs.values())
+        )
+        program.tlsf_inputs.update(extra_inputs)
+        program.tlsf_outputs.update(extra_outputs)
+        in_acts += list(extra_inputs.values())
+        out_acts += list(extra_outputs.values())
+    else:
+        in_acts += list(program.tlsf_inputs.values())
+        out_acts += list(program.tlsf_outputs.values())
+
+    ltl = program.substitute_specification_constants(ltl)
+    effective_ltl = ltl
 
     if isinstance(ltl, BiOp) and ltl.op == BoolBiOps.IMPL:
         ltl_assumptions_formula = ltl.left
@@ -152,19 +270,7 @@ def process_specifications(
             for f in ltl_guarantees
         ]
 
-    in_acts = [e for e, t in program.env_events if t == BOOLEAN]
-    out_acts = [c for c, t in program.con_events if t == BOOLEAN]
-    prog_acts = program.out_events
-
-    if tlsf_path is not None:
-        if any(x for x in in_acts + prog_acts if x not in in_acts_syfco):
-            raise Exception("TLSF file has different input variables than the program.")
-
-        if any(x for x in out_acts if x not in out_acts_syfco):
-            raise Exception(
-                "TLSF file has different output variables than the program."
-            )
-    return ltl_assumptions, ltl_guarantees, in_acts, out_acts
+    return ltl_assumptions, ltl_guarantees, in_acts, out_acts, effective_ltl
 
 
 def abstract_synthesis_loop(
@@ -521,12 +627,8 @@ def extract_init_preds(
                 for p in atomic_predicates(act.right):
                     new_state_preds.add(p)
 
-    constant_values = program.constants | {
-        variable.prev_rep(): value for variable, value in program.constants.items()
-    }
-
     def substitute_constants(ltl):
-        ltl = strip_mathexpr(ltl).replace_vars(constant_values)
+        ltl = program.substitute_specification_constants(strip_mathexpr(ltl))
         # Substitution may leave closed arithmetic, such as 2 = 2. Fold it
         # before normalisation, which expects predicates containing variables.
         return ltl.replace_formulas({

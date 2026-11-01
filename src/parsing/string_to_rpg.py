@@ -4,7 +4,7 @@ import re
 import parsec
 from parsec import choice, generate, string, sepBy, spaces, regex, many1
 
-from parsing.keywords import is_keyword
+from parsing.reserved_names import reserved_name_mapping, rename_formula, rename_tree
 from programs.program import Program
 from programs.transition import Transition
 from programs.util import binary_rep, refine_init_values
@@ -35,7 +35,7 @@ from prop_lang.util import (
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-name_regex = r"(?!(true|false|sys( |\()|if ))[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
+name_regex = r"(?!(?:true|false)(?![_a-zA-Z0-9$@-])|sys( |\()|if )[_a-zA-Z][_a-zA-Z0-9$@_-]*"
 name = regex(name_regex)
 state = regex(r"[a-zA-Z0-9@$_-]+")
 
@@ -69,13 +69,20 @@ def rpg_parser():
     init = yield string("init") >> spaces() >> name
     yield spaces()
     transitions = yield transitions_parser
+    declared = [str(v) for v, _, _ in vs]
+    if len(set(declared)) != len(declared):
+        raise Exception("Duplicate RPG variable or location declarations.")
+    names = reserved_name_mapping(declared)
+    if names:
+        vs = [(rename_formula(v, names), kind, typ) for v, kind, typ in vs]
+        init = names.get(init, init)
+        transitions = rename_tree(transitions, names)
     inputs = {}
     vars = {}
     states = set()
     marked_states = {}
 
     for v, kind, type in vs:
-        is_keyword(str(v))
         if v in inputs.keys() or v in vars.keys() or v in states:
             raise Exception(v + "' defined multiple times.")
 
@@ -111,6 +118,9 @@ def rpg_parser():
         preprocess=False,
         is_determ=True,
     )
+    program.identifier_renames = names
+    program.input_format = "rpg"
+    program.source_identifiers = set(declared)
     refine_init_values(program, true())
 
     marked_states = {

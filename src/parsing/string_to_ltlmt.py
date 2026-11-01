@@ -4,6 +4,7 @@ from typing import Optional
 
 from tatsu.walkers import NodeWalker
 
+from parsing.reserved_names import reserved_name_mapping, rename_tree
 from parsing.string_to_ltl import unary_LTL_operators, binary_LTL_operators
 from parsing.util.partitioned_update_chain import (
     build_partitioned_update_chain,
@@ -157,6 +158,18 @@ class ToProgram(NodeWalker):
         var_decs: Optional[dict[str, tuple[str, str]]] = None,
     ):
         var_decs = {} if var_decs is None else var_decs
+        def formula_names(value):
+            if isinstance(value, Formula):
+                return {str(v).rstrip("'") for v in value.variablesin()}
+            if isinstance(value, (list, tuple, set, frozenset)):
+                return set().union(*(formula_names(v) for v in value))
+            return set()
+
+        user_names = set(var_decs) | formula_names(formulas)
+        user_names.update(str(node[0]) for node in formulas if node[1] == "=")
+        names = reserved_name_mapping(user_names)
+        formulas = rename_tree(formulas, names)
+        var_decs = {names.get(v, v): declaration for v, declaration in var_decs.items()}
         declared_kinds: dict[str, str] = {}
         declared_types: dict[str, object] = {}
         declared_bool_vars: set[Variable] = set()
@@ -436,6 +449,9 @@ class ToProgram(NodeWalker):
             is_determ=True,
         )
 
+        prog.identifier_renames = names
+        prog.input_format = "tsl"
+        prog.source_identifiers = user_names
         refine_init_values(prog, formula)
         logging.info(prog.to_prog(formula))
         print(prog.to_prog(formula))
