@@ -97,9 +97,7 @@ class StatePredicate(Predicate):
                 new_effects.append(
                     (
                         now_neg_p,
-                        refine_nexts(
-                            now_neg_p_g, nexts, symbol_table, sat_ctx=sat_ctx
-                        ),
+                        new_nexts,
                     )
                 )
 
