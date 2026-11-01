@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import config
+from parsing.reserved_names import fresh_name
 from analysis.smt_checker import quantifier_elimination
 from pysmt.shortcuts import Exists, ForAll, Symbol
 from pysmt.typing import BOOL, INT
@@ -57,6 +58,7 @@ class MinigameFiller:
         self.new_con_events: set[tuple[Variable, Type]] = set()
         self.bool_var_to_controller_prop: dict[str, Variable] = {}
         self.fresh_bool_prop_counter = 0
+        self.input_snapshots: dict[Variable, Variable] = {}
         self.ltl_forbidden_controller_names: set[str] = set()
 
     def _bump_optimisation_counter(self, kind: str, count: int = 1):
@@ -770,38 +772,6 @@ class MinigameFiller:
                     reduced_mg_preds.append(pp)
                 mg_preds = reduced_mg_preds
 
-            inputs_updates_depend_on = sorted(
-                {
-                    v
-                    for p in mg_preds
-                    for v in p.variablesin()
-                    if self._is_program_input_var(v)
-                    and len([vv for vv in p.variablesin() if vv.is_next()]) > 0
-                },
-                key=str,
-            )
-            input_snapshot_replacements = {}
-            input_snapshot_updates = []
-            for inp in inputs_updates_depend_on:
-                curr_inp = Variable("curr_" + inp.name)
-                input_snapshot_replacements[inp] = curr_inp
-                if str(curr_inp) not in self.symbol_table:
-                    self.symbol_table[str(curr_inp)] = self.symbol_table[str(inp)]
-                    curr_state_init_values.add(
-                        (str(curr_inp), self.symbol_table[str(inp)])
-                    )
-                input_snapshot_updates.append(Update(curr_inp, inp))
-            if len(input_snapshot_replacements) > 0:
-                mg_preds = [
-                    p.replace_formulas(input_snapshot_replacements) for p in mg_preds
-                ]
-                existing_lefts = {str(a.left) for a in entry_actions}
-                entry_actions.extend(
-                    u
-                    for u in input_snapshot_updates
-                    if str(u.left) not in existing_lefts
-                )
-
             mg_preds = sorted(mg_preds, key=str)
             undet_vars = []
 
@@ -996,6 +966,28 @@ class MinigameFiller:
             for u, _ in restricted_updates:
                 to_replace_preds.setdefault(Variable(u.left.name + "'"), u.left)
 
+            # Restricted entry seeds already refer to the current inputs.
+            # Only predicates evaluated inside a minigame need frozen inputs.
+            internal_preds = mg_preds if one_step_const_var is not None else stop_preds
+            snapshot_replacements = {}
+            for inp in sorted({
+                v for p in internal_preds for v in p.variablesin()
+                if self._is_program_input_var(v)
+            }, key=str):
+                if inp not in self.input_snapshots:
+                    snapshot = Variable(fresh_name(
+                        "curr_" + inp.name, self.symbol_table
+                    ))
+                    self.input_snapshots[inp] = snapshot
+                    self.symbol_table[str(snapshot)] = self.symbol_table[str(inp)]
+                    curr_state_init_values.add((str(snapshot), self.symbol_table[str(inp)]))
+                snapshot = self.input_snapshots[inp]
+                snapshot_replacements[inp] = snapshot
+                entry_actions.append(Update(snapshot, inp))
+            if snapshot_replacements:
+                mg_preds = [p.replace_formulas(snapshot_replacements) for p in mg_preds]
+                stop_preds = [p.replace_formulas(snapshot_replacements) for p in stop_preds]
+
             raw_events = []
             if one_step_const_var is not None:
                 for c in one_step_consts:
@@ -1056,9 +1048,9 @@ class MinigameFiller:
                         + str(stop_prop)
                     )
 
-            completed_entry_actions = list(entry_actions) + list(
-                map(lambda x: x[0], restricted_updates)
-            )
+            completed_entry_actions = list(entry_actions) + [
+                u for u, _ in restricted_updates
+            ]
             for u in unrestricted_updates:
                 v = u.left
                 if (
