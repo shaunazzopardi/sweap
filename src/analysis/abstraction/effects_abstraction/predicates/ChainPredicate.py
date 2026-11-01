@@ -151,8 +151,8 @@ class ChainPredicate(Predicate):
                 continue
             i = bisect_left(
                 self.raw_state_preds,
-                float(str(p.right)),
-                key=lambda x: float(str(x.right)),
+                int(str(p.right)),
+                key=lambda x: int(str(x.right)),
             )
             # this rearranges x < 0 and x <= 0 predicates, so that they are in order of strength
             if p.op == MathRels.LT:
