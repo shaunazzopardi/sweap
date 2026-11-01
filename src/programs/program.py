@@ -46,6 +46,7 @@ from prop_lang.util import (
     disjunct_formula_set,
     neg,
     true,
+    false,
     sat,
     type_constraints_acts,
     implies,
@@ -130,10 +131,24 @@ class Program:
         if not name:
             raise Exception("Program must have a name.")
         self.name = name
-        self.initial_state = init_st
+        self.input_format: str | None = None
         self.states: Set = set(sts)
+        # Source identifiers may also appear in a separately supplied TLSF file.
+        self.identifier_renames: dict[str, str] = {}
+        self.source_identifiers = (
+            {str(s) for s in self.states}
+            | {v[0] for v in init_values}
+            | {str(v) for v, _ in env_events + con_events}
+        )
+        self.tlsf_inputs: dict[str, Variable] = {}
+        self.tlsf_outputs: dict[str, Variable] = {}
+        self.initial_state = init_st
         self.added_completion_lose_transitions = False
         self.constants = {}
+        # Specifications also refer to control states removed by preprocessing.
+        # Keep those separate from valuation constants used for legal lookbacks.
+        self.specification_constants: dict[Variable, Formula] = {}
+        self.constant_types: dict[Variable, Type] = {}
         self.binary_rep_tables: dict[str, str] = {}
 
         inputs = [v for v, _ in env_events]
@@ -260,6 +275,9 @@ class Program:
 
         reachable_statess, self.reachable_from = reachable_states(self)
         if len(reachable_statess) != len(self.states):
+            for state in self.states - reachable_statess:
+                self.specification_constants[Variable(state)] = false()
+                self.constant_types[Variable(state)] = BOOLEAN
             print(
                 "Removed unreachable states: "
                 + ", ".join(map(str, self.states - reachable_statess))
@@ -317,6 +335,25 @@ class Program:
 
     def register_binary_rep_table(self, label: str, table: str):
         self.binary_rep_tables[label] = table
+
+    def add_boolean_events(
+        self, inputs: list[Variable], outputs: list[Variable]
+    ) -> None:
+        """Add unconstrained events supplied by an external specification."""
+        for additions, events, variables in (
+            (inputs, self.env_events, self.inputs),
+            (outputs, self.con_events, self.outputs),
+        ):
+            for variable in additions:
+                if variable in variables:
+                    continue
+                if variable.name in self.symbol_table:
+                    raise ValueError(f"Event {variable.name!r} collides with a program symbol.")
+                events.append((variable, BOOLEAN))
+                variables.append(variable)
+                self.bool_in_out.append(variable)
+                self.inp_out_puts.append(variable)
+                self.symbol_table[variable.name] = BOOLEAN
 
     def get_binary_rep_tables(self) -> list[str]:
         return list(self.binary_rep_tables.values())
@@ -430,6 +467,17 @@ class Program:
 
             check_initial_state(formula)
 
+    def substitute_specification_constants(
+        self, formula: Formula, include_history: bool = True
+    ) -> Formula:
+        """Apply global program constants, after validating any LTL lookbacks."""
+        substitutions = dict(self.specification_constants)
+        if include_history:
+            substitutions.update({
+                variable.prev_rep(): value for variable, value in self.constants.items()
+            })
+        return formula.replace_vars(substitutions)
+
     def project_out_constants(self):
         # Early check to see if any variables are constant
         constant_vars = set()
@@ -483,7 +531,10 @@ class Program:
         # Update symbol table and data structures
         var_names_to_delete = [v.name for v in vars_to_project_out.keys()]
         for var_name in var_names_to_delete:
-            self.constants[Variable(var_name)] = self.init_var_values[var_name]
+            variable = Variable(var_name)
+            self.constants[variable] = self.init_var_values[var_name]
+            self.specification_constants[variable] = self.init_var_values[var_name]
+            self.constant_types[variable] = self.symbol_table[var_name]
             del self.symbol_table[var_name]
             del self.symbol_table[var_name + "_prev"]
             del self.symbol_table[var_name + "_prev_prev"]

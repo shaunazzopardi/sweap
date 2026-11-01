@@ -8,7 +8,8 @@ from pysmt.shortcuts import And
 from tatsu.grammars import Grammar
 from tatsu import compile
 
-from parsing.keywords import regex_keywords, is_keyword
+from parsing.reserved_names import validate_declared_names
+from parsing.keywords import is_keyword
 from prop_lang.biop import BiOp
 from prop_lang.factory import create_mathrel, _mult
 from prop_lang.formula import Formula
@@ -165,10 +166,10 @@ GRAMMAR = r"""
 
     atom = normal_atom ;
     
-    normal_atom = /_?[a-zA-Z][a-zA-Z0-9_-]*/;
+    normal_atom = /_*[a-zA-Z][a-zA-Z0-9_-]*/;
     hoa_atom = /[0-9]+/;
     next_atom = /_?[a-zA-Z][a-zA-Z0-9_-]*'/;
-    next_or_now_atom = /_?[a-zA-Z][a-zA-Z0-9_-]*'?/;
+    next_or_now_atom = /_*[a-zA-Z][a-zA-Z0-9_-]*'?/;
     number_ltl = /-?[0-9]+(?:\.[0-9]+)?/;
     number_ltlmt = /(?:i|c)m?[0-9]+(?:\.[0-9]+)?\(\)/;
 """
@@ -508,10 +509,10 @@ class lang(Enum):
     ISSY_LTL = 3
 
 
-def string_to_ltl_with_predicates(text: str) -> Formula:
+def string_to_ltl_with_predicates(text: str, *, keyword_checking: bool = True) -> Formula:
     return parser_ltl.parse(
         text,
-        semantics=Semantics(),
+        semantics=Semantics(keyword_checking=keyword_checking),
         comments="(\\/\\*.*?\\*\\/)",
         eol_comments="\\/\\/.*?(\n|$)",
     )
@@ -599,20 +600,14 @@ def string_to_ltlmt(text: str) -> tuple[Formula, dict[str, tuple[str, str]]]:
             s = re.sub(r"\(\s*\(([^()]+)\)\s*\)", r"(\1)", s)
         return s
 
+    text = re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.DOTALL)
     var_decs, text = string_ltlmt_var_decs(text)
-    text = re.sub("//.*$", "", text)
     text = normalize_ltlmt_text(text)
-    regex_keywords.extend(
-        list(
-            map(
-                re.compile,
-                [r"eval$", r"q_.+"],
-            )
-        )
-    )
+    literal_declarations = set(var_decs) | set(re.findall(r"\[\s*(\w+)\s*<-", text))
+    validate_declared_names(literal_declarations)
     parsed = parser_ltlmt.parse(
         text,
-        semantics=Semantics(),
+        semantics=Semantics(keyword_checking=False),
         comments="(\\/\\*.*?\\*\\/)",
         eol_comments="\\/\\/.*?(\n|$)",
     )
@@ -622,7 +617,7 @@ def string_to_ltlmt(text: str) -> tuple[Formula, dict[str, tuple[str, str]]]:
 def string_to_issy_ltl(text: str) -> Formula:
     return parser_issy_ltl.parse(
         text,
-        semantics=Semantics(),
+        semantics=Semantics(keyword_checking=False),
         comments="(\\/\\*.*?\\*\\/)",
         eol_comments="\\/\\/.*?(\n|$)",
     )

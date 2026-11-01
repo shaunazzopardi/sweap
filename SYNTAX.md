@@ -63,14 +63,48 @@ State names are parsed more permissively:
 Formula atoms are parsed by the LTL parser and are narrower in practice:
 
 ```text
-_?[a-zA-Z][a-zA-Z0-9_-]*
+_*[a-zA-Z][a-zA-Z0-9_-]*
 ```
 
 For names that appear in guards or specifications, prefer ordinary
-letter-starting identifiers with letters, digits, and underscores. Avoid names
-matching reserved internal patterns such as `true`, `false`, `lose`, `pred_*`,
-`bin_*`, `guard_*`, `act_*`, `eq_con_*`, `sat_con_*`, and
-`minigame_event_*`.
+letter-starting identifiers with letters, digits, and underscores. Declarations
+matching reserved internal names or patterns, such as `lose`, `init_state`,
+`second_state`, `compatible`, `program_state`, `strategy_state`, `prog_m`,
+`strat_m`, `init_choice_logic`, `__init`, `__trans`, `__invar`,
+`pred_*`, `bin_*`, `guard_*`, `act_*`, `eq_con_*`, `sat_con_*`, and
+`minigame_event_*`, `controller_guard_*`, `controller_act_*`, `program_q_*`,
+`comp_*`, and `inp_comp_*`,
+are accepted and renamed internally to avoid collisions.
+References to those declarations, including `_prev` references to state
+variables, follow the renaming automatically. A declared name ending in `_prev`
+receives a `_res` suffix, repeated if needed to avoid a collision.
+For example, a variable declared as `x_prev` becomes `x_prev_res`;
+references to that declaration follow the renaming, and its internal name is
+not a lookback.
+Other reserved names receive a `res_` prefix. Names that also match a reserved
+prefix and end in `_prev` receive both affixes. These rules apply to all formats.
+All case-sensitive nuXmv keywords are reserved too, including `case`, `esac`,
+`next`, and `self`; see the identifier rules in chapter 2 of the
+[nuXmv manual](https://nuxmv.fbk.eu/downloads/nuxmv-user-manual.pdf).
+They are renamed rather than rejected, except for the Boolean literals below.
+
+A separate TLSF specification is supported only with native `.prog` input
+(`--p`), never with Issy, RPG, or TSL input. Use the original declared names;
+its formula and signal lists follow the program's renaming automatically.
+TLSF-only signals remain independent environment inputs or controller outputs.
+An existing program identifier may be a TLSF output only if it is a declared
+controller output; valuation variables and control states cannot be declared
+as TLSF outputs.
+TLSF signals are Boolean: a signal sharing a program identifier must have a
+Boolean program type, even when unused in the objective. Boolean valuation
+variables and control states may be observed as inputs. Projected constant
+values and unreachable states (replaced by `FALSE`) are substituted in both
+native and TLSF objectives.
+Their reserved names receive a `res_` prefix, or a `_res` suffix for names
+ending in `_prev`, with further renaming if needed to avoid a collision.
+
+Boolean-literal spellings (`true`, `false`, `TRUE`, `FALSE`, `True`, and `False`)
+are reserved and cannot be used as declared identifiers. They are never renamed.
 
 Control-state names, input names, output names, and state variable names must be
 globally unique.

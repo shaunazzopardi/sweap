@@ -1,10 +1,11 @@
+import re
 from multiprocessing import Pool
 
 import parsec
 from parsec import generate, string, sepBy, spaces, regex
 
 import config
-from parsing.keywords import is_keyword
+from parsing.reserved_names import reserved_name_mapping, rename_formula, rename_tree
 from parsing.string_to_ltl import (
     string_to_ltl_with_predicates,
     string_to_program_action_formula,
@@ -81,6 +82,33 @@ def program_parser():
     initial_vals = section_values["initial_vals"]
     semantics, completion, transitions = section_values["transitions"]
     ltl_spec = section_values.get("ltl_spec")
+
+    declared_names = list(states) + [v[0] for v in initial_vals] + [
+        str(v) for v, _ in env + con
+    ]
+    if len(set(declared_names)) != len(declared_names):
+        raise Exception("Duplicate var names in program declarations.")
+    names = reserved_name_mapping(declared_names)
+    if names:
+        states = [names.get(s, s) for s in states]
+        initial_state = names.get(initial_state, initial_state)
+        env = [(rename_formula(v, names), typ) for v, typ in env]
+        con = [(rename_formula(v, names), typ) for v, typ in con]
+        initial_vals = [
+            (names.get(v[0], v[0]), *[
+                rename_formula(item, names) if isinstance(item, Formula) else item
+                for item in v[1:]
+            ]) for v in initial_vals
+        ]
+        if ltl_spec is not None:
+            ltl_spec = rename_formula(ltl_spec, names)
+        for t in transitions:
+            t.src, t.tgt = names.get(t.src, t.src), names.get(t.tgt, t.tgt)
+            t.condition = rename_formula(t.condition, names)
+            t.action = (rename_formula(t.action, names) if isinstance(t.action, Formula)
+                        else rename_tree(t.action, names))
+            t.output = [rename_formula(v, names) for v in t.output]
+            t.pred_upgrades = [rename_formula(p, names) for p in t.pred_upgrades]
 
     program_var_names = {v[0] for v in initial_vals}
     in_out_var_names = {ev.name for ev, _ in env + con}
@@ -188,9 +216,13 @@ def program_parser():
             transition_completion=completion,
         )
         program, ltl_spec = postprocess_complex_action_program(program, ltl_spec)
-    ltl_spec = ltl_spec.replace_formulas(
-        {Variable(s): Value(BoolAtoms.FALSE) for s in states if s not in program.states}
-    )
+    program.identifier_renames = names
+    program.input_format = "prog"
+    program.source_identifiers = set(declared_names)
+    if ltl_spec is not None:
+        ltl_spec = program.substitute_specification_constants(
+            ltl_spec, include_history=False
+        )
     print(program.to_prog(ltl_spec))
     return program, ltl_spec
 
@@ -311,7 +343,6 @@ def state_parser():
     yield spaces()
     initial_states = []
     for s, tag in tagged_states:
-        is_keyword(s)
         if tag == "init":
             initial_states.append(s)
         elif tag != "":
@@ -443,7 +474,6 @@ def initial_val_parser():
     yield parsec.optional(regex("(,|;)"))
     yield spaces() >> string("}")
     names = {v[0] for v in vals}
-    list(map(is_keyword, names))
     if len(names) < len(vals):
         raise Exception("Variables with same name in VALUATION.")
     return vals
@@ -729,6 +759,11 @@ def lower_program_action_formula_transition(
 def postprocess_complex_action_program(
     program: Program, ltl_spec: Formula
 ) -> tuple[Program, Formula]:
+    # Lowering may construct a new Program from already-projected valuations
+    # and reachable states. Preserve the source constants for external specs.
+    constants = dict(program.constants)
+    specification_constants = dict(program.specification_constants)
+    constant_types = dict(program.constant_types)
     to_exclude_from_minigame = []
     lose_var = None
 
@@ -764,6 +799,11 @@ def postprocess_complex_action_program(
     if effective_lose_var is not None:
         ltl_spec = conjunct(ltl_spec, G(neg(Variable(effective_lose_var))))
 
+    program.constants = constants | program.constants
+    program.specification_constants = (
+        specification_constants | program.specification_constants
+    )
+    program.constant_types = constant_types | program.constant_types
     return program, normalize_ltl(ltl_spec)
 
 
@@ -832,7 +872,7 @@ def specification_parser():
     yield string("{") >> spaces()
     ltl_spec_string = yield regex("[^}]*")
     yield spaces() >> string("}")
-    ltl_spec = string_to_ltl_with_predicates(ltl_spec_string)
+    ltl_spec = string_to_ltl_with_predicates(ltl_spec_string, keyword_checking=False)
     ltl_spec = normalize_ltl(ltl_spec)
     return ltl_spec
 
