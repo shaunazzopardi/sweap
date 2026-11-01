@@ -40,7 +40,7 @@ from programs.program import Program
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.types.ops_and_rels import MathRels
-from prop_lang.types.types import BOOLEAN
+from prop_lang.types.types import BOOLEAN, INTEGER, Number
 from prop_lang.uniop import UniOp
 from prop_lang.util import (
     conjunct,
@@ -49,6 +49,7 @@ from prop_lang.util import (
     conjunct_typed_valuation_set,
     disjunct_formula_set,
     true,
+    false,
     sat,
     X,
     iff,
@@ -111,7 +112,7 @@ class EffectsAbstraction(PredicateAbstraction):
                 BiOp(v, "=", v.prev_rep()) for v in self.program.local_vars
             ),
         )
-        self.init_state_abstraction = [[true()]]
+        self.init_state_abstraction = [[]]
         self.init_no_matter: list[Predicate] = []
         self.init_constants = []
 
@@ -139,6 +140,7 @@ class EffectsAbstraction(PredicateAbstraction):
         self.loop_vars = set()
         self.loop_counter = 0
         self.sat_input_models = []
+        self.sat_initial_input_models = None
 
         logger.info("Initialising predicate abstraction.")
 
@@ -331,6 +333,18 @@ class EffectsAbstraction(PredicateAbstraction):
                     )
         else:
             for p in remaining_st_preds:
+                self.raw_state_predicates.add(p)
+                if any(
+                    isinstance(self.symbol_table[str(v)], Number)
+                    and self.symbol_table[str(v)] != INTEGER
+                    for v in p.variablesin()
+                ):
+                    if not sat(p, self.symbol_table):
+                        self.var_relabellings.update({p: false(), neg(p): true()})
+                        continue
+                    if not sat(neg(p), self.symbol_table):
+                        self.var_relabellings.update({p: true(), neg(p): false()})
+                        continue
                 f_p = StatePredicate(p, self.has_input_vars(p))
                 new_preds.add(f_p)
                 self.state_predicates.add(f_p)
@@ -431,52 +445,66 @@ class EffectsAbstraction(PredicateAbstraction):
 
         if len(self.input_preds) > 0:
             new_qe_preds = set()
-            input_models = all_sat_models(self.input_preds, self.program.symbol_table)
-            new_models = []
-            for m in input_models:
-                exist_vars = [Symbol(str(v), INT) for v in self.program.num_in_out]
-                quant_formula = Exists(
-                    exist_vars,
-                    And(*m.to_smt(self.program.symbol_table)),
+            predicate_groups = [self.input_preds]
+            initial_preds = [p for p in self.input_preds if not p.has_prev_vars()]
+            if len(initial_preds) < len(self.input_preds):
+                # Initial history is undefined; retain ordinary input constraints.
+                predicate_groups.append(initial_preds)
+            model_groups = []
+            for predicates in predicate_groups:
+                input_models = (
+                    all_sat_models(predicates, self.program.symbol_table)
+                    if predicates else [true()]
                 )
-
-                ret = quantifier_elimination(quant_formula)
-                rett = fnode_to_formula(ret)
-                normalised_state_preds = set()
-                if len(rett.variablesin()) > 0:
-                    old_to_new = {}
-                    for p in atomic_predicates(rett):
-                        if len(p.variablesin()) == 0:
-                            continue
-                        result = normalise_pred_multiple_vars(
-                            p, signatures, self.symbol_table
-                        )
-                        if isinstance(result, Formula):
-                            if result not in self.program.bool_in_out:
-                                normalised_state_preds.add(result)
-                        else:
-                            sig, new_p, preds = result
-                            old_to_new[p] = new_p
-                            signatures.add(sig)
-                            normalised_state_preds.update(preds)
-                    new_qe_preds.update(
-                        {
-                            p
-                            for p in normalised_state_preds
-                            if p not in self.raw_state_predicates
-                        }
+                new_models = []
+                for m in input_models:
+                    exist_vars = [Symbol(str(v), INT) for v in self.program.num_in_out]
+                    quant_formula = Exists(
+                        exist_vars,
+                        And(*m.to_smt(self.program.symbol_table)),
                     )
-                    new_models.append(conjunct(rett.replace_formulas(old_to_new), m))
-                else:
-                    new_models.append(m)
 
-            if config.Config.getConfig().debug:
-                if sat(
-                    neg(disjunct_formula_set(new_models)), self.program.symbol_table
-                ):
-                    raise Exception("QE produced unsat models for input preds")
+                    ret = quantifier_elimination(quant_formula)
+                    rett = fnode_to_formula(ret)
+                    normalised_state_preds = set()
+                    if len(rett.variablesin()) > 0:
+                        old_to_new = {}
+                        for p in atomic_predicates(rett):
+                            if len(p.variablesin()) == 0:
+                                continue
+                            result = normalise_pred_multiple_vars(
+                                p, signatures, self.symbol_table
+                            )
+                            if isinstance(result, Formula):
+                                if result not in self.program.bool_in_out:
+                                    normalised_state_preds.add(result)
+                            else:
+                                sig, new_p, preds = result
+                                old_to_new[p] = new_p
+                                signatures.add(sig)
+                                normalised_state_preds.update(preds)
+                        new_qe_preds.update(
+                            {
+                                p
+                                for p in normalised_state_preds
+                                if p not in self.raw_state_predicates
+                            }
+                        )
+                        new_models.append(conjunct(rett.replace_formulas(old_to_new), m))
+                    else:
+                        new_models.append(m)
 
-            self.sat_input_models = new_models
+                if config.Config.getConfig().debug:
+                    if sat(
+                        neg(disjunct_formula_set(new_models)), self.program.symbol_table
+                    ):
+                        raise Exception("QE produced unsat models for input preds")
+
+                model_groups.append(new_models)
+            self.sat_input_models = model_groups[0]
+            self.sat_initial_input_models = (
+                model_groups[1] if len(model_groups) > 1 else None
+            )
             if len(new_qe_preds) > 0:
                 print(
                     "Adding preds for input models: "
@@ -676,7 +704,10 @@ class EffectsAbstraction(PredicateAbstraction):
         new_init_abs = []
         for m in self.init_state_abstraction:
             for choice in p.choices():
-                m_with_p = m + [choice]
+                m_with_p = [
+                    f for f in m + [choice]
+                    if not (isinstance(f, Value) and f.is_true())
+                ]
                 if sat(
                     conjunct_formula_set(m_with_p + [self.init_conf]),
                     self.symbol_table,
@@ -691,11 +722,10 @@ class EffectsAbstraction(PredicateAbstraction):
 
         for p in v_chain_pred.chain:
             for m in self.init_state_abstraction:
-                m_with_p = (
-                    m + [p]
-                    if len(m) > 0 and not (isinstance(m[0], Value) and m[0].is_true())
-                    else [p]
-                )
+                m_with_p = [
+                    f for f in m + [p]
+                    if not (isinstance(f, Value) and f.is_true())
+                ]
                 if sat(
                     conjunct_formula_set(m_with_p + [self.init_conf]),
                     self.symbol_table,
@@ -957,6 +987,18 @@ def update_effects(
         for p in v_to_preds[v]
         if (p not in next_preds or p in new_preds) and p not in ignore_in_nexts
     }
+    # History predicates depend on source values, including on identity
+    # updates. Look them up directly without expanding variable partitions.
+    history_vars = {u.left.prev_rep() for u in us}
+    new_next_preds.update(
+        p
+        for v in history_vars
+        for p in v_to_preds.get(v, ())
+        if p.has_prev_vars()
+        and not p.is_input
+        and p not in ignore_in_nexts
+        and (p not in next_preds or p in new_preds)
+    )
     next_preds.update(new_next_preds)
 
     # adding preds to now that are relevant to determining transition preds
@@ -964,6 +1006,12 @@ def update_effects(
     for p in next_preds | curr_preds[1]:
         # if isinstance(p, TransitionPredicate):
         tran_pred_rel_vars.update(p.vars)
+        # A destination history value is the corresponding source value.
+        # Include its current-state predicates when computing the effect.
+        tran_pred_rel_vars.update(
+            Variable(v.name[: -len("_prev")])
+            for v in p.variablesin() if v.is_prev()
+        )
         #     new_now_preds.update({p for v in p.vars for p in v_to_preds[v]
         #                           if (p not in now_preds or p in new_preds) and p not in ignore_in_nows and "_prev" not in str(p)})
         # now_preds.update(new_now_preds)

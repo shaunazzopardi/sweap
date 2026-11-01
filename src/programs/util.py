@@ -68,6 +68,10 @@ def symbol_table_from_program(
         var_name = v[0]
         var_type = v[1]
         if len(v) == 3:
+            if v[2].variablesin():
+                raise ValueError(
+                    f"Initial value for {var_name!r} must not reference variables."
+                )
             init_var_values[var_name] = v[2]
         else:
             unset_init_vars.append(v[0])

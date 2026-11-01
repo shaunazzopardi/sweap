@@ -1,0 +1,10 @@
+program history_stutter_unreal {
+    STATES { run : init }
+    ENVIRONMENT EVENTS { }
+    CONTROLLER EVENTS { }
+    VALUATION { x : integer; }
+    TRANSITIONS [completion=stutter] {
+        run -> run [TRUE $ x := x]
+    }
+    SPECIFICATION { X F(x_prev = 0) }
+}
