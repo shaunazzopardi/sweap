@@ -913,7 +913,7 @@ def type_constraint(variable, symbol_table):
                 MathExpr(
                     BiOp(
                         variable,
-                        ("<=" if type.interval.lower_inclusive else "<"),
+                        ("<=" if type.interval.upper_inclusive else "<"),
                         Value(type.interval.upper),
                     )
                 ),
