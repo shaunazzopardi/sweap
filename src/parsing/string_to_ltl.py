@@ -6,7 +6,7 @@ from pysmt.environment import Environment
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And
 from tatsu.grammars import Grammar
-from tatsu.tool import compile
+from tatsu import compile
 
 from parsing.keywords import regex_keywords, is_keyword
 from prop_lang.biop import BiOp
@@ -169,8 +169,8 @@ GRAMMAR = r"""
     hoa_atom = /[0-9]+/;
     next_atom = /_?[a-zA-Z][a-zA-Z0-9_-]*'/;
     next_or_now_atom = /_?[a-zA-Z][a-zA-Z0-9_-]*'?/;
-    number_ltl = /-?([0-9]+|[0-9]+\.[0-9]+)/;
-    number_ltlmt = /(i|c)m?([0-9]+|[0-9]+\.[0-9]+)\(\)/;
+    number_ltl = /-?[0-9]+(?:\.[0-9]+)?/;
+    number_ltlmt = /(?:i|c)m?[0-9]+(?:\.[0-9]+)?\(\)/;
 """
 
 translate_ops = {
@@ -284,10 +284,12 @@ class Semantics:
         return Value(int(ast))
 
     def number_ltlmt(self, ast):
-        if ast[0] == "m":
-            return UniOp("-", Value(int(ast[1:])))
-
-        return Value(int(ast[1]))
+        # Noncapturing token regexes preserve the full spelling in TatSu's AST.
+        # i/c is the literal prefix; m denotes a negative value, e.g. im12().
+        payload = ast[1:-2]
+        if payload.startswith("m"):
+            return UniOp("-", Value(int(payload[1:])))
+        return Value(int(payload))
 
     def _maybe_bool_literal(self, ast):
         if ast in ["true", "TRUE", "True"]:
