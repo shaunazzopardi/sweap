@@ -32,6 +32,7 @@ from programs.util import (
 )
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
+from prop_lang.uniop import UniOp
 from prop_lang.nondet import NonDeterministic
 from prop_lang.types.types import (
     Type,
@@ -165,6 +166,16 @@ class Program:
         )
         self.local_vars_str: list[str] = [v[0] for v in init_values]
         self.local_vars: list[Variable] = [Variable(v) for v in self.local_vars_str]
+
+        for transition in transitions:
+            formulas = [transition.condition, *transition.action, *transition.output]
+            if isinstance(transition.pred_upgrades, Formula):
+                formulas.append(transition.pred_upgrades)
+            else:
+                formulas.extend(transition.pred_upgrades)
+            for formula in formulas:
+                if isinstance(formula, Formula):
+                    self.validate_history_references(formula, "transition", max_depth=0)
 
         self.transitions = transitions
 
@@ -363,6 +374,61 @@ class Program:
 
         self.symbol_table.update(new_symbol_table)
         return len(new_symbol_table) > 0
+
+    def validate_history_references(
+        self, formula: Formula, context: str, max_depth: int | None = None,
+        require_next: bool = False,
+    ) -> None:
+        """History may refer only to valuation variables, including projected ones."""
+        state_names = set(self.local_vars_str) | {str(v) for v in self.constants}
+        event_names = {v.name for v, _ in self.env_events + self.con_events}
+        declared_names = state_names | event_names
+        history_names = set()
+        for variable in formula.variablesin():
+            name = variable.name.removesuffix("'")
+            if not name.endswith("_prev") or name in declared_names:
+                continue
+            history_names.add(name)
+            if max_depth == 0:
+                raise ValueError(
+                    f"Invalid history reference {name!r} in {context}: "
+                    "lookbacks are only allowed in LTL specifications."
+                )
+            base = name
+            depth = 0
+            while base.endswith("_prev") and base not in declared_names:
+                base = base[: -len("_prev")]
+                depth += 1
+            if base not in state_names:
+                raise ValueError(
+                    f"Invalid history reference {name!r} in {context}: "
+                    "_prev may only refer to state variables, "
+                    f"but {base!r} is not a state variable."
+                )
+            if max_depth is not None and depth > max_depth:
+                raise ValueError(
+                    f"Invalid history reference {name!r} in {context}: "
+                    "only one _prev suffix is supported in LTL specifications."
+                )
+
+        if require_next and history_names:
+            def check_initial_state(expr):
+                if isinstance(expr, UniOp):
+                    if expr.op != "X":
+                        check_initial_state(expr.right)
+                elif isinstance(expr, BiOp):
+                    check_initial_state(expr.left)
+                    check_initial_state(expr.right)
+                else:
+                    for variable in expr.variablesin():
+                        if variable.name.removesuffix("'") in history_names:
+                            raise ValueError(
+                                f"Invalid history reference {str(variable)!r} in {context}: "
+                                "_prev references must have an enclosing X operator "
+                                "so they cannot refer to the initial state."
+                            )
+
+            check_initial_state(formula)
 
     def project_out_constants(self):
         # Early check to see if any variables are constant

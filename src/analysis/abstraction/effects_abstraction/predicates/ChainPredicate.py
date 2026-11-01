@@ -6,11 +6,13 @@ import config
 from analysis.abstraction.effects_abstraction.predicates.Predicate import (
     Predicate,
 )
+from programs.binary_rep_map import BinaryRepMap
 from programs.util import (
     binary_rep,
     add_prev_suffix,
     term_incremented_or_decremented,
 )
+from prop_lang.types.types import INTEGER, Number
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
 from prop_lang.types.ops_and_rels import MathRels
@@ -28,6 +30,7 @@ from prop_lang.util import (
     disjunct,
     stringify_term,
     conjunct_formula_set,
+    true,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -205,9 +208,31 @@ class ChainPredicate(Predicate):
             else:
                 all_before_neg = conjunct(neg(self.raw_state_preds[i - 1]), p)
                 new_chain.append(all_before_neg)
-            self.pred_to_chain[p] = self.chain
 
         new_chain.append(neg(self.raw_state_preds[-1]))
+        intervals = new_chain
+        # Unbounded integer terms need no domain validation. Reuse previously
+        # validated intervals when a constrained term is refined.
+        symbol_table = getattr(self.program, "symbol_table", {})
+        if any(
+            isinstance(symbol_table.get(str(v)), Number)
+            and symbol_table[str(v)] != INTEGER
+            for v in self.vars
+        ):
+            old_intervals = set(self.chain)
+            new_chain = [
+                p
+                for p in intervals
+                if p in old_intervals or sat(p, symbol_table)
+            ]
+            valid_intervals = set(new_chain)
+            if isinstance(self.old_to_new, dict):
+                self.old_to_new = {
+                    p: [q for q in choices if q in valid_intervals]
+                    for p, choices in self.old_to_new.items()
+                }
+            elif isinstance(self.old_to_new, list):
+                self.old_to_new = new_chain
 
         if len(self.chain) == 0:
             self.chain = new_chain
@@ -227,44 +252,30 @@ class ChainPredicate(Predicate):
 
             self.chain = new_chain
 
+        if len(self.chain) == 1:
+            # A single inhabited interval covers the whole domain.
+            self.bin_vars = []
+            self.bin_rep = BinaryRepMap(
+                {self.chain[0]: true()},
+                bin_vars=[],
+                table_rhs_display={self.chain[0]: "TRUE"},
+            )
+        else:
+            self.bin_vars, self.bin_rep = binary_rep(
+                self.chain,
+                "bin_" + stringify_term(self.term),
+                printing=False,
+                log=True,
+            )
+
+        self.single_pred_bin_rep = {}
         for i, p in enumerate(self.raw_state_preds):
-            self.pred_to_chain[neg(p)] = self.chain[i + 1 :]
-
-        self.bin_vars, self.bin_rep = binary_rep(
-            self.chain,
-            "bin_" + stringify_term(self.term),
-            printing=False,
-            log=True,
-        )
-
-        for i, f in enumerate(self.chain):
-            if i + 1 < len(self.chain):
-                if i < len(self.chain) / 2:
-                    if i != 0:
-                        self.single_pred_bin_rep[self.raw_state_preds[i]] = (
-                            disjunct_formula_set(
-                                [self.bin_rep[p] for p in self.chain[0 : i + 1]]
-                            )
-                        )
-                    if i < len(self.raw_state_preds):
-                        self.single_pred_bin_rep[neg(self.raw_state_preds[i])] = (
-                            conjunct_formula_set(
-                                [neg(self.bin_rep[p]) for p in self.chain[0 : i + 1]]
-                            )
-                        )
-                else:
-                    if i != 0:
-                        self.single_pred_bin_rep[self.raw_state_preds[i]] = (
-                            conjunct_formula_set(
-                                [neg(self.bin_rep[p]) for p in self.chain[i + 1 :]]
-                            )
-                        )
-                    if i < len(self.raw_state_preds):
-                        self.single_pred_bin_rep[neg(self.raw_state_preds[i])] = (
-                            disjunct_formula_set(
-                                [self.bin_rep[p] for p in self.chain[i + 1 :]]
-                            )
-                        )
+            below = [q for q in intervals[: i + 1] if q in self.bin_rep]
+            above = [q for q in intervals[i + 1 :] if q in self.bin_rep]
+            self.pred_to_chain[p] = below
+            self.pred_to_chain[neg(p)] = above
+            self.single_pred_bin_rep[p] = self.bin_rep.disjunct_for_keys(below)
+            self.single_pred_bin_rep[neg(p)] = self.bin_rep.disjunct_for_keys(above)
 
     def refine_and_rename_nexts(
         self, gu, prev_state, nexts, symbol_table, sat_ctx=None

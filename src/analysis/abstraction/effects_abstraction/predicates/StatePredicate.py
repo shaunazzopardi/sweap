@@ -58,7 +58,7 @@ class StatePredicate(Predicate):
         new_effects = []
         if self.is_bool:
             return old_effects
-        if self.is_input or self.pred.has_prev_vars():
+        if self.pred.has_prev_vars():
             return old_effects
 
         for now, nexts in old_effects:

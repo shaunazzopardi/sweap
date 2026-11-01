@@ -114,6 +114,10 @@ def process_specifications(
     else:
         raise Exception("No LTL specification provided.")
 
+    program.validate_history_references(
+        ltl, "LTL specification", max_depth=1, require_next=True
+    )
+
     if isinstance(ltl, BiOp) and ltl.op == BoolBiOps.IMPL:
         ltl_assumptions_formula = ltl.left
         ltl_guarantees_formula = ltl.right
@@ -517,18 +521,21 @@ def extract_init_preds(
                 for p in atomic_predicates(act.right):
                     new_state_preds.add(p)
 
-    ltl_assumptions = [
-        strip_mathexpr(ltl).replace_vars(
-            lambda x: program.constants[x] if x in program.constants.keys() else x
-        )
-        for ltl in ltl_assumptions
-    ]
-    ltl_guarantees = [
-        strip_mathexpr(ltl).replace_vars(
-            lambda x: program.constants[x] if x in program.constants.keys() else x
-        )
-        for ltl in ltl_guarantees
-    ]
+    constant_values = program.constants | {
+        variable.prev_rep(): value for variable, value in program.constants.items()
+    }
+
+    def substitute_constants(ltl):
+        ltl = strip_mathexpr(ltl).replace_vars(constant_values)
+        # Substitution may leave closed arithmetic, such as 2 = 2. Fold it
+        # before normalisation, which expects predicates containing variables.
+        return ltl.replace_formulas({
+            p: true() if sat(p, {}) else false()
+            for p in atomic_predicates(ltl) if not p.variablesin()
+        })
+
+    ltl_assumptions = [substitute_constants(ltl) for ltl in ltl_assumptions]
+    ltl_guarantees = [substitute_constants(ltl) for ltl in ltl_guarantees]
 
     for f in ltl_assumptions:
         for p in atomic_predicates(f):
@@ -536,6 +543,18 @@ def extract_init_preds(
     for f in ltl_guarantees:
         for p in atomic_predicates(f):
             new_state_preds.add(p)
+
+    # Boolean history is linked directly to its source state in the LTL
+    # abstraction, so that source must also have a propositional encoding.
+    for predicate in list(new_state_preds):
+        for variable in predicate.variablesin():
+            if variable.is_prev() and variable not in program.local_vars:
+                source = Variable(variable.name.removesuffix("_prev"))
+                if (
+                    source in program.local_vars
+                    and program.symbol_table[str(source)] == BOOLEAN
+                ):
+                    new_state_preds.add(source)
 
     # TODO don't normalise here; normalise inside of effectsabstraction
     # rankings should also be added inside of abstraction, based on normalised preds?

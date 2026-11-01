@@ -193,6 +193,15 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     abs = [
         conjunct_formula_set([init_explicit_state] + init_constants)
     ] + _transition_ltl
+    # State history records the source value, independently of its update.
+    # Boolean atoms bypass numeric effect splitting, so encode their links here.
+    abs.extend(
+        G(iff(X(rename_pred(v.prev_rep())), rename_pred(v)))
+        for v in program.local_vars
+        if program.symbol_table[str(v)] == BOOLEAN
+        and v.prev_rep() not in program.local_vars
+        and v.prev_rep() in predicate_abstraction.var_relabellings
+    )
 
     return None, abs, init
 
@@ -243,6 +252,17 @@ def abstract_ltl_problem(
                     [(m.replace_formulas(relabellings)) for m in models]
                 )
             )
+
+        initial_models = effects_abstraction.sat_initial_input_models
+        if initial_models is not None:
+            # Keep ordinary input restrictions at time zero; history starts at one.
+            initial_constraint = disjunct_formula_set(
+                [
+                    (relabel_for_dual(m) if dual else m).replace_formulas(relabellings)
+                    for m in initial_models
+                ]
+            )
+            model_f = conjunct(initial_constraint, X(model_f))
 
     for p in effects_abstraction.state_predicates:
         if dual:

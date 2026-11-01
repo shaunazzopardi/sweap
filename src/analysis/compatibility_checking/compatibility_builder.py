@@ -287,6 +287,12 @@ def create_nuxmv_model_for_compatibility_checking(
         if _has_input_preds(p)
     ]
     input_predicate_truth += [
+        BiOp(pred, BoolBiOps.IFF, bool_var)
+        for p in transition_predicates
+        if _has_input_preds(p)
+        for pred, bool_var in p.bool_rep.items()
+    ]
+    input_predicate_truth += [
         BiOp(p, BoolBiOps.IFF, Variable(bool_rep))
         for bool_rep, p in input_pred_rep_to_val.items()
     ]
@@ -296,17 +302,16 @@ def create_nuxmv_model_for_compatibility_checking(
         for p in state_predicates
         if not _has_input_preds(p)
     ]
-    safety_predicate_truth += [
-        BiOp(Variable(bool_rep), BoolBiOps.IFF, p)
-        for bool_rep, p in pred_rep_to_val.items()
-    ]
-
     tran_predicate_truth = [
         BiOp(bool_var, BoolBiOps.IFF, pred)
         for p in transition_predicates
         for pred, bool_var in p.bool_rep.items()
         if not _has_input_preds(p)
     ]
+
+    for bool_rep, pred in pred_rep_to_val.items():
+        target = tran_predicate_truth if pred.has_prev_vars() else safety_predicate_truth
+        target.append(BiOp(Variable(bool_rep), BoolBiOps.IFF, pred))
 
     used_comp_macro_names: set[str] = set()
 
@@ -355,7 +360,10 @@ def create_nuxmv_model_for_compatibility_checking(
     for formula in input_predicate_truth:
         lhs_name = str(formula.right) if hasattr(formula, "right") else "input_pred"
         macro_name = _fresh_inp_comp_macro_name(lhs_name)
-        input_pred_compat_macros.append(f"{macro_name} := {formula.to_nuxmv()}")
+        truth = formula.to_nuxmv()
+        if formula.has_prev_vars():
+            truth = _implication("!init_state", truth)
+        input_pred_compat_macros.append(f"{macro_name} := {truth}")
         input_pred_compat_terms.append(macro_name)
 
     program_state_symbols = program_state_symbol_map(program.states)

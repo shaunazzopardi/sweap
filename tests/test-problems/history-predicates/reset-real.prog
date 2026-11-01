@@ -1,0 +1,10 @@
+program history_reset_real {
+    STATES { run : init }
+    ENVIRONMENT EVENTS { }
+    CONTROLLER EVENTS { }
+    VALUATION { x : integer := 1; }
+    TRANSITIONS [completion=stutter] {
+        run -> run [TRUE $ x := 0]
+    }
+    SPECIFICATION { X X G(x_prev = 0) }
+}

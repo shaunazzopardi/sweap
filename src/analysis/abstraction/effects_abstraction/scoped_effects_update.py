@@ -24,7 +24,7 @@ def _refine_nexts_scoped(nexts, sat_ctx):
 
 def _state_extend_effect_now_scoped(state_pred, old_effects, sat_ctx):
     new_effects = []
-    if state_pred.is_bool or state_pred.is_input or state_pred.pred.has_prev_vars():
+    if state_pred.is_bool or state_pred.pred.has_prev_vars():
         return old_effects
 
     for now, nexts in old_effects:

@@ -1,0 +1,13 @@
+program history_copy_difference_real {
+    STATES { run : init }
+    ENVIRONMENT EVENTS { }
+    CONTROLLER EVENTS { }
+    VALUATION {
+        x : integer := 0;
+        y : integer := 0;
+    }
+    TRANSITIONS [completion=stutter] {
+        run -> run [TRUE $ x := y; y := y + 1]
+    }
+    SPECIFICATION { X X G(x_prev < y_prev) }
+}

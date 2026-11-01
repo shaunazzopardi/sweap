@@ -68,7 +68,7 @@ def safety_refinement_seq_int(
                 for k, v in cs_state.items():
                     if k.startswith("pred_"):
                         pred = var_to_predicate(k)
-                        if not add_actions and pred.has_prev_vars():
+                        if pred.has_prev_vars():
                             continue
                         if v == "TRUE":
                             ps.append(pred)
