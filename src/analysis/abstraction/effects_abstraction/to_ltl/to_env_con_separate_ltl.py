@@ -595,7 +595,7 @@ def abstract_ltl_problem(
     return ltl_synthesis_problem
 
 
-def expand_ltl_to_env_con_steps_with_until(formula: Formula, env_events: [Variable]):
+def expand_ltl_to_env_con_steps_with_until(formula: Formula, env_events: list[Variable]):
     rewritten_formula = formula.replace_vars(
         lambda x: (
             x
@@ -610,7 +610,7 @@ def expand_ltl_to_env_con_steps_with_until(formula: Formula, env_events: [Variab
     return rewritten_formula
 
 
-def expand_ltl_to_env_con_steps(formula: Formula, env_events: [Variable]):
+def expand_ltl_to_env_con_steps(formula: Formula, env_events: list[Variable]):
     if isinstance(formula, Value) or isinstance(formula, MathExpr):
         return formula
     elif isinstance(formula, Variable):

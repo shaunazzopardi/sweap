@@ -261,14 +261,14 @@ def is_contradictory(formula: Formula, symbol_table: dict = None) -> bool:
     return not check(_formula_to_smt_with_invariants(formula, symbol_table))
 
 
-def negation_closed(predicates: [Formula]):
+def negation_closed(predicates: list[Formula]):
     for p in predicates:
         if neg(p) not in predicates:
             return False
     return True
 
 
-def prime_action(acts: [BiOp]) -> Formula:
+def prime_action(acts: list[BiOp]) -> Formula:
     if len(acts) == 0:
         return acts
     else:
@@ -1365,7 +1365,7 @@ def project_out_vars_int(
 
 
 def partially_evaluate(
-    formula, true_vars: [Variable], false_vars: [Variable], symbol_table
+    formula, true_vars: list[Variable], false_vars: list[Variable], symbol_table
 ):
     new_formula = formula
     for v in true_vars:
@@ -1540,7 +1540,7 @@ def is_dnf(formula):
         return is_atomic(formula)
 
 
-def abstract_out_conjunctions_of_atoms(formula, dict) -> (Formula, dict):
+def abstract_out_conjunctions_of_atoms(formula, dict) -> tuple[Formula, dict]:
     # traverse the syntax tree, abstract out all conjunction of atoms
     dict = {}
     if is_atomic(formula):
@@ -1562,7 +1562,7 @@ def abstract_out_conjunctions_of_atoms(formula, dict) -> (Formula, dict):
         return formula, dict
 
 
-def abstract_out_disjunctions_of_atoms(formula, dict={}) -> (Formula, dict):
+def abstract_out_disjunctions_of_atoms(formula, dict={}) -> tuple[Formula, dict]:
     # traverse the syntax tree, abstract out all conjunction of atoms
     if is_atomic(formula):
         return formula, dict
@@ -1833,7 +1833,7 @@ def run_with_timeout_pickled(f, args, timeout):
 
 
 def flatten_effects(
-    effects: [(frozenset[Formula], frozenset[frozenset[Formula]])],
+    effects: list[tuple[frozenset[Formula], frozenset[frozenset[Formula]]]],
     preds,
     rename_pred,
 ):
@@ -1868,7 +1868,7 @@ def flatten_effects(
 
 
 def take_out_predicate(
-    effects: [(frozenset[Formula], frozenset[frozenset[Formula]])],
+    effects: list[tuple[frozenset[Formula], frozenset[frozenset[Formula]]]],
     preds: list,
     rename_pred,
 ):
@@ -1931,7 +1931,7 @@ def take_out_predicate(
     return formula
 
 
-def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
+def take_out_pred(disjuncts_of_conjuncts: list[list[Variable]], pred: Variable):
     true_at = set()
     false_at = set()
     others_at = set()
@@ -1946,7 +1946,7 @@ def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
     return true_at, false_at, others_at
 
 
-def take_out_preds(disjuncts_of_conjuncts: [[Variable]], preds: [Variable]):
+def take_out_preds(disjuncts_of_conjuncts: list[list[Variable]], preds: list[Variable]):
     def associated_formula_dict_to_formula(associated_formula):
         return disjunct_formula_set(
             [
@@ -2039,7 +2039,7 @@ def take_out_pred_sat(disjuncts: list[Formula], pred: Variable, symbol_table):
     return true_at, false_at, others_at
 
 
-def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
+def take_out_preds_sat(disjuncts: list[Formula], preds: list[Formula], symbol_table):
     def associated_formula_dict_to_formula(associated_formula):
         return disjunct_formula_set(
             [
@@ -2099,7 +2099,7 @@ def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
     return prev_formula
 
 
-def project_out_props(env_cond: Formula, env_props: [Variable]):
+def project_out_props(env_cond: Formula, env_props: list[Variable]):
     return simplify_formula_without_math(project_out_vars(env_cond, env_props))
 
 
@@ -2373,7 +2373,7 @@ def normalise_formula(f, signatures, symbol_table, ignore_these=None):
 
 
 # preds here may be use in structural refinements, careful
-def normalise_predicate_old(pred, signatures, symbol_table) -> (Formula, [Formula]):
+def normalise_predicate_old(pred, signatures, symbol_table) -> tuple[Formula, list[Formula]]:
     pred = strip_outer_mathexpr(pred)
     if isinstance(pred, BiOp) and (pred.op == "==" or pred.op == "="):
         pred1 = BiOp(pred.left, "<=", pred.right)

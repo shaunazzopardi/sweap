@@ -26,7 +26,7 @@ from prop_lang.variable import Variable
 
 
 def structural_refinement(
-    terminating_loop: [(Formula, [BiOp])],
+    terminating_loop: list[tuple[Formula, list[BiOp]]],
     entry_condition: Formula,
     exit_condition: Formula,
     counter,

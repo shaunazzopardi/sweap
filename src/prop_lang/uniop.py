@@ -48,7 +48,7 @@ class UniOp(Formula):
         return self.hsh
 
     @functools.lru_cache()
-    def variablesin(self) -> [Variable]:
+    def variablesin(self) -> list[Variable]:
         return self.right.variablesin()
 
     def simplify(self):
@@ -93,7 +93,7 @@ class UniOp(Formula):
     def to_strix(self):
         return self.op + "(" + self.right.to_strix() + ")"
 
-    def to_smt(self, symbol_table) -> (FNode, FNode):
+    def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
         cache = config.Config.getConfig().cache_smt
         if cache and self.smt_representation:
             return self.smt_representation

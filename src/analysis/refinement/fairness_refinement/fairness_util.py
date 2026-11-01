@@ -141,7 +141,7 @@ def function_has_well_ordered_range(f, invars, symbol_table):
     return qe.is_true()
 
 
-def function_decreases_in_loop_body(f, invars, body: [[BiOp]], symbol_table):
+def function_decreases_in_loop_body(f, invars, body: list[list[BiOp]], symbol_table):
     # TODO ensure each action set in body has an action for every variable in f and invars
     at_least_one_decrease = False
     for acts in body:

@@ -51,10 +51,10 @@ class StatePredicate(Predicate):
     def extend_effect_now(
         self,
         gu: Formula,
-        old_effects: [(Formula, [Formula])],
+        old_effects: list[tuple[Formula, list[Formula]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, [Formula])]:
+    ) -> list[tuple[Formula, list[Formula]]]:
         new_effects = []
         if self.is_bool:
             return old_effects
@@ -106,10 +106,10 @@ class StatePredicate(Predicate):
     def extend_effect_next(
         self,
         gu: Formula,
-        old_effects: [(Formula, dict[Variable, [Formula]])],
+        old_effects: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         if self.is_bool:
             return old_effects
         if self.is_input:
@@ -144,10 +144,10 @@ class StatePredicate(Predicate):
     def extend_effect(
         self,
         gu: Formula,
-        old_effects: [(Formula, [Formula])],
+        old_effects: list[tuple[Formula, list[Formula]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, [Formula])]:
+    ) -> list[tuple[Formula, list[Formula]]]:
         if self.is_bool:
             return old_effects
         if self.is_input:

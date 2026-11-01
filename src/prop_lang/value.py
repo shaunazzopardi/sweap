@@ -33,7 +33,7 @@ class Value(Atom):
     def is_false(self):
         return self.val == BoolAtoms.FALSE
 
-    def variablesin(self) -> [Variable]:
+    def variablesin(self) -> list[Variable]:
         return []
 
     def simplify(self):
@@ -61,7 +61,7 @@ class Value(Atom):
         else:
             return str(self.val)
 
-    def to_smt(self, _) -> (FNode, FNode):
+    def to_smt(self, _) -> tuple[FNode, FNode]:
         if self.is_true():
             return TRUE(), TRUE()
         elif self.is_false():
