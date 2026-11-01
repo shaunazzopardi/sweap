@@ -76,7 +76,7 @@ class MinigameFiller:
                     if v.is_next():
                         vars_used.add(v.prev_rep())
                     else:
-                        vars_used.add(Variable(v.name.replace("_prev", "")))
+                        vars_used.add(Variable(MinigameFiller._strip_prev_suffix(v.name)))
         return vars_used
 
     @staticmethod

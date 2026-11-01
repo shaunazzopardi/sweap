@@ -18,6 +18,9 @@ class Formula(ABC):
     def variablesin(self) -> typing.Iterable["Variable"]:
         pass
 
+    def has_prev_vars(self) -> bool:
+        return any(v.is_prev() for v in self.variablesin())
+
     @abstractmethod
     def simplify(self) -> Self:
         pass

@@ -28,7 +28,7 @@ def _partition_state_and_transition_predicates(state_predicates, transition_pred
     promoted_to_transitions = []
     true_state_preds = set()
     for pred in state_predicates:
-        if "_prev" in str(pred.pred):
+        if pred.pred.has_prev_vars():
             promoted_to_transitions.append(pred)
         else:
             true_state_preds.add(pred)

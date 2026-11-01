@@ -61,6 +61,7 @@ from prop_lang.util import (
     normalise_pred_multiple_vars,
     implies,
     stringify_term,
+    var_to_predicate,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -82,7 +83,9 @@ class EffectsAbstraction(PredicateAbstraction):
         self.binary_rep_tables: dict[str, str] = {}
 
         vars = [
-            Variable(v) for v in program.symbol_table.keys() if "_prev_prev" not in v
+            Variable(v)
+            for v in program.symbol_table.keys()
+            if not v.endswith("_prev_prev")
         ]
         self.partitions = {i: {v} for i, v in enumerate(vars)}
         self.v_to_p = {v: set() for v in vars}
@@ -668,7 +671,7 @@ class EffectsAbstraction(PredicateAbstraction):
         pass
 
     def update_init_abstraction_state_pred(self, p):
-        if p.is_input or "_prev" in str(p):
+        if p.is_input or p.has_prev_vars():
             return self.init_state_abstraction
         new_init_abs = []
         for m in self.init_state_abstraction:
@@ -682,7 +685,7 @@ class EffectsAbstraction(PredicateAbstraction):
         return new_init_abs
 
     def update_init_abstraction_new_chain_pred(self, v_chain_pred):
-        if v_chain_pred.is_input or "_prev" in str(v_chain_pred.term):
+        if v_chain_pred.is_input or v_chain_pred.term.has_prev_vars():
             return self.init_state_abstraction
         new_init_abs = []
 
@@ -701,7 +704,7 @@ class EffectsAbstraction(PredicateAbstraction):
         return new_init_abs
 
     def update_init_abstraction_old_chain_pred(self, v_chain_pred):
-        if v_chain_pred.is_input or "_prev" in str(v_chain_pred.term):
+        if v_chain_pred.is_input or v_chain_pred.term.has_prev_vars():
             return self.init_state_abstraction
 
         old_to_new = v_chain_pred.old_to_new
@@ -939,7 +942,7 @@ def update_effects(
     if any(
         p
         for p in next_preds | new_preds
-        if any(v for v in p.variablesin() if "_prev" in v.name)
+        if p.has_prev_vars()
     ):
         next_vs_init.update({u.left for u in us if u.left == u.right})
 
@@ -987,7 +990,7 @@ def update_effects(
 
     new_now_preds = sorted(list(new_now_preds), key=lambda p: str(p))
     for p in new_now_preds:
-        if not "_prev" in str(p):
+        if not p.has_prev_vars():
             if use_state_scopes and isinstance(p, StatePredicate):
                 effects = _state_extend_effect_now_scoped(p, effects, sat_ctx)
             elif use_chain_scopes and isinstance(p, ChainPredicate):
@@ -1009,7 +1012,7 @@ def update_effects(
     common_preds = sorted(list(common_preds), key=lambda p: str(p))
     for p in common_preds:
         # this is adding tran preds, don t need them if only safety
-        if isinstance(p, TransitionPredicate) or "_prev" in str(p):
+        if isinstance(p, TransitionPredicate) or p.has_prev_vars():
             effects = p.extend_effect_next(gu, effects, symbol_table, sat_ctx=sat_ctx)
         else:
             if use_state_scopes and isinstance(p, StatePredicate):
@@ -1388,6 +1391,15 @@ def debug_check_sat(gu, now_nexts, invars, constants, symbol_table):
                 print("next" + str(next))
 
 
+def _invariant_has_prev_vars(invariant):
+    # Encoded predicate names lose underscores; inspect their source formulas.
+    return any(
+        var_to_predicate(v.name).has_prev_vars()
+        if v.name.startswith("pred_") else v.is_prev()
+        for v in invariant.variablesin()
+    )
+
+
 def effects_to_ltl(
     effects,
     constants,
@@ -1455,7 +1467,7 @@ def effects_to_ltl(
         if isinstance(p, ChainPredicate):
             invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
         else:
-            if "prev" not in str(p):
+            if not _invariant_has_prev_vars(p):
                 invar_preds_effects.add(iff(p, X(p)))
 
     constant_effects = []
@@ -1543,7 +1555,7 @@ def effects_to_ltl_non_bin(
 
             invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
         else:
-            if "prev" not in str(p):
+            if not _invariant_has_prev_vars(p):
                 invar_preds_effects.add(iff(p, X(p)))
             else:
                 print("prev state predicate as invar")

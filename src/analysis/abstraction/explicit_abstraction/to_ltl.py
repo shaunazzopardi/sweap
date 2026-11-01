@@ -134,7 +134,7 @@ def explicit_abstraction_to_state_based_ltl_abstraction(
                             X(label_pred(p, predicates)),
                         )
                         for p in predicates
-                        if "_prev" not in str(p)
+                        if not p.has_prev_vars()
                         and (
                             p not in t.src.predicates + et.tgt.predicates
                             and neg(p) not in t.src.predicates + et.tgt.predicates

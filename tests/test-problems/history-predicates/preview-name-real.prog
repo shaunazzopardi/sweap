@@ -1,0 +1,10 @@
+program preview_name_real {
+    STATES { run : init }
+    ENVIRONMENT EVENTS { }
+    CONTROLLER EVENTS { }
+    VALUATION { counter_preview : integer := -1; }
+    TRANSITIONS [completion=stutter] {
+        run -> run [TRUE $ counter_preview := counter_preview + 1]
+    }
+    SPECIFICATION { counter_preview = -1 }
+}

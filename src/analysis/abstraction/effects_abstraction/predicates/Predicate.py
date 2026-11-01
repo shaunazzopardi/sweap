@@ -10,6 +10,9 @@ class Predicate(ABC):
     def variablesin(self):
         pass
 
+    def has_prev_vars(self) -> bool:
+        return any(v.is_prev() for v in self.variablesin())
+
     @abstractmethod
     def boolean_rep(self):
         pass

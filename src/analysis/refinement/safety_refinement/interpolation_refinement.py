@@ -41,7 +41,7 @@ def safety_refinement_seq_int(
     symbol_table = predicate_abstraction.get_symbol_table()
     new_symbol_table = {}
 
-    add_actions = "_prev" in str(disagreed_on_state[0])
+    add_actions = any(p.has_prev_vars() for p in disagreed_on_state[0])
 
     if allow_user_input:
         new_state_preds = interactive_state_predicates()
@@ -49,11 +49,11 @@ def safety_refinement_seq_int(
         ith_vars = lambda i: {
             Variable(v): Variable(v + "_" + str(i))
             for v in symbol_table.keys()
-            if "_prev" not in v
+            if not v.endswith("_prev")
         } | {
             Variable(v): Variable(v.removesuffix("_prev") + "_" + str(i - 1))
             for v in symbol_table.keys()
-            if "_prev" in v
+            if v.endswith("_prev")
         }
 
         if len(agreed_on_transitions) == 0:
@@ -68,7 +68,7 @@ def safety_refinement_seq_int(
                 for k, v in cs_state.items():
                     if k.startswith("pred_"):
                         pred = var_to_predicate(k)
-                        if not add_actions and "_prev" in str(pred):
+                        if not add_actions and pred.has_prev_vars():
                             continue
                         if v == "TRUE":
                             ps.append(pred)
@@ -100,7 +100,7 @@ def safety_refinement_seq_int(
                 for k, v in cs_state.items():
                     if k.startswith("pred_"):
                         pred = var_to_predicate(k)
-                        if not add_actions and "_prev" in str(pred):
+                        if not add_actions and pred.has_prev_vars():
                             continue
                         if v == "TRUE":
                             ps.append(pred)
