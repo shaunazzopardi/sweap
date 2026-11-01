@@ -345,10 +345,10 @@ class ChainPredicate(Predicate):
     def extend_effect_now(
         self,
         gu: Formula,
-        old_effects: [(Formula, dict[Variable, [Formula]])],
+        old_effects: list[tuple[Formula, dict[Variable, list[Formula]]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, dict[Variable, [Formula]])]:
+    ) -> list[tuple[Formula, dict[Variable, list[Formula]]]]:
         new_effects = []
         for old_now, nexts in old_effects:
             new_nows = self.replace_formulas_multiple_but(

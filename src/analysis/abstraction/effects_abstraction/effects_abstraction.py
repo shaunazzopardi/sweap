@@ -211,8 +211,8 @@ class EffectsAbstraction(PredicateAbstraction):
 
     def add_predicates(
         self,
-        new_state_predicates: [Formula],
-        new_transition_predicates: [Formula],
+        new_state_predicates: list[Formula],
+        new_transition_predicates: list[Formula],
         signatures,
         parallelise=True,
     ):
@@ -696,7 +696,7 @@ class EffectsAbstraction(PredicateAbstraction):
     def get_program(self):
         return self.program
 
-    def concretise_counterexample(self, counterexample: [dict]):
+    def concretise_counterexample(self, counterexample: list[dict]):
         pass
 
     def update_init_abstraction_state_pred(self, p):

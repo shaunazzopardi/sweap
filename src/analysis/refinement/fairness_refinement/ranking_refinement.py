@@ -232,7 +232,7 @@ def loop_to_nuxmv(
     symbol_table,
     program: Program,
     entry_condition: Formula,
-    loop_before_exit: [Transition],
+    loop_before_exit: list[Transition],
     exit_cond: Formula,
     add_natural_conditions=True,
 ):
@@ -436,7 +436,7 @@ def loop_to_c(
 
 
 def use_liveness_refinement_state(
-    ce: [dict], last_cs_state, disagreed_on_state_dict, symbol_table
+    ce: list[dict], last_cs_state, disagreed_on_state_dict, symbol_table
 ):
     new_ce = list(enumerate(ce + [disagreed_on_state_dict]))
 
@@ -499,7 +499,7 @@ def use_liveness_refinement_state_joined(
     Cs: MooreMachine | MealyMachine,
     program,
     predicate_abstraction: PredicateAbstraction,
-    ce: [dict],
+    ce: list[dict],
     prog_trans,
     last_cs_state,
     disagreed_on_state_dict,
@@ -635,7 +635,7 @@ def use_liveness_refinement_state_joined(
         return False, None
 
 
-def use_liveness_refinement_trans(ce: [dict], symbol_table):
+def use_liveness_refinement_trans(ce: list[dict], symbol_table):
     counterstrategy_trans_con = []
 
     for i, state in enumerate(ce):

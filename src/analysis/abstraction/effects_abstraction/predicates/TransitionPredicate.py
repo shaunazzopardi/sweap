@@ -46,10 +46,10 @@ class TransitionPredicate(Predicate, ABC):
     def extend_effect_next(
         self,
         gu: Formula,
-        old_effects: [(Formula, [Formula])],
+        old_effects: list[tuple[Formula, list[Formula]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, [Formula])]:
+    ) -> list[tuple[Formula, list[Formula]]]:
         if self.is_input:
             return old_effects
 
@@ -89,10 +89,10 @@ class TransitionPredicate(Predicate, ABC):
     def extend_effect(
         self,
         gu: Formula,
-        old_effects: [(Formula, [Formula])],
+        old_effects: list[tuple[Formula, list[Formula]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, [Formula])]:
+    ) -> list[tuple[Formula, list[Formula]]]:
         if self.is_input:
             return self.extend_effect_now(
                 gu, old_effects, symbol_table, sat_ctx=sat_ctx
@@ -117,10 +117,10 @@ class TransitionPredicate(Predicate, ABC):
     def extend_effect_now(
         self,
         gu: Formula,
-        old_effects: [(Formula, [Formula])],
+        old_effects: list[tuple[Formula, list[Formula]]],
         symbol_table,
         sat_ctx=None,
-    ) -> [(Formula, [Formula])]:
+    ) -> list[tuple[Formula, list[Formula]]]:
         new_effects = []
 
         for now, nexts in old_effects:

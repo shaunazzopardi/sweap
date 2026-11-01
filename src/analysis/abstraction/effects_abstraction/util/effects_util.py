@@ -63,7 +63,7 @@ def relevant_pred_g_u(guard, update, relevant_preds, predicate):
         return False
 
 
-def merge_transitions(transitions: [Transition], symbol_table, to_program_transitions):
+def merge_transitions(transitions: list[Transition], symbol_table, to_program_transitions):
     # can probably do this while building the initial abstraction
     new_transitions = []
     new_to_program_transitions = {}
