@@ -235,35 +235,24 @@ def qe_refinement(
         )
         left = conjunct_formula_set(formulas[0:-1])
         right = formulas[-1]
+        preds_in_res = set()
         LHS = And(*left.to_smt(new_symbol_table))
         RHS = And(*right.to_smt(new_symbol_table))
-        formula = ForAll(typed_vars, Implies(LHS, RHS))
-        qe = quantifier_elimination(formula)
-        pos_f = fnode_to_formula(qe)
-        preds_in_res = atomic_predicates(pos_f)
-
-        RHS = And(*neg(right).to_smt(new_symbol_table))
-        formula = ForAll(typed_vars, Implies(LHS, RHS))
-        qe = quantifier_elimination(formula)
-        neg_f = fnode_to_formula(qe)
-        preds_in_res.update(atomic_predicates(neg_f))
+        formula_fnode = ForAll(typed_vars, Implies(LHS, RHS))
+        result_fnode = quantifier_elimination(formula_fnode)
+        result = fnode_to_formula(result_fnode)
+        preds_in_res.update(atomic_predicates(result))
 
         to_proj = {}
         for p in preds_in_res:
             if not sat(conjunct(p, left), new_symbol_table):
                 to_proj[p] = Value(BoolAtoms.FALSE)
 
-        new_pos_f = pos_f.replace_formulas(to_proj)
-        new_pos_f = simplify_formula_with_math(new_pos_f, new_symbol_table)
-
-        new_neg_f = neg_f.replace_formulas(to_proj)
-        new_neg_f = simplify_formula_with_math(new_neg_f, new_symbol_table)
+        new_f = result.replace_formulas(to_proj)
+        new_f = simplify_formula_with_math(new_f, new_symbol_table)
 
         new_state_preds.update(
-            [p.replace_vars(reset_vars) for p in atomic_predicates(new_pos_f)]
-        )
-        new_state_preds.update(
-            [p.replace_vars(reset_vars) for p in atomic_predicates(new_neg_f)]
+            [p.replace_vars(reset_vars) for p in atomic_predicates(new_f)]
         )
         new_state_preds, _ = normalise_and_filter_preds(
             state_predicates, new_state_preds, signatures, symbol_table
@@ -290,36 +279,24 @@ def qe_refinement_only_inputs(
     )
     left = conjunct_formula_set(formulas[0:-1])
     right = formulas[-1]
+    preds_in_res = set()
     LHS = And(*left.to_smt(new_symbol_table))
     RHS = And(*right.to_smt(new_symbol_table))
-    formula = ForAll(typed_vars, Implies(LHS, RHS))
-    qe = quantifier_elimination(formula)
-    pos_f = fnode_to_formula(qe)
-    preds_in_res = atomic_predicates(pos_f)
-
-    RHS = And(*neg(right).to_smt(new_symbol_table))
-    formula = ForAll(typed_vars, Implies(LHS, RHS))
-    qe = quantifier_elimination(formula)
-    neg_f = fnode_to_formula(qe)
-    preds_in_res.update(atomic_predicates(neg_f))
+    formula_fnode = ForAll(typed_vars, Implies(LHS, RHS))
+    result_fnode = quantifier_elimination(formula_fnode)
+    result = fnode_to_formula(result_fnode)
+    preds_in_res.update(atomic_predicates(result))
 
     to_proj = {}
     for p in preds_in_res:
         if not sat(conjunct(p, left), new_symbol_table):
             to_proj[p] = Value(BoolAtoms.FALSE)
-        # elif is_tautology(implies(left, p), new_symbol_table):
-        #     to_proj[p] = Value(BoolAtoms.TRUE)
-    new_pos_f = pos_f.replace_formulas(to_proj)
-    new_pos_f = simplify_formula_with_math(new_pos_f, new_symbol_table)
 
-    new_neg_f = neg_f.replace_formulas(to_proj)
-    new_neg_f = simplify_formula_with_math(new_neg_f, new_symbol_table)
+    new_f = result.replace_formulas(to_proj)
+    new_f = simplify_formula_with_math(new_f, new_symbol_table)
 
     new_state_preds.update(
-        [p.replace_vars(reset_vars) for p in atomic_predicates(new_pos_f)]
-    )
-    new_state_preds.update(
-        [p.replace_vars(reset_vars) for p in atomic_predicates(new_neg_f)]
+        [p.replace_vars(reset_vars) for p in atomic_predicates(new_f)]
     )
 
     # TODO these may not be the highest quality predicates
