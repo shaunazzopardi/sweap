@@ -102,15 +102,24 @@ def verify_strategy(
     )
     logging.info(system)
 
+    # As in strategy_to_nuxmv_model, Mealy machines emit con_events, whereas
+    # Moore machines emit env_events. Their emitted codes are checked against
+    # the represented regions by compatibility checking, not assumed stable.
+    strategy_outputs = set(
+        machine.con_events if isinstance(machine, MealyMachine) else machine.env_events
+    )
     bin_conditions = []
     for chain_pred in predicate_abstraction.v_to_chain_pred.values():
-        if not conf.dual and chain_pred.is_input:
+        # Inputs are sampled afresh in both modes; their encoding need not
+        # persist when consecutive values happen to occupy the same region.
+        if chain_pred.is_input or strategy_outputs.intersection(chain_pred.bin_vars):
             continue
         ch_pred_bin_conds = []
         bin_vars = set(chain_pred.bin_vars)
         for rep in chain_pred.bin_rep.values():
-            missing_bin_vars = bin_vars.difference(rep.variablesin())
-            for m in missing_bin_vars:
+            # Composite regions can admit several codes even when their
+            # formula mentions every bit. Keep the whole code stable.
+            for m in bin_vars:
                 ch_pred_bin_conds.append(
                     implies(conjunct(rep, X(rep)), BiOp(m, "<->", X(m)))
                 )
