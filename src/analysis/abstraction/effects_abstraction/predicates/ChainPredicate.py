@@ -274,8 +274,9 @@ class ChainPredicate(Predicate):
             above = [q for q in intervals[i + 1 :] if q in self.bin_rep]
             self.pred_to_chain[p] = below
             self.pred_to_chain[neg(p)] = above
-            self.single_pred_bin_rep[p] = self.bin_rep.disjunct_for_keys(below)
-            self.single_pred_bin_rep[neg(p)] = self.bin_rep.disjunct_for_keys(above)
+            below_encoding = self.bin_rep.prefix_disjunction(len(below))
+            self.single_pred_bin_rep[p] = below_encoding
+            self.single_pred_bin_rep[neg(p)] = neg(below_encoding)
 
     def refine_and_rename_nexts(
         self, gu, prev_state, nexts, symbol_table, sat_ctx=None
