@@ -281,7 +281,7 @@ def x_expr_parser():
     yield spaces()
     exprs = yield sepBy(expr_parser, spaces())
 
-    if len(exprs) == 1:
+    if op not in {"and", "or"} and len(exprs) < 2:
         raise Exception(
             "Expression needs to have more than one argument: "
             + " ".join(map(str, exprs))
