@@ -99,7 +99,7 @@ def program_to_nuxmv_model(
     identity += ["!next(" + str(event) + ")" for event in program.out_events]
 
     identity_macro_name = "identity_" + program.name
-    define.append(identity_macro_name + " := " + " & ".join(identity))
+    define.append(identity_macro_name + " := " + (" & ".join(identity) or "TRUE"))
 
     # if no guard holds, then keep the same state and output no program events
     guards.append("!(" + " | ".join(guard_ids) + ")")
