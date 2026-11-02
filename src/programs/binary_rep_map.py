@@ -6,6 +6,7 @@ from prop_lang.types.types import BOOLEAN
 from prop_lang.util import (
     conjunct,
     conjunct_formula_set,
+    disjunct,
     disjunct_formula_set,
     dnf_safe,
     false,
@@ -58,6 +59,27 @@ class BinaryRepMap(dict):
             disj = disjunct_formula_set(self[k] for k in selected_set)
 
         return self._normalise_boolean_formula(disj)
+
+    def prefix_disjunction(self, count: int):
+        """Encode a prefix of a consecutive encoding from build_binary_rep.
+
+        A proper prefix is the unsigned comparison bits < count. The final
+        entry covers unused codes, so selecting every entry is simply TRUE.
+        """
+        if not 0 <= count <= len(self):
+            raise ValueError("Prefix length is outside the encoding domain")
+        if count == 0:
+            return false()
+        if count == len(self):
+            return true()
+        result = false()
+        bits = format(count, f"0{len(self.bin_vars)}b")
+        for var, bit in zip(reversed(self.bin_vars), reversed(bits)):
+            if bit == "1":
+                result = disjunct(neg(var), result)
+            else:
+                result = conjunct(neg(var), result)
+        return result
 
     @staticmethod
     def should_emit_table(label: str) -> bool:
@@ -185,9 +207,7 @@ class BinaryRepMap(dict):
         if len(vars) > 2 and len(vars) < 2**width:
             last = vars[-1]
             others = [k for k in rep.keys() if k != last]
-            rep[last] = rep._normalise_boolean_formula(
-                neg(rep.disjunct_for_keys(others, use_complement=False))
-            )
+            rep[last] = neg(rep.prefix_disjunction(len(vars) - 1))
             rep._table_rhs_display[last] = cls._format_not_of_binary_codes(
                 [binary_codes[k] for k in others]
             )
