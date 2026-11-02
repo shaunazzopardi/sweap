@@ -1,12 +1,13 @@
 import logging
 from collections import defaultdict
-from typing import Optional
+from typing import Iterator, Optional
 
 from tatsu.walkers import NodeWalker
 
 from parsing.reserved_names import reserved_name_mapping, rename_tree
 from parsing.string_to_ltl import unary_LTL_operators, binary_LTL_operators
 from parsing.util.partitioned_update_chain import (
+    _canonical_update_predicate_keys,
     build_partitioned_update_chain,
     build_update_predicate_guard_replacements,
 )
@@ -31,12 +32,34 @@ from prop_lang.util import (
     F,
     strip_mathexpr,
     atomic_predicates,
+    false,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
 delimiters = {";", "{", "}"}
+
+
+def mandatory_update_choices(
+    formula: Formula, always: bool = False
+) -> Iterator[list[Update]]:
+    """Find unconditional, per-variable update choices required every round."""
+    if isinstance(formula, UniOp) and formula.op == "G":
+        yield from mandatory_update_choices(formula.right, True)
+    elif isinstance(formula, BiOp) and formula.op == "&":
+        yield from mandatory_update_choices(formula.left, always)
+        yield from mandatory_update_choices(formula.right, always)
+    elif always:
+        choices = (
+            formula.sub_formulas_up_to_associativity()
+            if isinstance(formula, BiOp) and formula.op == "|"
+            else [formula]
+        )
+        if all(isinstance(choice, Update) for choice in choices) and len(
+            {choice.left for choice in choices}
+        ) == 1:
+            yield choices
 
 
 class ToProgram(NodeWalker):
@@ -292,6 +315,7 @@ class ToProgram(NodeWalker):
                     if v not in vars_to_preds.keys():
                         vars_to_preds[v] = set()
                     vars_to_preds[v].add(p)
+        assumptions_have_updates = bool(self.updates)
         for f in guarantees:
             self.walk(f)
             for p in atomic_predicates(f):
@@ -389,6 +413,53 @@ class ToProgram(NodeWalker):
         for v in self.vars:
             types.setdefault(v.name, BOOLEAN)
 
+        removed_update_keys = set()
+        temporal_ops = unary_LTL_operators | binary_LTL_operators
+        assumption_conjuncts = [
+            part
+            for assumption in assumptions
+            for part in (
+                assumption.sub_formulas_up_to_associativity()
+                if isinstance(assumption, BiOp) and assumption.op == "&"
+                else [assumption]
+            )
+        ]
+        # Guarantees only bind traces satisfying the assumptions. Prune choices
+        # only when updates cannot falsify initial/input-only assumptions.
+        if (
+            not assumptions_have_updates
+            and all(
+                not temporal_ops.intersection(a.ops_used())
+                or set(a.variablesin()).issubset(self.inputs)
+                for a in assumption_conjuncts
+            )
+            # Every phase must remain total: bounded updates can block at a
+            # boundary, so removing their fallback choices could cause deadlock.
+            and all(types[str(v)] in (INTEGER, BOOLEAN) for v in self.state_vars)
+        ):
+            requirements = defaultdict(list)
+            for guarantee in guarantees:
+                for choices in mandatory_update_choices(guarantee):
+                    requirements[str(choices[0].left)].append(
+                        {
+                            key for update in choices
+                            for key in _canonical_update_predicate_keys(update)
+                        }
+                    )
+            for name, required_choices in requirements.items():
+                keys = {
+                    update: set(_canonical_update_predicate_keys(update))
+                    for update in self.updates[name]
+                }
+                retained = {
+                    update for update, update_keys in keys.items()
+                    if all(update_keys & required for required in required_choices)
+                }
+                if retained:
+                    for update in self.updates[name] - retained:
+                        removed_update_keys.update(keys[update])
+                    self.updates[name] = retained
+
         chain = build_partitioned_update_chain(
             self.updates,
             self.inputs,
@@ -400,6 +471,10 @@ class ToProgram(NodeWalker):
         states = set(chain.states)
         con_t = list(chain.transitions)
         all_con_act_vars = set(chain.controller_events)
+        # Other formulas may still mention a removed choice. It is false in
+        # this arena; preserve any equivalent retained choice's existing guard.
+        for key in removed_update_keys:
+            chain.update_predicate_key_to_guard.setdefault(key, false())
         for curr_v in chain.snapshot_state_vars:
             curr_name = str(curr_v)
             if curr_name in types:
