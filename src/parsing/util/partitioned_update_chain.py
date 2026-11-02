@@ -215,10 +215,16 @@ def build_partitioned_update_chain(
             eval_state if last_partition else state_prefix + partition_items[j + 1][0]
         )
 
-        selector_vars, selector_map = binary_rep(
-            [Variable(str(k)) for k in range(combo_count)],
-            selector_prefix,
-        )
+        if combo_count == 1:
+            # A forced update needs no selector; an unused selector value
+            # would otherwise create a stuttering fallback during completion.
+            selector_vars = []
+            selector_map = BinaryRepMap({Variable("0"): true()})
+        else:
+            selector_vars, selector_map = binary_rep(
+                [Variable(str(k)) for k in range(combo_count)],
+                selector_prefix,
+            )
         all_con_act_vars.update(selector_vars)
         selector_values = list(selector_map.values())
         extra_snapshot_actions = (
