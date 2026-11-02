@@ -1678,10 +1678,16 @@ def run_with_timeout_and_memory_limit(f, args, timeout, max_memory_gb):
                 break
             time.sleep(0.01)
 
-        if process.is_alive():
+        timed_out = process.is_alive()
+        if timed_out:
             _kill_process_tree(process.pid)
             process.terminate()
         process.join(1.0)
+
+        # Cleanup can make a subprocess fail before its worker is terminated.
+        # Such an error is a consequence of the expired deadline.
+        if timed_out:
+            return False, "Timeout"
 
         status = result_dict.get("status", None)
         result = result_dict.get("result", None)
