@@ -72,7 +72,8 @@ def synthesize(
         ltl_guarantees,
         in_acts,
         out_acts,
-    ) = process_specifications(program, ltl, tlsf_path)
+        effective_ltl,
+    ) = _process_specifications(program, ltl, tlsf_path)
 
     aps = set()
     for ass_or_guar in (ltl_assumptions, ltl_guarantees):
@@ -83,7 +84,7 @@ def synthesize(
         program,
         ltl_assumptions,
         ltl_guarantees,
-        ltl,
+        effective_ltl,
         in_acts,
         out_acts,
         bound,
