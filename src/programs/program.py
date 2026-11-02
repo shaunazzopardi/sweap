@@ -28,7 +28,6 @@ from programs.util import (
     binary_rep_states,
     add_prev_suffix,
     transition_formula,
-    issy_transition_formula,
 )
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
@@ -633,65 +632,9 @@ class Program:
         return dedent(prog)
 
     def to_issy(self, spec):
-        vars = ""
+        from programs.issy_export import program_to_issy
 
-        def sweap_type_to_issy(t):
-            if t == BOOLEAN:
-                return "bool"
-            elif isinstance(t, Number):
-                return "int"
-            else:
-                raise Exception("Unsupported type for ISSY: " + str(t))
-
-        for i, t in self.env_events:
-            vars += f"input {sweap_type_to_issy(t)} {i}\n"
-        for i, t in self.con_events:
-            vars += f"state {sweap_type_to_issy(t)} {i}\n"
-        for i in self.local_vars:
-            vars += f"state {sweap_type_to_issy(self.symbol_table[str(i)])} {i}\n"
-        states_in_spec = {
-            str(s) for s in atomic_predicates(spec) if str(s) in self.states
-        }
-        for s in states_in_spec:
-            vars += f"state bool {s}\n"
-
-        game_state = "\t" + "\n\t".join([f"loc {s} 1" for s in self.states])
-        transitions = "\t" + "\n\n\t".join(
-            map(lambda x: issy_transition_formula(x, states_in_spec), self.transitions)
-        )
-
-        game = (
-            f"game Safety from {self.initial_state} "
-            + "{\n"
-            + game_state
-            + "\n\n"
-            + transitions
-            + "\n}"
-        )
-        assertion = f"assert {str(spec)}"
-
-        init_vals = []
-        for v, k in self.init_var_values.items():
-            init_vals.append(f"[{v} = {k}]")
-
-        if len(init_vals) > 0:
-            assume = "assume " + " && ".join(init_vals)
-            objective = assume + "\n\t" + assertion
-        else:
-            objective = assertion
-
-        if states_in_spec:
-            init_assumptions = []
-            for s in states_in_spec:
-                if s == self.initial_state:
-                    init_assumptions.append(f"assume [{self.initial_state}]")
-                else:
-                    init_assumptions.append(f"assume ![{s}]")
-            objective = "\n\t".join(init_assumptions) + "\n\t" + objective
-
-        full = "formula {\n\t" + objective + "\n}\n\n" + vars + "\n" + game
-        full.replace(" & ", " && ").replace(" | ", " || ")
-        return full
+        return program_to_issy(self, spec)
 
     def to_dot(self):
         dot = Digraph(
