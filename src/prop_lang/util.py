@@ -867,11 +867,12 @@ def type_constraints_acts(transition, symbol_table):
     acts = transition.action
     constraints = []
     for act in acts:
-        if act.right != act.left and len(act.right.variablesin()) > 0:
+        if act.right != act.left:
             constraint = type_constraint_from_act(act, symbol_table)
-            if not isinstance(constraint, Value):
-                if sat(conjunct(transition.condition, constraint), symbol_table):
-                    constraints.append(constraint)
+            if not isinstance(constraint, Value) and not constraint.variablesin():
+                constraint = fnode_to_formula(constraint.to_smt(symbol_table)[0].simplify())
+            if not (isinstance(constraint, Value) and constraint.is_true()):
+                constraints.append(constraint)
     return constraints
 
 
@@ -951,7 +952,7 @@ def next_type_constraint_from_act(act, symbol_table):
         elif type == NATURAL:
             if is_tautology(BiOp(variable, "<=", act.right), symbol_table):
                 return Value(BoolAtoms.TRUE)
-            return MathExpr(BiOp(variable, ">=", Value("0")))
+            return MathExpr(BiOp(act.right, ">=", Value("0")))
         elif type.interval:
             constraints = []
             if is_tautology(BiOp(variable, "==", act.right), symbol_table):
@@ -964,7 +965,7 @@ def next_type_constraint_from_act(act, symbol_table):
             )
             assuming_prev_in_upper_bound = BiOp(
                 variable,
-                ("<=" if type.interval.lower_inclusive else "<"),
+                ("<=" if type.interval.upper_inclusive else "<"),
                 Value(type.interval.upper),
             )
             assuming_prev_in_bounds = conjunct(
