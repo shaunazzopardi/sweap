@@ -2,6 +2,7 @@ import itertools
 import logging
 import re
 import functools
+from collections import Counter
 from typing import Optional
 
 import sympy
@@ -2763,20 +2764,22 @@ def sum(terms):
     elif len(terms) == 1:
         return terms[0]
 
-    kept_terms = set()
+    kept_terms = Counter()
     for t in terms:
         if str(t) == "0":
             continue
         minus_t = propagate_minuses(UniOp(MathOps.SUB, t))
-        if propagate_minuses(UniOp(MathOps.SUB, t)) in kept_terms:
-            kept_terms.remove(minus_t)
+        if kept_terms[minus_t]:
+            kept_terms[minus_t] -= 1
+            if kept_terms[minus_t] == 0:
+                del kept_terms[minus_t]
         else:
-            kept_terms.add(t)
+            kept_terms[t] += 1
 
     if len(kept_terms) == 0:
         return Value(int(0))
 
-    new_terms = list(kept_terms)
+    new_terms = list(kept_terms.elements())
     term = new_terms[0]
     for i in range(1, len(new_terms)):
         term = BiOp(term, "+", new_terms[i])
