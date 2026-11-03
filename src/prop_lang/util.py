@@ -940,6 +940,12 @@ def type_constraint_from_act(act, symbol_table):
 
 
 def next_type_constraint_from_act(act, symbol_table):
+    from prop_lang.nondet import NonDeterministic
+
+    # An unconstrained assignment chooses within the destination variable's
+    # declared domain; it has no source expression to constrain.
+    if isinstance(act.right, NonDeterministic):
+        return true()
     variable = act.left
     if str(variable) not in symbol_table.keys():
         raise Exception(f"{str(variable)} not in symbol table.")

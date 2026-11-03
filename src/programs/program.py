@@ -72,7 +72,7 @@ def materialize_otherwise_transitions(
     otherwise_by_src = {}
     for t in transitions:
         if is_otherwise_transition(t):
-            otherwise_by_src.setdefault(t.src, set()).add(t)
+            otherwise_by_src.setdefault(t.src, []).append(t)
 
     duplicate_srcs = [str(src) for src, trs in otherwise_by_src.items() if len(trs) > 1]
     if duplicate_srcs:
@@ -499,8 +499,20 @@ class Program:
             else:
                 new_init_var_values[var_name] = var_value
 
+        # A projected constant has the same value before and after a transition.
+        predicate_constants = vars_to_project_out | {
+            Variable(variable.name + "'"): value
+            for variable, value in vars_to_project_out.items()
+        }
+
         # Process transitions
         for t in self.transitions:
+            t.pred_upgrades = [
+                predicate.replace_formulas(predicate_constants)
+                for predicate in t.pred_upgrades
+            ]
+            t.f = None
+
             # Filter actions and replace variables
             t.action = [
                 Update(

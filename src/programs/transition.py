@@ -1,5 +1,6 @@
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.nondet import NonDeterministic
 from prop_lang.update import Update
 from prop_lang.util import true, conjunct, neg, negate, conjunct_formula_set
 from prop_lang.variable import Variable
@@ -64,22 +65,24 @@ class Transition:
         )
 
     def with_condition(self, new_condition):
-        return Transition(self.src, new_condition, self.action, self.output, self.tgt)
+        transition = Transition(self.src, new_condition, self.action, self.output, self.tgt)
+        transition.pred_upgrades = (
+            self.pred_upgrades if isinstance(self.pred_upgrades, Formula)
+            else list(self.pred_upgrades)
+        )
+        return transition
 
     def from_to(self, new_src, new_tgt):
-        return Transition(new_src, self.condition, self.action, self.output, new_tgt)
+        transition = self.with_condition(self.condition)
+        transition.src = new_src
+        transition.tgt = new_tgt
+        return transition
 
     def to(self, new_tgt):
-        return Transition(self.src, self.condition, self.action, self.output, new_tgt)
+        return self.from_to(self.src, new_tgt)
 
     def add_condition(self, new_condition):
-        return Transition(
-            self.src,
-            conjunct(self.condition, new_condition),
-            self.action,
-            self.output,
-            self.tgt,
-        )
+        return self.with_condition(conjunct(self.condition, new_condition))
 
     def complete_outputs(self, all_outputs):
         for o in all_outputs:
@@ -108,7 +111,11 @@ class Transition:
         if self.f is None:
             self.f = conjunct_formula_set(
                 [self.condition.prev_rep()]
-                + [BiOp(a.left, "=", a.right.prev_rep()) for a in self.action]
+                + [
+                    BiOp(a.left, "=", a.right.prev_rep())
+                    for a in self.action
+                    if not isinstance(a.right, NonDeterministic)
+                ]
             )
         return self.f
 
@@ -118,4 +125,9 @@ class Transition:
     def replace_formulas(self, context):
         t = self.with_condition(self.condition.replace_formulas(context))
         t.action = [a.replace_formulas(context) for a in self.action]
+        t.pred_upgrades = (
+            self.pred_upgrades.replace_formulas(context)
+            if isinstance(self.pred_upgrades, Formula)
+            else [p.replace_formulas(context) for p in self.pred_upgrades]
+        )
         return t
