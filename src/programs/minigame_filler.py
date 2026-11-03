@@ -240,7 +240,13 @@ class MinigameFiller:
         exit_signature = "stop" if len(unrestricted_updates) == 0 else str(stop_prop)
         return (tuple(sorted(action_signature)), exit_signature)
 
-    def _collect_ltl_constant_comparison_profile(self):
+    def _collect_constant_comparison_profile(self):
+        """Collapse numeric choices only when every observation is equality-only.
+
+        Arena guards distinguish values just as formula objectives do. In
+        particular, a single 'other' witness cannot represent an ordered guard
+        such as x >= 10, even when the LTL objective only mentions locations.
+        """
         tracked_int_vars = {
             str(v)
             for v in self.program.local_vars
@@ -249,8 +255,20 @@ class MinigameFiller:
         only_const_cmp = {v: True for v in tracked_int_vars}
         cmp_consts = defaultdict(set)
 
-        for ltl in self.ltl_formulas:
-            for atom in atomic_predicates(ltl):
+        observations = list(self.ltl_formulas)
+        for transition in self.program.transitions:
+            observations.append(transition.condition)
+            observations.extend(transition.pred_upgrades)
+            for update in transition.action:
+                if update.left != update.right:
+                    # A copy or arithmetic use exposes the actual value, not
+                    # merely its equality class. Keep the numeric minigame.
+                    for variable in update.right.variablesin():
+                        if str(variable) in only_const_cmp:
+                            only_const_cmp[str(variable)] = False
+
+        for observation in observations:
+            for atom in atomic_predicates(observation):
                 atom = strip_mathexpr(atom)
                 vars_in_atom = {
                     str(v).replace("'", "")
@@ -526,7 +544,7 @@ class MinigameFiller:
     def _collect_run_profiles(self):
         vars_in_ltl = self._collect_ltl_vars(self.ltl_formulas)
         ltl_only_const_cmp, ltl_cmp_consts = (
-            self._collect_ltl_constant_comparison_profile()
+            self._collect_constant_comparison_profile()
         )
         only_const_updates, update_consts = self._collect_constant_update_profile()
         ltl_unprimed_related_to_primed_names = (
