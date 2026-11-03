@@ -52,11 +52,10 @@ class BiOp(Formula):
         self.prev_representation = None
         self.smt_representation = None
         self.hsh = hash(f"{self.left.__hash__()} {self.op} {self.right.__hash__()}")
-        self.sub_formulas = self._sub_formulas_up_to_associativity()
 
     @functools.lru_cache()
     def __str__(self):
-        if len(self.sub_formulas) == 1:
+        if self.op not in (BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD):
             return (
                 "(" + str(self.left) + " " + str(self.op) + " " + str(self.right) + ")"
             )
@@ -72,22 +71,25 @@ class BiOp(Formula):
     def sub_formulas_up_to_associativity(self) -> list[Formula]:
         return self.sub_formulas
 
+    @property
+    def sub_formulas(self) -> list[Formula]:
+        # Do not retain flattened prefixes at every node of an associative chain.
+        return self._sub_formulas_up_to_associativity()
+
     def _sub_formulas_up_to_associativity(self) -> list[Formula]:
-        if self.op in [BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD]:
-            is_same_as_op = lambda x: x == self.op
-        else:
+        if self.op not in (BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD):
             return [self]
 
-        sub_formulas = []
-        if not isinstance(self.left, BiOp) or not is_same_as_op(self.left.op):
-            sub_formulas += [self.left]
-        else:
-            sub_formulas += self.left.sub_formulas
-        if not isinstance(self.right, BiOp) or not is_same_as_op(self.right.op):
-            sub_formulas += [self.right]
-        else:
-            sub_formulas += self.right.sub_formulas
-        return sub_formulas
+        operands = []
+        pending = [self]
+        while pending:
+            node = pending.pop()
+            if isinstance(node, BiOp) and node.op == self.op:
+                pending.append(node.right)
+                pending.append(node.left)
+            else:
+                operands.append(node)
+        return operands
 
     def __eq__(self, other):
         """Overrides the default implementation"""
@@ -107,10 +109,10 @@ class BiOp(Formula):
     # without already appearing variables
     @functools.lru_cache()
     def variablesin(self) -> list[Variable]:
-        self.vars = self.left.variablesin() + self.right.variablesin()
-        vars_unique = [v for (i, v) in enumerate(self.vars) if v not in self.vars[:i]]
-        self.vars = vars_unique
-        return vars_unique
+        self.vars = list(dict.fromkeys(
+            self.left.variablesin() + self.right.variablesin()
+        ))
+        return self.vars
 
     def simplify(self):
         left = self.left.simplify()
@@ -174,7 +176,7 @@ class BiOp(Formula):
         # if self.op == "%":
         #     return "toint(unsigned word[8](" + self.left.to_nuxmv() + ") mod unsigned word[8](" + self.right.to_nuxmv() + "))"
         # else:
-        if len(self.sub_formulas) == 1:
+        if self.op not in (BoolBiOps.CONJ, BoolBiOps.DISJ, MathOps.ADD):
             return (
                 "(("
                 + self.left.to_nuxmv()
