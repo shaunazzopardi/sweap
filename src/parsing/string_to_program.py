@@ -176,6 +176,18 @@ def program_parser():
             new_transitions, guard_symbol_table
         )
 
+    # Relational actions are temporarily stored in pred_upgrades with an empty
+    # assignment list. Program preprocessing would complete that list with
+    # identity assignments, then incorrectly project out variables as constants
+    # even though the relational action can change them. Lower the actions first
+    # so preprocessing sees their actual assignments and unconstrained updates.
+    if had_complex_action:
+        new_transitions = [
+            lowered
+            for transition in new_transitions
+            for lowered in lower_program_action_formula_transition(transition, initial_vals)
+        ]
+
     states_for_program = list(states)
     if any(str(s) == "lose" for t in new_transitions for s in (t.src, t.tgt)):
         states_for_program.append("lose")
@@ -191,7 +203,7 @@ def program_parser():
         transition_completion=completion,
     )
 
-    if not program.deterministic:
+    if not had_complex_action and not program.deterministic:
         print(str(program))
         except_with_non_det_trans(program)
 
@@ -200,21 +212,6 @@ def program_parser():
     ):
         ltl_spec = conjunct(ltl_spec, G(neg(Variable("lose"))))
     if had_complex_action:
-        new_transitions = []
-        for t in program.transitions:
-            new_transitions.extend(
-                lower_program_action_formula_transition(t, initial_vals)
-            )
-        program = Program(
-            program_name,
-            states_for_program,
-            initial_state,
-            initial_vals,
-            new_transitions,
-            env,
-            con,
-            transition_completion=completion,
-        )
         program, ltl_spec = postprocess_complex_action_program(program, ltl_spec)
     program.identifier_renames = names
     program.input_format = "prog"
@@ -301,9 +298,7 @@ def apply_transition_semantics_by_order(
         )
 
         if sat(effective_guard, symbol_table):
-            rewritten.append(
-                Transition(t.src, effective_guard, t.action, t.output, t.tgt)
-            )
+            rewritten.append(t.with_condition(effective_guard))
 
     return rewritten
 
@@ -774,9 +769,15 @@ def postprocess_complex_action_program(
             list(to_exclude_from_minigame),
         )
 
-    has_pred_upgrades = any(len(t.pred_upgrades) > 0 for t in program.orig_ts)
+    # Empty or partial relational actions also introduce unconstrained updates.
+    # Lower those choices before synthesis even when no residual predicates exist.
+    needs_lowering = any(
+        t.pred_upgrades
+        or any(isinstance(u.right, NonDeterministic) for u in t.action)
+        for t in program.transitions
+    )
     minigame_states = []
-    if has_pred_upgrades:
+    if needs_lowering:
         program, minigame_states = fill_in_minigames(
             program,
             [ltl_spec],
