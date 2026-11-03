@@ -80,7 +80,7 @@ class Value(Atom):
         return self, {}
 
     def is_math_value(self):
-        return re.match("[0-9]+", str(self.val))
+        return re.fullmatch(r"-?[0-9]+", str(self.val)) is not None
 
     def to_sympy(self):
         return sympy.core.symbol.Symbol(str(self.val))
@@ -109,9 +109,9 @@ class Value(Atom):
     def type(self):
         if self.is_true() or self.is_false():
             return BOOLEAN
-        elif re.match("[0-9]+", str(self.val)):
+        elif self.is_math_value():
             return INTEGER
         else:
             raise Exception(
-                "Value.type: Value is not a boolean or integer: " + self.val
+                "Value.type: Value is not a boolean or integer: " + str(self.val)
             )
