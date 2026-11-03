@@ -202,7 +202,7 @@ class BiOp(Formula):
             + self.op
             + " ("
             + self.right.to_strix()
-            + "))"
+            + ")"
         )
 
     ops = {
