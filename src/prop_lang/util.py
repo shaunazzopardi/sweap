@@ -1634,12 +1634,15 @@ def atomic_predicates(formula) -> set[Formula]:
 def run_with_timeout_and_memory_limit(f, args, timeout, max_memory_gb):
     import time
     import resource
-    from multiprocessing import Process, Manager
+    from multiprocessing import get_context
 
     if timeout == -1:
         return True, f(*args)
 
-    with Manager() as manager:
+    # These workers accept local functions and closures, which require fork.
+    context = get_context("fork")
+
+    with context.Manager() as manager:
         result_dict = manager.dict()
 
         def _kill_process_tree(root_pid: int):
@@ -1677,7 +1680,7 @@ def run_with_timeout_and_memory_limit(f, args, timeout, max_memory_gb):
                 shared_dict["status"] = "error"
                 shared_dict["result"] = str(e)
 
-        process = Process(target=target, args=(f, args, result_dict, max_memory_gb))
+        process = context.Process(target=target, args=(f, args, result_dict, max_memory_gb))
         process.start()
 
         start_time = time.time()
@@ -1712,14 +1715,16 @@ def run_with_timeout_and_memory_limit(f, args, timeout, max_memory_gb):
 
 def run_with_timeout(f, args, timeout):
     import time
-    import multiprocessing
-    from multiprocessing import Process, Manager
+    from multiprocessing import get_context
 
     if timeout == -1:
         return True, f(*args)
 
+    # These workers accept local functions and closures, which require fork.
+    context = get_context("fork")
+
     # Use Manager for shared objects
-    with Manager() as manager:
+    with context.Manager() as manager:
         result_dict = manager.dict()
         result_dict["status"] = "running"
 
@@ -1732,7 +1737,7 @@ def run_with_timeout(f, args, timeout):
                 shared_dict["status"] = "error"
                 shared_dict["error"] = str(e)
 
-        process = Process(target=target, args=(f, args, result_dict))
+        process = context.Process(target=target, args=(f, args, result_dict))
         process.start()
 
         # Polling approach
@@ -1767,10 +1772,13 @@ def run_with_timeout_pickled(f, args, timeout):
     import tempfile
     import pickle
     import os
-    from multiprocessing import Process
+    from multiprocessing import get_context
 
     if timeout == -1:
         return True, f(*args)
+
+    # These workers accept local functions and closures, which require fork.
+    context = get_context("fork")
 
     # Create a temporary file for result communication
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -1785,7 +1793,7 @@ def run_with_timeout_pickled(f, args, timeout):
             with open(result_path, "wb") as f:
                 pickle.dump(("error", e), f)
 
-    process = Process(target=target, args=(f, args, result_file))
+    process = context.Process(target=target, args=(f, args, result_file))
     process.start()
 
     # Polling with file-based communication

@@ -79,6 +79,16 @@ python -c "import spot; print(spot.__file__)"
 ```
   - Note: manual copying of Spot bindings from another Python installation may fail if Python ABI versions differ (e.g., `cpython-312` bindings with a Python 3.10 venv).
 
+### Running tests
+
+After completing the solver setup above, install the development dependencies
+and run the tests from the repository root using the same Python environment:
+
+```bash
+python -m pip install -r requirements-dev.txt
+PATH=./binaries:$PATH PYTHONPATH=./src python -m pytest
+```
+
 ## Usage
 
 ### Input: Symbolic Synthesis Problems
@@ -138,4 +148,4 @@ Other flags may be useful to the interested user:
   - determinism of the arena (i.e., that the guards of the transitions from each state are mutually exclusive);
   - correctness of abstraction refinement; and
   - correctness of certain steps in ISSY translation to sweap problems.
-- ``--log`` outputs a log of the work performed during the synthesis task, including a nuXmv model combining both the arena and the synthesised (counter)strategy, which the user can use to simulate their concurrent execution using nuXmv. 
+- ``--log`` outputs a log of the work performed during the synthesis task, including a nuXmv model combining both the arena and the synthesised (counter)strategy, which the user can use to simulate their concurrent execution using nuXmv.

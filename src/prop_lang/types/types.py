@@ -5,6 +5,7 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
 
+from pysmt.environment import Environment, get_env
 from pysmt.fnode import FNode
 from pysmt.logics import BOOL
 from pysmt.shortcuts import INT, BOOL, GE, LE, GT, LT, And, Int, TRUE, Symbol
@@ -223,12 +224,15 @@ def _typed_var_to_pysmt_type_uncached(
 
 
 @functools.lru_cache(maxsize=8192)
-def _typed_var_to_pysmt_type_cached(var_name: str, type: Type) -> tuple[Symbol, FNode]:
+def _typed_var_to_pysmt_type_cached(
+    var_name: str, type: Type, environment: Environment
+) -> tuple[Symbol, FNode]:
+    # FNodes belong to one environment; never reuse them after an environment switch.
     return _typed_var_to_pysmt_type_uncached(var_name, type)
 
 
 def typed_var_to_pysmt_type(var_name: str, type: Type) -> tuple[Symbol, FNode]:
-    return _typed_var_to_pysmt_type_cached(var_name, type)
+    return _typed_var_to_pysmt_type_cached(var_name, type, get_env())
 
 
 def parse_type(type_str: str) -> Type:
