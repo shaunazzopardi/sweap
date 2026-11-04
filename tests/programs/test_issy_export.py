@@ -301,10 +301,13 @@ class TestIssyExport(TestCase):
         """)
         self.assertIn(Variable("b"), program.constants)
         self.assertNotIn("b", program.symbol_table)
+        # Parsing already substitutes constants; also exercise the exporter directly.
+        spec = UniOp("G", Variable("b"))
+        original_spec = str(spec)
         text = program.to_issy(spec)
         self.assertIn("assert G([0 = 0])", text)
         self.assertNotIn("[b]", text)
-        self.assertEqual(str(spec), "G(b)")
+        self.assertEqual(str(spec), original_spec)
         self.assert_compiles(text)
 
     def test_logical_constants_are_valid_temporal_atoms(self):

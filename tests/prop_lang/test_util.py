@@ -13,6 +13,8 @@ import time
 import spot
 from z3 import (
     And,
+    Or,
+    Not,
     BoolVal,
     Bools,
     Goal,
@@ -71,7 +73,7 @@ class Test(TestCase):
         kept = []
         for f in subgoal:
             # Drop formulas already guaranteed by the base context.
-            if self._z3_unsat(And(base, ~f)):
+            if self._z3_unsat(And(base, Not(f))):
                 continue
             kept.append(f)
 
@@ -102,7 +104,7 @@ class Test(TestCase):
                 kept.append(t)
                 continue
             # Drop only conjuncts already implied by base.
-            if self._z3_unsat(And(base, ~t)):
+            if self._z3_unsat(And(base, Not(t))):
                 continue
             kept.append(t)
 
@@ -124,8 +126,8 @@ class Test(TestCase):
 
     def test_z3_simplify_under_assumption_d1_or_d2_and_c_to_c(self):
         d1, d2, c = Bools("d1 d2 c")
-        base = d1 | d1
-        guard = And(d1 | d2, c)
+        base = Or(d1, d2)
+        guard = And(Or(d1, d2), c)
 
         simplified_guard = self._z3_simplify_under_assumption_ctx_simplify(base, guard)
 
@@ -134,8 +136,8 @@ class Test(TestCase):
 
     def test_z3_simplify_under_assumption_consequences_d1_or_d2_and_c_to_c(self):
         d1, d2, c = Bools("d1 d2 c")
-        base = d1 | d1
-        guard = And(d1 | d2, c)
+        base = Or(d1, d2)
+        guard = And(Or(d1, d2), c)
 
         simplified_guard = self._z3_simplify_under_assumption_consequences(base, guard)
 

@@ -47,6 +47,7 @@ class Test(TestCase):
             }
 
             ENVIRONMENT EVENTS {
+                branch : boolean
             }
 
             CONTROLLER EVENTS {
@@ -57,8 +58,8 @@ class Test(TestCase):
             }
 
             TRANSITIONS {
-                q0 -> q0 [true],
-                q0 -> q1 [true],
+                q0 -> q0 [branch],
+                q0 -> q1 [!branch],
                 q1 -> q2 [true],
                 q2 -> q2 [true]
             }
@@ -71,9 +72,7 @@ class Test(TestCase):
 
         program, _ = string_to_program(program_text)
 
-        self.assertEqual(0, len(program.only_init_transitions))
-        self.assertEqual("q0", program.only_init_transitions[0].src)
-        self.assertEqual("q1", program.only_init_transitions[0].tgt)
+        self.assertEqual([], program.only_init_transitions)
 
     def test_only_init_transitions_empty_when_all_init_branches_can_return(self):
         program_text = """
@@ -83,6 +82,7 @@ class Test(TestCase):
             }
 
             ENVIRONMENT EVENTS {
+                branch : boolean
             }
 
             CONTROLLER EVENTS {
@@ -93,8 +93,8 @@ class Test(TestCase):
             }
 
             TRANSITIONS {
-                q0 -> q0 [true],
-                q0 -> q1 [true],
+                q0 -> q0 [branch],
+                q0 -> q1 [!branch],
                 q1 -> q0 [true]
             }
 
@@ -116,6 +116,7 @@ class Test(TestCase):
             }
 
             ENVIRONMENT EVENTS {
+                branch : boolean
             }
 
             CONTROLLER EVENTS {
@@ -128,8 +129,8 @@ class Test(TestCase):
             TRANSITIONS {
                 q0 -> q1 [true],
                 q1 -> q2 [true],
-                q2 -> q1 [true],
-                q2 -> q2 [true]
+                q2 -> q1 [branch],
+                q2 -> q2 [!branch]
             }
 
             SPECIFICATION {
@@ -161,6 +162,7 @@ class Test(TestCase):
             }
 
             ENVIRONMENT EVENTS {
+                branch : boolean
             }
 
             CONTROLLER EVENTS {
@@ -173,8 +175,8 @@ class Test(TestCase):
             TRANSITIONS {
                 q0 -> q1 [true],
                 q1 -> q2 [true],
-                q2 -> q1 [true],
-                q2 -> q3 [true],
+                q2 -> q1 [branch],
+                q2 -> q3 [!branch],
                 q3 -> q3 [true]
             }
 

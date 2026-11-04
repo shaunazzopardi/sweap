@@ -275,7 +275,7 @@ def prime_action(acts: list[BiOp]) -> Formula:
     else:
         primed_acts = []
         for act in acts:
-            primed_acts.append(BiOp(Atom(act.left.name + "_next"), "=", act.right))
+            primed_acts.append(BiOp(Variable(act.left.name + "_next"), "=", act.right))
     return conjunct_formula_set(primed_acts)
 
 
@@ -1391,7 +1391,7 @@ def partially_evaluate(
                 + str(v)
                 + " of false_vars is not a variable"
             )
-        new_formula = new_formula.replace({v, false()})
+        new_formula = new_formula.replace({v: false()})
 
     new_formula_simplified = new_formula.simplify()
     new_formula_simplified_more = simplify_formula_with_math(
