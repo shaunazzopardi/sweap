@@ -55,7 +55,6 @@ from prop_lang.util import (
     X,
     iff,
     strip_mathexpr,
-    propagate_nexts,
     is_tautology,
     all_sat_models,
     fnode_to_formula,
@@ -1446,8 +1445,6 @@ def effects_to_ltl(
                     continue
             if conf.dual:
                 E_now = now.replace_formulas(relabelling2)
-                if conf.backend == "strix":
-                    E_now = propagate_nexts(E_now)
             else:
                 E_now = now.replace_formulas(vars_relabelling)
 
@@ -1455,8 +1452,6 @@ def effects_to_ltl(
             # if not (len(nexts) == 1 and nexts[0] == true()):
             for next in nexts:
                 next_f = X(next.replace_formulas(vars_relabelling))
-                if conf.backend == "strix":
-                    next_f = propagate_nexts(next_f)
                 next_disjuncts.append(next_f)
 
             E_next = disjunct_formula_set(next_disjuncts)
@@ -1480,8 +1475,6 @@ def effects_to_ltl(
             part = iff(X(u.left), u.right.replace_formulas(relabelling2))
         else:
             part = iff(u.right, X(u.left))
-        if conf.backend == "strix":
-            part = propagate_nexts(part)
         parts_ltl.append(part.replace_formulas(vars_relabelling))
     effects_ltl = conjunct_formula_set(parts_ltl)
 
@@ -1501,10 +1494,7 @@ def effects_to_ltl(
             const = p.replace_formulas(relabelling2)
         else:
             const = p.replace_formulas(vars_relabelling)
-        if conf.backend == "strix":
-            constant_effects.append(propagate_nexts(const))
-        else:
-            constant_effects.append(const)
+        constant_effects.append(const)
 
     gu_ltl = conjunct_formula_set(
         [effects_ltl] + list(invar_preds_effects) + constant_effects
@@ -1554,8 +1544,6 @@ def effects_to_ltl_non_bin(
     ]
     for u in bool_updates:
         part = iff(u.right, X(u.left))
-        if conf.backend == "strix":
-            part = propagate_nexts(part)
         parts_ltl.append(part)
     effects_ltl = conjunct_formula_set(parts_ltl)
 
