@@ -68,7 +68,9 @@ def structural_refinement(
         entry_condition, signatures, symbol_table
     )
     exit_condition_fnode = bdd_simplify(exit_condition.to_smt(symbol_table)[0])
-    exit_condition = fnode_to_formula(exit_condition_fnode)
+    # BDD simplification is optional and returns None when unavailable.
+    if exit_condition_fnode is not None:
+        exit_condition = fnode_to_formula(exit_condition_fnode)
     exit_condition, exit_preds = normalise_formula(
         exit_condition, signatures, symbol_table
     )
