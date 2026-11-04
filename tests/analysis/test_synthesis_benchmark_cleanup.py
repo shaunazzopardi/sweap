@@ -1,9 +1,24 @@
+from contextlib import contextmanager
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 import psutil
 
 from benchmarks.scripts.python.run_benchmarks import kill_solver_processes
+
+
+@contextmanager
+def solver_processes(processes):
+    # Cleanup may enumerate all processes or only this runner's descendants.
+    # Keep the exception-handling tests independent of that discovery policy.
+    with patch(
+        "benchmarks.scripts.python.run_benchmarks.psutil.process_iter",
+        return_value=processes,
+    ), patch(
+        "benchmarks.scripts.python.run_benchmarks.psutil.Process.children",
+        return_value=processes,
+    ):
+        yield
 
 
 class TestSolverCleanup(TestCase):
@@ -14,10 +29,7 @@ class TestSolverCleanup(TestCase):
         solver.name.return_value = "strix"
         other = Mock()
         other.name.return_value = "bash"
-        with patch(
-            "benchmarks.scripts.python.run_benchmarks.psutil.process_iter",
-            return_value=[vanished, other, solver],
-        ):
+        with solver_processes([vanished, other, solver]):
             kill_solver_processes()
         vanished.kill.assert_not_called()
         other.kill.assert_not_called()
@@ -31,19 +43,13 @@ class TestSolverCleanup(TestCase):
                 failed.kill.side_effect = error
                 solver = Mock()
                 solver.name.return_value = "strix"
-                with patch(
-                    "benchmarks.scripts.python.run_benchmarks.psutil.process_iter",
-                    return_value=[failed, solver],
-                ):
+                with solver_processes([failed, solver]):
                     kill_solver_processes()
                 solver.kill.assert_called_once_with()
 
     def test_access_denied_during_name_lookup_is_ignored(self):
         denied = Mock()
         denied.name.side_effect = psutil.AccessDenied(123)
-        with patch(
-            "benchmarks.scripts.python.run_benchmarks.psutil.process_iter",
-            return_value=[denied],
-        ):
+        with solver_processes([denied]):
             kill_solver_processes()
         denied.kill.assert_not_called()
