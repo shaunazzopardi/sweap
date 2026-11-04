@@ -12,7 +12,7 @@ from prop_lang.variable import Variable
 from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
-@pytest.mark.parametrize('backend', ['strix', 'semml', 'ltlsynt'])
+@pytest.mark.parametrize('backend', config.synthesis_backends)
 def test_tlsf_preserves_compound_next(backend, monkeypatch):
     monkeypatch.setattr(config.Config.getConfig(), 'backend', backend)
     a, b, o = map(Variable, ('a', 'b', 'o'))
@@ -33,9 +33,9 @@ def test_effects_use_the_same_formula_for_every_backend(dual):
             {(): [(c, [compound])]}, [c], [],
             SimpleNamespace(backend=backend, dual=dual), {}, {}, {c: X(compound)},
         )
-        for backend in ('strix', 'semml', 'ltlsynt')
+        for backend in config.synthesis_backends
     ]
-    assert formulas[0] == formulas[1] == formulas[2]
+    assert all(formula == formulas[0] for formula in formulas[1:])
     assert 'X((a | b))' in str(formulas[0])
 
 
@@ -46,8 +46,8 @@ def test_dual_input_models_preserve_compound_next(monkeypatch):
         sat_input_models=[predicate],
     )
     formulas = []
-    for backend in ('strix', 'semml', 'ltlsynt'):
+    for backend in config.synthesis_backends:
         monkeypatch.setattr(config.Config.getConfig(), 'backend', backend)
         formulas.append(massage_models_for_dual([predicate], abstraction))
-    assert formulas[0] == formulas[1] == formulas[2]
+    assert all(formula == formulas[0] for formula in formulas[1:])
     assert 'X((a | b))' in str(formulas[0][0])

@@ -23,7 +23,7 @@ See the [cav2026 branch of sweap-docker](https://github.com/dSynMa/sweap-docker/
 - The tool is distributed with several required binaries:
   - `strix` - Strix 21.0.0, https://github.com/meyerphi/strix/releases/tag/21.0.0
   - `cpa.sh` - CPAchecker 2.3, https://gitlab.com/sosy-lab/software/cpachecker/
-  - `syfco` - syfco 1.1, https://github.com/reactive-systems/syfco
+  - `syfco` - use the bundled SyFCo 1.2.1.2 or a newer upstream build, https://github.com/reactive-systems/syfco. Custom builds must include [the next-operator disjunction fix](https://github.com/reactive-systems/syfco/commit/2f9d2bfdcdcdcb13f5352638376eab579c71b894).
 - Spot (https://spot.lre.epita.fr/) with Python bindings is required.
   - Some ISSY/LTL reduction paths import `spot` directly at runtime.
   - The Spot Python module must be available in the same Python environment used to run `sweap`.
