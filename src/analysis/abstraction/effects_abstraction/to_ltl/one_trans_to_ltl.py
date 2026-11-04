@@ -16,7 +16,6 @@ from prop_lang.util import (
     disjunct_formula_set,
     implies,
     F,
-    propagate_nexts,
     massage_ltl_for_dual,
     neg,
     iff,
@@ -36,7 +35,6 @@ def to_ltl_organised_by_pred_effects_guard_updates(
     rename_pred = lambda x: x.replace_formulas(predicate_abstraction.var_relabellings)
     program = predicate_abstraction.program
     dual = config.Config.getConfig().dual
-    strix_backend = config.Config.getConfig().backend == "strix"
 
     init_explicit_state = program.states_binary_map[
         predicate_abstraction.program.initial_state
@@ -134,7 +132,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
             )
 
         cond = cond.replace_formulas(predicate_abstraction.var_relabellings)
-        # effects comes with X already applied, and propagated in case of using strix
+        # Effects already include X.
         effect = predicate_abstraction.abstract_effect_ltl[gu]
 
         for t in predicate_abstraction.gu_to_trans[gu]:
@@ -150,7 +148,7 @@ def to_ltl_organised_by_pred_effects_guard_updates(
 
             next = conjunct(
                 effect_formula,
-                X(bin_tgt) if not strix_backend else propagate_nexts(X(bin_tgt)),
+                X(bin_tgt),
             )
 
             if t in predicate_abstraction.non_init_program_trans:
@@ -213,7 +211,6 @@ def abstract_ltl_problem(
     env_predicate_vars = set()
     con_predicate_vars = set()
     dual = config.Config.getConfig().dual
-    strix_backend = config.Config.getConfig().backend == "strix"
     program = effects_abstraction.program
     relabellings = {}
     if dual:
@@ -306,7 +303,7 @@ def abstract_ltl_problem(
         modif,
         ltl_constraints,
     ) in effects_abstraction.ranking_constraints.items():
-        f = implies(G(F(modif)), propagate_nexts(conjunct_formula_set(ltl_constraints)))
+        f = implies(G(F(modif)), conjunct_formula_set(ltl_constraints))
         f = f.replace_formulas(dict_to_replace)
         loop_constraints.append(f)
         all_preds = set()
@@ -321,8 +318,6 @@ def abstract_ltl_problem(
 
     for f in effects_abstraction.structural_loop_constraints:
         f = f.replace_formulas(dict_to_replace | relabellings)
-        if strix_backend:
-            f = propagate_nexts(f)
         loop_constraints.append(f)
 
     for p in effects_abstraction.loop_vars:
@@ -407,7 +402,6 @@ def abstract_ltl_problem(
 
 
 def massage_models_for_dual(models, abstraction):
-    strix_backend = config.Config.getConfig().backend == "strix"
     var_rel = abstraction.var_relabellings
 
     sane_model = disjunct_formula_set(
@@ -429,11 +423,7 @@ def massage_models_for_dual(models, abstraction):
     new_models = [
         conjunct_formula_set(
             [
-                (
-                    X(p).replace_formulas(var_rel)
-                    if not strix_backend
-                    else propagate_nexts(X(p).replace_formulas(var_rel))
-                )
+                X(p).replace_formulas(var_rel)
                 for p in (
                     m.sub_formulas_up_to_associativity() if isinstance(m, BiOp) else [m]
                 )

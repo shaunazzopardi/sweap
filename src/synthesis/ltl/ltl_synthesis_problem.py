@@ -1,7 +1,4 @@
-import config
-
 from prop_lang.formula import Formula
-from prop_lang.util import propagate_nexts
 from prop_lang.variable import Variable
 
 
@@ -39,18 +36,6 @@ class LTLSynthesisProblem:
     def __to_tlsf(self):
         env_acts_lowered = [str(a) for a in self.env_props]
         con_acts_lowered = [str(a) for a in self.con_props]
-        should_propagate_nexts = config.Config.getConfig().backend == "strix"
-        assumptions = (
-            [propagate_nexts(a) for a in self.assumptions]
-            if should_propagate_nexts
-            else self.assumptions
-        )
-        guarantees = (
-            [propagate_nexts(g) for g in self.guarantees]
-            if should_propagate_nexts
-            else self.guarantees
-        )
-
         assumptions_tlsf = [
             str(a)
             .replace("TRUE", "true")
@@ -60,7 +45,7 @@ class LTLSynthesisProblem:
             .replace(" & ", " && ")
             .replace(" | ", " || ")
             .replace('"', "")
-            for a in assumptions
+            for a in self.assumptions
         ]
 
         guarantees_tlsf = [
@@ -72,7 +57,7 @@ class LTLSynthesisProblem:
             .replace(" & ", " && ")
             .replace(" | ", " || ")
             .replace('"', "")
-            for g in guarantees
+            for g in self.guarantees
         ]
 
         info = (
