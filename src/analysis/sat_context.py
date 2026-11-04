@@ -24,8 +24,8 @@ class IncrementalSatContext:
     def is_sat(self, formula) -> bool:
         smt = self._to_smt(formula)
         self._solver.push()
-        self._solver.add_assertion(smt)
         try:
+            self._solver.add_assertion(smt)
             return self._solver.solve()
         finally:
             self._solver.pop()

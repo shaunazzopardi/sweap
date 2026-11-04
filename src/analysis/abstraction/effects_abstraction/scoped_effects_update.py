@@ -6,8 +6,8 @@ from prop_lang.util import conjunct, neg
 @contextmanager
 def _push_sat_formula(sat_ctx, formula):
     sat_ctx._solver.push()
-    sat_ctx._solver.add_assertion(sat_ctx._to_smt(formula))
     try:
+        sat_ctx._solver.add_assertion(sat_ctx._to_smt(formula))
         yield
     finally:
         sat_ctx._solver.pop()
