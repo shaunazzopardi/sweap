@@ -68,6 +68,6 @@ class TestNaturalUpdateGuards(TestCase):
         # Checking FALSE would pass vacuously if the requested decrement
         # deadlocked. There must be an infinite stuttering execution instead.
         model = create_nuxmv_model(program_to_nuxmv_model(program))
-        model += "\nINVAR decrement\n"
+        model["main"] += "\nINVAR decrement\n"
         valid, output = ModelChecker().invar_check(model, "F FALSE", None, True)
         self.assertFalse(valid, output)

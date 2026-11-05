@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import subprocess
 from tempfile import NamedTemporaryFile
 
@@ -8,18 +9,34 @@ nuxmv_path = str(os.path.join(dirname, "../../binaries/nuxmv"))
 
 
 class ModelChecker:
-    def invar_check(self, nuxmv_script: str, ltl_spec, bound, mc):
+    def invar_check(self, modules: dict[str, str], ltl_spec, bound, mc):
+        """Check a property in main; each mapping value is one complete module."""
+        if "main" not in modules:
+            raise ValueError("nuXmv model has no main module")
+        nuxmv_script = "\n".join(modules.values())
+        property_name = "__sweap_check"
+        while re.search(r"\b" + property_name + r"\b", nuxmv_script):
+            property_name += "_"
+        property_type = "LTLSPEC" if mc else "INVARSPEC"
+        # Keep large properties out of the command interpreter's quoted -p
+        # argument. Add the property while rendering, without changing the model.
+        property_text = f"\n{property_type} NAME {property_name} := {ltl_spec};\n"
+        nuxmv_script = "\n".join(
+            text + property_text if name == "main" else text
+            for name, text in modules.items()
+        )
         with NamedTemporaryFile(
             "w", suffix=".smv", delete=False
         ) as model, NamedTemporaryFile("w", suffix=".txt", delete=False) as commands:
             model.write(nuxmv_script)
             model.close()
 
-            commands.write("go_msat\n")
+            # Abort script errors rather than returning to an interactive
+            # prompt, where a benchmark worker can mistake them for timeouts.
+            commands.write("set on_failure_script_quits\ngo_msat\n")
 
             if not mc:
                 call = "check_invar_ic3 -i"
-                call += ' -p "' + str(ltl_spec) + '"\n'
             else:
                 call = "check_ltlspec_ic3 -i"
                 # if livenesstosafety != None and livenesstosafety:
@@ -27,7 +44,7 @@ class ModelChecker:
                 if bound is not None:
                     call += " -k " + str(bound)
 
-                call += ' -p "' + str(ltl_spec) + '"\n'
+            call += " -P " + property_name + "\n"
 
             commands.write(call)
             commands.write("quit")
@@ -37,6 +54,8 @@ class ModelChecker:
                 out = subprocess.check_output(
                     [nuxmv_path, "-source", commands.name, model.name],
                     encoding="utf-8",
+                    stdin=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
                 )
 
                 lower_out = out.lower()
@@ -54,18 +73,21 @@ class ModelChecker:
                         "Expected output containing 'is true' or 'is false'.\n\n" + out
                     )
             except subprocess.CalledProcessError as err:
-                raise Exception(err.output + "\n\n" + nuxmv_script)
+                raise RuntimeError(
+                    f"nuXmv failed (exit {err.returncode}):\n{err.output}"
+                ) from err
             finally:
                 os.remove(model.name)
                 os.remove(commands.name)
 
-    def to_vmt(self, nuxmv_script: str, ltl_spec, file: str):
+    def to_vmt(self, modules: dict[str, str], ltl_spec, file: str):
+        modules = dict(modules)
+        if ltl_spec is not None:
+            modules["main"] += "\nLTLSPEC " + str(ltl_spec) + ";\n"
         with NamedTemporaryFile(
             "w", suffix=".smv", delete=False
         ) as model, NamedTemporaryFile("w", suffix=".txt", delete=False) as commands:
-            model.write(nuxmv_script)
-            if ltl_spec != None:
-                model.write("LTLSPEC " + str(ltl_spec))
+            model.write("\n".join(modules.values()))
             model.close()
 
             commands.write("go_msat\n")

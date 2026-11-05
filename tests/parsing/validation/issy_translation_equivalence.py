@@ -132,12 +132,12 @@ def _run_nuxmv_trace_check(model_text: str, ltl_property: str) -> str:
 
 
 def _ltl_check_with_trace(
-    model_text: str,
+    modules: dict[str, str],
     ltl_property: str,
     add_trace_when_result_is: bool | None = None,
 ) -> tuple[bool, str, str | None]:
     checker = ModelChecker()
-    holds, checker_out = checker.invar_check(model_text, ltl_property, None, True)
+    holds, checker_out = checker.invar_check(modules, ltl_property, None, True)
     if holds not in (True, False):
         raise RuntimeError(
             "nuXmv returned an unexpected result while checking LTL property."
@@ -148,7 +148,7 @@ def _ltl_check_with_trace(
         holds == add_trace_when_result_is
     )
     if trace is None and should_add_trace:
-        trace_out = _run_nuxmv_trace_check(model_text, ltl_property)
+        trace_out = _run_nuxmv_trace_check("\n".join(modules.values()), ltl_property)
         trace = _extract_counterexample_trace(trace_out)
     return holds, checker_out, trace
 
@@ -337,7 +337,7 @@ def build_issy_translation_equivalence_model(
     bare_spec: BareIssySpec,
     generated_program: Program,
     generated_objective: Formula,
-) -> tuple[str, str, str, str | None, bool]:
+) -> tuple[dict[str, str], str, str, str | None, bool]:
     if generated_objective is None:
         raise ValueError("Generated program has no objective.")
 
@@ -347,8 +347,10 @@ def build_issy_translation_equivalence_model(
     left_module_name = _module_name(bare_spec.name + "_bare_issy")
     right_module_name = _module_name(generated_program.name + "_generated_prog")
 
-    model_text = _nu_model_to_module(left_model, left_module_name)
-    model_text += "\n" + _nu_model_to_module(right_model, right_module_name)
+    modules = {
+        left_module_name: _nu_model_to_module(left_model, left_module_name),
+        right_module_name: _nu_model_to_module(right_model, right_module_name),
+    }
 
     left_var_names = _model_var_names(left_model)
     right_var_names = _model_var_names(right_model)
@@ -424,7 +426,7 @@ def build_issy_translation_equivalence_model(
     )
     objective_equivalence_ltl = f"(({left_obj}) <-> ({right_obj}))"
 
-    model_text += "MODULE main\n"
+    model_text = "MODULE main\n"
     model_text += (
         "VAR\n\tleft : "
         + left_module_name
@@ -453,7 +455,8 @@ def build_issy_translation_equivalence_model(
         boundary_implies_compatibility_ltl = compatibility_ltl
         bad_exit_eventually_ltl = None
     return (
-        _sanitize_nuxmv_text(model_text),
+        {name: _sanitize_nuxmv_text(text) for name, text in
+         (modules | {"main": model_text}).items()},
         boundary_implies_compatibility_ltl,
         objective_equivalence_ltl,
         bad_exit_eventually_ltl,
@@ -474,21 +477,22 @@ def check_issy_translation_equivalence_from_text(
     else:
         generated_program, generated_objective = string_to_program(prog_text)
 
-    model_text, compatibility_ltl, _, bad_exit_eventually_ltl, _has_minigame = (
+    modules, compatibility_ltl, _, bad_exit_eventually_ltl, _has_minigame = (
         build_issy_translation_equivalence_model(
             bare_spec, generated_program, generated_objective
         )
     )
+    model_text = "\n".join(modules.values())
     model_log_path = _dump_model_to_log(model_text, issy_name, log_dir=log_dir)
 
     compatible_ok, checker_out, counterexample_trace = _ltl_check_with_trace(
-        model_text,
+        modules,
         compatibility_ltl,
         add_trace_when_result_is=False,
     )
     if bad_exit_eventually_ltl is not None:
         bad_exit_holds, bad_exit_out, bad_exit_trace = _ltl_check_with_trace(
-            model_text,
+            modules,
             bad_exit_eventually_ltl,
             add_trace_when_result_is=True,
         )

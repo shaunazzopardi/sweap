@@ -260,7 +260,8 @@ def create_nuxmv_model_for_compatibility_checking(
     transition_predicates,
     chain_preds,
     init_choice_logic_expr: str | None = None,
-):
+) -> dict[str, str]:
+    """Return one complete nuXmv module per mapping entry."""
     program_model = program_to_nuxmv_model(program)
 
     options = CompatOptions(
@@ -495,15 +496,15 @@ def create_nuxmv_model_for_compatibility_checking(
         trans=[normal_trans],
     )
 
-    modules_text = (
-        _render_formula_module("ProgramModel", program_model)
-        + "\n"
-        + _render_formula_module(
-            "StrategyModel",
-            strategy_model,
-            ["init_state", "second_state"],
-            include_invar=False,
-        )
-        + "\n"
-    )
-    return post_process_nuxmv(modules_text + render_structured_model(model))
+    return {
+        "ProgramModel": post_process_nuxmv(
+            _render_formula_module("ProgramModel", program_model)
+        ),
+        "StrategyModel": post_process_nuxmv(
+            _render_formula_module(
+                "StrategyModel", strategy_model,
+                ["init_state", "second_state"], include_invar=False,
+            )
+        ),
+        "main": render_structured_model(model),
+    }

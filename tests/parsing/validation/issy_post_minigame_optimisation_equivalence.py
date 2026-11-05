@@ -150,7 +150,7 @@ def check_post_minigame_optimisation_equivalence_from_text(
     )
 
     # Reuse the same compatibility/minigame-boundary guarantees as the existing checker.
-    model_text, compatibility_ltl, bad_exit_eventually_ltl, _has_minigame = (
+    modules, compatibility_ltl, bad_exit_eventually_ltl, _has_minigame = (
         build_cross_product_minigame_equivalence_model(
             baseline_program,
             optimised_program,
@@ -166,6 +166,7 @@ def check_post_minigame_optimisation_equivalence_from_text(
             ),
         )
     )
+    model_text = "\n".join(modules.values())
     model_log_path = _dump_model_to_log(
         model_text,
         issy_name + "_post_minigame_optimisation",
@@ -173,14 +174,14 @@ def check_post_minigame_optimisation_equivalence_from_text(
     )
 
     compatible_ok, checker_out, counterexample_trace = _ltl_check_with_trace(
-        model_text,
+        modules,
         compatibility_ltl,
         add_trace_when_result_is=False,
     )
 
     if bad_exit_eventually_ltl is not None:
         no_bad_exit_holds, bad_exit_out, bad_exit_trace = _ltl_check_with_trace(
-            model_text,
+            modules,
             bad_exit_eventually_ltl,
             add_trace_when_result_is=False,
         )

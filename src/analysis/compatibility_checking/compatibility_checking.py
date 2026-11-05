@@ -55,7 +55,7 @@ def compatibility_checking(
         predicate_abstraction.v_to_chain_pred.values(),
     )
 
-    logging.info(system)
+    logging.info("\n".join(system.values()))
     contradictory, there_is_mismatch, out = (
         there_is_mismatch_between_program_and_strategy(
             system,

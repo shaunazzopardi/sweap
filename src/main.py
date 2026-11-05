@@ -278,7 +278,7 @@ def handle_translation(target, program, ltl_spec) -> str:
     if target.lower() == "dot":
         return str(program.to_dot())
     elif target.lower() == "nuxmv":
-        return create_nuxmv_model(program_to_nuxmv_model(program))
+        return "\n".join(create_nuxmv_model(program_to_nuxmv_model(program)).values())
     elif target.lower() == "prog":
         return program.to_prog(ltl_spec)
     elif target.lower() == "issy":
@@ -334,11 +334,11 @@ def _main(args: Namespace):
         out = handle_translation(args.translate, program, ltl_spec)
         print(str(args.translate) + " version of the problem:\n\n" + out)
     elif args.model_check:
-        nuxmv_script = handle_translation("nuxmv", program, ltl_spec)
+        nuxmv_script = create_nuxmv_model(program_to_nuxmv_model(program))
         _, out = ModelChecker().invar_check(
             nuxmv_script, ltl_spec.to_nuxmv(), None, True
         )
-        print(nuxmv_script)
+        print("\n".join(nuxmv_script.values()))
         print(out)
     elif args.synthesise or args.finite_synthesise:
         ltl = ltl_spec

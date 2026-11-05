@@ -38,6 +38,7 @@ def test_dual_second_state_tracks_first_program_step(monkeypatch):
         text = create_nuxmv_model_for_compatibility_checking(
             program, strategy, set(), set(), []
         )
+    text = "\n".join(text.values())
     assert "init_state <-> next(second_state)" in text
     assert "!next(init_state)" in text
     assert "!second_state" in text
@@ -55,7 +56,7 @@ def test_dual_controller_checks_compatibility_and_debug_deadlocks(monkeypatch, d
         side_effect=[(True, "compatible"), (True, "deadlock")],
     ) as check:
         result = there_is_mismatch_between_program_and_strategy(
-            "MODULE main", controller=True
+            {"main": "MODULE main"}, controller=True
         )
     assert result == (
         (True, None, "deadlock") if debug else (False, False, "compatible")

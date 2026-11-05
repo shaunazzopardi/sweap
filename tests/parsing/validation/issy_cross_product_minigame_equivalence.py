@@ -191,15 +191,17 @@ def build_cross_product_minigame_equivalence_model(
     compatibility_on_shared_numeric_state_vars_only: bool = False,
     synchronised_controller_var_prefixes: tuple[str, ...] = (),
     stutter_left_while_right_in_minigame: bool = False,
-) -> tuple[str, str, str | None, bool]:
+) -> tuple[dict[str, str], str, str | None, bool]:
     left_model = program_to_nuxmv_model(pre_program)
     right_model = program_to_nuxmv_model(post_program)
 
     left_module_name = _module_name(pre_program.name + "_pre_minigame")
     right_module_name = _module_name(post_program.name + "_post_minigame")
 
-    model_text = _nu_model_to_module(left_model, left_module_name)
-    model_text += "\n" + _nu_model_to_module(right_model, right_module_name)
+    modules = {
+        left_module_name: _nu_model_to_module(left_model, left_module_name),
+        right_module_name: _nu_model_to_module(right_model, right_module_name),
+    }
     left_var_names = _model_var_names(left_model)
     right_var_names = _model_var_names(right_model)
     shared_model_vars = sorted(left_var_names.intersection(right_var_names))
@@ -346,7 +348,7 @@ def build_cross_product_minigame_equivalence_model(
         )
     main_trans.append(f"next(compatible) = {next_compatible}")
 
-    model_text += "MODULE main\n"
+    model_text = "MODULE main\n"
     model_text += (
         "VAR\n\tleft : "
         + left_module_name
@@ -383,7 +385,8 @@ def build_cross_product_minigame_equivalence_model(
         bad_exit_eventually_ltl = None
 
     return (
-        _sanitize_nuxmv_text(model_text),
+        {name: _sanitize_nuxmv_text(text) for name, text in
+         (modules | {"main": model_text}).items()},
         guarded_compatibility_ltl,
         bad_exit_eventually_ltl,
         has_minigame,
@@ -400,7 +403,7 @@ def check_cross_product_minigame_equivalence_from_text(
         _build_pre_post_cross_product_programs(issy_text, issy_name)
     )
     (
-        model_text,
+        modules,
         compatibility_ltl,
         bad_exit_eventually_ltl,
         _has_minigame,
@@ -410,19 +413,20 @@ def check_cross_product_minigame_equivalence_from_text(
         to_exclude_from_minigame,
         stutter_left_while_right_in_minigame=True,
     )
+    model_text = "\n".join(modules.values())
     model_log_path = _dump_model_to_log(
         model_text, issy_name + "_cross_product_minigame", log_dir=log_dir
     )
 
     compatible_ok, checker_out, counterexample_trace = _ltl_check_with_trace(
-        model_text,
+        modules,
         compatibility_ltl,
         add_trace_when_result_is=False,
     )
 
     if bad_exit_eventually_ltl is not None:
         no_bad_exit_holds, bad_exit_out, bad_exit_trace = _ltl_check_with_trace(
-            model_text,
+            modules,
             bad_exit_eventually_ltl,
             add_trace_when_result_is=False,
         )

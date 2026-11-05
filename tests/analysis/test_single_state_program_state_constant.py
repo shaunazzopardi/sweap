@@ -82,6 +82,7 @@ class TestSingleStateProgramStateConstant(TestCase):
             [],
         )
 
+        model_text = "\n".join(model_text.values())
         self.assertIn("s0 := TRUE;", model_text)
         self.assertNotIn("program_state =", model_text)
         self.assertNotIn("next(program_state)", model_text)

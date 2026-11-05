@@ -21,12 +21,12 @@ from analysis.compatibility_checking.strategy_to_nuxmv import strategy_to_nuxmv_
 from analysis.model_checker import ModelChecker
 
 
-def _append_invariants(system: str, invariants: list[str]) -> str:
+def _append_invariants(system: dict[str, str], invariants: list[str]) -> dict[str, str]:
     extra = [inv for inv in invariants if inv]
     if not extra:
         return system
     suffix = "".join(f"\nINVAR\n\t({inv})" for inv in extra)
-    return system + suffix + "\n"
+    return system | {"main": system["main"] + suffix + "\n"}
 
 
 def create_nuxmv_model_for_verification_checking(
@@ -35,7 +35,7 @@ def create_nuxmv_model_for_verification_checking(
     predicate_abstraction: EffectsAbstraction,
     abstract_ltl_problem,
     init_choice_logic_expr: str | None = None,
-) -> str:
+) -> dict[str, str]:
     system = create_nuxmv_model_for_compatibility_checking(
         program,
         strategy_model,
@@ -100,7 +100,7 @@ def verify_strategy(
         abstract_ltl_problem,
         init_choice_logic_expr=init_choice_logic_expr,
     )
-    logging.info(system)
+    logging.info("\n".join(system.values()))
 
     # As in strategy_to_nuxmv_model, Mealy machines emit con_events, whereas
     # Moore machines emit env_events. Their emitted codes are checked against
@@ -178,7 +178,7 @@ def there_is_mismatch_between_program_and_controller(
 ):
     model_checker = ModelChecker()
     conf = config.Config.getConfig()
-    logging.info(system)
+    logging.info("\n".join(system.values()))
 
     if len(loop_constraints) > 0:
         loop_constraints_str = (

@@ -40,7 +40,7 @@ class TestSingleStateStrategyStateCeInjection(TestCase):
             return_value=fake_strategy_nuxmv,
         ), patch(
             "analysis.compatibility_checking.compatibility_checking.create_nuxmv_model_for_compatibility_checking",
-            return_value="MODULE main",
+            return_value={"main": "MODULE main"},
         ), patch(
             "analysis.compatibility_checking.compatibility_checking.there_is_mismatch_between_program_and_strategy",
             return_value=(False, True, "ce"),

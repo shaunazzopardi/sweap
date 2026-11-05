@@ -42,7 +42,7 @@ class TestVerificationChainEncodingStability(TestCase):
         with (
             redirect_stdout(StringIO()),
             patch.object(verification, "strategy_to_nuxmv_model"),
-            patch.object(verification, "create_nuxmv_model_for_verification_checking", return_value="model"),
+            patch.object(verification, "create_nuxmv_model_for_verification_checking", return_value={"main": "model"}),
             patch.object(verification, "there_is_mismatch_between_program_and_controller", return_value=(False, False, "ok")) as check,
         ):
             verification.verify_strategy(
@@ -130,7 +130,7 @@ class TestVerificationChainEncodingStability(TestCase):
                 )
                 contradictory, mismatch, output = (
                     verification.there_is_mismatch_between_program_and_controller(
-                        model, false(), conditions, 10
+                        {"main": model}, false(), conditions, 10
                     )
                 )
                 self.assertFalse(contradictory)
@@ -155,7 +155,7 @@ class TestVerificationChainEncodingStability(TestCase):
                 _, _, conditions = self.conditions(is_input=True, dual=dual)
                 contradictory, mismatch, output = (
                     verification.there_is_mismatch_between_program_and_controller(
-                        model, false(), conditions, 10
+                        {"main": model}, false(), conditions, 10
                     )
                 )
                 self.assertFalse(contradictory)

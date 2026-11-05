@@ -57,6 +57,7 @@ class TestDualInitialChoices(unittest.TestCase):
             text = create_nuxmv_model_for_compatibility_checking(
                 program, strategy, set(), set(), [], init_choice_logic_expr="env_init_0"
             )
+        text = "\n".join(text.values())
         self.assertIn("init_choice_logic := TRUE", text)
         self.assertNotIn("env_init_0", text)
 

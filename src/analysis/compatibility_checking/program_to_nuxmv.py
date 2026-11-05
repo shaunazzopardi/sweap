@@ -205,7 +205,7 @@ def program_to_nuxmv_model(
     )
 
 
-def create_nuxmv_model(program_model: StructuredNuXmvModel) -> str:
+def create_nuxmv_model(program_model: StructuredNuXmvModel) -> dict[str, str]:
     main_model = StructuredNuXmvModel(
         name="main",
         vars=list(program_model.vars),
@@ -214,4 +214,4 @@ def create_nuxmv_model(program_model: StructuredNuXmvModel) -> str:
         invar=list(program_model.invar),
         trans=list(program_model.trans),
     )
-    return render_structured_model(main_model)
+    return {"main": render_structured_model(main_model)}

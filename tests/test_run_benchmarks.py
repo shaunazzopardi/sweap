@@ -179,6 +179,29 @@ class TestBenchmarkRunner(TestCase):
         self.assertIs(row["realisable"], True)
         self.assertIs(row["verification"], False)
 
+    def test_nuxmv_parse_error_is_recorded_as_verification_error(self):
+        from analysis.model_checker import ModelChecker, nuxmv_path
+        from prop_lang.util import run_with_timeout_and_memory_limit
+        if not Path(nuxmv_path).is_file():
+            self.skipTest("nuXmv binary is required")
+        runtime = FakeRuntime()
+
+        def verify(*args):
+            return run_with_timeout_and_memory_limit(
+                ModelChecker().invar_check,
+                ({"main": "MODULE main\n"}, "TRUE & )", 5, True),
+                5, 2,
+            )
+
+        with patch.object(runtime, "verify", side_effect=verify):
+            row = runner.run_case(
+                self.source("case.prog"), "case.prog",
+                dict(runner.DEFAULTS), self.root, runtime,
+            )
+        self.assertIs(row["realisable"], True)
+        self.assertTrue(row["verification"].startswith("ERR(verif): nuXmv failed"))
+        self.assertIn("syntax error", row["verification"])
+
     def test_invalid_limits_and_incompatible_flags_are_rejected(self):
         for flags in (["--workers", "0"], ["--parse-timeout", "0"], ["--memory-gb", "nan"],
                       ["--synthesis-memory-limit-mb", "0"], ["--finite", "--no-binary-enc"]):

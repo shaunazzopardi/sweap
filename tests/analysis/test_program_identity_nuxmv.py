@@ -36,7 +36,7 @@ class TestProgramIdentityNuXmv(TestCase):
                 model = program_to_nuxmv_model(program())
                 self.assertIn("identity_smoke := TRUE", model.define)
                 text = create_nuxmv_model(model)
-                self.assertIn("identity_smoke := TRUE;", text)
+                self.assertIn("identity_smoke := TRUE;", text["main"])
                 valid, _ = ModelChecker().invar_check(text, "identity_smoke", None, False)
                 self.assertTrue(valid)
 

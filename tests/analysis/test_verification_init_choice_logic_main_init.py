@@ -81,5 +81,6 @@ class TestVerificationInitChoiceLogicMainInit(TestCase):
                 init_choice_logic_expr="env_init_0",
             )
 
+        model_text = "\n".join(model_text.values())
         self.assertIn("init_choice_logic := env_init_0;", model_text)
         self.assertIn("\t& (init_choice_logic)", model_text)
