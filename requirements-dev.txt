@@ -1,2 +1,4 @@
 -r requirements.txt
-pytest
+pytest==9.2.0
+# Benchmark resource monitoring and solver cleanup tests.
+psutil==7.2.2

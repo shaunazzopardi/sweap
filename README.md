@@ -48,6 +48,15 @@ See the [cav2026 branch of sweap-docker](https://github.com/dSynMa/sweap-docker/
 
 ### Setup
 
+Create and activate a virtual environment before installing dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Run the commands below from the repository root with that environment active.
+
 - Clone the repository
 - In the root directory:
 - Give execution permissions to:the required binaries: `chmod -R +x ./binaries/*`
@@ -57,7 +66,9 @@ See the [cav2026 branch of sweap-docker](https://github.com/dSynMa/sweap-docker/
     - run `pip install -r ./requirements.txt`
     - Setting up pySMT:
       - Install msat for pySMT: `pysmt-install --msat`
-      - Install z3 for pySMT: `pysmt-install --z3`
+        - pySMT 0.9.6's installer targets MathSAT 5.6.10. Tests were run with MathSAT 5.6.19. To use a newer release, download it from the [official MathSAT website](https://mathsat.fbk.eu/download.html) and follow the distribution's instructions to build/install its Python bindings in the same Python environment as Sweap. Installing only the solver executable is not sufficient for pySMT.
+        - Check the installed version with `python -c "import mathsat; print(mathsat.msat_get_version())"` and pySMT discovery with `python -m pysmt install --check`.
+      - Z3 is installed by `requirements.txt`; `pysmt-install --z3` would replace it with pySMT's older pinned version.
       - Install bdd for pySMT: `pysmt-install --bdd`
         - We experienced an error in this step sometimes, of the form:
           - `FileNotFoundError: [Errno 2] No such file or directory: '/home/<user>/.smt_solvers/bdd/repycudd-ecb03d6d231273343178f566cc4d7258dcce52b4/repycudd.py'`
