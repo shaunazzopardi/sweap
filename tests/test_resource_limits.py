@@ -1,5 +1,6 @@
 """Errors induced by deadline cleanup must remain timeout results."""
 
+import multiprocessing
 import subprocess
 import sys
 import time
@@ -8,7 +9,7 @@ from unittest.mock import patch
 
 import psutil
 
-from prop_lang.util import run_with_timeout_and_memory_limit
+from benchmarks.scripts.python.resource_limits import run_with_timeout_and_memory_limit
 
 
 def subprocess_then_error():
@@ -38,3 +39,20 @@ class TestTimeoutCleanup(TestCase):
     def test_real_error_before_deadline_is_preserved(self):
         result = run_with_timeout_and_memory_limit(ordinary_error, [], 2, 50)
         self.assertEqual((False, "failed before the deadline"), result)
+
+
+    def test_local_callable_with_forkserver_default(self):
+        previous_method = multiprocessing.get_start_method()
+        multiprocessing.set_start_method("forkserver", force=True)
+        try:
+            self.assertEqual(
+                run_with_timeout_and_memory_limit(lambda x: x * 2, [5], 2, 50),
+                (True, 10),
+            )
+            self.assertEqual(
+                run_with_timeout_and_memory_limit(lambda: time.sleep(5), [], 0.05, 50),
+                (False, "Timeout"),
+            )
+            self.assertEqual(multiprocessing.get_start_method(), "forkserver")
+        finally:
+            multiprocessing.set_start_method(previous_method, force=True)

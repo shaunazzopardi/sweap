@@ -77,8 +77,8 @@ DEFAULTS = {
 
 
 def kill_solver_processes() -> None:
-    """Continue cleanup if a process exits or becomes inaccessible mid-inspection."""
-    for process in psutil.process_iter():
+    """Clean up this runner's solvers without killing concurrent batches."""
+    for process in psutil.Process().children(recursive=True):
         try:
             if process.name() in {"strix", "semml"}:
                 process.kill()
@@ -401,6 +401,7 @@ class Runtime:
     """Dependencies and process boundaries for the shared benchmark workflow."""
 
     def __init__(self):
+        sys.path.insert(0, str(REPO))
         sys.path.insert(0, str(REPO / "src"))
         os.environ["PATH"] = os.pathsep.join(
             [
@@ -418,10 +419,8 @@ class Runtime:
         from parsing.string_to_issy import string_to_issy
         from parsing.string_to_rpg import rpg_parsec
         from programs.util import reset_caches as program_reset
-        from prop_lang.util import (
-            reset_caches as prop_reset,
-            run_with_timeout_and_memory_limit,
-        )
+        from prop_lang.util import reset_caches as prop_reset
+        from benchmarks.scripts.python.resource_limits import run_with_timeout_and_memory_limit
         from synthesis.synthesis import synthesize
 
         self.conf = config.Config.getConfig()

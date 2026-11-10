@@ -4,7 +4,7 @@ sweap is a prototype tool that implements a symbolic approach to reactive synthe
 
 Currently the only theory implemented is that of Linear Integer Arithmetic. 
 
-`paper.pdf` contains a detailed description of the theory underlying the tool, and presents an evaluation against other similar tools. To run the evaluation run the scripts in `./benchmarks/scripts/`.
+`paper.pdf` contains a detailed description of the theory underlying the tool, and presents an evaluation against other similar tools. See the [benchmark guide](benchmarks/README.md) for the benchmark collections, runners, result formats, and evaluation scripts.
 
 **Developers**: Shaun Azzopardi and Luca Di Stefano
 

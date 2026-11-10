@@ -4,7 +4,6 @@ import unittest
 
 from prop_lang.util import (
     run_with_timeout,
-    run_with_timeout_and_memory_limit,
     run_with_timeout_pickled,
 )
 
@@ -17,9 +16,6 @@ class TestTimeoutWorkers(unittest.TestCase):
             for runner in (
                 run_with_timeout,
                 run_with_timeout_pickled,
-                lambda f, args, timeout: run_with_timeout_and_memory_limit(
-                    f, args, timeout, 50
-                ),
             ):
                 with self.subTest(runner=runner):
                     self.assertEqual(runner(lambda x: x * 2, [5], 2), (True, 10))
@@ -27,12 +23,3 @@ class TestTimeoutWorkers(unittest.TestCase):
             self.assertEqual(multiprocessing.get_start_method(), "forkserver")
         finally:
             multiprocessing.set_start_method(previous_method, force=True)
-
-    def test_worker_exception(self):
-        def fail():
-            raise ValueError("worker failure")
-
-        self.assertEqual(
-            run_with_timeout_and_memory_limit(fail, [], 2, 50),
-            (False, "worker failure"),
-        )

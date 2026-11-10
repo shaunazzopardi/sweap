@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from benchmarks.scripts.python import run_benchmarks as runner
 
@@ -181,7 +181,7 @@ class TestBenchmarkRunner(TestCase):
 
     def test_nuxmv_parse_error_is_recorded_as_verification_error(self):
         from analysis.model_checker import ModelChecker, nuxmv_path
-        from prop_lang.util import run_with_timeout_and_memory_limit
+        from benchmarks.scripts.python.resource_limits import run_with_timeout_and_memory_limit
         if not Path(nuxmv_path).is_file():
             self.skipTest("nuXmv binary is required")
         runtime = FakeRuntime()
@@ -231,6 +231,25 @@ class TestBenchmarkRunner(TestCase):
             with self.assertRaises(RuntimeError):
                 runtime.solve("program", "objective", runner.DEFAULTS)
             cleanup.assert_called_once_with()
+
+    def test_solver_cleanup_is_scoped_to_this_runner(self):
+        own_solver = Mock()
+        own_solver.name.return_value = "semml"
+        other_child = Mock()
+        other_child.name.return_value = "python"
+        unrelated_solver = Mock()
+        unrelated_solver.name.return_value = "semml"
+        with (
+            patch.object(runner.psutil, "Process") as root,
+            patch.object(runner.psutil, "process_iter", return_value=[unrelated_solver]) as global_processes,
+        ):
+            root.return_value.children.return_value = [own_solver, other_child]
+            runner.kill_solver_processes()
+            root.return_value.children.assert_called_once_with(recursive=True)
+            global_processes.assert_not_called()
+        own_solver.kill.assert_called_once_with()
+        other_child.kill.assert_not_called()
+        unrelated_solver.kill.assert_not_called()
 
     def test_verification_exception_preserves_the_synthesis_verdict(self):
         runtime = FakeRuntime()
