@@ -1,42 +1,26 @@
 #!/usr/bin/env bash
 
 # Use the bundled converter even when called without the repository on PATH.
-binary_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+binary_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || exit 1
 
-#parse command line arguments
-OPTIONS=()
-
-while [[ $# -gt 0 ]]
-do
-key="$1"
-
-if [[ $key = *.tlsf ]]; then
-    # tlsf file
-    TLSF=$1
-else
-    # option
-    OPTIONS+=("$1")
+# Usage: strix_tlsf_file.sh INPUT.tlsf [STRIX_OPTIONS...]
+TLSF="${1:-}"
+if [[ -z "$TLSF" ]]; then
+    echo "Error: No TLSF file given" >&2
+    exit 1
 fi
-# next argument
 shift
-
-done
-
-if [ -z $TLSF ]; then
-    echo "Error: No TLSF file given"
-    exit 1
-fi
-if [ ! -f $TLSF ]; then
-    echo "Error: File $TLSF does not exist"
+OPTIONS=("$@")
+if [[ ! -f "$TLSF" ]]; then
+    echo "Error: File $TLSF does not exist" >&2
     exit 1
 fi
 
-INS=$("$binary_dir/syfco" -f ltl --print-input-signals "$TLSF")
-OUTS=$("$binary_dir/syfco" -f ltl --print-output-signals "$TLSF")
-LTL=$("$binary_dir/syfco" -f ltl -q double -m fully "$TLSF")
+ltl_file=$(mktemp "${TMPDIR:-/tmp}/sweap-strix.XXXXXXXXXX") || exit 1
+trap 'rm -f -- "$ltl_file"' EXIT
 
-truncate -s 0 ./ltl-file
+INS=$("$binary_dir/syfco" -f ltl --print-input-signals "$TLSF") || exit "$?"
+OUTS=$("$binary_dir/syfco" -f ltl --print-output-signals "$TLSF") || exit "$?"
+"$binary_dir/syfco" -f ltl -q double -m fully "$TLSF" > "$ltl_file" || exit "$?"
 
-echo $LTL >> ./ltl-file
-strix --ins "$INS" --outs "$OUTS" --formula-file ./ltl-file ${OPTIONS[@]}
-rm ./ltl-file
+strix --ins "$INS" --outs "$OUTS" --formula-file "$ltl_file" "${OPTIONS[@]}"
