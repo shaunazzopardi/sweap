@@ -1,27 +1,39 @@
 from typing import Any
-
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import MathOps, MathRels
+from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
 class MathExpr(Formula):
-
     def __init__(self, f: Formula):
         if isinstance(f, BiOp):
-            if f.op in ["+", "-", "*", "/", "<", ">", "<=", ">=", "==", "=", "!="]:
+            if f.op in MathOps or f.op in MathRels:
                 self.formula = f
             else:
-                raise Exception("Unsupported operator: " + f.op)
+                raise Exception(
+                    "Unsupported math operator: " + str(f.op) + " in " + str(f)
+                )
+        elif isinstance(f, UniOp):
+            if f.op in MathOps:
+                self.formula = f
+            else:
+                raise Exception(
+                    "Unsupported math operator: " + str(f.op) + " in " + str(f)
+                )
+        else:
+            raise Exception("Unsupported math operator: " + str(f.op) + " in " + str(f))
         self.formula = f
         self.prev_representation = None
+        self.hsh = self.formula.__hash__()
 
     def __str__(self):
         return str(self.formula)
 
     def __hash__(self):
-        return self.formula.__hash__()
+        return self.hsh
 
     def __eq__(self, other):
         if isinstance(other, MathExpr):
@@ -32,14 +44,13 @@ class MathExpr(Formula):
     def variablesin(self):
         return self.formula.variablesin()
 
-    def ground(self, context):
-        return MathExpr(self.formula.ground(context))
-
     def simplify(self):
         if isinstance(self.formula, BiOp) and self.formula.op in ["*"]:
-            if isinstance(self.formula.left, Value) and self.formula.left.name == "1":
+            if isinstance(self.formula.left, Value) and self.formula.left.val == "1":
                 return MathExpr(self.formula.right)
-            elif isinstance(self.formula.right, Value) and self.formula.right.name == "1":
+            elif (
+                isinstance(self.formula.right, Value) and self.formula.right.val == "1"
+            ):
                 return MathExpr(self.formula.left)
         return self
 
@@ -47,13 +58,17 @@ class MathExpr(Formula):
         return []
 
     def replace_vars(self, context):
-        return MathExpr(self.formula.replace_vars(context))
+        replaces_f = self.formula.replace_vars(context)
+        if isinstance(replaces_f, Value) or isinstance(replaces_f, Variable):
+            return replaces_f
+        else:
+            return MathExpr(replaces_f)
 
     def to_nuxmv(self):
-        return MathExpr(self.formula.to_nuxmv())
+        return self.formula.to_nuxmv()
 
     def to_strix(self):
-        return self
+        return self.formula.to_strix()
 
     def to_smt(self, symbol_table: Any):
         return self.formula.to_smt(symbol_table)
@@ -68,16 +83,16 @@ class MathExpr(Formula):
         if isinstance(context, dict):
             if self in context.keys():
                 return context[self]
-            else:
-                return MathExpr(self.formula.replace_formulas(context))
         elif callable(context):
             ret = context(self)
             if ret is not None:
                 return ret
-            else:
-                return MathExpr(self.formula.replace_formulas(context))
+
+        replaces_f = self.formula.replace_formulas(context)
+        if isinstance(replaces_f, Value) or isinstance(replaces_f, Variable):
+            return replaces_f
         else:
-            return MathExpr(self.formula.replace_formulas(context))
+            return MathExpr(replaces_f)
 
     def prev_rep(self):
         if self.prev_representation is None:
@@ -88,4 +103,6 @@ class MathExpr(Formula):
         if self in context.keys():
             return context[self]
         else:
-            return [MathExpr(f) for f in self.formula.replace_formulas_multiple(context)]
+            return [
+                MathExpr(f) for f in self.formula.replace_formulas_multiple(context)
+            ]

@@ -1,0 +1,14 @@
+state real x
+input real i
+
+formula {
+    assume [x=0]
+    assume G ([i >= 0] && [i <= 0.5])
+    assert F ([x>10])
+}
+
+game Safety from l0 {
+    loc l0 1
+
+    from l0 to l0 with [x' > x] && [x' <= x + 1 - i]
+}

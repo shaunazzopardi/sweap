@@ -1,0 +1,57 @@
+input bool i0
+input bool i1
+
+state int x0
+state int x1
+state int y0
+state int y1
+
+// updates of output wires
+def writeY = ([y0' = y0+1] && [y1' = y1]  || [y1' = y1+1] && [y0' = y0])
+def keepY = keep(y0 y1)
+
+// reading from input wires
+def read0 = (i0 && [x0' = x0] || !i0 && ![x0 = 0] && [x0' = x0 - 1]) 
+def read1 = (i1 && [x1' = x1] || !i1 && ![x1 = 0] && [x1' = x1 - 1])
+def notread0 = (i0 && [x0' = x0 + 1] || !i0 && [x0' = x0])
+def notread1 = (i1 && [x1' = x1 + 1] || !i1 && [x1' = x1])
+
+// possible transitions
+def trans = 
+       (read0 && notread1 || read1 && notread0) && writeY
+    || !i0 && !i1 && [x0 = 0] && [x1 = 0] && notread0 && notread1 && keepY
+
+formula { 
+
+    // output propery of ballancer
+    
+    assume ([y0 = 0] && [y1 = 0]) 
+    assert G ([y0 <= y1] && [y1 - y0 <= 1])
+}
+
+
+formula{
+
+    // every token should eventually be processed
+    assert G (i0 -> F read0)
+    assert G (i1 -> F read1)  
+
+    // all pending tokens should be processed
+    assert ((F G (!i0)) -> (F G [x0 = 0]))
+    assert ((F G (!i1)) -> (F G [x1 = 0]))          
+}
+
+ 
+ game Safety from l0 {
+    loc l0 1
+    loc l1 1
+    loc l2 1
+
+
+    from l0 to l2 with !([x0 = 0] && [x1 = 0])
+    from l0 to l1 with ([x0 = 0] && [x1 = 0]) && trans
+    from l1 to l1 with trans
+    from l2 to l2 with true 
+
+ } 
+ 

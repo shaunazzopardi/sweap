@@ -4,7 +4,7 @@ sweap is a prototype tool that implements a symbolic approach to reactive synthe
 
 Currently the only theory implemented is that of Linear Integer Arithmetic. 
 
-`paper.pdf` contains a detailed description of the theory underlying the tool, and presents an evaluation against other similar tools. To run the evaluation run the scripts in `./benchmarks/scripts/`.
+`paper.pdf` contains a detailed description of the theory underlying the tool, and presents an evaluation against other similar tools. See the [benchmark guide](benchmarks/README.md) for the benchmark collections, runners, result formats, and evaluation scripts.
 
 **Developers**: Shaun Azzopardi and Luca Di Stefano
 
@@ -12,14 +12,21 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 
 ## Installation
 
+### Dockerfile
+
+See the [cav2026 branch of sweap-docker](https://github.com/dSynMa/sweap-docker/tree/cav2026) for the latest (at the time of writing) Dockerfile and instructions for building and running the tool in a containerised environment.
+
 ### Requirements
 
 - This tool was developed and tested on Ubuntu 22.04.04 LTS.
-- The tool was developed and tested with Python 3.10 (ensure you also have `pip` installed), we recommend using this version.
+- The tool was developed and tested with Python 3.12 (ensure you also have `pip` installed), we recommend using this version.
 - The tool is distributed with several required binaries:
   - `strix` - Strix 21.0.0, https://github.com/meyerphi/strix/releases/tag/21.0.0
   - `cpa.sh` - CPAchecker 2.3, https://gitlab.com/sosy-lab/software/cpachecker/
-  - `syfco` - syfco 1.1, https://github.com/reactive-systems/syfco
+  - `syfco` - use the bundled SyFCo 1.2.1.2 or a newer upstream build, https://github.com/reactive-systems/syfco. Custom builds must include [the next-operator disjunction fix](https://github.com/reactive-systems/syfco/commit/2f9d2bfdcdcdcb13f5352638376eab579c71b894).
+- Spot (https://spot.lre.epita.fr/) with Python bindings is required.
+  - Some ISSY/LTL reduction paths import `spot` directly at runtime.
+  - The Spot Python module must be available in the same Python environment used to run `sweap`.
 - For CPAChecker:
   - Ensure you have Java 17 installed,
   - set the environment variable `JAVA' to your Java 17 executable:
@@ -41,6 +48,15 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
 
 ### Setup
 
+Create and activate a virtual environment before installing dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Run the commands below from the repository root with that environment active.
+
 - Clone the repository
 - In the root directory:
 - Give execution permissions to:the required binaries: `chmod -R +x ./binaries/*`
@@ -50,115 +66,62 @@ Currently the only theory implemented is that of Linear Integer Arithmetic.
     - run `pip install -r ./requirements.txt`
     - Setting up pySMT:
       - Install msat for pySMT: `pysmt-install --msat`
-      - Install z3 for pySMT: `pysmt-install --z3`
+        - pySMT 0.9.6's installer targets MathSAT 5.6.10. Tests were run with MathSAT 5.6.19. To use a newer release, download it from the [official MathSAT website](https://mathsat.fbk.eu/download.html) and follow the distribution's instructions to build/install its Python bindings in the same Python environment as Sweap. Installing only the solver executable is not sufficient for pySMT.
+        - Check the installed version with `python -c "import mathsat; print(mathsat.msat_get_version())"` and pySMT discovery with `python -m pysmt install --check`.
+      - Z3 is installed by `requirements.txt`; `pysmt-install --z3` would replace it with pySMT's older pinned version.
       - Install bdd for pySMT: `pysmt-install --bdd`
         - We experienced an error in this step sometimes, of the form:
           - `FileNotFoundError: [Errno 2] No such file or directory: '/home/<user>/.smt_solvers/bdd/repycudd-ecb03d6d231273343178f566cc4d7258dcce52b4/repycudd.py'`
         - Delete the directory `/home/<user>/.smt_solvers/bdd/` and running the command again worked for us.
 
+- Install Spot Python bindings in the same virtual environment used for `sweap`:
+  - Activate your venv first, then build/install Spot with that interpreter:
+```bash
+source .venv/bin/activate
+cd /path/to/spot-2.14.5
+make distclean || true
+./configure --prefix="$VIRTUAL_ENV" PYTHON="$VIRTUAL_ENV/bin/python"
+make -j"$(nproc)"
+make install
+```
+  - Verify the binding is visible from the venv:
+```bash
+python -c "import spot; print(spot.__file__)"
+```
+  - Note: manual copying of Spot bindings from another Python installation may fail if Python ABI versions differ (e.g., `cpython-312` bindings with a Python 3.10 venv).
+
+### Running tests
+
+After completing the solver setup above, install the development dependencies
+and run the tests from the repository root using the same Python environment:
+
+```bash
+python -m pip install -r requirements-dev.txt
+PATH=./binaries:$PATH PYTHONPATH=./src python -m pytest
+```
+
 ## Usage
 
-### Symbolic Synthesis Problems
+### Input: Symbolic Synthesis Problems
 
-The input to the tool is a symbolic reactive synthesis problem that specifies the arena as a symbolic automaton or program, and an LTL objective.
+The input to the tool is a symbolic reactive synthesis problem that specifies the arena as a symbolic automaton or program, and an LTL objective. See [./SYNTAX.md](SYNTAX.md) for an overview of the syntax, with examples.
 
-We describe briefly the format of this input file, starting at a high-level. You can find multiple examples in `./benchmarks/sweap`.
 
-The input file is a text file with the following template:
+### Output Format
 
-```
-program <name> {
-    STATES {<states>}
+The output of the tool is a controller or counterstrategy in Hanoi-Omega Automata (HOA) format v1, see https://adl.github.io/hoaf/ for documentation about this standard format.
 
-    ENVIRONMENT EVENTS {<events>}
+Using HOA format allows for interoperability with other tools that rely on this standard, e.g. spot (https://spot.lre.epita.fr/), for further analysis and automata manipulation.
 
-    CONTROLLER EVENTS {<events>}
 
-    VALUATION {<valuation>}
+### Correctness
 
-    TRANSITIONS {<transitions>}
+To validate the correctness of the tool we took several measures:
 
-    SPECIFICATION {<ltl>}
-}
-```
-Find below the grammar in EBNF and regex for each section:
-```
-<name> := [_a-zA-Z][_a-zA-Z0-9$@\_\-]*
-
-<state> := [a-zA-Z0-9@$_-]+
-<states> := <state> : init [, <state>]*
-
-<event> := <name> 
-<events> := <name> [, <name>]*
-
-<num> := (-)?[0-9]+
-<type> := (bool|int|nat|(<num>\.\.<num>))
-<var> := <name>
-<val> := <var> : <type> := <val>
-<valuation> := (<val> [; <val>]*)?
-
-<LIA-predicate> := <var> == <var> | <var> != <var> | <var> < <var> | <var> <= <var> | <var> > <var> | <var> >= <var>
-<formula> := <var> | <LIA-predicate> | !<formula> | <formula> && <formula> | <formula> || <formula> | <formula> -> <formula>
-
-<guard> := formula
-
-<LIA-term> := <var> | <num> | <LIA-term> + <LIA-term> | <LIA-term> - <LIA-term> 
-<assignment> := <var> := <LIA-term>
-
-<transition> := <state> -> <state> [<guard> $ <assignments>]
-<transitions> := (<transition> [, <transition>]*)?
-
-<ltl> := <formula> | !<ltl> | <ltl> && <ltl> | <ltl> || <ltl> | <ltl> -> <ltl> | X (<formula>) | F (<formula>) | G (<formula>) | (<formula>) U (<formula>)
-```
-
-The real format is a bit less strict, e.g., the long form names for types are also parsed, `;` can be used instead of `,`, and `&` and `|` can be used instead of `&&` and `||`.
-
-An important aspect is that we require the defined transitions to be **deterministic**. That is, we require that from every state the guards of each transition are mutually exclusive.  
-
-#### Example 
-
-Below is an example problem. This essentially captures the arbiter problem, where the environment can request access to a number of resources, and the controller can grant access to each of these. The controller's objective is to eventually grant access to all the requested resources, and not more.
-
-It defines an arbiter with two states (`q0` and `q1`), where `q0` is the initial state. 
-
-It defines one environment events/variables (`request`) and two controller events/variables (`grant` and `finished`). 
-
-The valuation section defines one natural variables `cnt`. 
-
-The transitions section defines the transitions between the states based on the environment and controller events. Note at state `q0` the environment can increase the value of `cnt` by setting request to true, and force a transition to `q1` by setting `request` to false. In state `q1` the controller can grant each request by setting `grant` to `true`. If the controller calls `finished` when `cnt` is `0` then the program transitions back to `q0`. Note the defined automaton is deterministic.
-
-The specification section defines the LTL formula that the controller should satisfy, namely that the controller should always eventually return to state `q0` from state `q1`.
-
-````
-program arbiter {
-    STATES {
-        q0 : init, q1
-    }
-
-    ENVIRONMENT EVENTS {
-        request
-    }
-
-    CONTROLLER EVENTS {
-        grant, finished
-    }
-
-    VALUATION {
-        cnt : natural := 0;
-    }
-
-    TRANSITIONS {
-        q0 -> q0 [request $ cnt := cnt + 1],
-        q0 -> q1 [!request],
-        q1 -> q1 [grant $ cnt := cnt - 1],
-        q1 -> q0 [cnt == 0 & finished $]
-    }
-
-    SPECIFICATION {
-        G(q1 -> F q0)
-    }
-}
-````
+  - the output of the tool is model checked against the inputted problem (by default for counterstrategies, and with the `--verify_controller` flag for controllers);
+  - testing (see `./tests/synthesis/test_synthesis` which checks that some synthesis problems, developed to avoid regression, are given the expected verdict);
+  - comparison of realisability results for the given benchmarks with other tools; and
+  - running synthesis on the benchmarks with the `--debug` flag which performs synthesis with several additional checks (see below).
 
 ### Running the Tool
 
@@ -168,4 +131,32 @@ To run the tool on a symbolic synthesis problem, run the following command in th
 PATH=./binaries:$PATH PYTHONPATH=./src python main.py --p <path-to-problem-file> --synthesise
 ```
 
-For advanced flags run `main.py` with the `--h` flag.
+#### Other input formats
+
+`sweap` supports multiple input formats:
+
+- `--p <file.prog>`:
+  - Standard input format for `sweap`.
+- `--issy <file.issy>`:
+  - Parsed and normalised with ISSY reductions (`string_to_issy`), including formula/game reductions and Spot-based update-restriction inference where applicable.
+- `--tsl <file.tsl>`:
+  - Parsed as TSL/LTL modulo theories.
+- `--rpg <file.rpg>`:
+  - Parsed via the RPG parser and converted to the same internal model (`rpg_parsec`).
+
+These input formats can go through the synthesis pipeline `--synthesise`. Standard one-shot enumerative finite synthesis of programs can be performed through `--finite_synthesise`.
+
+`sweap` also provides a translation mode,`--translate`, the pipeline stops after front-end parsing and emits the requested target (`prog`, `dot`, `nuxmv`, `issy`, or `vmt`) without running synthesis.
+
+
+Other flags may be useful to the interested user:
+
+- `--dual` performs synthesis of the dual problem, i.e. flips the problem by setting the concrete controller as the abstract environment, and the concrete environment as the abstract controller, and negating the original specification. This results in an under-approximation of the arena (given it is now controlled by the controller, which is the environment in the abstract problem). This is likely to not terminate for realisable problems, but should be used to check for unrealisability.
+- ``--verify_controller`` verifies that the controller satisfies the intended LTL specification in the context of the arena.
+- ``--only_safety`` attempts the synthesis problem without any liveness refinements.
+- ``--no_binary_enc`` attempts the synthesis problem without binary encoding of the predicates, instead of creating a new proposition for each predicate.
+- ``--debug`` runs the tool in debug mode, which raises enables inline checks that verifies: 
+  - determinism of the arena (i.e., that the guards of the transitions from each state are mutually exclusive);
+  - correctness of abstraction refinement; and
+  - correctness of certain steps in ISSY translation to sweap problems.
+- ``--log`` outputs a log of the work performed during the synthesis task, including a nuXmv model combining both the arena and the synthesised (counter)strategy, which the user can use to simulate their concurrent execution using nuXmv.

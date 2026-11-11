@@ -1,25 +1,36 @@
+import functools
+from typing import Union
+
 import sympy.core.logic
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Not, Minus, Int
 
-from programs.typed_valuation import TypedValuation
+import config
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import BoolUniOps, MathOps
+from prop_lang.types.values import BoolAtoms
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
+
 class UniOp(Formula):
-    def __init__(self, op: str, right: Formula):
-        if not isinstance(right, Formula):
-            print(str(right) + " is not a formula")
+    def __init__(self, op: Union[str, BoolUniOps, MathOps], right: Formula):
         self.op = op
         self.right = right
         self.prev_representation = None
+        self.smt_representation = None
+        self.hsh = hash(f"{self.op} {self.right.__hash__()}")
 
+    @functools.lru_cache()
     def __str__(self):
         if self.op == "next" and (
-                isinstance(self.right, UniOp) or isinstance(self.right, Value) or isinstance(self.right, Variable)):
-            return self.op + "(" + str(self.right) + ")"
-        if self.op in ["G","F","X"]:
+            isinstance(self.right, UniOp)
+            or isinstance(self.right, Value)
+            or isinstance(self.right, Variable)
+        ):
+            raise NotImplementedError("using next with UniOp")
+            # return self.op + "(" + str(self.right) + ")"
+        if self.op in ["G", "F", "X"]:
             return self.op + "(" + str(self.right) + ")"
         if self.op != "!" and self.op != "-":
             return self.op + " " + str(self.right)
@@ -34,51 +45,78 @@ class UniOp(Formula):
             return NotImplemented
 
     def __hash__(self):
-        return hash((self.op, self.right))
+        return self.hsh
 
-    def variablesin(self) -> [Variable]:
+    @functools.lru_cache()
+    def variablesin(self) -> list[Variable]:
         return self.right.variablesin()
-
-    def ground(self, context: [TypedValuation]):
-        return UniOp(self.op, self.right.ground(context))
 
     def simplify(self):
         right = self.right.simplify()
-        if self.op in ["!"]:
+        if self.op == BoolUniOps.NEG:
             if isinstance(right, UniOp) and right.op == "!":
                 return right.right
             elif isinstance(right, Value) and right.is_true():
-                return Value("False")
+                return Value(
+                    BoolAtoms.FALSE
+                )  # pyright: ignore [reportUndefinedVariable]
             elif isinstance(right, Value) and right.is_false():
-                return Value("True")
+                return Value(BoolAtoms.TRUE)
+        elif self.op == "X":
+            if isinstance(right, Value):
+                return right
+        elif self.op == "F":
+            if isinstance(right, Value):
+                return right
+        elif self.op == "G":
+            if isinstance(right, Value):
+                return right
+
+        if right == self.right:
+            return self
         return UniOp(self.op, right)
 
+    @functools.lru_cache()
     def ops_used(self):
         return [self.op] + self.right.ops_used()
 
     def replace_vars(self, context):
         return UniOp(self.op, self.right.replace_vars(context))
 
+    @functools.lru_cache()
     def to_nuxmv(self):
-        return UniOp(self.op, self.right.to_nuxmv())
+        return (
+            (self.op if self.op != "X" else "next") + "(" + self.right.to_nuxmv() + ")"
+        )
 
+    @functools.lru_cache()
     def to_strix(self):
-        return UniOp(self.op, self.right.to_strix())
+        return self.op + "(" + self.right.to_strix() + ")"
 
-    def to_smt(self, symbol_table) -> (FNode, FNode):
+    def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
+        cache = config.Config.getConfig().cache_smt
+        if cache and self.smt_representation:
+            return self.smt_representation
+
         expr, invar = self.right.to_smt(symbol_table)
         if self.op == "!":
-            return Not(expr), invar
+            f = Not(expr), invar
         elif self.op == "-":
-            return Minus(Int(0), expr), invar
+            f = Minus(Int(0), expr), invar
         else:
             raise NotImplementedError(f"{self.op} unsupported")
+
+        if cache:
+            self.smt_representation = f
+        return f
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         new_right, dic = self.right.replace_math_exprs(symbol_table, cnt)
         if len(dic) == 0:
             if self.op == "-" or self.op == "+":
-                new_right, dic = Variable("math_" + str(cnt)), {Variable("math_" + str(cnt)): self}
+                new_right, dic = Variable("math_" + str(cnt)), {
+                    Variable("math_" + str(cnt)): self
+                }
         return UniOp(self.op, new_right), dic
 
     def to_sympy(self):
@@ -113,4 +151,6 @@ class UniOp(Formula):
         if self in context.keys():
             return context[self]
         else:
-            return [UniOp(self.op, f) for f in self.right.replace_formulas_multiple(context)]
+            return [
+                UniOp(self.op, f) for f in self.right.replace_formulas_multiple(context)
+            ]

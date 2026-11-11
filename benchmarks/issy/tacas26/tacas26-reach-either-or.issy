@@ -1,0 +1,15 @@
+state int x
+state int y
+input bool b
+input int i
+
+game Reachability from l {
+    loc l 0
+    loc goal 1
+
+    from goal to goal with true
+    from l to goal with [x <= 0] || [y <= 0] 
+    from l to l with
+           ( b && [x > 0] && [y > 0] && [x' = i] && [y' = y - 1])
+         ||(!b && [x > 0] && [y > 0] && [x' = x - 1] && [y' = y])
+}

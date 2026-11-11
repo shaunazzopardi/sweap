@@ -8,14 +8,19 @@ class AbstractState:
         self.predicates = sorted(list(predicates), key=lambda x: str(x))
         self.predicate_formula = conjunct_formula_set(self.predicates, sort=True)
         if any(p for p in self.predicates if neg(p) in self.predicates):
-            raise ValueError("Abstract state cannot contain both p and !p: " + str(self))
+            raise ValueError(
+                "Abstract state cannot contain both p and !p: " + str(self)
+            )
 
     def __str__(self):
         return "(" + str(self.state) + ", " + ", ".join(map(str, self.predicates)) + ")"
 
     def __eq__(self, other):
         if isinstance(other, AbstractState):
-            return self.state == other.state and self.predicate_formula == other.predicate_formula
+            return (
+                self.state == other.state
+                and self.predicate_formula == other.predicate_formula
+            )
         return NotImplemented
 
     def __hash__(self):
@@ -32,12 +37,15 @@ class AbstractState:
 
     def is_instance_of(self, other):
         if isinstance(other, AbstractState):
-            return self.state == other.state and \
-                frozenset(self.predicates).issubset(frozenset(other.predicates))
+            return self.state == other.state and frozenset(self.predicates).issubset(
+                frozenset(other.predicates)
+            )
         return NotImplemented
 
     def compatible(self, other, symbol_table):
         if isinstance(other, AbstractState):
-            return self.state == other.state and \
-                sat(conjunct(self.predicate_formula, other.predicate_formula), symbol_table)
+            return self.state == other.state and sat(
+                conjunct(self.predicate_formula, other.predicate_formula),
+                symbol_table,
+            )
         return NotImplemented

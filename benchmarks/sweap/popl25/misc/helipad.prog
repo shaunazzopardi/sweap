@@ -14,7 +14,7 @@ program helipad {
         evacTimer : integer := 0;
         evacTime : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setFree -> setAck [r1 $ free := true],
         setFree -> setAck [!r1 $ free := false],
 

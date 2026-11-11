@@ -16,7 +16,7 @@ program robot-grid-reach-2d {
         y : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setvars -> setvars [estay & einc & exory $ x := x + 1],
         setvars -> setvars [estay & !einc & exory $ x := x - 1],
         setvars -> setvars [estay & einc & !exory $ y := y + 1],

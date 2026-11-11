@@ -1,0 +1,11 @@
+state int x
+
+game Reachability from init {
+  loc init 0
+  loc choose 0
+  loc goal 1
+  from init to choose with [x' = 0]
+  from choose to choose with true
+  from choose to goal with [x >= 10] && keep(x)
+  from goal to goal with keep(x)
+}

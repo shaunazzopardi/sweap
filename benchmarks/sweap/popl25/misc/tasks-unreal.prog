@@ -12,7 +12,7 @@ program tasks-unreal {
         y : integer := 10;
         done : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [$ x := x if cx1 & !cx2;
                     x := x + 1 if cx1 & cx2;
                     x := x - 1 if !cx1 & cx2;

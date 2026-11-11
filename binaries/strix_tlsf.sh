@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Use the bundled converter even when called without the repository on PATH.
+binary_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 #parse command line arguments
 OPTIONS=()
 
@@ -29,9 +32,9 @@ if [ ! -f $TLSF ]; then
 fi
 
 ltlfile=$(mktemp) 
-INS=$(syfco -f ltl --print-input-signals $TLSF)
-OUTS=$(syfco -f ltl --print-output-signals $TLSF)
-LTL=$(syfco -f ltl -q double -m fully $TLSF -o $ltlfile)
+INS=$("$binary_dir/syfco" -f ltl --print-input-signals "$TLSF")
+OUTS=$("$binary_dir/syfco" -f ltl --print-output-signals "$TLSF")
+LTL=$("$binary_dir/syfco" -f ltl -q double -m fully "$TLSF" -o "$ltlfile")
 
 strix --ins "$INS" --outs "$OUTS" -F "$ltlfile" ${OPTIONS[@]}
 rm -f $ltlfile

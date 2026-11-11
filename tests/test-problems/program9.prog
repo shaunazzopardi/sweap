@@ -15,7 +15,7 @@ program eventually__allow_grant {
         cnt : natural := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [request $ cnt := cnt + 1],
         q0 -> q1 [!request & (cnt > 0)],
         q0 -> q2 [!request & (cnt == 0)],

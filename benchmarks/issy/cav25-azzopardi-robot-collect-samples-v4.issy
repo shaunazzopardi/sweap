@@ -1,0 +1,277 @@
+// Environment moves
+input bool e
+input bool stop
+
+// System moves (should only appear as primed next-states)
+state bool a
+state bool b
+
+// Program variables
+state int samples
+state int samplesA
+state int samplesB
+state int trackPos
+state int reqSamples
+
+// Variables to track the location
+state bool moveToBase
+state bool base
+state bool collectSamples
+state bool moveToSampleSide
+state bool setSamplesAB
+
+// Temporal specifcation
+formula {
+  assert X ( ((G F !setSamplesAB) && (G (setSamplesAB -> F ([samplesA > 0] || [samplesB > 0])))) -> G F base )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc moveToBase 1
+  loc base 1
+  loc collectSamples 1
+  loc moveToSampleSide 1
+  loc setSamplesAB 1
+
+// Init variables and go to inital state
+  from init_location to moveToBase with
+    moveToBase'
+    && (!base')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+    && [samples' = 0]
+    && [samplesA' = 0]
+    && [samplesB' = 0]
+    && [trackPos' = 0]
+    && [reqSamples' = 0]
+
+  from moveToBase to moveToBase with
+    moveToBase' 
+    && (!base')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+  && (false
+    || ( // moveToBase -> moveToBase [trackPos != 23 && a $]
+         ![trackPos = 23] && a' 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+    || ( // moveToBase -> moveToBase [trackPos != 23 && !a && b $ trackPos := trackPos + 1]
+         ![trackPos = 23] && !a' && b' 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = ( trackPos + 1)]
+      && [reqSamples' = reqSamples]
+    )
+    || ( // moveToBase -> moveToBase [trackPos != 23 && !a && !b $ trackPos := trackPos - 1]
+         ![trackPos = 23] && !a' && !b' 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = ( trackPos - 1)]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from moveToBase to base with
+    base' 
+    && (!moveToBase')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+  && (false
+    || ( // moveToBase -> base [trackPos = 23 $ samples := 0, reqSamples := 0]
+         [trackPos = 23] 
+      && [samples' = ( 0)]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = ( 0)]
+    )
+  )
+
+  from base to base with
+    base' 
+    && (!moveToBase')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+  && (false
+    || ( // base -> base [e $ reqSamples := reqSamples + 1]
+         e 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = ( reqSamples + 1)]
+    )
+  )
+
+  from base to moveToSampleSide with
+    moveToSampleSide' 
+    && (!moveToBase')
+    && (!base')
+    && (!collectSamples')
+    && (!setSamplesAB')
+  && (false
+    || ( // base -> moveToSampleSide [!e && reqSamples > 0]
+         !e && [reqSamples > 0]
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from collectSamples to moveToBase with
+    moveToBase' 
+    && (!base')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+  && (false
+    || ( // collectSamples -> moveToBase [!(samples < reqSamples)]
+         ![(samples < reqSamples)]
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from collectSamples to setSamplesAB with
+    setSamplesAB' 
+    && (!moveToBase')
+    && (!base')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+  && (false
+    || ( // collectSamples -> setSamplesAB [samples < reqSamples $ samplesA := 0, samplesB := 0]
+         [samples < reqSamples] 
+      && [samples' = samples]
+      && [samplesA' = ( 0)]
+      && [samplesB' = ( 0)]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from moveToSampleSide to collectSamples with
+    collectSamples' 
+    && (!moveToBase')
+    && (!base')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+  && (false
+    || ( // moveToSampleSide -> collectSamples [trackPos = 12]
+         [trackPos = 12]
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from moveToSampleSide to moveToSampleSide with
+    moveToSampleSide' 
+    && (!moveToBase')
+    && (!base')
+    && (!collectSamples')
+    && (!setSamplesAB')
+  && (false
+    || ( // moveToSampleSide -> moveToSampleSide [trackPos != 12 && !a && b $ trackPos := trackPos + 1]
+         ![trackPos = 12] && !a' && b' 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = ( trackPos + 1)]
+      && [reqSamples' = reqSamples]
+    )
+    || ( // moveToSampleSide -> moveToSampleSide [trackPos != 12 && !a && !b $ trackPos := trackPos - 1]
+         ![trackPos = 12] && !a' && !b' 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = ( trackPos - 1)]
+      && [reqSamples' = reqSamples]
+    )
+    || ( // moveToSampleSide -> moveToSampleSide [trackPos != 12 && a]
+         ![trackPos = 12] && a'
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from setSamplesAB to collectSamples with
+    collectSamples' 
+    && (!moveToBase')
+    && (!base')
+    && (!moveToSampleSide')
+    && (!setSamplesAB')
+  && (false
+    || ( // setSamplesAB -> collectSamples [stop && a $ samples := samples + samplesA]
+         stop && a' 
+      && [samples' = ( samples + samplesA)]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+    || ( // setSamplesAB -> collectSamples [stop && !a $ samples := samples + samplesB]
+         stop && !a' 
+      && [samples' = ( samples + samplesB)]
+      && [samplesA' = samplesA]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+  from setSamplesAB to setSamplesAB with
+    setSamplesAB' 
+    && (!moveToBase')
+    && (!base')
+    && (!collectSamples')
+    && (!moveToSampleSide')
+  && (false
+    || ( // setSamplesAB -> setSamplesAB [!stop && e $ samplesA := samplesA + 1]
+         !stop && e 
+      && [samples' = samples]
+      && [samplesA' = ( samplesA + 1)]
+      && [samplesB' = samplesB]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+    || ( // setSamplesAB -> setSamplesAB [!stop && !e $ samplesB := samplesB + 1]
+         !stop && !e 
+      && [samples' = samples]
+      && [samplesA' = samplesA]
+      && [samplesB' = ( samplesB + 1)]
+      && [trackPos' = trackPos]
+      && [reqSamples' = reqSamples]
+    )
+  )
+
+
+// Ensure not-blocking
+  from moveToBase to unsafe_sink with true
+  from base to unsafe_sink with true
+  from collectSamples to unsafe_sink with true
+  from moveToSampleSide to unsafe_sink with true
+  from setSamplesAB to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

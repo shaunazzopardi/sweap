@@ -1,25 +1,26 @@
 from abc import ABC, abstractmethod
 
 from programs.program import Program
-from programs.typed_valuation import TypedValuation
 from prop_lang.formula import Formula
+from prop_lang.types.types import Type
 
 
 class PredicateAbstraction(ABC):
-
     @abstractmethod
     def __init__(self, program: Program):
         pass
 
     @abstractmethod
-    def add_predicates(self,
-                       new_interpolants: [Formula],
-                       new_ranking_and_invars: dict[Formula, [Formula]],
-                       structural_loop_env):
+    def add_predicates(
+        self,
+        new_interpolants: list[Formula],
+        new_ranking_and_invars: dict[Formula, list[Formula]],
+        structural_loop_env,
+    ):
         pass
 
     @abstractmethod
-    def concretise_counterexample(self, counterexample: [dict]):
+    def concretise_counterexample(self, counterexample: list[dict]):
         pass
 
     @abstractmethod
@@ -33,37 +34,29 @@ class PredicateAbstraction(ABC):
     #     pass
 
     @abstractmethod
-    def massage_mealy_machine(self,
-                              mealymachine,
-                              base_abstraction,
-                              ltlAbstractionType,
-                              synthesis_problem,
-                              controller: bool):
+    def get_state_predicates(self) -> list[Formula]:
         pass
 
     @abstractmethod
-    def get_state_predicates(self) -> [Formula]:
+    def get_transition_predicates(self) -> list[Formula]:
         pass
 
     @abstractmethod
-    def get_transition_predicates(self) -> [Formula]:
+    def get_interpolants(self) -> list[Formula]:
         pass
 
     @abstractmethod
-    def get_interpolants(self) -> [Formula]:
+    def get_ranking_and_invars(self) -> dict[Formula, list[Formula]]:
         pass
 
     @abstractmethod
-    def get_ranking_and_invars(self) -> dict[Formula, [Formula]]:
-        pass
-
     def get_all_preds(self):
-        return self.get_state_predicates() | self.get_transition_predicates()
+        pass
 
     @abstractmethod
     def get_program(self) -> Program:
         pass
 
     @abstractmethod
-    def get_symbol_table(self) -> dict[str, TypedValuation]:
+    def get_symbol_table(self) -> dict[str, Type]:
         pass

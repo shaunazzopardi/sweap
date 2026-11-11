@@ -17,7 +17,7 @@ program scheduler {
         tasksR : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         int -> newTasksG [$ tasksG := 0; boundG := 0; tasksR := 0],
 
         newTasksG -> newTasksG [einc & !stop $ tasksG := tasksG + 1],

@@ -1,0 +1,85 @@
+// Environment moves
+input bool request
+input bool success
+
+// System moves (should only appear as primed next-states)
+state bool grant
+state bool finished
+
+// Program variables
+state int cnt
+state bool roomA
+
+// Variables to track the location
+state bool q0
+state bool q1
+
+// Temporal specifcation
+formula {
+  assert X ( (G F [(success)]) -> (G((finished' && q1) -> [cnt = 0]) && G F q0) )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc q0 1
+  loc q1 1
+
+// Init variables and go to inital state
+  from init_location to q0 with
+    q0'
+    && (!q1')
+    && [cnt' = 0]
+    && [roomA' = true]
+
+  from q0 to q0 with
+    q0' 
+    && (!q1')
+  && (false
+    || ( // q0 -> q0 [request $ cnt := cnt + 1]
+         request 
+      && [cnt' = ( cnt + 1)]
+      && [roomA' = roomA]
+    )
+  )
+
+  from q0 to q1 with
+    q1' 
+    && (!q0')
+  && (false
+    || ( // q0 -> q1 [!request]
+         !request
+      && [cnt' = cnt]
+      && [roomA' = roomA]
+    )
+  )
+
+  from q1 to q0 with
+    q0' 
+    && (!q1')
+  && (false
+    || ( // q1 -> q0 [finished $]
+         finished' 
+      && [cnt' = cnt]
+      && [roomA' = roomA]
+    )
+  )
+
+  from q1 to q1 with
+    q1' 
+    && (!q0')
+  && (false
+    || ( // q1 -> q1 [grant && !finished && success $ cnt := cnt - 1]
+         grant' && !finished' && success 
+      && [cnt' = ( cnt - 1)]
+      && [roomA' = roomA]
+    )
+  )
+
+
+// Ensure not-blocking
+  from q0 to unsafe_sink with true
+  from q1 to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

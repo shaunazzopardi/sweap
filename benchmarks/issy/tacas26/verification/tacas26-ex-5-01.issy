@@ -1,0 +1,15 @@
+// Example 5.1 from the paper "Ranking Templates for Linear Loops"
+// Needs a lexicographic ranking function with multi-phase components.
+
+state int q
+state int x
+state int y
+input int i
+
+formula {
+    assert G (([q > 0] && [y > 0])  -> 
+              ([y' = y - 1] && [q' = q] && [x' = x]))
+    assert G (([q > 0] && [y <= 0])  -> 
+              ([q' = q - x] && [x' = x + 1] && [y' = i]))
+    assert F ([q <= 0])
+}

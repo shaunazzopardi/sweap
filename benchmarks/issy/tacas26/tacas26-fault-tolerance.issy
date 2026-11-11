@@ -1,0 +1,35 @@
+state int nt
+state int nf
+state int c
+state int d
+input bool f
+input int i
+
+
+game Reachability from start {
+    loc start 0
+    loc work 0
+    loc fix 0
+    loc done 1
+
+    
+    from start to work with
+        ([c' = 0] && keep(nt nf))
+
+    from work to work with
+        (!f && [c' = c + 1] && keep(nt nf)) 
+     || keep(c nt nf)
+
+    from work to done with [c >= nt] || (f && [nf <= 0])      
+
+    from work to fix with [d' = i] && keep(c nt nf)
+
+    from fix to fix with
+        ([d' = d - 1] && keep(c nt nf))
+        
+    from fix to work with
+        ([d <= 0] && [nf' = nf - 1] && keep(c nt))
+
+    from done to done with true
+}
+

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 import csv
-import os
 import re
 from subprocess import CalledProcessError, check_output
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional, Sequence
+from typing import Optional
 from collections import defaultdict, Counter
-from itertools import product
 
 OUT_DIR = "results"
 OUT_CSV = "results.csv"
@@ -20,7 +18,7 @@ SUMM_LATEX = "table-summ.tex"
 MACROS_LATEX = "macros-experiments.tex"
 bullet = r"$\bullet$"
 
-timeout = 1200000
+TIMEOUT = 600_000  # 1_200_000
 popl24 = r"\cite{10.1145/3632899}"
 cav24 = r"\cite{DBLP:conf/cav/SchmuckHDN24}"
 popl25 = r"\cite{DBLP:journals/pacmpl/HeimD25}"
@@ -29,24 +27,25 @@ isola24 = r"\cite{DBLP:conf/isola/MaderbacherWB24}"
 @dataclass
 class ToolInfo:
     name: str
-    latex_name: str
+    # latex_name: str
     real: re.Pattern
     unreal: re.Pattern
     directory: Optional[str] = None
     err: Optional[re.Pattern] = None
 
 
-raboniel_real_re = re.compile(r"^Result: realizable", re.MULTILINE)
-raboniel_unreal_re = re.compile(r"^Result: [Uu]nrealizable", re.MULTILINE)
-rpg_real_re = re.compile(r"^[Rr]ealizable", re.MULTILINE)
-rpg_unreal_re = re.compile(r"^[Uu]nrealizable", re.MULTILINE)
-sweap_real_re = re.compile(r"^Realizable\.", re.MULTILINE)
-sweap_unreal_re = re.compile(r"^Unrealizable\.", re.MULTILINE)
+rpg_real_re = re.compile(r"Game realizable => True", re.MULTILINE)
+rpg_unreal_re = re.compile(r"Game realizable => False", re.MULTILINE)
+sweap_real_re = re.compile(r"^Realisable$", re.MULTILINE)
+sweap_unreal_re = re.compile(r"^Unrealisable$", re.MULTILINE)
 strix_real_re = re.compile(r"^REALIZABLE", re.MULTILINE)
 strix_unreal_re = re.compile(r"^UNREALIZABLE", re.MULTILINE)
 err_re = re.compile(r"^Result:\s*$", re.MULTILINE)
 stela_real_re = re.compile(r"^Realizable: True", re.MULTILINE)
 stela_unreal_re = re.compile(r"^Realizable: False", re.MULTILINE)
+
+oom_re = re.compile(r"memory allocation of [0-9]+ bytes failed")
+
 
 class CheckMissing:
     def __init__(self, s) -> None:
@@ -55,127 +54,260 @@ class CheckMissing:
         return self.s not in string
 
 tools = {
-    "raboniel": ToolInfo(name="raboniel", latex_name="Rab", real=raboniel_real_re, unreal=raboniel_unreal_re, err=CheckMissing("Result")),
-    "temos": ToolInfo(name="temos", latex_name="Tem", real=strix_real_re, unreal=strix_unreal_re),
-    "rpgsolve": ToolInfo(name="rpgsolve", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, err=err_re),
-    "rpgsolve-syn": ToolInfo(name="rpgsolve-syn", latex_name="RPG", real=rpg_real_re, unreal=rpg_unreal_re, directory="rpgsolve", err=err_re),
-    "sweap": ToolInfo(name="sweap", latex_name=r"S$_{\textit{acc}}$", real=sweap_real_re, unreal=sweap_unreal_re),
-    "sweap-noacc": ToolInfo(name="sweap-noacc", latex_name=r"S", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
-    "sweap-nobin": ToolInfo(name="sweap-nobin", latex_name=r"S$_{nb}$", real=sweap_real_re, directory="sweap", unreal=sweap_unreal_re),
-    "rpg-stela": ToolInfo(name="rpg-stela", latex_name="RSt", real=stela_real_re, unreal=stela_unreal_re, directory="rpgsolve", err=err_re),
-    "tslmt2rpg": ToolInfo(name="tslmt2rpg", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re),
-    "tslmt2rpg-syn": ToolInfo(name="tslmt2rpg-syn", latex_name="T2R", real=rpg_real_re, unreal=rpg_unreal_re, directory="tslmt2rpg", err=err_re)
+    **{
+        f"sweap{conf}": ToolInfo(name=f"sweap{conf}", real=sweap_real_re, unreal=sweap_unreal_re)
+        for conf in ("-strix", "-dual", "-rpg", "-rpg-dual", "-tsl", "-tsl-dual", "-issy", "-issy-dual", "-semml", "-strix-dual")
+    },
+    **{
+        f"issy{conf}": ToolInfo(name=f"issy{conf}", real=rpg_real_re, unreal=rpg_unreal_re)
+        for conf in ("3", "3-rpg", "3-tsl")
+    }
 }
+
 # These dictionaries map each benchmark
 # to its expected realisability (True<->realisable)
 safety_benchs_popl24 = {
-    "box": True,
-    "box-limited": True,
-    "diagonal": True,
-    "evasion": True,
-    "follow": True,
-    "solitary": True,
-    "square": True,
+    name: (True, "safety") for name in (
+        "box",
+        "box-limited",
+        "diagonal",
+        "evasion",
+        "follow",
+        "solitary",
+        "square")
 }
 
 safety_benchs_popl25 = {
-    "g-real": True,
-    "g-unreal-1": False,
-    "g-unreal-2": False,
-    "g-unreal-3": False,
+    "g-real": (True, "safety"),
+    "g-unreal-1": (False, "safety"),
+    "g-unreal-2": (False, "safety"),
+    "g-unreal-3": (False, "safety"),
 }
 
 reach_benchs_popl24 = {
-    "heim-double-x": True,
-    "robot-cat-real-1d": True,
-    "robot-cat-unreal-1d": False,
-    "robot-cat-real-2d": True,
-    "robot-cat-unreal-2d": False,
-    "robot-grid-reach-1d": True,
-    "robot-grid-reach-2d": True,
+    "heim-normal": (True, "reach"),
+    "heim-double-x": (True, "reach"),
+    "robot-cat-real-1d": (True, "reach"),
+    "robot-cat-unreal-1d": (False, "reach"),
+    "robot-cat-real-2d": (True, "reach"),
+    "robot-cat-unreal-2d": (False, "reach"),
+    "robot-grid-reach-1d": (True, "reach"),
+    "robot-grid-reach-2d": (True, "reach"),
 }
 
 reach_benchs_novel = {
-    "robot-tasks": True,
+    "robot-tasks": (True, "reach"),
 }
 
 buechi_benchs_popl24 = {
-    "heim-buechi": True,
-    "heim-fig7": False,
-    "robot-commute-1d": True,
-    "robot-commute-2d": True,
-    "robot-resource-1d": False,
-    "robot-resource-2d": False,
+    "heim-buechi": (True, "buechi"),
+    "heim-fig7": (False, "buechi"),
+    "robot-commute-1d": (True, "buechi"),
+    "robot-commute-2d": (True, "buechi"),
+    "robot-resource-1d": (False, "buechi"),
+    "robot-resource-2d": (False, "buechi"),
+    "robot-resource-2d-real": (True, "buechi")
 }
 
 buechi_benchs_cav24 = {
-    **{f"chain-{i}": True for i in (4, 5, 6, 7)},
-    **{f"chain-simple-{i}": True for i in (5, 10, 20, 30, 40, 50, 60, 70)},
-    "items_processing": True,
-    "robot_analyze": True,
-    **{f"robot_collect_v{i}": True for i in (1, 2, 3)},
-    **{f"robot_deliver_v{i}": True for i in (1, 2, 3, 4, 5)},
-    "robot_repair": True,
-    "robot_running": True,
-    "scheduler": True,
+    **{f"chain-{i}": (True, "buechi") for i in (4, 5, 6, 7)},
+    **{f"chain-simple-{i}": (True, "buechi") for i in (5, 10, 20, 30, 40, 50, 60, 70)},
+    "items_processing": (True, "buechi"),
+    "robot_analyze": (True, "buechi"),
+    **{f"robot_collect_v{i}": (True, "buechi") for i in (1, 2, 3)},
+    **{f"robot_deliver_v{i}": (True, "buechi") for i in (1, 2, 3, 4, 5)},
+    "robot_repair": (False, "buechi"),
+    "robot_running": (True, "buechi"),
+    "scheduler": (True, "buechi"),
+}
+
+tacas26_benchs = {
+    "tacas26-buchi-hard-loops-200": (False, "buechi"),
+    "tacas26-buchi-hard-loops-400": (False, "buechi"),
+    "tacas26-buchi-hard-loops-800": (False, "buechi"),
+    "tacas26-buchi": (True, "buechi"),
+    "tacas26-buchi-loops-200": (True, "buechi"),
+    "tacas26-buchi-loops-400": (True, "buechi"),
+    "tacas26-buchi-loops-800": (True, "buechi"),
+    "tacas26-buchi-loops-chaining-200": (True, "buechi"),
+    "tacas26-buchi-loops-chaining-400": (True, "buechi"),
+    "tacas26-buchi-loops-chaining-800": (True, "buechi"),
+    "tacas26-buchi-loops-swap-200": (True, "buechi"),
+    "tacas26-buchi-loops-swap-400": (True, "buechi"),
+    "tacas26-buchi-loops-swap-800": (True, "buechi"),
+    "tacas26-buchi-simple": (True, "buechi"),
+    "tacas26-choice-3-actions": (True, "buechi"),
+    "tacas26-choice-4-actions": (True, "buechi"),
+    "tacas26-choice-actions-i":  (True, "buechi"),
+    "tacas26-double": (True, "reach"),
+    "tacas26-equality-assumption": (True, "buechi"),
+    "tacas26-equal-mod2-real": (True, "buechi"),
+    "tacas26-equal-mod2-unreal": (False, "buechi"),
+    "tacas26-fault-tolerance": (True, "reach"),
+    "tacas26-inequality-assumption": (True, "buechi"),
+    "tacas26-lemma-chaining-control": (True, "reach"),
+    "tacas26-lemma-chaining": (True, "buechi"),
+    "tacas26-nested-x-y-z": (True, "reach"),
+    "tacas26-nested-x-y-z-u": (True, "reach"),
+    "tacas26-nested-x-y-z-u-v": (True, "reach"),
+    "tacas26-nondet-exit-swap-input": (True, "reach"),
+    "tacas26-nondet-exit-swap": (True, "reach"),
+    "tacas26-prioritized-tasks-real-100": (True, "reach"),
+    "tacas26-prioritized-tasks-real-200": (True, "reach"),
+    "tacas26-prioritized-tasks-unreal-100": (False, "reach"),
+    "tacas26-ranking-choice-2": (True, "buechi"),
+    "tacas26-ranking-choice-3": (True, "buechi"),
+    "tacas26-ranking-choice-4": (True, "buechi"),
+    "tacas26-reach-either-or": (True, "reach"),
+    "tacas26-service-10": (True, "buechi"),
+    "tacas26-service-2": (True, "buechi"),
+    "tacas26-service-4": (True, "buechi"),
+    "tacas26-service-8": (True, "buechi"),
+    "tacas26-service-bounds-10": (True, "buechi"),
+    "tacas26-service-bounds-20": (True, "buechi"),
+    "tacas26-ex-2-05": (True, "buechi"),
+    "tacas26-ex-4-06": (True, "buechi"),
+    "tacas26-ex-4-11": (True, "buechi"),
+    "tacas26-ex-4-12": (False, "buechi"),
+    "tacas26-ex-4-13": (True, "buechi"),
+    "tacas26-ex-4-15": (True, "buechi"),
+    "tacas26-ex-4-18": (True, "buechi"),
+    "tacas26-ex-4-21": (True, "buechi"),
+    "tacas26-ex-5-01": (True, "buechi"),
 }
 
 ltl_benchs = {
-    "arbiter": True,
-    "arbiter-failure": True,
-    "elevator": True,
-    "infinite-race": True,
-    "infinite-race-u": False,
-    "infinite-race-unequal-1": True,
-    "infinite-race-unequal-2": True,
-    "reversible-lane-r": True,
-    "reversible-lane-u": False,
-    "rep-reach-obst-1d": True,
-    "rep-reach-obst-2d": True,
-    "rep-reach-obst-6d": True,
-    "robot_collect_v4": True,
-    "taxi-service": True,
-    "taxi-service-u": False,
+    "arbiter": (True, "ltl"),
+    "arbiter-failure": (True, "ltl"),
+    "arbiter-with-failure-variant": (False, "ltl"),
+    "elevator": (True, "ltl"),
+    "infinite-race": (True, "ltl"),
+    "infinite-race-u": (False, "ltl"),
+    "infinite-race-unequal-1": (True, "ltl"),
+    "infinite-race-unequal-1-variant": (False, "ltl"),
+    "infinite-race-unequal-2": (True, "ltl"),
+    "reversible-lane-r": (True, "ltl"),
+    "reversible-lane-r-variant": (False, "ltl"),
+    "reversible-lane-u": (False, "ltl"),
+    "rep-reach-obst-1d": (True, "ltl"),
+    "rep-reach-obst-2d": (True, "ltl"),
+    "rep-reach-obst-6d": (True, "ltl"),
+    "robot_collect_v4": (True, "ltl"),
+    "taxi-service": (True, "ltl"),
+    "taxi-service-u": (False, "ltl"),
 }
 
 reach_benchs_popl25 = {
-    "F-G-contradiction-1": False,
-    "F-G-contradiction-2": False,
-    "f-real": True,
-    "f-unreal": False,
-    "ordered-visits": True,
-    "ordered-visits-choice": True,
-    "precise-reachability": True,
-    "robot-to-target": True,
-    "robot-to-target-unreal": False,
-    "robot-to-target-charging": True,
-    "robot-to-target-charging-unreal": False,
-    "thermostat-F": True,
-    "thermostat-F-unreal": False,
-    "unordered-visits-charging": True,
-    "unordered-visits": True,
+    "F-G-contradiction-1": (False, "reach"),
+    "F-G-contradiction-2": (False, "reach"),
+    "f-real": (True, "reach"),
+    "f-unreal": (False, "reach"),
+    "ordered-visits": (True, "reach"),
+    "ordered-visits-choice": (True, "reach"),
+    "precise-reachability": (True, "reach"),
+    "robot-to-target": (True, "reach"),
+    "robot-to-target-unreal": (False, "reach"),
+    "robot-to-target-charging": (True, "reach"),
+    "robot-to-target-charging-unreal": (False, "reach"),
+    "thermostat-F": (True, "reach"),
+    "thermostat-F-unreal": (False, "reach"),
+    "unordered-visits-charging": (True, "reach"),
+    "unordered-visits": (True, "reach"),
 }
 
 buechi_benchs_popl25 = {
-    "buffer-storage": True,
-    "gf-real": True,
-    "gf-unreal": False,
-    "GF-G-contradiction": False,
-    "helipad": True,
-    "helipad-contradict": False,
-    "package-delivery": True,
-    "patrolling": True,
-    "patrolling-alarm": True,
-    "storage-GF-64": True,
-    "tasks": True,
-    "tasks-unreal": False,
-    "thermostat-GF": True,
-    "thermostat-GF-unreal": False,
+    "buffer-storage": (True, "buechi"),
+    "gf-real": (True, "buechi"),
+    "gf-unreal": (False, "buechi"),
+    "GF-G-contradiction": (False, "buechi"),
+    "helipad": (True, "buechi"),
+    "helipad-contradict": (False, "buechi"),
+    "package-delivery": (True, "buechi"),
+    "patrolling": (True, "buechi"),
+    "patrolling-alarm": (True, "buechi"),
+    "storage-GF-64": (True, "buechi"),
+    "tasks": (True, "buechi"),
+    "tasks-unreal": (False, "buechi"),
+    "thermostat-GF": (True, "buechi"),
+    "thermostat-GF-unreal": (False, "buechi"),
 }
 
 reach_benchs_isola24 = {
-    "sort4": True,
-    "sort5": True,
+    "sort4": (True, "reach"),
+    "sort5": (True, "reach"),
+}
+
+nondet_input_benchs = {
+    "nd-robot-resource-2d": (False, "buechi"),
+    "nd-gf-real": (True, "buechi"),
+    "nd-robot-to-target": (True, "reach"),
+    "nd-infinite-race-u": (False, "ltl"),
+    "nd-heim-fig7": (False, "buechi"),
+    "nd-arbiter-nodet": (False, "ltl"),
+    "nd-arbiter-det": (True, "ltl"),
+    "nd-helipad": (True, "buechi"),
+    "nd-chain-4": (True, "buechi"),
+    "nd-chain-5": (True, "buechi"),
+    "nd-arbiter": (True, "ltl"),
+}
+
+issy_benchs = {
+    "balancer-bool-simplified-1": (True, "ltl"),
+    "balancer-bool-simplified-2": (True, "ltl"),
+    "balancer-bool-simplified-3": (True, "ltl"),
+    "balancer": (True, "ltl"),
+    "fig7-gt1": (False, "buechi"),
+    "two-loc-inp-real": (True, "buechi"),
+    "two-loc-inp-unreal-0": (False, "buechi"),
+    "two-loc-inp-unreal-1": (False, "buechi"),
+    "two-loc-real-1": (True, "buechi"),
+    "two-loc-real-2": (True, "buechi"),
+    "two-vars-real": (True, "buechi"),
+    "two-vars-unreal": (False, "buechi"),
+    "counter-10-10-formula": (True, "reach"),
+    "counter-10-10-game": (True, "reach"),
+    "counter-2-10-2-formula": (True, "reach"),
+    "counter-2-10-2-game": (True, "reach"),
+    "counter-2-10-formula": (True, "reach"),
+    "counter-2-10-game": (True, "reach"),
+    "counter-3-10-formula": (True, "reach"),
+    "counter-3-10-game": (True, "reach"),
+    "counter-3-7-formula": (True, "reach"),
+    "counter-3-7-game": (True, "reach"),
+    # "v1": (True, "buechi"),
+    # "v2-unreal": (False, "buechi"),
+    "parity-two-vars-real": (True, "ltl"),
+    "parity-two-vars-unreal-0": (False, "ltl"),
+    "parity-two-vars-unreal-1": (False, "ltl"),
+    "parity-two-vars-unreal-2": (False, "ltl"),
+    "balance-add-rem-2-2-8": (False, "safety"),
+    "balance-add-rem-8-1-16": (True, "safety"),
+    "balance-add-rem-8-1-7": (False, "safety"),
+    "balance-add-rem-8-2-16": (False, "safety"),
+    "empty-add-rem-2-1-unreal": (False, "buechi"),
+    "empty-add-rem-2-1": (True, "buechi"),
+    "empty-balance-add-rem-2-1-2": (True, "buechi"),
+    "test-01": (False, "buechi"),
+    "test-02": (True, "buechi"),
+    "test-03": (True, "buechi"),
+    "test-04": (True, "safety"),
+    "test-05": (True, "safety"),
+    "test-06": (False, "safety"),
+    "test-07": (True, "buechi"),
+    "test-08": (True, "buechi"),
+    "test-09": (True, "safety"),
+    "test-10": (False, "buechi"),
+    "test-11": (True, "buechi"),
+    "test-12": (True, "buechi"),
+    "test-13": (True, "buechi"),
+    "test-14": (True, "safety"),
+    "test-extract-input": (True, "safety"),
+    "test-extract-lemma": (True, "reach")
+}
+
+other_benchs = {
+    "repeated-robot-resource-1d": (True, "ltl"),
+    "arbiter-unreal": ( False, "ltl")
 }
 
 infinite_benchs = {
@@ -188,14 +320,11 @@ infinite_benchs = {
     **buechi_benchs_cav24,
     **buechi_benchs_popl24,
     **buechi_benchs_popl25,
-    **ltl_benchs
+    **ltl_benchs,
+    **issy_benchs,
+    **tacas26_benchs
 }
 
-other_benchs = {
-    "repeated-robot-resource-1d": True,
-    "heim-normal": True,
-    "arbiter-unreal": False,
-}
 
 finite_benchs = {
     **{f"bloem-elevator-simple-{i}": True for i in (3, 5, 10, 50)},
@@ -220,10 +349,11 @@ aliases = {
     "elevator": ("elevator-paper", ),
     "evasion": ("neider-evasion", ),
     "follow": ("neider-follow", ),
-    "heim-fig7": ("heim-buechi-u", "heim-buchi-u" ),
+    "heim-fig7": ("heim-buechi-u", "heim-buchi-u", "fig7"),
     "rep-reach-obst-1d": ("robot-grid-reach-repeated-with-obstacles-1d", ),
     "rep-reach-obst-2d": ("robot-grid-reach-repeated-with-obstacles-2d", ),
     "rep-reach-obst-6d": ("robot-grid-reach-repeated-with-obstacles-6d", ),
+    "reversible-lane-r": ("road", ),
     "robot_analyze": ("robot_analyze_samples", "robot_analyze_samples_v1", ),
     "robot-commute-1d": ("robot-grid-comute-1d", "robot-grid-commute-1d", ),
     "robot-commute-2d": ("robot-grid-comute-2d", "robot-grid-commute-2d", ),
@@ -249,7 +379,7 @@ try:
 except FileExistsError:
     pass
 
-STATS = {t: defaultdict(int) for t in tools}
+STATS = defaultdict(lambda: Counter())
 GET_TR_PREDS = (
     """tr '" ()!' '\n' | tr "'" '\n' | """
     "grep prev | grep pred | sort | uniq | wc -l")
@@ -294,306 +424,171 @@ def get_refinements(fname):
     add_tr = int(all_tr) - init_tr
     return init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr
 
+all_logs = set(Path(base_dir).rglob("*.*.log"))
 
-def get_result(tool, tool_info, bench, bench_info):
+def get_result(tool, tool_info, bench, b_real):
     result = None
     for name in (bench, *aliases.get(bench, [])):
-        log = list(Path(base_dir).rglob(f"{name}.{tool}.log"))
+        log = [
+            p for p in all_logs
+            if p.name.replace("cav25-azzopardi-", "") == f"{name}.{tool}.log"]
         if log:
             break
     if not log:
-        if tool == "tslmt2rpg":
-            # Some benchmarks are not available in tslmt format.
-            # So we use the time obtained by rpgsolve (or rpgsolve-syn below)
-            # and assume the "translation" time from tslmt to be zero
-            return get_result("rpgsolve", tools["rpgsolve"], bench, bench_info)
-        if tool == "tslmt2rpg-syn":
-            return get_result("rpgsolve-syn", tools["rpgsolve-syn"], bench, bench_info)
-        # 0 means no log found
-        return 0
-    if tool in ("sweap", "sweap-noacc"):
-        refinements[b][tool] = get_refinements(log[0])
-
-    with open(log[0], "r") as log_file:
-        raw_result = log_file.read()
-    runtime = int(raw_result.splitlines()[-1])
-    # Scan file for realizability/unrealizability verdict
-    # and compare it to the expected one
-    if runtime < timeout:
-        right_match, wrong_match = (
-            (tool_info.real, tool_info.unreal)
-            if bench_info.real
-            else (tool_info.unreal, tool_info.real))
-        # Time is positive/negative if verdict was correct/incorrect
-        if right_match.search(raw_result):
-            if tool == "temos" and not bench_info.real:
-                # Temos' unrealizability verdicts cannot be trusted
-                return 1
-            result = max(runtime, 2)
-        elif wrong_match.search(raw_result):
-            result = -runtime
+        return 0, 0, "missing"
+    try:
+        with open(log[0], "r") as log_file:
+            raw_result = log_file.read()
+    except FileNotFoundError:
+        return 0, 0, "missing"
+    log_lines = raw_result.splitlines()
+    find_timeout = log_lines[0].find("timeout ")
+    timeout = 1_000 * int(log_lines[0][find_timeout+8:].split()[0]) if find_timeout != -1 else TIMEOUT
+    try:
+        runtime = int(log_lines[-1])
+        return_code = int(log_lines[-2])
+    except (ValueError):
+        search_137 = [i for i in range(len(log_lines)) if log_lines[i] == "137"]
+        if search_137:
+            runtime=0
+            return_code = 137
+            for line in log_lines[search_137[0]+1:]:
+                try:
+                    runtime = int(line)
+                    break
+                except ValueError:
+                    continue
         else:
-            # No outcome found = we assume an error and ignore runtime
-            result = 1
-    else:
-        result = runtime
-    if result is None:
-        # Should never happen
-        raise ValueError(f"{bench=}, {tool=}")
-    return result
+            raise ValueError(f"Invalid or empty log file: {log[0]}")
+    if runtime >= timeout:
+        return runtime, timeout, "timeout"
+
+    
+    if return_code == 137:
+        return runtime, timeout, "oom"
+
+    verdict_real = tool_info.real.search(raw_result)
+    verdict_unreal = tool_info.unreal.search(raw_result)
+    if verdict_real and not verdict_unreal:
+        return runtime, timeout, "realizable"
+    elif verdict_unreal and not verdict_real:
+        return runtime, timeout, "unrealizable"
+    elif any((
+        oom_re.search(raw_result),
+        "java.lang.OutOfMemoryError" in raw_result,
+        "You may be using a special nuXmv keyword" in raw_result,
+        "Finite synthesis engine did not return any output." in raw_result,
+        "Finite synthesis engine ran out of memory." in raw_result,
+        "issy-bin: out of memory" in raw_result
+    )):
+        return runtime, timeout, "oom"
+    elif any((
+        "currently unsupported" in raw_result,
+        "We do not handle ISSY files without game arenas yet." in raw_result,
+        "We do not handle yet ISSY problems with no games." in raw_result,
+        "We do not yet handle objectives" in raw_result
+    )):
+        return runtime, timeout, "unsupported"
+
+    return runtime, timeout, "error"
 
 
 results = defaultdict(dict)
 refinements = defaultdict(dict)
 
-def update_stats(result: int, tool: str, bench: str):
-    if 1 < result < timeout:
-        if tool == "temos" and not infinite_benchs[b]:
-            # Temos' unrealizability verdicts cannot be trusted
-            STATS[tool]["err"] += 1
+def update_stats(verdict: str, tool: str, bench_real: bool):
+    if verdict == "realizable":
+        STATS[tool]["right" if bench_real else "wrong"] += 1
+        if bench_real:
+            STATS[tool]["right_real"] += 1
+    elif verdict == "unrealizable":
+        STATS[tool]["wrong" if bench_real else "right"] += 1
+        if not bench_real:
+            STATS[tool]["right_unreal"] += 1
+    elif verdict != "missing":
+        STATS[tool][verdict] += 1
+
+stdout_writer = csv.writer(sys.stdout, dialect="excel", lineterminator="\n")
+stdout_writer.writerow(["benchmark", "goal", "real","tool","time(ms)","verdict"])
+
+COUNT_REAL = Counter()
+for b, (b_real, b_goal) in infinite_benchs.items():
+    for tool, tool_info in tools.items():
+        runtime, timeout_val, verdict = get_result(tool, tool_info, b, b_real)
+        results[b][tool] = (runtime, timeout_val, verdict)
+        update_stats(verdict, tool, b_real)
+        if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
+            verdict += "___wrong"
+        row = (b, b_goal, b_real, tool, abs(runtime), verdict)
+        if runtime > 0:
+            stdout_writer.writerow(row)
+            COUNT_REAL[tool] += 1 if b_real else 0
+            sys.stdout.flush()
+
+def get_portfolio_result(tool1, tool2, b, b_real):
+    if b not in results or any(tool not in results[b] for tool in (tool1, tool2)):
+        return 0, "missing"
+    t1, to1, result1 = results[b][tool1]
+    t2, to2, result2 = results[b][tool2]
+    t1 = t1 if t1 > 0 else max(to1, to2)
+    t2 = t2 if t2 > 0 else max(to1, to2)
+    verdicts = set((result1, result2)) - {"missing"}
+    time = min(t1, t2)
+    if not verdicts:
+        return 0, "missing"
+    elif len(verdicts) == 1:  # Tools agree
+        v = verdicts.pop()
+        return 0 if v == "missing" else time, v
+    elif "realizable" in verdicts and "unrealizable" in verdicts:  # Tools disagree
+        return time, "unsupported"
+    else:
+        at_least_one_timeout = "timeout" in verdicts
+        verdicts -= set(("timeout", "oom", "error"))
+        if len(verdicts) == 1:
+            return time, verdicts.pop()
+        elif at_least_one_timeout:
+            return time, "timeout"
         else:
-            STATS[tool]["right"] += 1
-    elif result == 1:
-        STATS[tool]["err"] += 1
-    elif result >= timeout:
-        STATS[tool]["to"] += 1
-    elif result < 0:
-        STATS[tool]["wrong"] += 1
-
-with open(out_dir / OUT_CSV, 'w', newline='') as csv_file:
-    writer = csv.writer(csv_file, dialect="excel", lineterminator="\n")
-    writer.writerow(["row-id", "benchmark", *tools])
-    for i, b in enumerate(infinite_benchs, start=2):
-        print(i-1, b, "...", file=sys.stderr)
-        row = [i, b]
-        bench_info = infinite_benchs[b]
-        for tool, tool_info in tools.items():
-            result = get_result(tool, tool_info, b, bench_info)
-            results[b][tool] = result
-            update_stats(result, tool, b)
-            row.append(result)
-        writer.writerow(row)
-
-for k, v in STATS.items():
-    print(k, ":", v, file=sys.stderr)
-
-# Results (latex) #############################################################
-latex_order = (
-    "rpgsolve", "tslmt2rpg", "rpg-stela",
-    "rpgsolve-syn", "tslmt2rpg-syn",
-    "raboniel", "temos",
-    "sweap", "sweap-noacc")
-fmt_names = " & ".join(tools[x].latex_name for x in latex_order)
+            return time, "error" 
 
 
-latex_header = rf"""
-\begin{{tabular}}{{|c|lr|c||c|c|c||c|c|c|c||c|c|}}\hline
-\multirow{{2}}{{*}}{{G.}}
-& \multirow{{2}}{{*}}{{Name, source}} &
-& \multirow{{2}}{{*}}{{U}}
-& \multicolumn{{3}}{{c||}}{{Realisability (s)}}
-& \multicolumn{{6}}{{c|}}{{Synthesis (s)}}\\\cline{{5-13}}
-& & & & {fmt_names}\\\hline\hline
-"""
-
-def fmt_result(x: int, real: bool=False):
-    if x == 0:
-        return ""
-    if x == 1:
-        return r"\ERROR"
-    if x < 0:
-        return r"\textsf{x}"
-    if x >= timeout:
-        return r"\TIMEOUT"
-    return f"{x/1000:.2f}{'$_r$' if real else ''}"
+for b, (b_real, b_goal) in infinite_benchs.items():
+    for (pf, tool1, tool2) in (
+        ("sweap-pf", "sweap-semml", "sweap-dual"),
+        ("sweap-strix-pf", "sweap-strix", "sweap-strix-dual"),
+        ("sweap-rpg-pf", "sweap-rpg", "sweap-rpg-dual"),
+        ("sweap-tsl-pf", "sweap-tsl", "sweap-tsl-dual"),
+        ("sweap-issy-pf", "sweap-issy", "sweap-issy-dual"),
+    ):
+        better_time, verdict = get_portfolio_result(tool1, tool2, b, b_real)
+        update_stats(verdict, pf, b_real)
+        if (b_real and verdict == "unrealizable") or (not b_real and verdict == "realizable"):
+            verdict += "___wrong"
+        row = (b, b_goal, b_real, pf, abs(better_time), verdict)
+        if better_time > 0:
+            stdout_writer.writerow(row)
+            sys.stdout.flush()
 
 
-syn_tools = ("raboniel", "temos", "rpgsolve-syn", "tslmt2rpg-syn", "sweap", "sweap-noacc")
-r11y_tools = ("rpgsolve", "rpg-stela", "tslmt2rpg", "sweap", "sweap-noacc")
+VERDICTS = (
+    "right", "right_real", "right_unreal", "wrong",
+    "timeout", "oom", "unsupported", "error")
 
-def do_latex_body(benchs, source):
-    for b, is_realizable in benchs.items():
+stderr_writer = csv.writer(sys.stderr, dialect="excel", lineterminator="\n")
+stderr_writer.writerow(["tool", *VERDICTS, "total", "total_real", "total_unreal"])
+keys_ordered = (
+    "issy3", "sweap-issy-pf", "sweap-issy", "sweap-issy-dual",
+    "issy3-rpg", "sweap-rpg-pf", "sweap-rpg", "sweap-rpg-dual",
+    "issy3-tsl", "sweap-tsl-pf", "sweap-tsl", "sweap-tsl-dual",
+    "sweap-strix", "sweap-strix-dual", "sweap-strix-pf",
+    "sweap-semml", "sweap-dual", "sweap-pf")
 
-        # Sort & Format results for this benchmark b
-        r = {x: fmt_result(results[b].get(x, 0), False) for x in latex_order}
-
-        # Temos' unrealizability verdicts cannot be trusted
-        if not is_realizable and 1 < results[b].get("temos", 0) < timeout:
-            r["temos"] = r"\ERR"
-
-        # Highlight best (synthesis) time
-        positive_results = {
-            tool: results[b][tool]
-            for tool in latex_order
-            if tool in syn_tools and results[b].get(tool, 0) > 2}
-        if positive_results:
-            best = min(positive_results, key=positive_results.get)
-            r[best] = f"\\textbf{{{r[best]}}}" if results[b][best] < timeout else r[best]
-        fmt_r = " & ".join(r.values())
-        yield rf"&  \textsf{{{b.replace('_', '-')}}} & {source} & {'' if is_realizable else bullet} & {fmt_r} \\"
-        yield '\n'
-
-
-with open(out_dir / OUT_LATEX, "w") as latex:
-    latex.write(latex_header)
-    how_many_safety = len(safety_benchs_popl24) + len(safety_benchs_popl25)
-    latex.write(rf"\multirow{{{how_many_safety}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Safety}}}}" "\n") 
-    latex.writelines(do_latex_body(safety_benchs_popl24, popl24))
-    latex.writelines(do_latex_body(safety_benchs_popl25, popl25))
-    latex.write("\\hline\\hline\n")
-    how_many_reach = len(reach_benchs_popl24) + len(reach_benchs_popl25) + len(reach_benchs_isola24) + len(reach_benchs_novel)
-    latex.write(rf"\multirow{{{how_many_reach}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Reachability}}}}" "\n") 
-    latex.writelines(do_latex_body(reach_benchs_popl24, popl24))
-    latex.writelines(do_latex_body(reach_benchs_isola24, isola24))
-    latex.writelines(do_latex_body(reach_benchs_popl25, popl25))
-    latex.writelines(do_latex_body(reach_benchs_novel, ""))
-    latex.write("\\hline\\hline\n")
-    how_many_buechi = len(buechi_benchs_cav24) + len(buechi_benchs_popl24) + len(buechi_benchs_popl25)
-    latex.write(rf"\multirow{{{how_many_buechi}}}{{*}}{{\rotatebox[origin=c]{{90}}{{Deterministic B\"uchi}}}}" "\n") 
-    latex.writelines(do_latex_body(buechi_benchs_popl24, popl24))
-    latex.writelines(do_latex_body(buechi_benchs_cav24, cav24))
-    latex.writelines(do_latex_body(buechi_benchs_popl25, popl25))
-    latex.write("\\hline\n")
-    latex.write(r"\end{tabular}")
-    latex.write("\n")
-
-with open(out_dir / LTL_LATEX, "w") as latex:
-    latex.write(dedent(rf"""
-        \begin{{tabular}}{{|c|c||c|c|}}
-        \hline
-        \multirow{{2}}{{*}}{{Name}} & \multirow{{2}}{{*}}{{U}} & \multicolumn{{2}}{{c|}}{{Time (s)}}\\\cline{{3-4}}
-        & & S$_{{\textit{{acc}}}}$ & S\\\hline\hline
-        """[1:]))
-    for b in ltl_benchs:
-        latex.write(dedent(rf"""
-            \textsf{{{b.replace("_", "-")}}} & {{{"" if ltl_benchs[b] else bullet}}}"""[1:]))
-        best = min(("sweap", "sweap-noacc"), key=results[b].get)
-        if not 1 < results[b].get(best, 0) < timeout:
-            best = None
-        for tool in ("sweap", "sweap-noacc"):
-            latex.write(" & ")
-            latex.write(fr"\textbf{{{fmt_result(results[b][tool])}}}" if best == tool else fmt_result(results[b][tool]))
-        latex.write(r"\\\hline" "\n")
-
-    latex.write("\n" r"\end{tabular}")
-
-
-
-# Refinements #################################################################
-with open(out_dir / REF_LATEX, "w") as latex:
-    begin_tabular = dedent(r"""
-        \begin{tabular}[t]{|l||c||c|c|c|c|c|c||}
-        \hline
-        && \multicolumn{2}{c|}{init}
-        & \multicolumn{2}{c|}{ref}
-        & \multicolumn{2}{c||}{add}\\\hline
-        \multicolumn{1}{|c||}{Name} & acc & s & t &sf. &sl. & sp & tp\\\hline\hline""")
-    all_keys = [k for k in sorted(refinements.keys(), key=lambda x: x.lower())]
-    keys_1, keys_2 = all_keys[:len(all_keys)//2], all_keys[len(all_keys)//2:]
-    for keys in (keys_1, keys_2):
-        latex.write(begin_tabular[1:])
-        for k in keys:
-            latex.write(rf"\multirow{{2}}{{*}}[0em]{{{k.replace('_', '-')}}}")
-            latex.write("\n")
-            for tool in ("sweap", "sweap-noacc"):
-                init_st, init_tr, count_fair_ref, count_safe_ref, add_st, add_tr = refinements[k].get(tool, ["--"] * 6)
-                latex.write(dedent(rf"""
-                    & {bullet if tool == 'sweap' else ''}
-                    & {init_st} & {init_tr} & {count_safe_ref} & {count_fair_ref} & {add_st} & {add_tr}"""))
-                latex.write(r"\\\cline{2-8}" if tool == "sweap" else r"\\\hline")
-        latex.write("\n")
-        latex.write(r"\end{tabular}")
-
-# Aggregates ##################################################################
-syn_best, syn_uniq, r11y_best, r11y_uniq = (Counter() for _ in range(4))
-
-for best, uniq, which_tools in ((syn_best, syn_uniq, syn_tools), (r11y_best, r11y_uniq, r11y_tools)):
-    for b in infinite_benchs:
-        # Exclude LTL benchmarks
-        if b in ltl_benchs:
-            continue
-        good_times = {
-            tool: t
-            for tool, t in results[b].items()
-            if tool in which_tools and 2 < t < timeout}
-        if (good_times):
-            best_tool = min(good_times, key=good_times.get)
-            best[best_tool] += 1
-        if len(good_times) == 1:
-            uniq_tool, *_ = good_times.keys()
-            uniq[uniq_tool] += 1
-
-def fmt_summ_data(summ_dict: dict, tools: Sequence[str], real: bool=False):
-    max_tool = max(summ_dict, key=summ_dict.get)
-    if real:
-        tools = [t.replace("-syn", "") for t in tools]
-    fmt_summ_dict = " & ".join(
-        rf"\textbf{{{summ_dict.get(k, 0)}}}"
-        if k == max_tool else str(summ_dict.get(k, 0))
-        for k in tools)
-    return fmt_summ_dict
-
-with open(out_dir / SUMM_LATEX, "w") as latex:
-    syn_header = " & ".join(tools[x].latex_name for x in syn_tools)
-    r11y_header = " & ".join(tools[x].latex_name for x in r11y_tools)
-
-    all_solved = {
-        t: sum(
-            int(1 < results[b].get(t, 0) < timeout)
-            for b in results if b not in ltl_benchs)
-            for t in tools}
-
-    syn_solved = {t: d for t, d in all_solved.items() if t in syn_tools}
-
-    fmt_syn_solved = fmt_summ_data(syn_solved, syn_tools)
-    fmt_syn_best = fmt_summ_data(syn_best, syn_tools)
-    fmt_syn_uniq = fmt_summ_data(syn_uniq, syn_tools)
-
-    fmt_r11y_solved = fmt_summ_data(all_solved, r11y_tools, real=True)
-    fmt_r11y_best = fmt_summ_data(r11y_best, r11y_tools, real=True)
-    fmt_r11y_uniq = fmt_summ_data(r11y_uniq, r11y_tools, real=True)
-
-
-    latex.write(dedent(rf"""
-    \begin{{tabular}}{{|p{{5em}}||{"|".join("c" for _ in range(len(syn_tools)-2))}||c|c|}}\hline
-    Synthesis & {syn_header} \\\hline
-        solved & {fmt_syn_solved}\\
-        best & {fmt_syn_best}\\
-        unique & {fmt_syn_uniq}\\\hline
-    \end{{tabular}}\\
-    \begin{{tabular}}{{|p{{6.2em}}||{"|".join("c" for _ in range(len(r11y_tools)-2))}||c|c|}}\hline
-    Realisability & {r11y_header} \\\hline
-        solved & {fmt_r11y_solved}\\
-        best & {fmt_r11y_best}\\
-        unique & {fmt_r11y_uniq}\\\hline
-    \end{{tabular}}
-    """[1:]))
-
-ltl_times = {
-    t: {b: results[b].get(t, 0)
-        for b in results 
-        if b in ltl_benchs and 1 < results[b].get(t, 0) < timeout}
-    for t in tools if "sweap" in t}
-
-# In how many benchmarks the lazy approach was the best
-lazy_best = sum(
-    ltl_times["sweap-noacc"][b] < ltl_times["sweap"].get(b, 0)
-    for b in ltl_times["sweap-noacc"])
-
-no_refinements = sum(
-    int(refinements[b]["sweap"][2]) == 0
-    and int(refinements[b]["sweap"][3]) == 0
-    for b in ltl_benchs)
-
-## Macros
-with open(out_dir / MACROS_LATEX, "w") as latex:
-    latex.write(rf"\newcommand*{{\COMPEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)}}}" "\n")
-    latex.write(rf"\newcommand*{{\LITERATUREEXPERIMENTS}}{{{len(infinite_benchs)-len(ltl_benchs)-len(reach_benchs_novel)}}}" "\n")
-    latex.write(rf"\newcommand*{{\LTLEXPERIMENTS}}{{{len(ltl_benchs)}}}" "\n")
-    best_competitor = sorted([k for k in syn_solved if "sweap" not in k], key=syn_solved.get, reverse=True)
-    latex.write(rf"\newcommand*{{\SWEAPSCORE}}{{{syn_solved['sweap']}}}" "\n")
-    latex.write(rf"\newcommand*{{\SWEAPLAZYSCORE}}{{{syn_solved['sweap-noacc']}}}" "\n")
-    latex.write(rf"\newcommand*{{\SECONDBEST}}{{{best_competitor[0].replace('-syn', '')}}}" "\n")
-    latex.write(rf"\newcommand*{{\SECONDBESTSCORE}}{{{syn_solved[best_competitor[0]]}}}" "\n")
-    latex.write(rf"\newcommand*{{\LAZYBEST}}{{{lazy_best}}}" "\n")
-    latex.write(rf"\newcommand*{{\NOREFINEMENTS}}{{{no_refinements}}}" "\n")
+for k in keys_ordered:
+    v = STATS[k]
+    values = [v.get(x, 0) for x in VERDICTS]
+    total = sum(values) - v.get("right", 0)
+    k_no_pf = k.replace("-pf", "-dual")
+    total_real = COUNT_REAL.get(k, COUNT_REAL.get(k_no_pf, 0))
+    total_unreal = total - total_real
+    stderr_writer.writerow([k, *values, total, total_real, total_unreal])
+    sys.stderr.flush()

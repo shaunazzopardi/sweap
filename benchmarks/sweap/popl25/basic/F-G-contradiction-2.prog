@@ -16,7 +16,7 @@ program F-G-contradiction-2{
         x: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         q0 -> q0 [e0 $ y := y + 1],
         q0 -> q0 [!e0 & e1 $ y := y - 1],
         q0 -> q1 [!e0 & !e1],

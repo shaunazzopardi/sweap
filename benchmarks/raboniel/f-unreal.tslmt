@@ -2,14 +2,14 @@
 //-- Inputs: e
 
 assume{
-    (gt e i0());
+    (gt ee i0());
     (eq x i0());
 }
 
 guarantee {
 
-    [a <- e];
-    X G ([a <- a]);
+    [a <- ee];
+    X G ([a <- ee]);
     X (gt a i0());
     
     [x <- i0()];

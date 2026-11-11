@@ -1,0 +1,491 @@
+# `.prog` Syntax
+
+This file gives an overview of how to specify sweap problems in `.prog` syntax, used with the `--p` flag in command line invocation:
+
+```python src/main.py --p <spec.prog>```.
+
+The format describes a symbolic reactive synthesis problem: a finite arena, input/output variables, state variables, transitions, and an LTL
+objective.
+
+## Skeleton
+
+A `.prog` file consists of a single arena declaration:
+
+```text
+arena <name> {
+    CONTROL STATES { <states> }
+
+    INPUTS { <input-events> }
+
+    OUTPUTS { <output-events> }
+
+    STATE VARIABLES { <state-variables> }
+
+    TRANSITIONS [<options>] { <transitions> }
+
+    OBJECTIVE { <ltl-objective> }
+}
+```
+
+The top-level sections may appear in any order. Section names must not be
+duplicated. The parser requires control states, inputs, outputs, state
+variables, and transitions. In normal synthesis usage, also provide an
+`OBJECTIVE` section.
+
+Preferred section names and accepted aliases (for backwards compatibility) are:
+
+```text
+arena            (also accepts program)
+CONTROL STATES   (also accepts STATES)
+INPUTS           (also accepts ENVIRONMENT EVENTS)
+OUTPUTS          (also accepts CONTROLLER EVENTS)
+STATE VARIABLES  (also accepts VALUATION)
+OBJECTIVE        (also accepts SPECIFICATION)
+```
+
+Commas and semicolons are both accepted as separators in declaration lists and
+transition lists. A trailing comma or semicolon is accepted.
+
+## Names
+
+Program names and event/state-variable declarations use:
+
+```text
+[_a-zA-Z][_a-zA-Z0-9$@_-]*
+```
+
+State names are parsed more permissively:
+
+```text
+[a-zA-Z0-9@$_-]+
+```
+
+Formula atoms are parsed by the LTL parser and are narrower in practice:
+
+```text
+_*[a-zA-Z][a-zA-Z0-9_-]*
+```
+
+For names that appear in guards or specifications, prefer ordinary
+letter-starting identifiers with letters, digits, and underscores. Declarations
+matching reserved internal names or patterns, such as `lose`, `init_state`,
+`second_state`, `compatible`, `program_state`, `strategy_state`, `prog_m`,
+`strat_m`, `init_choice_logic`, `__init`, `__trans`, `__invar`,
+`pred_*`, `bin_*`, `guard_*`, `act_*`, `eq_con_*`, `sat_con_*`, and
+`minigame_event_*`, `controller_guard_*`, `controller_act_*`, `program_q_*`,
+`comp_*`, and `inp_comp_*`,
+are accepted and renamed internally to avoid collisions.
+References to those declarations, including `_prev` references to state
+variables, follow the renaming automatically. A declared name ending in `_prev`
+receives a `_res` suffix, repeated if needed to avoid a collision.
+For example, a variable declared as `x_prev` becomes `x_prev_res`;
+references to that declaration follow the renaming, and its internal name is
+not a lookback.
+Other reserved names receive a `res_` prefix. Names that also match a reserved
+prefix and end in `_prev` receive both affixes. These rules apply to all formats.
+All case-sensitive nuXmv keywords are reserved too, including `case`, `esac`,
+`next`, and `self`; see the identifier rules in chapter 2 of the
+[nuXmv manual](https://nuxmv.fbk.eu/downloads/nuxmv-user-manual.pdf).
+They are renamed rather than rejected, except for the Boolean literals below.
+
+A separate TLSF specification is supported only with native `.prog` input
+(`--p`), never with Issy, RPG, or TSL input. Use the original declared names;
+its formula and signal lists follow the program's renaming automatically.
+TLSF-only signals remain independent environment inputs or controller outputs.
+An existing program identifier may be a TLSF output only if it is a declared
+controller output; valuation variables and control states cannot be declared
+as TLSF outputs.
+TLSF signals are Boolean: a signal sharing a program identifier must have a
+Boolean program type, even when unused in the objective. Boolean valuation
+variables and control states may be observed as inputs. Projected constant
+values and unreachable states (replaced by `FALSE`) are substituted in both
+native and TLSF objectives.
+Their reserved names receive a `res_` prefix, or a `_res` suffix for names
+ending in `_prev`, with further renaming if needed to avoid a collision.
+
+Boolean-literal spellings (`true`, `false`, `TRUE`, `FALSE`, `True`, and `False`)
+are reserved and cannot be used as declared identifiers. They are never renamed.
+
+Control-state names, input names, output names, and state variable names must be
+globally unique.
+
+## Control States
+
+The `CONTROL STATES` section lists control states. Exactly one state must be tagged
+`: init`.
+
+```text
+CONTROL STATES {
+    idle : init, busy, done
+}
+```
+
+## Variables
+
+Accepted variable types are the following:
+
+```text
+bool, boolean
+nat, natural
+int, integer
+[lower..upper], (lower..upper], [lower..upper), (lower..upper)
+```
+
+Ranges are always integer ranges.
+
+### Input and Output Variables
+
+`INPUTS` and `OUTPUTS` declare variables controlled by the environment and
+controller respectively. The older `ENVIRONMENT EVENTS` and `CONTROLLER EVENTS`
+section names are still parsed for backwards compatibility, but new files
+should use `INPUTS` and `OUTPUTS`.
+
+```text
+INPUTS {
+    request, delta : integer, limit : [0..10]
+}
+
+OUTPUTS {
+    grant, finished : boolean
+}
+```
+
+Untyped variables are interpreted as boolean. 
+
+Output variables must be boolean; non-boolean output variables will result in a parsing error.
+
+Empty `INPUTS` and `OUTPUTS` sections are accepted.
+
+### State Variables
+
+`STATE VARIABLES` declares state variables owned by the program, for example:
+
+```text
+STATE VARIABLES {
+    count : natural := 0;
+    mode : [0..3] := 0;
+    enabled : bool := false;
+    unconstrained : integer;
+    arbitrary_start : integer;
+}
+```
+
+Initial values are optional, omitting `:= ...` leaves the initial value
+unconstrained. When unconstrained, the specification universally quantifies over all possible initial values. That is, a controller must work for all possible unspecified initial values, while a counterstrategy must work for at least one initial valuation.
+
+## Formulas
+
+Guards and normal action conditions are propositional formulas over current
+state variables, inputs, and outputs. LIA predicates are also allowed.
+
+Common operators:
+
+```plain
+true, false, TRUE, FALSE
+!p
+p & q      or p && q
+p | q      or p || q
+p -> q     or p => q
+p <-> q    or p <=> q
+x = y      or x `== y
+x != y
+x < y, x <= y, x > y, x >= y
+x + y, x - y, -x
+```
+
+`OBJECTIVE` formulas additionally allow LTL operators and reference to control states (and also LIA predicates):
+
+```text
+X p
+F p
+G p
+p U q
+p W q
+p R q
+p M q
+```
+
+Examples:
+
+```text
+G(request -> F grant)
+G((count >= 0) -> F(done & count = 0))
+(!idle) U done
+```
+
+These are usually of the form `Assumptions -> G Guarantees`, where assumptions and guarantees are LTL formulas are as described above.
+
+## Transitions
+
+Transitions define how the state variables values are allowed to evolve. sweap supports two styles of transition specification: guarded assignments, and transition formulas (propositional formulas over current and next variable labels):
+
+```text
+source -> target [<guard> ($ <guarded-assignments>)|(# <transition-formula>)]
+```
+
+The guard is optional and if not present the interpretation defaults to `true`.
+
+Note the two flavours of defining transitions can be used in the same arena definition.
+
+Semantically, the label of a transition is a function that given a valuation of the current variables (inputs, outputs, and state variables) returns a set of valuations of the next state variables that are allowed by the transition. The guard is a propositional formula over current variables that restricts when the transition can be taken. The guarded assignments or transition formula further restrict the allowed next valuations for the transition.
+
+### Canonical Transitions
+
+The high-level syntax, while more concise, is not the canonical arena format used internally by sweap. The canonical arena transitions are simpler, consisting of a source state, target state, a guard formula over current variables only, and explicit assignments for each state variables. 
+
+In a canonical arena, given a set of transitions from a state `s`, with guards `g_0`, ..., `g_n`, these guards must be mutually exclusive, and they must cover all possible valuations of the variables in `s` (i.e. `g_0 | ... | g_n` must be a tautology). 
+
+Non-mutually exclusive guards introduce non-determinism, and will result in a parsing error. A user can manually deal with this non-determinism by introducing new input or output variables to allow the environment or controller to choose between the transitions.
+
+For convenience, sweap allows incomplete guards, but the user must specify how to complete them with the `completion` option (see below). 
+
+To view the canonical arena from a higher-level sweap specification, use the following command:
+
+```text
+python src/main.py --p <spec.prog> --translate prog
+```
+
+### Guarded Assignments
+
+Assignments are exact updates of a state variable:
+
+```text
+x := x + 1
+enabled := request & x > 0
+```
+
+The left-hand side of an assignment must be a state variable. The right-hand side is a formula over current input, output, and/or state variables; it cannot reference next variables. For boolean variables, it is any boolean formula over the mentioned variables (including LIA predicates). For integer variables, the right-hand side must be an arithmetic expression over the mentioned variables, using addition, subtraction, and negation.
+
+Assignments are optional. When an assignment for a state variable is not defined, the interpretation defaults to the identity assignment. For a list of assignments, a variable can only be assigned once.
+
+Examples:
+
+```text
+idle -> busy [request]
+busy -> idle [done $ count := count - 1]
+busy -> busy [$ count := count + 1]
+busy -> idle [done $]
+```
+
+Multiple assignments may be separated by commas or semicolons:
+
+```text
+q0 -> q1 [request $ count := count + 1; enabled := true]
+```
+
+Assignments of the same variable can be specified under their own condition using the literal token ` if `:
+
+```text
+q -> q [true $
+    x := x + 1 if inc;
+    x := x - 1 if dec & x > 0;
+    active := inc | dec
+]
+```
+
+For multiple guarded assignments to the same variable, the parser treats them in
+order: later assignments only apply where earlier guards for that same variable did
+not apply. If none applies, the variable is left unchanged by normal action
+completion.
+
+### `otherwise` Transitions
+
+The special guard `otherwise` is a fallback for one source state:
+
+```text
+s0 -> s1 [x > 0 $ x := x - 1],
+s0 -> s2 [otherwise $ x := x + 1]
+```
+
+It is expanded to the negation of the disjunction of the other guards from the same source state.
+At most one `otherwise` transition is allowed per source state.
+
+### Transition Formula
+
+`#` introduces a transition formula over current variable values and next state variable values. Use a
+prime suffix to refer to the next value of a state variable.
+
+Example transitions:
+
+```text
+q0 -> q1 [x <= 0 # (x' = x + 1) & (y' = x)]
+q0 -> q1 [x > 0 # (x' = 0) | (x' = 1)]
+```
+
+These propositional formulas may reference state variables (either current
+or primed next values), and input and output variables (only current value).
+
+When a transition formula does not constrain a state variable, that
+variable is treated as **non-deterministically updated, not as an identity assignment**. Note this differs from the guarded assignment style, where unconstrained variables are treated as identity assignments. This allows more concise specification of general relational constraints over next variables, but also requires care to avoid unintentionally leaving variables unconstrained.
+
+Specifying no formula after `#` therefore allows any next state for all state variables. This means that the following two transitions have different semantics:
+
+```text
+q0 -> q1 [true #]
+q0 -> q1 [true $]
+```
+
+Note that `q0 -> q1 [true]` is interpreted as `q0 -> q1 [true $]`, so it also allows only identity assignments, and does not allow arbitrary next states.
+
+Equality constraints such as `x' = x + 1` are lowered to ordinary assignments.
+Branching formulas may lower to several transitions. More general relational
+constraints over next variables can introduce fresh internal (minigame) states, to allow the controller to choose any value of a next variable that satisfies the constraint. Thus, a transition that appears to take one time step in the original specification may take several time steps in the canonical arena. The LTL objective is modified automatically to ignore these extra time steps, maintaining equirealisability of the original specification.
+
+Example:
+
+```text
+q0 -> q1 [true # (x' >= x + 1)]
+```
+
+results in the addition of a fresh internal state `q0_minigame_0`, a fresh controller output `minigame_event_0`, and the following transitions:
+
+```text
+q0 -> q0_minigame_0 [true $ x := x + 1],
+q0_minigame_0 -> q0_minigame_0 [!minigame_event_0 $ x := x + 1],
+q0_minigame_0 -> q1 [minigame_event_0],
+```
+
+If the objective was `F (x = 10)`, it would be automatically modified to `F (!q0_minigame_0 & x = 10) & G(F(!q0_minigame_0))`.
+
+When a variable is unconstrained by the `#` formula, but from the target state onwards this variable is unused and it is also unused in the objective, we do not introduce a minigame for it. Instead we stutter this variable. This creates a game that is equirealisable to the original specification. However, this is not an equivalent specification, although the strategy can be trivially transformed back to a strategy for the original specification.
+
+## Transition Options
+
+Options are written after `TRANSITIONS`:
+
+```text
+TRANSITIONS [completion=stutter] { ... }
+TRANSITIONS [completion=lose] { ... }
+```
+
+These two options are the only currently supported options. They specify how to complete the transition relation when the guards do not cover all possible valuations of the variables.
+
+`completion=stutter` fills uncovered behavior from a reachable source state with stutter transitions (remain in same control state, and state variables maintain their current value in the next state).
+
+`completion=lose` fills uncovered behavior with transitions to a generated
+`lose` sink state and adds `G(!lose)` to the objective guarantees. Reaching this state, if the environment respects the assumptions, results in a loss for the controller.
+
+If no `completion` option is specified, incomplete transition coverage results in an error.
+
+## Completion example
+
+```text
+program small_counter {
+    CONTROL STATES {
+        idle : init, busy
+    }
+
+    INPUTS {
+        request, reset
+    }
+
+    OUTPUTS {
+        grant
+    }
+
+    STATE VARIABLES {
+        count : natural := 0;
+        served : bool := false;
+    }
+
+    TRANSITIONS [completion=stutter] {
+        idle -> busy [request $ count := count + 1; served := false],
+        busy -> idle [grant & count > 0 $ count := count - 1; served := true],
+    }
+
+    OBJECTIVE {
+        G((F request) -> (F cnt == 0))
+    }
+}
+```
+
+The canonical arena for this example will add the following transitions:
+
+```text
+idle -> idle [!request $ count := count; served := served]
+busy -> busy [!grant | count = 0 count := count; served := served]
+```
+
+## Guarded-Assignment Example
+
+```text
+program robot_step {
+    CONTROL STATES {
+        q : init
+    }
+
+    INPUTS {
+        inc, dec
+    }
+
+    OUTPUTS {
+        move
+    }
+
+    STATE VARIABLES {
+        x : integer := 0
+    }
+
+    TRANSITIONS [completion=stutter] {
+        q -> q [true $
+            x := x + 1 if move & inc;
+            x := x - 1 if move & dec & x > 0
+        ]
+    }
+
+    OBJECTIVE {
+        (F G dec) -> F (x = 0)
+    }
+}
+```
+
+The canonical arena for this example will have following transition section:
+
+```text
+q -> q [move & inc $ x := x + 1],
+q -> q [move & dec & x > 0 $ x := x - 1],
+q -> q [!((move & inc) | (move & dec & x > 0)) $]
+```
+
+## Transition Formula Example
+
+```text
+program relational_step {
+    CONTROL STATES {
+        q0 : init, q1
+    }
+
+    INPUTS {
+    }
+
+    OUTPUTS {
+    }
+
+    STATE VARIABLES {
+        x : integer := 0;
+        y : integer := 0;
+    }
+
+    TRANSITIONS [completion=stutter] {
+        q0 -> q1 [true # (x' > x + 1) & (y' = x)],
+        q1 -> q1 [true # (x' < x) & (y' = y)]
+    }
+
+    OBJECTIVE {
+        G true
+    }
+}
+```
+
+The canonical arena for this example will have the following transition section:
+
+```text
+q0 -> q0_minigame_0 [true $ x := x + 2, y := x],
+q0_minigame_0 -> q0_minigame_0 [!minigame_event_0 $ x := x + 1, y := x],
+q0_minigame_0 -> q1 [minigame_event_0],
+q1 -> q1_minigame_0 [true $ x := x - 1, y := y],
+q1_minigame_0 -> q1_minigame_0 [!minigame_event_0 $ x := x - 1, y := y],
+q1_minigame_0 -> q1 [minigame_event_0 $ x := x; y := y]
+```
+
+Note, if the controller has boolean outputs, we re-use these outputs as the minigame events, so the translation of `#` formulas may not always introduce fresh outputs. Given we massage the LTL objective to ignore behaviour at minigame state equirealisability is preserved, while avoiding introducing unnecessary fresh controller outputs (which would increase the complexity of synthesis).

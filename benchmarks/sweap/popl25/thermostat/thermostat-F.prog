@@ -17,7 +17,7 @@ program thermostat-F{
         sense: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         setSense -> setSense [e1 $ sense := sense + 1],
         setSense -> setSense [!e1 & e2 $ sense := sense - 1],
         setSense -> q [!e1 & !e2],

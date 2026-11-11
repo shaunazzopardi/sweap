@@ -21,7 +21,7 @@ program cinderella {
         n : natural := 3;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         stepmother -> stepmother [!a & !b & !c & n > 0 $ bucket1 := bucket1 + 1; n := n - 1],
         stepmother -> stepmother [!a & !b & c & n > 0 $ bucket2 := bucket2 + 1; n := n - 1],
         stepmother -> stepmother [!a & b & !c & n > 0 $ bucket3 := bucket3 + 1; n := n - 1],

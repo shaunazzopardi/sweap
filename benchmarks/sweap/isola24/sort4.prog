@@ -16,7 +16,7 @@ program sort4 {
         c : integer := 0;
         d : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         qe -> qe [(!ee0 && !ee1 && !ee2 && !ee3) $ a := (a + 1); b := b; c := c; d := d],
         qe -> qe [(!ee0 && !ee1 && !ee2 &&  ee3) $ a := (a - 1); b := b; c := c; d := d],
         qe -> qe [(!ee0 && !ee1 &&  ee2 && !ee3) $ a := a; b := (b + 1); c := c; d := d],

@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 
-from analysis.abstraction.interface.predicate_abstraction import PredicateAbstraction
+from analysis.abstraction.interface.predicate_abstraction import (
+    PredicateAbstraction,
+)
 
 
 class AbstractionToLTL(ABC):

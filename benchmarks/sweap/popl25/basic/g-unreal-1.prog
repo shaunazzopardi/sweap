@@ -16,7 +16,7 @@ program g-unreal-1{
         t: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         sete -> sete [e0 $ t := t + 1],
         sete -> sete [!e0 & e1 $ t := t - 1],
         sete -> q [!e0 & !e1],

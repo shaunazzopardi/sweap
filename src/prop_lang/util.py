@@ -1,35 +1,53 @@
-import bisect
+import itertools
 import logging
 import re
-from bisect import bisect_left
-from multiprocessing import Queue, Process
+import functools
+from collections import Counter
+from typing import Optional
 
 import sympy
+
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, simplify, serialize
+from pysmt.shortcuts import And, TRUE, simplify, serialize, Solver
 from sympy import Basic
-from sympy.logic.boolalg import to_dnf, to_cnf
+from sympy.logic.boolalg import BooleanAtom, BooleanTrue, to_dnf, to_cnf, BooleanFalse
 
-from parsing.string_to_prop_logic import string_to_prop
-from analysis.smt_checker import check, bdd_simplify
-from programs.typed_valuation import TypedValuation
+import config
+from analysis.smt_checker import check, bdd_simplify, find_unsat_core
 from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
 from prop_lang.formula import Formula
+from prop_lang.types.ops_and_rels import BoolBiOps, MathOps, MathRels, LTLBiOps
+from prop_lang.update import Update
 from prop_lang.mathexpr import MathExpr
-from prop_lang.nondet import NonDeterministic
+from prop_lang.types.types import (
+    BaseNumberTypes,
+    Type,
+    BOOLEAN,
+    is_finite,
+    Number,
+    NATURAL,
+    INTEGER,
+    interval_range,
+)
+from prop_lang.types.values import BoolAtoms
 from prop_lang.uniop import UniOp
 from prop_lang.value import Value
 from prop_lang.variable import Variable
+from prop_lang.factory import _mult
+
+# Local toggle: SAT-guided incremental enumeration in all_sat_models.
+# Set to False to use the previous cross-product + sat filtering implementation.
+USE_INCREMENTAL_ALL_SAT_MODELS = True
 
 
 def true():
-    return Value("TRUE")
+    return Value(BoolAtoms.TRUE)
 
 
 def false():
-    return Value("FALSE")
+    return Value(BoolAtoms.FALSE)
 
 
 def is_true(f):
@@ -38,7 +56,8 @@ def is_true(f):
     else:
         return False
 
-def conjunct(left: Formula, right: Formula):
+
+def conjunct(left: Formula, right: Formula) -> Formula:
     if isinstance(left, Value):
         if left.is_true():
             return right
@@ -56,24 +75,23 @@ def conjunct(left: Formula, right: Formula):
     return BiOp(left, "&", right)
 
 
-def conjunct_formula_set(s, sort=False) -> Formula:
-    if sort:
-        s = sorted(list({p for p in s}), key=lambda x : str(x))
-
-    ret = true()
-    if not hasattr(s, '__iter__'):
-        raise Exception("conjunct_formula_set: needs an iterable." + str(s) + " is not.")
-    for f in s:
-        ret = conjunct(f, ret)
+def conjunct_formula_set(s) -> Formula:
+    if not isinstance(s, list):
+        s = list(s)
+    if len(s) == 0:
+        return true()
+    elif len(s) == 1:
+        return s[0]
+    ret = s[0]
+    for f in s[1:]:
+        ret = conjunct(ret, f)
     return ret
 
 
-def conjunct_typed_valuation_set(s: set[TypedValuation]) -> Formula:
+def conjunct_typed_valuation_set(s: dict[str, Value]) -> Formula:
     ret = true()
-    for f in s:
-        if isinstance(f.value, NonDeterministic):
-            continue
-        ret = conjunct(ret, BiOp(Variable(f.name), "=", Value(f.value)))
+    for name, value in s.items():
+        ret = conjunct(ret, BiOp(Variable(name), "=", value))
     return ret
 
 
@@ -96,9 +114,26 @@ def disjunct(left: Formula, right: Formula):
 
 
 def disjunct_formula_set(s) -> Formula:
-    ret = false()
-    for f in s:
-        ret = disjunct(f, ret)
+    if not isinstance(s, list):
+        s = list(s)
+    if len(s) == 0:
+        return false()
+    elif len(s) == 1:
+        return s[0]
+    ret = s[0]
+    for f in s[1:]:
+        ret = disjunct(ret, f)
+    return ret
+
+
+def implies_formula_set(s) -> Formula:
+    if not isinstance(s, list):
+        s = list(s)
+    if len(s) < 2:
+        raise Exception("implies_formula_set: need at least two formulas.")
+    ret = s[0]
+    for f in s[1:]:
+        ret = implies(ret, f)
     return ret
 
 
@@ -119,6 +154,11 @@ def W(left: Formula, right: Formula):
 
 
 def neg(ltl: Formula):
+    if isinstance(ltl, Value):
+        if ltl.is_true():
+            return false()
+        if ltl.is_false():
+            return true()
     if isinstance(ltl, UniOp):
         if ltl.op == "!":
             return ltl.right
@@ -148,85 +188,101 @@ def nnf(prop: Formula) -> Formula:
             elif isinstance(prop.right, UniOp) and prop.right.op == "!":
                 return nnf(prop.right)
     elif isinstance(prop, BiOp):
-        if re.match("<(-|=)>", prop.op):
-            return nnf(conjunct(
-                implies(prop.left, prop.right),
-                implies(prop.right, prop.left)))
-        elif re.match("(-|=)>", prop.op):
+        if re.match("<([-=])>", prop.op):
+            return nnf(
+                conjunct(
+                    implies(prop.left, prop.right),
+                    implies(prop.right, prop.left),
+                )
+            )
+        elif re.match("([-=])>", prop.op):
             return nnf(disjunct(neg(prop.left), prop.right))
-        elif re.match("&&*", prop.op):
+        elif re.match("&+", prop.op):
             return conjunct(nnf(prop.left), nnf(prop.right))
-        elif re.match("\|\|?", prop.op):
+        elif re.match(r"\|\|?", prop.op):
             return disjunct(nnf(prop.left), nnf(prop.right))
         else:  # math expression
             return prop
     else:
         return NotImplemented
 
+
 def sat_parallel(arg):
     formula, symbol_table = arg
     try:
-        return check(And(*formula.to_smt(symbol_table)))
-    except Exception as e:
-        return check(And(*formula.to_smt(symbol_table)))
-    return sat(formula, symbol_table)
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
+    except:
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
 
-def sat(formula: Formula, symbol_table: dict = None, add_missing_vars:bool=False) -> bool:
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-    if add_missing_vars:
-        symbol_table.update({str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()
-                                if str(v) not in symbol_table.keys()})
+
+def _formula_to_smt_with_invariants(formula: Formula, symbol_table: dict):
+    expr, invar = formula.to_smt(symbol_table)
+    if invar == TRUE() or invar.is_true():
+        return expr
+    return And(expr, invar)
+
+
+def unsat_core(
+    formula: Formula,
+    symbol_table: dict,
+) -> set[Formula]:
+    core = find_unsat_core(_formula_to_smt_with_invariants(formula, symbol_table))
+    core_formulas = set()
+    if core:
+        for fnode in core:
+            core_formulas.add(fnode_to_formula(fnode))
+    return core_formulas
+
+
+def sat(
+    formula: Formula,
+    symbol_table: dict,
+    sat_ctx=None,
+) -> bool:
+    if sat_ctx is not None:
+        return sat_ctx.is_sat(formula)
     try:
-        return check(And(*formula.to_smt(symbol_table)))
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
     except Exception as e:
         logging.info(str(formula))
-        return check(And(*formula.to_smt(symbol_table)))
+        return check(_formula_to_smt_with_invariants(formula, symbol_table))
+
 
 def equivalent(formula1: Formula, formula2: Formula, symbol_table: dict = None) -> bool:
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula1.variablesin()}
-        symbol_table |= {str(v): TypedValuation(str(v), "bool", None) for v in formula2.variablesin()}
-    return not check(And(*neg(iff(formula1, formula2)).to_smt(symbol_table)))
+    return not check(
+        _formula_to_smt_with_invariants(neg(iff(formula1, formula2)), symbol_table)
+    )
 
 
 def is_tautology(formula: Formula, symbol_table: dict = None) -> bool:
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-    else:
-        for v in formula.variablesin():
-            if str(v) not in symbol_table.keys():
-                symbol_table[str(v)] = TypedValuation(str(v), "bool", None)
-    return not check(And(*neg(formula).to_smt(symbol_table)))
+    return not check(_formula_to_smt_with_invariants(neg(formula), symbol_table))
 
 
 def is_contradictory(formula: Formula, symbol_table: dict = None) -> bool:
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-    return not check(And(*formula.to_smt(symbol_table)))
+    return not check(_formula_to_smt_with_invariants(formula, symbol_table))
 
 
-def negation_closed(predicates: [Formula]):
+def negation_closed(predicates: list[Formula]):
     for p in predicates:
         if neg(p) not in predicates:
             return False
     return True
 
 
-def prime_action(acts: [BiOp]) -> Formula:
+def prime_action(acts: list[BiOp]) -> Formula:
     if len(acts) == 0:
         return acts
     else:
         primed_acts = []
         for act in acts:
-            primed_acts.append(BiOp(Atom(act.left.name + "_next"), "=", act.right))
+            primed_acts.append(BiOp(Variable(act.left.name + "_next"), "=", act.right))
     return conjunct_formula_set(primed_acts)
 
 
 def propagate_minuses(formula, init=False):
     if isinstance(formula, Value) or isinstance(formula, Variable):
         if init:
-            return UniOp("-", formula)
+            return UniOp(MathOps.SUB, formula)
         else:
             return formula
     elif isinstance(formula, MathExpr):
@@ -237,39 +293,62 @@ def propagate_minuses(formula, init=False):
         else:
             return UniOp(formula.op, propagate_minuses(formula.right, init))
     elif isinstance(formula, BiOp):
-        return BiOp(propagate_minuses(formula.left, init), formula.op, propagate_minuses(formula.right, init))
+        return BiOp(
+            propagate_minuses(formula.left, init),
+            formula.op,
+            propagate_minuses(formula.right, init),
+        )
     else:
         return formula
 
 
-def propagate_nexts(formula, init=False):
-    if isinstance(formula, Value) or isinstance(formula, Variable):
-        if init:
-            return X(formula)
+def propagate_nexts(formula, init=0):
+    if (
+        isinstance(formula, Value)
+        or isinstance(formula, Variable)
+        or isinstance(formula, MathExpr)
+        or should_be_math_expr(formula)
+    ):
+        if init > 0:
+            for _ in range(init):
+                formula = X(formula)
+        return formula
     if isinstance(formula, UniOp):
         if formula.op == "X":
-            return propagate_nexts(formula.right, True)
+            init += 1
+            return propagate_nexts(formula.right, init)
         else:
             return UniOp(formula.op, propagate_nexts(formula.right, init))
     elif isinstance(formula, BiOp):
-        return BiOp(propagate_nexts(formula.left, init), formula.op, propagate_nexts(formula.right, init))
+        return BiOp(
+            propagate_nexts(formula.left, init),
+            formula.op,
+            propagate_nexts(formula.right, init),
+        )
     else:
         return formula
 
 
-def propagate_nexts_and_atomize(formula, init=False):
+def propagate_nexts_and_atomize(formula, init=0):
     if isinstance(formula, Value):
         return formula
     elif isinstance(formula, Variable):
-        if init:
-            return Variable(str(formula) + "_next")
-    if isinstance(formula, UniOp):
+        if init > 0:
+            for _ in range(init):
+                formula = Variable(str(formula) + "_next")
+        return formula
+    elif isinstance(formula, UniOp):
         if formula.op == "X":
-            return propagate_nexts_and_atomize(formula.right, True)
+            init += 1
+            return propagate_nexts_and_atomize(formula.right, init)
         else:
             return UniOp(formula.op, propagate_nexts_and_atomize(formula.right, init))
     elif isinstance(formula, BiOp):
-        return BiOp(propagate_nexts_and_atomize(formula.left, init), formula.op, propagate_nexts_and_atomize(formula.right, init))
+        return BiOp(
+            propagate_nexts_and_atomize(formula.left, init),
+            formula.op,
+            propagate_nexts_and_atomize(formula.right, init),
+        )
     else:
         return formula
 
@@ -280,13 +359,30 @@ def only_dis_or_con_junctions(f: Formula):
     elif isinstance(f, UniOp):
         return UniOp(f.op, only_dis_or_con_junctions(f.right))
     elif isinstance(f, BiOp):
-        if f.op in ["&", "&&", "|", "||"]:
-            return BiOp(only_dis_or_con_junctions(f.left), f.op, only_dis_or_con_junctions(f.right))
+        if f.op in ["&", "&&", "|"]:
+            return BiOp(
+                only_dis_or_con_junctions(f.left),
+                f.op,
+                only_dis_or_con_junctions(f.right),
+            )
         elif f.op in ["->", "=>"]:
-            return BiOp(UniOp("!", only_dis_or_con_junctions(f.left)), "|", only_dis_or_con_junctions(f.right))
+            return BiOp(
+                UniOp("!", only_dis_or_con_junctions(f.left)),
+                "|",
+                only_dis_or_con_junctions(f.right),
+            )
         elif f.op in ["<->", "<=>"]:
-            return BiOp(only_dis_or_con_junctions(BiOp(f.left, "->", f.right)), "&",
-                        only_dis_or_con_junctions(BiOp(f.right, "->", f.left)))
+            return BiOp(
+                only_dis_or_con_junctions(BiOp(f.left, "->", f.right)),
+                "&",
+                only_dis_or_con_junctions(BiOp(f.right, "->", f.left)),
+            )
+        elif f.op in LTLBiOps:
+            return BiOp(
+                only_dis_or_con_junctions(f.left),
+                f.op,
+                only_dis_or_con_junctions(f.right),
+            )
         else:
             # check if math expr? math expr should be abstracted out before manipulating formulas also for dnf
             # logging.info("only_dis_or_con_junctions: I do not know how to handle " + str(f) + ", treating it as math expression.")
@@ -298,13 +394,29 @@ def only_dis_or_con_junctions(f: Formula):
 dnf_cache = {}
 
 
+# def fnode_to_formula_indirect(fnode: FNode) -> Formula:
+#     return string_to_prop(serialize(fnode))
+
+
 def fnode_to_formula(fnode: FNode) -> Formula:
-    return string_to_prop(serialize(fnode))
+    def _unwrap_math_arg(arg: Formula) -> Formula:
+        return arg.formula if isinstance(arg, MathExpr) else arg
 
+    def _fold_nary_math(args_list: list[Formula], op: str) -> Formula:
+        if len(args_list) == 0:
+            raise Exception(f"Unexpected empty argument list for '{op}'.")
+        acc = _unwrap_math_arg(args_list[0])
+        for nxt in args_list[1:]:
+            acc = BiOp(acc, op, _unwrap_math_arg(nxt))
+        return MathExpr(acc)
 
-def fnode_to_formula_direct(fnode: FNode) -> Formula:
     if fnode.is_constant():
-        return Value(fnode.constant_value())
+        val = fnode.constant_value()
+        if isinstance(val, bool):
+            return Value(BoolAtoms.TRUE) if val else Value(BoolAtoms.FALSE)
+        if isinstance(val, int) and val < 0:
+            return UniOp(MathOps.SUB, Value(abs(val)))
+        return Value(val)
     elif fnode.is_symbol():
         return Variable(fnode.symbol_name())
     else:
@@ -314,27 +426,78 @@ def fnode_to_formula_direct(fnode: FNode) -> Formula:
         elif fnode.is_lt():
             return MathExpr(BiOp(args[0], "<", args[1]))
         elif fnode.is_plus():
-            return MathExpr(BiOp(args[0], "+", args[1]))
+            return _fold_nary_math(args, "+")
         elif fnode.is_minus():
             return MathExpr(BiOp(args[0], "-", args[1]))
         elif fnode.is_div():
             return MathExpr(BiOp(args[0], "/", args[1]))
         elif fnode.is_times():
-            return MathExpr(BiOp(args[0], "*", args[1]))
+            if len(args) == 0:
+                raise Exception("Unexpected empty argument list for '*'.")
+            acc = _unwrap_math_arg(args[0])
+            for nxt in args[1:]:
+                acc = _mult(acc, _unwrap_math_arg(nxt))
+            return acc
         elif fnode.is_and():
-            return conjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+            return conjunct_formula_set(set(args))
         elif fnode.is_or():
-            return disjunct_formula_set({fnode_to_formula(arg) for arg in fnode.args()})
+            return disjunct_formula_set(set(args))
         elif fnode.is_not():
-            return neg(fnode_to_formula(fnode.arg(0)))
+            return neg(args[0])
         elif fnode.is_implies():
-            return implies(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+            return implies(args[0], args[1])
         elif fnode.is_iff():
-            return iff(fnode_to_formula(fnode.arg(0)), fnode_to_formula(fnode.arg(1)))
+            return iff(args[0], args[1])
+        elif fnode.is_equals():
+            return MathExpr(BiOp(args[0], "=", args[1]))
         elif fnode.is_symbol():
             return Variable(fnode.symbol_name())
         else:
-            return string_to_prop(serialize(fnode))
+            raise Exception("Could not parse FNode: " + serialize(fnode))
+            # string_to_prop(serialize(fnode))
+
+
+# def fnode_to_formula_recursive(fnode: FNode) -> Formula:
+#     if fnode.is_constant():
+#         val = fnode.constant_value()
+#         if isinstance(val, bool):
+#             return Value(BoolAtoms.TRUE) if val else Value(BoolAtoms.FALSE)
+#         return Value(val)
+#     elif fnode.is_symbol():
+#         return Variable(fnode.symbol_name())
+#     else:
+#         args = [fnode_to_formula_recursive(x) for x in fnode.args()]
+#         if fnode.is_le():
+#             return create_mathrel(args[0], "<=", args[1])
+#         if fnode.is_lt():
+#             return create_mathrel(args[0], "<", args[1])
+#         if hasattr(fnode, "is_ge") and fnode.is_ge():
+#             return create_mathrel(args[0], ">=", args[1])
+#         if hasattr(fnode, "is_gt") and fnode.is_gt():
+#             return create_mathrel(args[0], ">", args[1])
+#         if fnode.is_plus():
+#             return create_mathrel(args[0], "+", args[1])
+#         if fnode.is_minus():
+#             return create_mathrel(args[0], "-", args[1])
+#         if fnode.is_div():
+#             return create_mathrel(args[0], "/", args[1])
+#         if fnode.is_times():
+#             return create_mathrel(args[0], "*", args[1])
+#         if hasattr(fnode, "is_equals") and fnode.is_equals():
+#             return create_mathrel(args[0], "=", args[1])
+#         if hasattr(fnode, "is_not_equals") and fnode.is_not_equals():
+#             return create_mathrel(args[0], "!=", args[1])
+#         if fnode.is_and():
+#             return conjunct_formula_set({arg for arg in args})
+#         if fnode.is_or():
+#             return disjunct_formula_set({arg for arg in args})
+#         if fnode.is_not():
+#             return neg(args[0])
+#         if fnode.is_implies():
+#             return implies(args[0], args[1])
+#         if fnode.is_iff():
+#             return iff(args[0], args[1])
+#         return string_to_prop(serialize(fnode))
 
 
 def sympi_to_formula(basic: Basic):
@@ -348,8 +511,18 @@ def sympi_to_formula(basic: Basic):
         return implies(sympi_to_formula(basic.args[0]), sympi_to_formula(basic.args[1]))
     elif isinstance(basic, sympy.logic.boolalg.Equivalent):
         return iff(sympi_to_formula(basic.args[0]), sympi_to_formula(basic.args[1]))
+    elif isinstance(basic, sympy.Symbol):
+        return Variable(str(basic))
+    elif isinstance(basic, BooleanAtom):
+        if isinstance(basic, BooleanTrue):
+            return Value(BoolAtoms.TRUE)
+        elif isinstance(basic, BooleanFalse):
+            return Value(BoolAtoms.FALSE)
+        else:
+            raise Exception("Could not parse Sympy BooleanAtom: " + str(basic))
     else:
-        return string_to_prop(str(basic))
+        raise Exception("Could not parse Sympy Basic: " + str(basic))
+        # string_to_prop(str(basic))
 
 
 def simplify_formula_with_math(formula, symbol_table):
@@ -362,6 +535,7 @@ def simplify_formula_with_math(formula, symbol_table):
             logging.info(str(e))
         return to_formula
 
+
 def simplify_formula_with_math_wo_type_constraints(formula, symbol_table):
     with Environment() as environ:
         simplified = environ.simplifier.simplify(formula.to_smt(symbol_table)[0])
@@ -372,20 +546,23 @@ def simplify_formula_with_math_wo_type_constraints(formula, symbol_table):
             logging.info(str(e))
         return to_formula
 
+
 def simplify_sum(formula, symbol_table):
     with Environment() as environ:
         simplified = environ.simplifier.simplify(formula.to_smt(symbol_table)[0])
         str_simpl = serialize(simplified)
         if str_simpl[0] == "-":
-            return UniOp("-", Value(str_simpl[1:]))
+            return UniOp(MathOps.SUB, Value(int(str_simpl[1:])))
+        if re.fullmatch(r"[0-9]+", str_simpl):
+            return Value(int(str_simpl))
         else:
             return Value(str_simpl)
 
 
 def simplify_formula_without_math(formula, symbol_table=None):
     with Environment() as environ:
-        if symbol_table == None:
-            symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
+        if not symbol_table:
+            symbol_table = {str(v): BOOLEAN for v in formula.variablesin()}
 
         simplified = environ.simplifier.simplify(And(*formula.to_smt(symbol_table)))
         to_formula = fnode_to_formula(simplified)
@@ -393,55 +570,64 @@ def simplify_formula_without_math(formula, symbol_table=None):
 
 
 def formula_with_next_to_without(formula):
-    X_propagated_to_atoms = propagate_nexts_and_atomize(formula.to_strix())
+    X_propagated_to_atoms = propagate_nexts_and_atomize(formula)
 
     return X_propagated_to_atoms
 
 
-def simplify_formula_with_next(formula, symbol_table=None):
+def simplify_formula_with_next(formula):
     with Environment() as environ:
-        if symbol_table == None:
-            symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in formula.variablesin()}
-
         formula_with_no_nexts = formula_with_next_to_without(formula)
 
-        replacings = [BiOp(Variable("next_" + v.name), ":=", X(Variable(v.name))) for v in formula.variablesin()]
-        replacings.append(BiOp(Variable("next_true"), ":=", X(Value("true"))))
-        replacings.append(BiOp(Variable("next_false"), ":=", X(Value("false"))))
+        add_n_nexts = lambda f, n: f if n <= 0 else add_n_nexts(X(f), n - 1)
+        add_back_nexts = lambda f: add_n_nexts(f, len(str(f).split("_next")) - 1)
 
-        symbol_table |= {str(r.left): TypedValuation(str(r.left), "bool", None) for r in replacings}
+        symbol_table = {
+            str(v.name): BOOLEAN for v in formula_with_no_nexts.variablesin()
+        }
 
-        simplified = environ.simplifier.simplify(And(*formula_with_no_nexts.to_smt(symbol_table)))
+        simplified = environ.simplifier.simplify(
+            And(*formula_with_no_nexts.to_smt(symbol_table))
+        )
         to_formula = fnode_to_formula(simplified)
-        to_formula = to_formula.replace(replacings)
+        to_formula = to_formula.replace(add_back_nexts)
         return to_formula
-
 
 
 def bdd_simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = propagate_nexts_and_atomize(formula)
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in ltl_to_prop.variablesin()}
 
-    keys = list(symbol_table.keys())
-    for v in keys:
-        symbol_table[str(v) + "_next"] = TypedValuation(symbol_table[v].name + "_next", symbol_table[v].type, None)
+    for v in ltl_to_prop.variablesin():
+        symbol_table[str(v) + "_next"] = BOOLEAN
 
-    simplified = string_to_prop(serialize(bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])))
+    simplified_ltl = bdd_simplify(ltl_to_prop.to_smt(symbol_table)[0])
+    if simplified_ltl is not None:
+        simplified = fnode_to_formula(simplified_ltl)
 
-    simplified_ltl = simplified.replace([BiOp(Variable(str(v)), ":=", X(Variable(str(v).split("_next")[0])))
-                                         for v in simplified.variablesin() if str(v).endswith("_next")])
-    return simplified_ltl
+        simplified_ltl = simplified.replace(
+            {
+                Variable(str(v)): X(Variable(str(v).split("_next")[0]))
+                for v in simplified.variablesin()
+                if str(v).endswith("_next")
+            }
+        )
+        return simplified_ltl
+    else:
+        return formula
+
 
 def simplify_ltl_formula(formula, symbol_table=None):
     ltl_to_prop = ltl_to_propositional(formula)
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in ltl_to_prop.variablesin()}
 
-    simplified = string_to_prop(serialize(simplify(And(*ltl_to_prop.to_smt(symbol_table)))))
+    simplified = fnode_to_formula(simplify(And(*ltl_to_prop.to_smt(symbol_table))))
 
-    simplified_ltl = simplified.replace([BiOp(Variable(str(v)), ":=", X(Variable(str(v).split("_next")[0])))
-                                         for v in simplified.variablesin() if str(v).endswith("_next")])
+    simplified_ltl = simplified.replace(
+        {
+            Variable(str(v)): X(Variable(str(v).split("_next")[0]))
+            for v in simplified.variablesin()
+            if str(v).endswith("_next")
+        }
+    )
     return simplified_ltl
 
 
@@ -450,17 +636,26 @@ def ltl_to_propositional(formula):
         return formula
     elif isinstance(formula, BiOp):
         if formula.op in ["U", "W", "R", "M"]:
-            raise Exception("ltl_to_propositional: I can only handle propositional formulas with next " + str(formula))
-        return BiOp(ltl_to_propositional(formula.left), formula.op, ltl_to_propositional(formula.right))
+            raise Exception(
+                "ltl_to_propositional: I can only handle propositional formulas with next "
+                + str(formula)
+            )
+        return BiOp(
+            ltl_to_propositional(formula.left),
+            formula.op,
+            ltl_to_propositional(formula.right),
+        )
     elif isinstance(formula, UniOp):
         if formula.op == "X":
             vars = formula.right.variablesin()
-            to_next = [BiOp(v, ":=", Variable(str(v) + "_next")) for v in vars]
+            to_next = {v: Variable(str(v) + "_next") for v in vars}
             return ltl_to_propositional(formula.right.replace(to_next))
         else:
             return UniOp(formula.op, ltl_to_propositional(formula.right))
     else:
-        raise Exception("ltl_to_propositional: I do not know how to handle " + str(formula))
+        raise Exception(
+            "ltl_to_propositional: I do not know how to handle " + str(formula)
+        )
 
 
 def dnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
@@ -470,10 +665,6 @@ def dnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     f_vars = f.variablesin()
     if len(f_vars) == 0:
         return f
-    elif len(f_vars) <= 6:
-        result = dnf(f, symbol_table)
-        dnf_cache[f] = result
-        return result
     else:
         return dnf_with_timeout(f, symbol_table, simplify, timeout)
 
@@ -482,16 +673,27 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+    if len(set(f.ops_used())) <= 1:
+        return f
+
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
     try:
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f)
+
+        if BoolBiOps.DISJ not in simple_f.ops_used():
+            return f
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
         if simplify:
-            simple_f_without_math = simplify_formula_without_math(simple_f_without_math)
+            simple_f_without_math = simplify_formula_without_math(
+                simple_f_without_math, symbol_table | {v: BOOLEAN for v in dic.keys()}
+            )
 
-        if isinstance(simple_f_without_math, BiOp) and simple_f_without_math.op[0] == "|":
+        if (
+            isinstance(simple_f_without_math, BiOp)
+            and simple_f_without_math.op == BoolBiOps.DISJ
+        ):
             disjuncts = simple_f_without_math.sub_formulas_up_to_associativity()
         else:
             disjuncts = [simple_f_without_math]
@@ -502,13 +704,15 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
                 for_sympi = disjunct.to_sympy()
                 if isinstance(for_sympi, int):
                     return simple_f
-            # if formula has more than 8 variables it can take a long time, dnf is exponential
+                # if formula has more than 8 variables it can take a long time, dnf is exponential
                 in_dnf = to_dnf(for_sympi, simplify=simplify, force=True)
                 new_disjunct = sympi_to_formula(in_dnf)
             else:
                 new_disjunct = disjunct
             # print(str(f) + " after dnf becomes " + str(in_dnf).replace("~", "!"))
-            new_disjunct = new_disjunct.replace([BiOp(Variable(key), ":=", value) for key, value in dic.items()])
+            new_disjunct = new_disjunct.replace(
+                {Variable(key): value for key, value in dic.items()}
+            )
 
             new_disjuncts.append(new_disjunct)
 
@@ -516,15 +720,20 @@ def dnf(f: Formula, symbol_table: dict = None, simplify=True):
 
         return in_dnf_math_back
     except Exception as e:
-        raise Exception("dnf: I do not know how to handle " + str(f) + ", cannot turn it into dnf. " + str(e))
+        raise Exception(
+            "dnf: I do not know how to handle "
+            + str(f)
+            + ", cannot turn it into dnf. "
+            + str(e)
+        )
 
 
 def dnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
 
     success, ret = run_with_timeout(dnf, [f, symbol_table, simplify], timeout=timeout)
 
@@ -539,8 +748,8 @@ def cnf_with_timeout(f: Formula, symbol_table: dict = None, simplify=True, timeo
     if isinstance(f, Value) or isinstance(f, MathExpr):
         return f
 
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
 
     success, ret = run_with_timeout(cnf, [f, symbol_table], timeout=timeout)
     if success:
@@ -557,22 +766,24 @@ def cnf_safe(f: Formula, symbol_table: dict = None, simplify=True, timeout=0.3):
     elif f in cnf_cache.keys():
         return cnf_cache[f]
     elif len(f_vars) <= 6:
-        result = cnf(f, symbol_table)
-        cnf_cache[f] = result
-        return result
+        return cnf(f, symbol_table)
     else:
         return cnf_with_timeout(f, symbol_table, simplify, timeout)
 
+
 cnf_cache = {}
 
+
 def cnf(f: Formula, symbol_table: dict = None):
-    if symbol_table == None:
-        symbol_table = {str(v): TypedValuation(str(v), "bool", None) for v in f.variablesin()}
+    if not symbol_table:
+        symbol_table = {str(v): BOOLEAN for v in f.variablesin()}
     try:
         simple_f = only_dis_or_con_junctions(f)
         simple_f = propagate_negations(simple_f).simplify()
         simple_f_without_math, dic = simple_f.replace_math_exprs(symbol_table)
-        simple_f_without_math = simplify_formula_without_math(simple_f_without_math).to_nuxmv()
+        simple_f_without_math = simplify_formula_without_math(
+            simple_f_without_math, symbol_table
+        )
         for_sympi = simple_f_without_math.to_sympy()
         if isinstance(for_sympi, int):
             return f
@@ -583,31 +794,40 @@ def cnf(f: Formula, symbol_table: dict = None):
             in_cnf_formula = sympi_to_formula(in_cnf)
         except Exception as e:
             raise e
-        in_cnf_math_back = in_cnf_formula.replace([BiOp(Variable(key), ":=", value) for key, value in dic.items()])
+        if not dic:
+            in_cnf_math_back = in_cnf_formula
+        else:
+            in_cnf_math_back = in_cnf_formula.replace(
+                {Variable(key): value for key, value in dic.items()}
+            )
 
         cnf_cache[f] = in_cnf_math_back
 
         return in_cnf_math_back
     except Exception as e:
-        raise Exception("cnf: I do not know how to handle " + str(f) + ", cannot turn it into cnf." + str(e))
+        raise Exception(
+            "cnf: I do not know how to handle "
+            + str(f)
+            + ", cannot turn it into cnf."
+            + str(e)
+        )
 
 
 def append_to_variable_name(formula, vars_names, suffix):
-    return formula.replace([BiOp(Variable(v), ":=", Variable(v + suffix)) for v in vars_names])
+    return formula.replace(
+        lambda v: Variable(v.name + suffix) if v in vars_names else v
+    )
 
 
 def mutually_exclusive_rules(states):
-    return [str(s) + " -> " + str(conjunct_formula_set([neg(Variable(str(ss))) for ss in states if ss != s])) for s in
-            states]
-
-
-def is_boolean(var, tvs):
-    return any(tv for tv in tvs if tv.name == str(var) and re.match("bool(ean)?", str(tv.type)))
-
-
-def infinite_type(var, tvs):
-    return any(
-        tv for tv in tvs if tv.name == str(var) and re.match("(nat(ural)?|int(eger)?|real|rat(ional)?)", str(tv.type)))
+    return [
+        str(s)
+        + " -> "
+        + str(
+            conjunct_formula_set([neg(Variable(str(ss))) for ss in states if ss != s])
+        )
+        for s in states
+    ]
 
 
 def related_to(v, F: Formula):
@@ -627,8 +847,21 @@ def related_to(v, F: Formula):
     return related_to
 
 
+def type_constraints_formula(formula, symbol_table):
+    return conjunct_formula_set(type_constraints(formula, symbol_table))
+
+
 def type_constraints(formula, symbol_table):
-    return conjunct_formula_set(set({type_constraint(v, symbol_table) for v in formula.variablesin()}))
+    return type_constraints_from_vars(formula.variablesin(), symbol_table)
+
+
+def type_constraints_from_vars(vars, symbol_table):
+    constraints = set()
+    for v in vars:
+        t = type_constraint(v, symbol_table)
+        if not (isinstance(t, Value) and t.is_true()):
+            constraints.add(t)
+    return constraints
 
 
 def type_constraints_acts(transition, symbol_table):
@@ -636,7 +869,22 @@ def type_constraints_acts(transition, symbol_table):
     constraints = []
     for act in acts:
         if act.right != act.left:
-            constraint = type_constraint(act.left, symbol_table).replace([BiOp(act.left, ":=", act.right)])
+            constraint = type_constraint_from_act(act, symbol_table)
+            if not isinstance(constraint, Value) and not constraint.variablesin():
+                constraint = fnode_to_formula(constraint.to_smt(symbol_table)[0].simplify())
+            if not (isinstance(constraint, Value) and constraint.is_true()):
+                constraints.append(constraint)
+    return constraints
+
+
+def action_constraints(transition, symbol_table):
+    acts = transition.action
+    constraints = []
+    for act in acts:
+        if act.right != act.left:
+            constraint = type_constraint(act.left, symbol_table).replace(
+                {act.left: act.right}
+            )
             if sat(conjunct(transition.condition, neg(constraint)), symbol_table):
                 constraints.append(constraint)
     return conjunct_formula_set(constraints)
@@ -645,68 +893,364 @@ def type_constraints_acts(transition, symbol_table):
 def type_constraint(variable, symbol_table):
     if str(variable) not in symbol_table.keys():
         raise Exception(f"{str(variable)} not in symbol table.")
-    typed_val = symbol_table[str(variable)]
+    type = symbol_table[str(variable)]
 
     if isinstance(variable, Variable):
-        if typed_val.type == "int" or typed_val.type == "integer":
-            return Value("TRUE")
-        elif typed_val.type == "bool" or typed_val.type == "boolean":
-            return Value("TRUE")
-        elif typed_val.type == "nat" or typed_val.type == "natural":
+        if type == INTEGER:
+            return Value(BoolAtoms.TRUE)
+        elif type == BOOLEAN:
+            return Value(BoolAtoms.TRUE)
+        elif type == NATURAL:
             return MathExpr(BiOp(variable, ">=", Value("0")))
-        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
-            split = re.split(r"\.\.", typed_val.type)
-            lower = split[0]
-            upper = split[1]
-            return BiOp(MathExpr(BiOp(variable, ">=", Value(lower))), "&&",
-                        MathExpr(BiOp(variable, "<=", Value(upper))))
+        elif type.interval:
+            return BiOp(
+                MathExpr(
+                    BiOp(
+                        variable,
+                        (">=" if type.interval.lower_inclusive else ">"),
+                        Value(type.interval.lower),
+                    )
+                ),
+                "&&",
+                MathExpr(
+                    BiOp(
+                        variable,
+                        ("<=" if type.interval.upper_inclusive else "<"),
+                        Value(type.interval.upper),
+                    )
+                ),
+            )
         else:
-            raise NotImplementedError(f"Type {typed_val.type} unsupported.")
+            raise NotImplementedError(f"Type {type} unsupported.")
     else:
         raise Exception(f"{str(variable)} not a variable.")
 
 
-def propagate_negations(formula):
+def type_constraint_from_act(act, symbol_table):
+    constraints = set()
+    constraints.add(next_type_constraint_from_act(act, symbol_table))
+    vars = [v for v in act.right.variablesin()]
+    if act.left in vars:
+        vars.remove(act.left)
+    constraints.update(type_constraints_from_vars(vars, symbol_table))
+    if true() in constraints:
+        constraints.remove(true())
+
+    return conjunct_formula_set(constraints)
+
+
+def next_type_constraint_from_act(act, symbol_table):
+    from prop_lang.nondet import NonDeterministic
+
+    # An unconstrained assignment chooses within the destination variable's
+    # declared domain; it has no source expression to constrain.
+    if isinstance(act.right, NonDeterministic):
+        return true()
+    variable = act.left
+    if str(variable) not in symbol_table.keys():
+        raise Exception(f"{str(variable)} not in symbol table.")
+    type = symbol_table[str(variable)]
+
+    if isinstance(variable, Variable):
+        if type == INTEGER:
+            return Value(BoolAtoms.TRUE)
+        elif type == BOOLEAN:
+            return Value(BoolAtoms.TRUE)
+        elif type == NATURAL:
+            if is_tautology(BiOp(variable, "<=", act.right), symbol_table):
+                return Value(BoolAtoms.TRUE)
+            return MathExpr(BiOp(act.right, ">=", Value("0")))
+        elif type.interval:
+            constraints = []
+            if is_tautology(BiOp(variable, "==", act.right), symbol_table):
+                return Value(BoolAtoms.TRUE)
+
+            assuming_prev_in_lower_bound = BiOp(
+                variable,
+                (">=" if type.interval.lower_inclusive else ">"),
+                Value(type.interval.lower),
+            )
+            assuming_prev_in_upper_bound = BiOp(
+                variable,
+                ("<=" if type.interval.upper_inclusive else "<"),
+                Value(type.interval.upper),
+            )
+            assuming_prev_in_bounds = conjunct(
+                assuming_prev_in_lower_bound, assuming_prev_in_upper_bound
+            )
+            assuming_next_in_lower_bound = (
+                assuming_prev_in_lower_bound.replace_formulas({variable: act.right})
+            )
+            assuming_next_in_upper_bound = (
+                assuming_prev_in_upper_bound.replace_formulas({variable: act.right})
+            )
+
+            if not is_tautology(
+                implies(assuming_prev_in_bounds, assuming_next_in_lower_bound),
+                symbol_table,
+            ):
+                constraints.append(assuming_next_in_lower_bound)
+            if not is_tautology(
+                implies(assuming_prev_in_bounds, assuming_next_in_upper_bound),
+                symbol_table,
+            ):
+                constraints.append(assuming_next_in_upper_bound)
+            if len(constraints) == 0:
+                return Value(BoolAtoms.TRUE)
+            else:
+                return conjunct_formula_set(constraints)
+        else:
+            raise NotImplementedError(f"Type {type} unsupported.")
+    else:
+        raise Exception(f"{str(variable)} not a variable.")
+
+
+def cancel_double_negations(formula: Formula):
     if isinstance(formula, UniOp):
         if formula.op == "!":
-            return negate(propagate_negations(formula.right))
+            if isinstance(formula.right, UniOp) and formula.right.op == "!":
+                return cancel_double_negations(formula.right.right)
+            else:
+                return UniOp("!", cancel_double_negations(formula.right))
         else:
-            return UniOp(formula.op, propagate_negations(formula))
+            return UniOp(formula.op, cancel_double_negations(formula.right))
     elif isinstance(formula, BiOp):
-        return BiOp(propagate_negations(formula.left), formula.op, propagate_negations(formula.right))
+        return BiOp(
+            cancel_double_negations(formula.left),
+            formula.op,
+            cancel_double_negations(formula.right),
+        )
     else:
         return formula
 
 
-def negate(formula):
+def _negate_non_recursive(formula: Formula):
+    """Non-recursive equivalent of negate(formula)."""
+    task_stack = [("visit", formula)]
+    value_stack = []
+
+    while task_stack:
+        task, node = task_stack.pop()
+        if task == "visit":
+            if isinstance(node, UniOp):
+                if node.op == "!":
+                    value_stack.append(node.right)
+                elif node.op in ["G", "F", "X"] or node.op not in ["!", "-"]:
+                    task_stack.append(("combine_uni", node))
+                    task_stack.append(("visit", node.right))
+                else:
+                    task_stack.append(("combine_uni", node))
+                    task_stack.append(("visit", node.right))
+            elif isinstance(node, BiOp):
+                if node.op in ["&", "|", "U", "R", "W", "M"]:
+                    task_stack.append(("combine_bi_both_negated", node))
+                    task_stack.append(("visit", node.right))
+                    task_stack.append(("visit", node.left))
+                elif node.op == "->":
+                    task_stack.append(("combine_impl", node))
+                    task_stack.append(("visit", node.right))
+                elif node.op == "<->":
+                    task_stack.append(("combine_iff", node))
+                    task_stack.append(("visit", node.right))
+                    task_stack.append(("visit", node.left))
+                elif node.op == ">":
+                    value_stack.append(BiOp(node.left, "<=", node.right))
+                elif node.op == "<":
+                    value_stack.append(BiOp(node.left, ">=", node.right))
+                elif node.op == ">=":
+                    value_stack.append(BiOp(node.left, "<", node.right))
+                elif node.op == "<=":
+                    value_stack.append(BiOp(node.left, ">", node.right))
+                elif node.op == "=" or node.op == "==":
+                    value_stack.append(BiOp(node.left, "!=", node.right))
+                else:
+                    value_stack.append(UniOp("!", node))
+            else:
+                value_stack.append(UniOp("!", node).simplify())
+        elif task == "combine_uni":
+            right = value_stack.pop()
+            if node.op == "G":
+                value_stack.append(F(right))
+            elif node.op == "F":
+                value_stack.append(G(right))
+            elif node.op == "X":
+                value_stack.append(X(right))
+            else:
+                value_stack.append(UniOp(node.op, right))
+        elif task == "combine_bi_both_negated":
+            right = value_stack.pop()
+            left = value_stack.pop()
+            if node.op == "&":
+                value_stack.append(BiOp(left, "|", right))
+            elif node.op == "|":
+                value_stack.append(BiOp(left, "&", right))
+            elif node.op == "U":
+                value_stack.append(BiOp(left, "R", right))
+            elif node.op == "R":
+                value_stack.append(BiOp(left, "U", right))
+            elif node.op == "W":
+                value_stack.append(BiOp(left, "M", right))
+            elif node.op == "M":
+                value_stack.append(BiOp(left, "W", right))
+            else:
+                value_stack.append(UniOp("!", BiOp(left, node.op, right)))
+        elif task == "combine_impl":
+            right = value_stack.pop()
+            value_stack.append(BiOp(node.left, "&", right))
+        elif task == "combine_iff":
+            right = value_stack.pop()
+            left = value_stack.pop()
+            value_stack.append(
+                BiOp(BiOp(node.left, "&", right), "|", BiOp(left, "&", node.right))
+            )
+
+    return value_stack.pop()
+
+
+def negate(formula: Formula):
+    return _negate_non_recursive(formula)
+
+
+def _propagate_negations_recursive(formula: Formula):
+    """Legacy recursive implementation kept as reference for tests."""
+    if isinstance(formula, UniOp):
+        if formula.op == "!":
+            return negate_recursive(_propagate_negations_recursive(formula.right))
+        else:
+            return UniOp(formula.op, _propagate_negations_recursive(formula.right))
+    elif isinstance(formula, BiOp):
+        n_left = _propagate_negations_recursive(formula.left)
+        n_right = _propagate_negations_recursive(formula.right)
+        if formula.op == "W":
+            return disjunct(G(n_left), U(n_left, n_right))
+        elif formula.op == "R":
+            return UniOp(
+                "!",
+                U(
+                    _propagate_negations_recursive(neg(n_left)),
+                    _propagate_negations_recursive(neg(n_right)),
+                ),
+            )
+        elif formula.op == "M":
+            return U(n_right, conjunct(n_left, n_right))
+        return BiOp(n_left, formula.op, n_right)
+    else:
+        return formula
+
+
+@functools.lru_cache(maxsize=50000)
+def _propagate_negations_cached(formula: Formula):
+    """
+    Non-recursive version of propagate_negations to avoid recursion-depth failures.
+    """
+    task_stack = [("visit", formula)]
+    value_stack = []
+
+    while task_stack:
+        task, node = task_stack.pop()
+        if task == "visit":
+            if isinstance(node, UniOp):
+                task_stack.append(("combine_uni", node))
+                task_stack.append(("visit", node.right))
+            elif isinstance(node, BiOp):
+                task_stack.append(("combine_bi", node))
+                task_stack.append(("visit", node.right))
+                task_stack.append(("visit", node.left))
+            else:
+                value_stack.append(node)
+        elif task == "combine_uni":
+            right = value_stack.pop()
+            if node.op == "!":
+                value_stack.append(negate(right))
+            else:
+                value_stack.append(UniOp(node.op, right))
+        elif task == "combine_bi":
+            right = value_stack.pop()
+            left = value_stack.pop()
+            if node.op == "W":
+                value_stack.append(disjunct(G(left), U(left, right)))
+            elif node.op == "R":
+                task_stack.append(("combine_r", None))
+                task_stack.append(("visit", neg(right)))
+                task_stack.append(("visit", neg(left)))
+            elif node.op == "M":
+                value_stack.append(U(right, conjunct(left, right)))
+            else:
+                value_stack.append(BiOp(left, node.op, right))
+        elif task == "combine_r":
+            right_neg_prop = value_stack.pop()
+            left_neg_prop = value_stack.pop()
+            value_stack.append(UniOp("!", U(left_neg_prop, right_neg_prop)))
+
+    return value_stack.pop()
+
+
+def propagate_negations(formula: Formula):
+    return _propagate_negations_cached(formula)
+
+
+def negate_recursive(formula):
     if isinstance(formula, UniOp):
         if formula.op == "!":
             return formula.right
+        elif formula.op == "G":
+            # !G(phi) == F(!phi)
+            return F(negate_recursive(formula.right))
+        elif formula.op == "F":
+            # !F(phi) == G(!phi)
+            return G(negate_recursive(formula.right))
+        elif formula.op == "X":
+            # !X(phi) == X(!phi)
+            return X(negate_recursive(formula.right))
         else:
-            return UniOp(formula.op, negate(formula.right))
+            return UniOp(formula.op, negate_recursive(formula.right))
     elif isinstance(formula, BiOp):
-        if formula.op == "&" or formula.op == "&&":
-            return BiOp(negate(formula.left), "|", negate(formula.right))
-        elif formula.op == "|" or formula.op == "||":
-            return BiOp(negate(formula.left), "&", negate(formula.right))
-        elif formula.op == "->" or formula.op == "=>":
-            return BiOp(formula.left, "&", negate(formula.right))
-        elif formula.op == "<->" or formula.op == "<=>":
-            return BiOp(BiOp(formula.left, "&", negate(formula.right)), "|",
-                        BiOp(negate(formula.left), "&", formula.right))
+        if formula.op == "&":
+            return BiOp(
+                negate_recursive(formula.left), "|", negate_recursive(formula.right)
+            )
+        elif formula.op == "|":
+            return BiOp(
+                negate_recursive(formula.left), "&", negate_recursive(formula.right)
+            )
+        elif formula.op == "->":
+            return BiOp(formula.left, "&", negate_recursive(formula.right))
+        elif formula.op == "<->":
+            return BiOp(
+                BiOp(formula.left, "&", negate_recursive(formula.right)),
+                "|",
+                BiOp(negate_recursive(formula.left), "&", formula.right),
+            )
         elif formula.op == ">":
             return BiOp(formula.left, "<=", formula.right)
         elif formula.op == "<":
             return BiOp(formula.left, ">=", formula.right)
-        elif formula.op == ">":
-            return BiOp(formula.left, "<=", formula.right)
         elif formula.op == ">=":
             return BiOp(formula.left, "<", formula.right)
         elif formula.op == "<=":
             return BiOp(formula.left, ">", formula.right)
         elif formula.op == "=" or formula.op == "==":
-            return BiOp(BiOp(formula.left, ">", formula.right), "||",
-                        BiOp(formula.left, "<", formula.right))
+            return BiOp(formula.left, "!=", formula.right)
+        elif formula.op == "U":
+            # !(a U b) == (!a) R (!b)
+            return BiOp(
+                negate_recursive(formula.left), "R", negate_recursive(formula.right)
+            )
+        elif formula.op == "R":
+            # !(a R b) == (!a) U (!b)
+            return BiOp(
+                negate_recursive(formula.left), "U", negate_recursive(formula.right)
+            )
+        elif formula.op == "W":
+            # !(a W b) == (!a) M (!b)
+            return BiOp(
+                negate_recursive(formula.left), "M", negate_recursive(formula.right)
+            )
+        elif formula.op == "M":
+            # !(a M b) == (!a) W (!b)
+            return BiOp(
+                negate_recursive(formula.left), "W", negate_recursive(formula.right)
+            )
         else:
             return UniOp("!", formula)
     else:
@@ -721,12 +1265,31 @@ def resolve_implications(formula):
             return UniOp(formula.op, resolve_implications(formula.right))
     elif isinstance(formula, BiOp):
         if formula.op == "->" or formula.op == "=>":
-            return BiOp(neg(resolve_implications(formula.left)), "|", resolve_implications(formula.right))
+            return BiOp(
+                neg(resolve_implications(formula.left)),
+                "|",
+                resolve_implications(formula.right),
+            )
         elif formula.op == "<->" or formula.op == "<=>":
-            return BiOp(BiOp(neg(resolve_implications(formula.left)), "|", resolve_implications(formula.right)), "&",
-                        BiOp((resolve_implications(formula.left)), "|", neg(resolve_implications(formula.right))))
+            return BiOp(
+                BiOp(
+                    neg(resolve_implications(formula.left)),
+                    "|",
+                    resolve_implications(formula.right),
+                ),
+                "&",
+                BiOp(
+                    (resolve_implications(formula.left)),
+                    "|",
+                    neg(resolve_implications(formula.right)),
+                ),
+            )
         else:
-            return BiOp(resolve_implications(formula.left), formula.op, resolve_implications(formula.right))
+            return BiOp(
+                resolve_implications(formula.left),
+                formula.op,
+                resolve_implications(formula.right),
+            )
     elif isinstance(formula, MathExpr):
         return MathExpr((formula.formula))
     else:
@@ -735,7 +1298,12 @@ def resolve_implications(formula):
 
 def keep_only_vars(formula, vars_to_keep, make_program_choices_explicit=False):
     to_project_out = [v for v in formula.variablesin() if v not in vars_to_keep]
-    return project_out_vars_int(propagate_negations(formula), to_project_out, True, make_program_choices_explicit)
+    return project_out_vars_int(
+        propagate_negations(formula),
+        to_project_out,
+        True,
+        make_program_choices_explicit,
+    )
 
 
 def keep_only_vars_inverse(formula, vars_to_keep):
@@ -744,73 +1312,114 @@ def keep_only_vars_inverse(formula, vars_to_keep):
 
 
 def project_out_vars_inverse(formula, vars_to_project_out):
-    return project_out_vars_int(propagate_negations(formula), vars_to_project_out, False)
+    return project_out_vars_int(
+        propagate_negations(formula), vars_to_project_out, False
+    )
 
 
 def project_out_vars(formula, vars_to_project_out, make_program_choices_explicit=False):
-    return project_out_vars_int(propagate_negations(formula), vars_to_project_out, True, make_program_choices_explicit)
+    return project_out_vars_int(
+        propagate_negations(formula),
+        vars_to_project_out,
+        True,
+        make_program_choices_explicit,
+    )
 
 
-def project_out_vars_int(formula, vars_to_project_out, make_true, make_program_choices_explicit=False):
-    program_choice = Variable("program_choice") if make_program_choices_explicit else Value("FALSE")
+def project_out_vars_int(
+    formula,
+    vars_to_project_out,
+    make_true,
+    make_program_choices_explicit=False,
+):
+    program_choice = (
+        Variable("program_choice")
+        if make_program_choices_explicit
+        else Value(BoolAtoms.FALSE)
+    )
     if isinstance(formula, Value):
         return formula
     elif isinstance(formula, Variable):
         if formula in vars_to_project_out:
-            return Value("TRUE") if make_true else program_choice
+            return Value(BoolAtoms.TRUE) if make_true else program_choice
         else:
             return formula
     elif isinstance(formula, UniOp):
-        if not isinstance(formula.right, Value) and not isinstance(formula.right, Variable):
+        if not isinstance(formula.right, Value) and not isinstance(
+            formula.right, Variable
+        ):
             raise Exception("propagate negations before calling project_out_vars")
         if formula.right in vars_to_project_out:
-            return Value("TRUE") if make_true else program_choice
+            return Value(BoolAtoms.TRUE) if make_true else program_choice
         else:
             return formula
     elif isinstance(formula, BiOp):
         vars_in_formula = formula.variablesin()
         if not any(v not in vars_to_project_out for v in vars_in_formula):
-            return Value("TRUE") if make_true else program_choice
+            return Value(BoolAtoms.TRUE) if make_true else program_choice
         elif not any(v in vars_to_project_out for v in vars_in_formula):
             return formula
         else:
-            make_true = formula.op[0] == "&"  # if make_true else formula.op[0] == "|"
-            return BiOp(project_out_vars_int(formula.left, vars_to_project_out, make_true),
-                        formula.op, project_out_vars_int(formula.right, vars_to_project_out, make_true))
+            make_true = (
+                formula.op == BoolBiOps.CONJ
+            )  # if make_true else formula.op == "|"
+            return BiOp(
+                project_out_vars_int(formula.left, vars_to_project_out, make_true),
+                formula.op,
+                project_out_vars_int(formula.right, vars_to_project_out, make_true),
+            )
     else:
         raise Exception("not implemented")
 
 
-def partially_evaluate(formula, true_vars: [Variable], false_vars: [Variable], symbol_table):
+def partially_evaluate(
+    formula, true_vars: list[Variable], false_vars: list[Variable], symbol_table
+):
     new_formula = formula
     for v in true_vars:
         if not isinstance(v, Variable):
-            raise Exception("partially_evaluate: element " + str(v) + " of true_vars is not a variable")
-        new_formula = new_formula.replace([BiOp(v, ":=", true())])
+            raise Exception(
+                "partially_evaluate: element "
+                + str(v)
+                + " of true_vars is not a variable"
+            )
+        new_formula = new_formula.replace({v: true()})
     for v in false_vars:
         if not isinstance(v, Variable):
-            raise Exception("partially_evaluate: element " + str(v) + " of false_vars is not a variable")
-        new_formula = new_formula.replace([BiOp(v, ":=", false())])
+            raise Exception(
+                "partially_evaluate: element "
+                + str(v)
+                + " of false_vars is not a variable"
+            )
+        new_formula = new_formula.replace({v: false()})
 
     new_formula_simplified = new_formula.simplify()
-    new_formula_simplified_more = simplify_formula_with_math(new_formula_simplified, symbol_table)
+    new_formula_simplified_more = simplify_formula_with_math(
+        new_formula_simplified, symbol_table
+    )
 
     return new_formula_simplified_more
 
 
 def is_atomic(f):
-    return isinstance(f, Variable) or isinstance(f, Value) or isinstance(f, MathExpr) or (
-                isinstance(f, UniOp) and is_atomic(f.right)) or should_be_math_expr(f)
+    return (
+        isinstance(f, Variable)
+        or isinstance(f, Value)
+        or isinstance(f, MathExpr)
+        or (isinstance(f, UniOp) and is_atomic(f.right))
+        or should_be_math_expr(f)
+    )
 
 
 def is_conjunction_of_atoms(formula):
-    if isinstance(formula, BiOp) and formula.op[0] == "&":
+    if isinstance(formula, BiOp) and formula.op == BoolBiOps.CONJ:
         for f in formula.sub_formulas_up_to_associativity():
             if is_atomic(f):
                 continue
-            if isinstance(f, BiOp) and f.op[0] == "&":
-                if any(not is_atomic(ff)
-                       for ff in f.sub_formulas_up_to_associativity()):
+            if isinstance(f, BiOp) and f.op == BoolBiOps.CONJ:
+                if any(
+                    not is_atomic(ff) for ff in f.sub_formulas_up_to_associativity()
+                ):
                     return False
             else:
                 return False
@@ -822,15 +1431,16 @@ def is_conjunction_of_atoms(formula):
 
 
 def is_conjunction_of_atoms_modulo_vars(formula, synt_props):
-    if isinstance(formula, BiOp) and formula.op[0] == "&":
+    if isinstance(formula, BiOp) and formula.op == BoolBiOps.CONJ:
         for f in formula.sub_formulas_up_to_associativity():
             if is_atomic(f):
                 continue
             if not any(v for v in f.variablesin() if v not in synt_props):
                 continue
-            if isinstance(f, BiOp) and f.op[0] == "&":
-                if any(not is_atomic(ff)
-                       for ff in f.sub_formulas_up_to_associativity()):
+            if isinstance(f, BiOp) and f.op == BoolBiOps.CONJ:
+                if any(
+                    not is_atomic(ff) for ff in f.sub_formulas_up_to_associativity()
+                ):
                     return False
             else:
                 return False
@@ -842,13 +1452,14 @@ def is_conjunction_of_atoms_modulo_vars(formula, synt_props):
 
 
 def is_disjunction_of_atoms(formula):
-    if isinstance(formula, BiOp) and formula.op[0] == "|":
+    if isinstance(formula, BiOp) and formula.op == "|":
         for f in formula.sub_formulas_up_to_associativity():
             if is_atomic(f):
                 continue
-            if isinstance(f, BiOp) and f.op[0] == "|":
-                if any(not is_atomic(ff)
-                       for ff in f.sub_formulas_up_to_associativity()):
+            if isinstance(f, BiOp) and f.op == "|":
+                if any(
+                    not is_atomic(ff) for ff in f.sub_formulas_up_to_associativity()
+                ):
                     return False
             else:
                 return False
@@ -859,21 +1470,85 @@ def is_disjunction_of_atoms(formula):
         return False
 
 
-def is_dnf(formula):
+def almost_dnf(formula):
+    # detect formuls of form (CONJ & CONJ) & (DISJ | DISJ | ...)
+    # and put them in DNF
     if isinstance(formula, BiOp):
-        if formula.op == "||":
+        if formula.op == "&":
             for f in formula.sub_formulas_up_to_associativity():
-                if not is_conjunction_of_atoms(f):
+                if isinstance(f, BiOp) and f.op == "|":
+                    for disj in f.sub_formulas_up_to_associativity():
+                        if not is_conjunction_of_atoms(disj):
+                            return False
+                elif not is_conjunction_of_atoms(f):
                     return False
-        elif formula.op[0] == "&":
-            return is_conjunction_of_atoms(formula)
+            return True
+        elif formula.op == "|":
+            return is_disjunction_of_atoms(formula)
         else:
             return is_atomic(formula)
+    elif isinstance(formula, UniOp):
+        if formula.op == "!":
+            return is_atomic(formula.right)
+        else:
+            return False
     else:
         return is_atomic(formula)
 
 
-def abstract_out_conjunctions_of_atoms(formula, dict) -> (Formula, dict):
+def almost_dnf_to_dnf(formula, depth, symbol_table):
+    if isinstance(formula, BiOp):
+        if formula.op == "&":
+            new_conjuncts = []
+            disjuncts = []
+            for f in formula.sub_formulas_up_to_associativity():
+                if isinstance(f, BiOp) and f.op == "|":
+                    disjuncts.append(
+                        [
+                            d
+                            for d in f.sub_formulas_up_to_associativity()
+                            if d != false()
+                        ]
+                    )
+                else:
+                    new_conjuncts.append(f)
+            if len(disjuncts) == 0:
+                return formula
+            combinations = itertools.product(*disjuncts)
+            new_disjuncts = []
+            for combination in combinations:
+                new_disj = conjunct_formula_set(list(combination) + new_conjuncts)
+                if not sat(new_disj, symbol_table):
+                    continue
+                if depth > 0:
+                    new_disj = almost_dnf_to_dnf(new_disj, depth - 1, symbol_table)
+                new_disjuncts.append(new_disj)
+            return disjunct_formula_set(new_disjuncts)
+        else:
+            return formula
+    else:
+        return formula
+
+
+def is_dnf(formula):
+    if isinstance(formula, BiOp):
+        if formula.op == "|":
+            for f in formula.sub_formulas_up_to_associativity():
+                return is_conjunction_of_atoms(f)
+        elif formula.op == "&":
+            return is_conjunction_of_atoms(formula)
+        else:
+            return is_atomic(formula)
+    elif isinstance(formula, UniOp):
+        if formula.op == "!":
+            return is_atomic(formula.right)
+        else:
+            return False
+    else:
+        return is_atomic(formula)
+
+
+def abstract_out_conjunctions_of_atoms(formula, dict) -> tuple[Formula, dict]:
     # traverse the syntax tree, abstract out all conjunction of atoms
     dict = {}
     if is_atomic(formula):
@@ -884,10 +1559,10 @@ def abstract_out_conjunctions_of_atoms(formula, dict) -> (Formula, dict):
         return Variable(var_name), dict
     elif isinstance(formula, BiOp):
         left_form, new_dict = abstract_out_conjunctions_of_atoms(formula.left, dict)
-        right_form, new_dict = abstract_out_conjunctions_of_atoms(formula.right, new_dict)
-        return BiOp(left_form,
-                    formula.op,
-                    right_form), new_dict
+        right_form, new_dict = abstract_out_conjunctions_of_atoms(
+            formula.right, new_dict
+        )
+        return BiOp(left_form, formula.op, right_form), new_dict
     elif isinstance(formula, UniOp):
         right_form, new_dict = abstract_out_conjunctions_of_atoms(formula.right, dict)
         return UniOp(formula.op, right_form), new_dict
@@ -895,7 +1570,7 @@ def abstract_out_conjunctions_of_atoms(formula, dict) -> (Formula, dict):
         return formula, dict
 
 
-def abstract_out_disjunctions_of_atoms(formula, dict={}) -> (Formula, dict):
+def abstract_out_disjunctions_of_atoms(formula, dict={}) -> tuple[Formula, dict]:
     # traverse the syntax tree, abstract out all conjunction of atoms
     if is_atomic(formula):
         return formula, dict
@@ -905,10 +1580,10 @@ def abstract_out_disjunctions_of_atoms(formula, dict={}) -> (Formula, dict):
         return Variable(var_name), dict
     elif isinstance(formula, BiOp):
         left_form, new_dict = abstract_out_disjunctions_of_atoms(formula.left, dict)
-        right_form, new_dict = abstract_out_disjunctions_of_atoms(formula.right, new_dict)
-        return BiOp(left_form,
-                    formula.op,
-                    right_form), new_dict
+        right_form, new_dict = abstract_out_disjunctions_of_atoms(
+            formula.right, new_dict
+        )
+        return BiOp(left_form, formula.op, right_form), new_dict
     elif isinstance(formula, UniOp):
         right_form, new_dict = abstract_out_disjunctions_of_atoms(formula.right, dict)
         return UniOp(formula.op, right_form), new_dict
@@ -927,58 +1602,202 @@ def depth_of_formula(formula):
 
 def should_be_math_expr(formula):
     if isinstance(formula, BiOp):
-        if formula.op in ["<", ">", "<=", ">=", "=", "==", "!="]:
+        if formula.op in ["<", ">", "<=", ">=", MathRels.EQ, "!="]:
             return True
     return False
 
 
-def atomic_predicates(formula):
+def atomic_predicates(formula) -> set[Formula]:
     if isinstance(formula, Value):
         return set()
-    elif isinstance(formula, Variable) or isinstance(formula, MathExpr) or should_be_math_expr(formula):
+    elif isinstance(formula, Update):
+        return set()
+    elif (
+        isinstance(formula, Variable)
+        or isinstance(formula, MathExpr)
+        or should_be_math_expr(formula)
+    ):
         return {formula}
     else:
         if isinstance(formula, UniOp):
             return atomic_predicates(formula.right)
         elif isinstance(formula, BiOp):
             return atomic_predicates(formula.left) | atomic_predicates(formula.right)
+        elif isinstance(formula, Update):
+            return atomic_predicates(formula.formula)
         else:
+            if isinstance(formula, str):
+                raise Exception("atomic_predicates: formula is string " + formula)
             raise Exception("atomic_predicates: not implemented for " + str(formula))
 
 
-def run_with_timeout(f, args, timeout=-1):
+def run_with_timeout(f, args, timeout):
+    import time
+    from multiprocessing import get_context
+
     if timeout == -1:
-        return f(args)
-    else:
-        queue = Queue()
-        params = tuple([f] + [tuple(args + [queue])])
-        p1 = Process(target=evaluate_and_queue, name=f.__name__, args=params)
-        p1.start()
-        p1.join(timeout)
-        if p1.is_alive():
-            p1.terminate()
+        return True, f(*args)
+
+    # These workers accept local functions and closures, which require fork.
+    context = get_context("fork")
+
+    # Use Manager for shared objects
+    with context.Manager() as manager:
+        result_dict = manager.dict()
+        result_dict["status"] = "running"
+
+        def target(func, func_args, shared_dict):
+            try:
+                result = func(*func_args)
+                shared_dict["status"] = "success"
+                shared_dict["result"] = result
+            except Exception as e:
+                shared_dict["status"] = "error"
+                shared_dict["error"] = str(e)
+
+        process = context.Process(target=target, args=(f, args, result_dict))
+        process.start()
+
+        # Polling approach
+        start_time = time.time()
+        poll_interval = 0.01
+
+        while time.time() - start_time < timeout:
+            if not process.is_alive():
+                # Process finished
+                process.join()
+
+                if result_dict["status"] == "success":
+                    return True, result_dict.get("result", None)
+                else:
+                    return False, None
+
+            time.sleep(poll_interval)
+
+        # Timeout occurred
+        if process.is_alive():
+            process.terminate()
+            time.sleep(0.01)
+            if process.is_alive():
+                process.kill()
+            process.join(timeout=0.1)
+
+        return False, None
+
+
+def run_with_timeout_pickled(f, args, timeout):
+    import time
+    import tempfile
+    import pickle
+    import os
+    from multiprocessing import get_context
+
+    if timeout == -1:
+        return True, f(*args)
+
+    # These workers accept local functions and closures, which require fork.
+    context = get_context("fork")
+
+    # Create a temporary file for result communication
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        result_file = temp_file.name
+
+    def target(func, func_args, result_path):
+        try:
+            result = func(*func_args)
+            with open(result_path, "wb") as f:
+                pickle.dump(("success", result), f)
+        except Exception as e:
+            with open(result_path, "wb") as f:
+                pickle.dump(("error", e), f)
+
+    process = context.Process(target=target, args=(f, args, result_file))
+    process.start()
+
+    # Polling with file-based communication
+    start_time = time.time()
+    poll_interval = 0.1
+
+    while time.time() - start_time < timeout:
+        if not process.is_alive():
+            # Process finished, check for result file
+            if os.path.exists(result_file) and os.path.getsize(result_file) > 0:
+                try:
+                    with open(result_file, "rb") as f:
+                        status, result = pickle.load(f)
+                    process.join()
+                    os.unlink(result_file)  # Clean up temp file
+                    return (status == "success"), result
+                except (pickle.PickleError, EOFError):
+                    # File corrupted or incomplete
+                    pass
+
+            # Process finished but no valid result
+            process.join()
+            try:
+                os.unlink(result_file)
+            except:
+                pass
             return False, None
-        else:
-            return True, queue.get()
+
+        time.sleep(poll_interval)
+
+    # Timeout occurred
+    success = False
+    result = None
+
+    # Try to get any result before cleanup
+    if os.path.exists(result_file) and os.path.getsize(result_file) > 0:
+        try:
+            with open(result_file, "rb") as f:
+                status, result = pickle.load(f)
+            success = status == "success"
+        except:
+            pass
+
+    # Force cleanup
+    if process.is_alive():
+        process.terminate()
+        time.sleep(0.5)
+        if process.is_alive():
+            process.kill()
+        process.join(timeout=2)
+
+    # Clean up temp file
+    try:
+        os.unlink(result_file)
+    except:
+        pass
+
+    return success, result
 
 
-def evaluate_and_queue(function, args):
-    result = function(*args[:-1])
-    print(result)
-    args[-1].put(result)
-
-
-def flatten_effects(effects: [(frozenset[Formula], frozenset[frozenset[Formula]])], preds, rename_pred):
+def flatten_effects(
+    effects: list[tuple[frozenset[Formula], frozenset[frozenset[Formula]]]],
+    preds,
+    rename_pred,
+):
     nows = [set(now) for now, _ in effects]
     common_nows = set.intersection(*nows)
 
     reduced_effects = [(now.difference(common_nows), nexts) for now, nexts in effects]
-    common_now_preds = list({p for p in preds for now, _ in reduced_effects if p in now or neg(p) in now})
-    common_now_preds.sort(key=lambda p : abs(len([p for now, _ in reduced_effects if p in now]) - len([p for now, _ in reduced_effects if neg(p) in now])), )
+    common_now_preds = list(
+        {p for p in preds for now, _ in reduced_effects if p in now or neg(p) in now}
+    )
+    common_now_preds.sort(
+        key=lambda p: abs(
+            len([p for now, _ in reduced_effects if p in now])
+            - len([p for now, _ in reduced_effects if neg(p) in now])
+        ),
+    )
 
     nexts = [set(next) for _, nexts in reduced_effects for next in nexts]
     common_nexts = set.intersection(*nexts)
-    reduced_effects = [(now, {next.difference(common_nexts)}) for now, nexts in reduced_effects for next in nexts]
+    reduced_effects = [
+        (now, {next.difference(common_nexts)})
+        for now, nexts in reduced_effects
+        for next in nexts
+    ]
 
     precondition = conjunct_formula_set([rename_pred(p) for p in common_nows])
     postcondition = conjunct_formula_set([rename_pred(p) for p in common_nexts])
@@ -988,33 +1807,71 @@ def flatten_effects(effects: [(frozenset[Formula], frozenset[frozenset[Formula]]
     return formula
 
 
-def take_out_predicate(effects: [(frozenset[Formula], frozenset[frozenset[Formula]])], preds : list, rename_pred):
+def take_out_predicate(
+    effects: list[tuple[frozenset[Formula], frozenset[frozenset[Formula]]]],
+    preds: list,
+    rename_pred,
+):
     if len(preds) == 0:
-        formula = disjunct_formula_set([conjunct(conjunct_formula_set([rename_pred(n) for n in now]),
-                                                      disjunct_formula_set([X(conjunct_formula_set([rename_pred(n) for n in next])) for next in nexts]))
-                                             for now, nexts in effects])
+        formula = disjunct_formula_set(
+            [
+                conjunct(
+                    conjunct_formula_set([rename_pred(n) for n in now]),
+                    disjunct_formula_set(
+                        [
+                            X(conjunct_formula_set([rename_pred(n) for n in next]))
+                            for next in nexts
+                        ]
+                    ),
+                )
+                for now, nexts in effects
+            ]
+        )
     else:
         p = preds[0]
         p_true = [(now.difference({p}), nexts) for now, nexts in effects if p in now]
-        p_false = [(now.difference({neg(p)}), nexts) for now, nexts in effects if neg(p) in now]
+        p_false = [
+            (now.difference({neg(p)}), nexts) for now, nexts in effects if neg(p) in now
+        ]
         true_formula = take_out_predicate(p_true, preds[1:], rename_pred)
         false_formula = take_out_predicate(p_false, preds[1:], rename_pred)
 
         true_formula = simplify_formula_with_next(true_formula)
         false_formula = simplify_formula_with_next(false_formula)
-        true_formula = true_formula.replace_formulas(lambda x : Value("true") if isinstance(x, UniOp) and x.op == "X" and isinstance(x.right, Value) and x.right.is_true() else None)
-        false_formula = false_formula.replace_formulas(lambda x : Value("true") if isinstance(x, UniOp) and x.op == "X" and isinstance(x.right, Value) and x.right.is_true() else None)
+        true_formula = true_formula.replace_formulas(
+            lambda x: (
+                true()
+                if isinstance(x, UniOp)
+                and x.op == "X"
+                and isinstance(x.right, Value)
+                and x.right.is_true()
+                else None
+            )
+        )
+        false_formula = false_formula.replace_formulas(
+            lambda x: (
+                true()
+                if isinstance(x, UniOp)
+                and x.op == "X"
+                and isinstance(x.right, Value)
+                and x.right.is_true()
+                else None
+            )
+        )
 
         if true_formula == false_formula:
             formula = true_formula
         else:
-            formula = disjunct(conjunct(rename_pred(p), true_formula),
-                               conjunct(neg(rename_pred(p)), false_formula))
+            formula = disjunct(
+                conjunct(rename_pred(p), true_formula),
+                conjunct(neg(rename_pred(p)), false_formula),
+            )
 
     formula = simplify_formula_with_next(formula)
     return formula
 
-def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
+
+def take_out_pred(disjuncts_of_conjuncts: list[list[Variable]], pred: Variable):
     true_at = set()
     false_at = set()
     others_at = set()
@@ -1029,21 +1886,37 @@ def take_out_pred(disjuncts_of_conjuncts: [[Variable]], pred: Variable):
     return true_at, false_at, others_at
 
 
-
-def take_out_preds(disjuncts_of_conjuncts: [[Variable]], preds: [Variable]):
+def take_out_preds(disjuncts_of_conjuncts: list[list[Variable]], preds: list[Variable]):
     def associated_formula_dict_to_formula(associated_formula):
-        return disjunct_formula_set([conjunct(conjunct_formula_set(preds),
-                                         disjunct_formula_set([conjunct_formula_set(r) for r in rest]))
-                                 for preds, rest in associated_formula.items()])
+        return disjunct_formula_set(
+            [
+                conjunct(
+                    conjunct_formula_set(preds),
+                    disjunct_formula_set([conjunct_formula_set(r) for r in rest]),
+                )
+                for preds, rest in associated_formula.items()
+            ]
+        )
+
     associated_formula = {frozenset(): disjuncts_of_conjuncts}
 
     if len(preds) == 0:
         return associated_formula_dict_to_formula(associated_formula)
 
-    common_preds = set(v for D in disjuncts_of_conjuncts for d in D for v in d.variablesin() if v in preds)
+    common_preds = set(
+        v
+        for D in disjuncts_of_conjuncts
+        for d in D
+        for v in d.variablesin()
+        if v in preds
+    )
     preds = common_preds
     # sort according to most common
-    preds = sorted(preds, key=lambda p: sum(1 for D in disjuncts_of_conjuncts if p in D), reverse=True)
+    preds = sorted(
+        preds,
+        key=lambda p: sum(1 for D in disjuncts_of_conjuncts if p in D),
+        reverse=True,
+    )
 
     logging.info("Trying to take out preds from dnf formula")
     prev_formula = associated_formula_dict_to_formula(associated_formula)
@@ -1052,17 +1925,28 @@ def take_out_preds(disjuncts_of_conjuncts: [[Variable]], preds: [Variable]):
         new_associated_formula = {}
 
         for prev_preds, set_of_disjuncts in associated_formula.items():
-            pred_true_disjuncts, pred_false_disjuncts, others_at = take_out_pred(set_of_disjuncts, pred)
+            (
+                pred_true_disjuncts,
+                pred_false_disjuncts,
+                others_at,
+            ) = take_out_pred(set_of_disjuncts, pred)
             if len(pred_true_disjuncts) > 0:
                 if frozenset(prev_preds | {pred}) not in new_associated_formula.keys():
                     new_associated_formula[frozenset(prev_preds | {pred})] = set()
-                new_associated_formula[frozenset(prev_preds | {pred})].update(pred_true_disjuncts)
+                new_associated_formula[frozenset(prev_preds | {pred})].update(
+                    pred_true_disjuncts
+                )
 
             if len(pred_false_disjuncts) > 0:
 
-                if frozenset(prev_preds | {neg(pred)}) not in new_associated_formula.keys():
+                if (
+                    frozenset(prev_preds | {neg(pred)})
+                    not in new_associated_formula.keys()
+                ):
                     new_associated_formula[frozenset(prev_preds | {neg(pred)})] = set()
-                new_associated_formula[frozenset(prev_preds | {neg(pred)})].update(pred_false_disjuncts)
+                new_associated_formula[frozenset(prev_preds | {neg(pred)})].update(
+                    pred_false_disjuncts
+                )
 
             if len(others_at) > 0:
                 if frozenset(prev_preds) not in new_associated_formula.keys():
@@ -1080,26 +1964,30 @@ def take_out_preds(disjuncts_of_conjuncts: [[Variable]], preds: [Variable]):
     return prev_formula
 
 
-def take_out_pred_sat(disjuncts: [Formula], pred: Variable, symbol_table):
+def take_out_pred_sat(disjuncts: list[Formula], pred: Variable, symbol_table):
     true_at = set()
     false_at = set()
     others_at = set()
     for disjunct in disjuncts:
         if not sat(conjunct(disjunct, neg(pred)), symbol_table):
-            true_at.add(disjunct.replace([BiOp(pred, ":=", true())]))
+            true_at.add(disjunct.replace({pred, true()}))
         elif not sat(conjunct(disjunct, pred), symbol_table):
-            false_at.add(disjunct.replace([BiOp(pred, ":=", false())]))
+            false_at.add(disjunct.replace({pred: false()}))
         else:
             others_at.add(disjunct)
 
     return true_at, false_at, others_at
 
 
-def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
+def take_out_preds_sat(disjuncts: list[Formula], preds: list[Formula], symbol_table):
     def associated_formula_dict_to_formula(associated_formula):
-        return disjunct_formula_set([conjunct(conjunct_formula_set(preds),
-                                         disjunct_formula_set(rest))
-                                 for preds, rest in associated_formula.items()])
+        return disjunct_formula_set(
+            [
+                conjunct(conjunct_formula_set(preds), disjunct_formula_set(rest))
+                for preds, rest in associated_formula.items()
+            ]
+        )
+
     associated_formula = {frozenset(): disjuncts}
 
     if len(preds) == 0:
@@ -1112,17 +2000,28 @@ def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
         new_associated_formula = {}
 
         for prev_preds, set_of_disjuncts in associated_formula.items():
-            pred_true_disjuncts, pred_false_disjuncts, others_at = take_out_pred_sat(set_of_disjuncts, pred, symbol_table)
+            (
+                pred_true_disjuncts,
+                pred_false_disjuncts,
+                others_at,
+            ) = take_out_pred_sat(set_of_disjuncts, pred, symbol_table)
             if len(pred_true_disjuncts) > 0:
                 if frozenset(prev_preds | {pred}) not in new_associated_formula.keys():
                     new_associated_formula[frozenset(prev_preds | {pred})] = set()
-                new_associated_formula[frozenset(prev_preds | {pred})].update(pred_true_disjuncts)
+                new_associated_formula[frozenset(prev_preds | {pred})].update(
+                    pred_true_disjuncts
+                )
 
             if len(pred_false_disjuncts) > 0:
 
-                if frozenset(prev_preds | {neg(pred)}) not in new_associated_formula.keys():
+                if (
+                    frozenset(prev_preds | {neg(pred)})
+                    not in new_associated_formula.keys()
+                ):
                     new_associated_formula[frozenset(prev_preds | {neg(pred)})] = set()
-                new_associated_formula[frozenset(prev_preds | {neg(pred)})].update(pred_false_disjuncts)
+                new_associated_formula[frozenset(prev_preds | {neg(pred)})].update(
+                    pred_false_disjuncts
+                )
 
             if len(others_at) > 0:
                 if frozenset(prev_preds) not in new_associated_formula.keys():
@@ -1140,7 +2039,7 @@ def take_out_preds_sat(disjuncts: [Formula], preds: [Formula], symbol_table):
     return prev_formula
 
 
-def project_out_props(env_cond: Formula, env_props: [Variable]):
+def project_out_props(env_cond: Formula, env_props: list[Variable]):
     return simplify_formula_without_math(project_out_vars(env_cond, env_props))
 
 
@@ -1178,7 +2077,11 @@ def is_predicate_var(p):
 def var_to_predicate(p):
     if str(p) in var_to_predicate_cache.keys():
         return var_to_predicate_cache[str(p)]
-    elif isinstance(p, UniOp) and p.op == "!" and str(p.right) in var_to_predicate_cache.keys():
+    elif (
+        isinstance(p, UniOp)
+        and p.op == "!"
+        and str(p.right) in var_to_predicate_cache.keys()
+    ):
         return neg(var_to_predicate_cache[str(p.right)])
     elif str(neg(p)) in var_to_predicate_cache.keys():
         return neg(var_to_predicate_cache[str(neg(p))].right)
@@ -1186,13 +2089,9 @@ def var_to_predicate(p):
         raise Exception("Could not find predicate for variable: " + str(p))
 
 
-def var_to_predicate_alt(p):
-    try:
-        return var_to_predicate(p)
-    except:
-        return None
-
 def label_pred(p, preds):
+    if not isinstance(p, Formula):
+        raise Exception(f"{p} is not a formula")
     if p in predicate_to_var_cache.keys():
         return predicate_to_var_cache[p]
 
@@ -1210,52 +2109,57 @@ def stringify_pred(p):
     if strip_outer_mathexpr(p) in predicate_to_var_cache.keys():
         return predicate_to_var_cache[strip_outer_mathexpr(p)]
 
-    representation = Variable("pred_" +
-                              str(p)
-                              .replace(" ", "")
-                              .replace("_", "")
-                              .replace("(", "_")
-                              .replace(")", "_")
-                              .replace("<=>", "_IFF_")
-                              .replace("<->", "_IFF_")
-                              .replace("<=", "_LTEQ_")
-                              .replace(">=", "_GTEQ_")
-                              .replace("=>", "_IMPLIES_")
-                              .replace("->", "_IMPLIES_")
-                              .replace(":=", "_GETS_")
-                              .replace("=", "_EQ_")
-                              .replace(">", "_GT_")
-                              .replace("<", "_LT_")
-                              .replace("+ -", "_SUB_")
-                              .replace("-", "_MINUS_")
-                              .replace("+", "_ADD_")
-                              .replace("/", "_DIV_")
-                              .replace("*", "_MULT_")
-                              .replace("%", "_MOD_")
-                              .replace("!", "_NEG_")
-                              .replace("&&", "_AND_")
-                              .replace("&", "_AND_")
-                              .replace("||", "_OR_")
-                              .replace("|", "_OR_")
-                              )
+    representation = Variable(
+        "pred_"
+        + str(p)
+        .replace(" ", "")
+        .replace("'", "")
+        .replace("_", "")
+        .replace("(", "_")
+        .replace(")", "_")
+        .replace("<=>", "_IFF_")
+        .replace("<->", "_IFF_")
+        .replace("<=", "_LTEQ_")
+        .replace(">=", "_GTEQ_")
+        .replace("=>", "_IMPLIES_")
+        .replace("->", "_IMPLIES_")
+        .replace("=", "_EQ_")
+        .replace(":=", "_ASSIGN_")
+        .replace(">", "_GT_")
+        .replace("<", "_LT_")
+        .replace("+ -", "_SUB_")
+        .replace("-", "_MINUS_")
+        .replace("+", "_ADD_")
+        .replace("/", "_DIV_")
+        .replace("*", "_MULT_")
+        .replace("%", "_MOD_")
+        .replace("!", "_NEG_")
+        .replace("&&", "_AND_")
+        .replace("&", "_AND_")
+        .replace("|", "_OR_")
+        .replace("||", "_OR_")
+    )
     predicate_to_var_cache[strip_outer_mathexpr(p)] = representation
     var_to_predicate_cache[str(representation)] = p
     return representation
 
 
 def stringify_term(p):
-    representation = str(p).replace(" + -", "_sub_")\
-                              .replace(" + ", "_add_")\
-                              .replace("-", "_min_")\
-                              .replace("(", "")\
-                              .replace(")", "")
+    representation = (
+        str(p)
+        .replace(" + -", "_sub_")
+        .replace(" + ", "_add_")
+        .replace("-", "_min_")
+        .replace("(", "")
+        .replace(")", "")
+    )
 
     return representation
 
 
 def stringify_pred_take_out_neg(p):
     res = None
-    if (isinstance(p, UniOp) and p.op == "!"):
+    if isinstance(p, UniOp) and p.op == "!":
         res = neg(stringify_pred(p.right))
     else:
         res = stringify_pred(p)
@@ -1285,30 +2189,20 @@ def stringify_formula(f, env_con_props):
         return f, []
 
 
-def finite_state_preds(valuation: TypedValuation):
-    variable = Variable(valuation.name)
-    if not valuation.is_finite_state():
-        raise ValueError(f"Variable '{valuation.name}' is not finite-state")
-    if "bool" in valuation.type:
-        yield variable
+def finite_state_preds(variable: Variable, type: Type) -> list[Formula]:
+    if not is_finite(type):
+        raise ValueError(f"Variable '{variable}' is not finite-state")
+    if type == BOOLEAN:
+        return [variable]
+    elif isinstance(type, Number) and (
+        type.number_type == BaseNumberTypes.natural
+        or type.number_type == BaseNumberTypes.integer
+    ):
+        lo, hi = interval_range(type)
+        return [MathExpr(BiOp(variable, "=", Value(str(x)))) for x in range(lo, hi + 1)]
     else:
-        lo, hi = valuation.type.split("..")
-        lo, hi = int(lo), int(hi)
-        for x in range(lo, hi+1):
-            yield MathExpr(BiOp(variable, "=", Value(str(x))))
+        raise ValueError(f"Variable '{variable} has unknown type {type}'")
 
-
-def enumerate_finite_state_vars(valuation: TypedValuation):
-    variable = Variable(valuation.name)
-    if not valuation.is_finite_state():
-        return []
-    if "bool" in valuation.type:
-        yield variable
-    else:
-        lo, hi = valuation.type.split("..")
-        lo, hi = int(lo), int(hi)
-        for x in range(lo, hi+1):
-            yield MathExpr(BiOp(variable, "=", Value(str(x))))
 
 def ltl_back_to_vars(formula):
     if isinstance(formula, Value):
@@ -1323,9 +2217,14 @@ def ltl_back_to_vars(formula):
     elif isinstance(formula, UniOp):
         return UniOp(formula.op, ltl_back_to_vars(formula.right))
     elif isinstance(formula, BiOp):
-        return BiOp(ltl_back_to_vars(formula.left), formula.op, ltl_back_to_vars(formula.right))
+        return BiOp(
+            ltl_back_to_vars(formula.left),
+            formula.op,
+            ltl_back_to_vars(formula.right),
+        )
     else:
         raise Exception("not implemented")
+
 
 def normalise_mathexpr(mathexpr):
     f = None
@@ -1336,9 +2235,8 @@ def normalise_mathexpr(mathexpr):
     else:
         return None
 
-    rewrite_lte = lambda x,y: MathExpr(BiOp(x, "<=", y))
+    rewrite_lte = lambda x, y: MathExpr(BiOp(x, "<=", y))
 
-    zero = Value("0")
     if isinstance(f, BiOp):
         if f.op == "<=":
             return rewrite_lte(f.left, f.right)
@@ -1352,7 +2250,7 @@ def normalise_mathexpr(mathexpr):
             f_le_than = rewrite_lte(f.right, f.left)
             f_not_gte_than = neg(rewrite_lte(f.left, f.right))
             return conjunct(f_le_than, f_not_gte_than)
-        elif f.op[0] == "=":
+        elif f.op == "=":
             new_f1 = rewrite_lte(f.left, f.right)
             new_f2 = rewrite_lte(f.right, f.left)
             return conjunct(new_f1, new_f2)
@@ -1383,7 +2281,7 @@ def ranking_from_predicate(predicate):
 
             return BiOp(p.right, "-", p.left), predicate.formula
     return None
-    # raise Exception("ranking_from_predicate: Ensure calling of normalise_mathexpr on source of these predicate before calling this function.")
+
 
 def normalise_formula(f, signatures, symbol_table, ignore_these=None):
     if ignore_these is None:
@@ -1395,204 +2293,266 @@ def normalise_formula(f, signatures, symbol_table, ignore_these=None):
     old_to_new = {}
     new_preds = set()
     for pp in preds:
-        result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
-        if isinstance(result, Variable) or len(result) == 1:
-            old_to_new[pp] = result
-            new_preds.add(result)
+        if len(pp.variablesin()) == 0:
+            if is_tautology(pp, {}):
+                old_to_new[pp] = true()
+            else:
+                old_to_new[pp] = false()
         else:
-            sig, new_pred, preds = result
-            old_to_new[pp] = new_pred
-            signatures.add(sig)
-            new_preds.update(result[2])
+            result = normalise_pred_multiple_vars(pp, signatures, symbol_table)
+            if isinstance(result, Formula):
+                old_to_new[pp] = result
+                new_preds.add(result)
+            else:
+                sig, new_pred, preds = result
+                old_to_new[pp] = new_pred
+                signatures.add(sig)
+                new_preds.update(result[2])
 
     return f.replace_formulas(old_to_new), new_preds
 
 
 # preds here may be use in structural refinements, careful
-def normalise_predicate_old(pred, signatures, symbol_table) -> (Formula, [Formula]):
+def normalise_predicate_old(pred, signatures, symbol_table) -> tuple[Formula, list[Formula]]:
     pred = strip_outer_mathexpr(pred)
     if isinstance(pred, BiOp) and (pred.op == "==" or pred.op == "="):
         pred1 = BiOp(pred.left, "<=", pred.right)
         pred2 = BiOp(pred.right, "<=", pred.left)
 
-        signature1, rep1, preds1 = normalise_pred_multiple_vars(pred1, signatures, symbol_table)
-        signature2, rep2, preds2 = normalise_pred_multiple_vars(pred2, signatures, symbol_table)
+        signature1, rep1, preds1 = normalise_pred_multiple_vars(
+            pred1, signatures, symbol_table
+        )
+        signature2, rep2, preds2 = normalise_pred_multiple_vars(
+            pred2, signatures, symbol_table
+        )
 
-        return conjunct(rep1, rep2), [(signature1, preds1), (signature2, preds2)]
+        return conjunct(rep1, rep2), [
+            (signature1, preds1),
+            (signature2, preds2),
+        ]
     elif isinstance(pred, BiOp) and pred.op == "!=":
         pred1 = BiOp(pred.left, "<", pred.right)
         pred2 = BiOp(pred.right, "<", pred.left)
 
-        signature1, rep1, preds1 = normalise_pred_multiple_vars(pred1, signatures, symbol_table)
-        signature2, rep2, preds2 = normalise_pred_multiple_vars(pred2, signatures, symbol_table)
+        signature1, rep1, preds1 = normalise_pred_multiple_vars(
+            pred1, signatures, symbol_table
+        )
+        signature2, rep2, preds2 = normalise_pred_multiple_vars(
+            pred2, signatures, symbol_table
+        )
 
-        return disjunct(rep1, rep2), [(signature1, preds1), (signature2, preds2)]
+        return disjunct(rep1, rep2), [
+            (signature1, preds1),
+            (signature2, preds2),
+        ]
     else:
-        signature, p, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
+        signature, p, preds = normalise_pred_multiple_vars(
+            pred, signatures, symbol_table
+        )
         return p, [(signature, preds)]
 
 
-def normalise_pred_with_var_on_one_side(pred, v):
-    try:
-        sympy_pred = sympy.solve(pred.to_sympy(), v.to_sympy())
-    except Exception as e:
-        raise Exception(e)
-    preds = str(sympy_pred).split(" & ")
-    if len(preds) > 1:
-        preds = [string_to_prop(p) for p in preds if "oo <" not in p and "oo >" not in p
-                                                    and "> oo" not in p and "< oo" not in p
-                                                    and "> -oo" not in p and "< -oo" not in p]
-    if len(preds) > 1:
-        raise Exception("Predicate " + ", ".join(map(str, preds)) + " has more than one conjunct")
-    elif len(preds) == 0:
-        raise Exception("Sympy predicate " + str(sympy_pred) + " is not well-formed")
+def rewrite_boolean_equalities_as_iff(
+    formula: Formula, symbol_table: dict[str, Type]
+) -> Formula:
+    def _var_type(v: Variable):
+        key = str(v.prev_rep()) if v.is_next() else str(v)
+        return symbol_table.get(key)
 
-    pred_with_var_on_one_side = strip_outer_mathexpr(string_to_prop(str(preds[0])))
+    def _is_boolean_term(f: Formula) -> bool:
+        if isinstance(f, Value):
+            return f.is_true() or f.is_false()
+        if isinstance(f, Variable):
+            return _var_type(f) == BOOLEAN
+        if isinstance(f, UniOp):
+            return str(f.op) == "!" and _is_boolean_term(f.right)
+        if isinstance(f, BiOp):
+            if f.op in [BoolBiOps.CONJ, BoolBiOps.DISJ, BoolBiOps.IMPL, BoolBiOps.IFF]:
+                return _is_boolean_term(f.left) and _is_boolean_term(f.right)
+            if f.op in [MathRels.EQ, MathRels.NEQ]:
+                return _is_boolean_term(f.left) and _is_boolean_term(f.right)
+        return False
 
-    if isinstance(pred_with_var_on_one_side, BiOp):
-        if pred_with_var_on_one_side.op == "<":
-            # x < c is good already
-            if pred_with_var_on_one_side.left == v:
-                return pred_with_var_on_one_side, [pred_with_var_on_one_side]
-            else:
-                # of form c < x -> x > c -> ! x <= c
-                new_pred = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
-                return neg(new_pred), [new_pred]
-        elif pred_with_var_on_one_side.op == "<=":
-            # x < c is good already
-            if pred_with_var_on_one_side.left == v:
-                return pred_with_var_on_one_side, [pred_with_var_on_one_side]
-            else:
-                # c <= x -> x >= c -> ! x < c
-                new_pred = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
-                return neg(new_pred), [new_pred]
-        elif pred_with_var_on_one_side.op == ">":
-            # x > c -> !(x <= c)
-            if pred_with_var_on_one_side.left == v:
-                new_pred = BiOp(pred_with_var_on_one_side.left, "<=", pred_with_var_on_one_side.right)
-                return neg(new_pred), [new_pred]
-            else:
-                # of form c > x, then can represent as x < c
-                new_pred = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
-                return new_pred, [new_pred]
-        elif pred_with_var_on_one_side.op == ">=":
-            if pred_with_var_on_one_side.left == v:
-                # x >= c -> ! x < c
-                new_pred = BiOp(pred_with_var_on_one_side.left, "<", pred_with_var_on_one_side.right)
-                return neg(new_pred), [new_pred]
-            else:
-                # c >= x -> x <= c
-                new_pred = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
-                return new_pred, [new_pred]
-        elif pred_with_var_on_one_side.op[0] == "=":
-            if pred_with_var_on_one_side.right == v:
-                # c == x -> c <= x and c >= x
-                new_pred1 = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
-                new_pred2 = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
-                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
-            else:
-                new_pred1 = BiOp(pred_with_var_on_one_side.left, "<=", pred_with_var_on_one_side.right)
-                new_pred2 = BiOp(pred_with_var_on_one_side.left, "<", pred_with_var_on_one_side.right)
-                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
-        elif pred_with_var_on_one_side.op == "!=":
-            if pred_with_var_on_one_side.right == v:
-                # c == x -> c <= x and c >= x
-                new_pred1 = BiOp(pred_with_var_on_one_side.right, "<=", pred_with_var_on_one_side.left)
-                new_pred2 = BiOp(pred_with_var_on_one_side.right, "<", pred_with_var_on_one_side.left)
-                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
-            else:
-                new_pred1 = BiOp(pred_with_var_on_one_side.left, "<=", pred_with_var_on_one_side.right)
-                new_pred2 = BiOp(pred_with_var_on_one_side.left, "<", pred_with_var_on_one_side.right)
-                return conjunct(new_pred1, neg(new_pred2)), [new_pred1, new_pred2]
-        else:
-            raise Exception("Predicate " + str(pred_with_var_on_one_side) + " has an unexpected relational operator")
-    else:
-        raise Exception("Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp")
+    def _rewrite(f: Formula) -> Formula:
+        if isinstance(f, BiOp):
+            left = _rewrite(f.left)
+            right = _rewrite(f.right)
+            if (
+                f.op in [MathRels.EQ, MathRels.NEQ]
+                and _is_boolean_term(left)
+                and _is_boolean_term(right)
+            ):
+                iff_f = BiOp(left, BoolBiOps.IFF, right).simplify()
+                return iff_f if f.op == MathRels.EQ else neg(iff_f).simplify()
+            return BiOp(left, f.op, right).simplify()
+        if isinstance(f, UniOp):
+            return UniOp(f.op, _rewrite(f.right)).simplify()
+        return f
+
+    return _rewrite(strip_mathexpr(formula))
 
 
 def normalise_pred_multiple_vars(pred, signatures, symbol_table):
-    if isinstance(pred, Variable):
+    if isinstance(pred, Variable) or any(
+        v for v in pred.variablesin() if symbol_table[str(v)] == BOOLEAN
+    ):
         return pred
     signature, pred_with_var_on_one_side = put_vars_on_left_side(strip_mathexpr(pred))
     op = pred_with_var_on_one_side.op
     vars_on_left = True
     if signature not in signatures:
         for sig in signatures:
-            if is_tautology(BiOp(sig, "=", signature), symbol_table):
+            if sig == signature or is_tautology(
+                BiOp(sig, "=", signature), symbol_table
+            ):
                 signature = sig
-                pred_with_var_on_one_side = BiOp(sig, op, pred_with_var_on_one_side.right)
+                pred_with_var_on_one_side = BiOp(
+                    sig, op, pred_with_var_on_one_side.right
+                )
                 break
-            elif is_tautology(BiOp(sig, "=", UniOp("-", signature)), symbol_table):
+            elif is_tautology(
+                BiOp(sig, "=", UniOp(MathOps.SUB, signature)), symbol_table
+            ):
                 signature = sig
-                new_right = propagate_minuses(UniOp("-", pred_with_var_on_one_side.right))
+                new_right = propagate_minuses(
+                    UniOp(MathOps.SUB, pred_with_var_on_one_side.right)
+                )
                 new_right = simplify_sum(new_right, {})
                 pred_with_var_on_one_side = BiOp(new_right, op, sig)
                 vars_on_left = False
                 break
 
+    if (
+        signature not in signatures
+        and isinstance(signature, UniOp)
+        and signature.op == MathOps.SUB
+    ):
+        signature = signature.right
+        new_right = propagate_minuses(
+            UniOp(MathOps.SUB, pred_with_var_on_one_side.right)
+        )
+        new_right = simplify_sum(new_right, {})
+        pred_with_var_on_one_side = BiOp(new_right, op, signature)
+        vars_on_left = False
+
     left = pred_with_var_on_one_side.left
     right = pred_with_var_on_one_side.right
 
+    is_integer = not any(
+        v for v in left.variablesin() if symbol_table[str(v)] == BOOLEAN
+    )
+
     if isinstance(pred_with_var_on_one_side, BiOp):
         if op == "<":
-            # turn x < c is good already
+            # turn x < c is good already, turn to x <= c - 1 if integer
             if vars_on_left:
-                return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
+                if is_integer:
+                    new_pred = lt_to_le(pred_with_var_on_one_side)
+                else:
+                    new_pred = pred_with_var_on_one_side
+                new_atomic_preds = [new_pred]
             else:
                 # of form c < x -> x > c -> ! x <= c
-                new_pred = BiOp(right, "<=", left)
-                return signature, neg(new_pred), [new_pred]
+                new_pred_f = BiOp(right, "<=", left)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
         elif op == "<=":
             # x <= c is good already
             if vars_on_left:
-                return signature, pred_with_var_on_one_side, [pred_with_var_on_one_side]
+                new_pred = pred_with_var_on_one_side
+                new_atomic_preds = [new_pred]
             else:
-                # c <= x -> x >= c -> ! x < c
-                new_pred = BiOp(right, "<", left)
-                return signature, neg(new_pred), [new_pred]
+                # c <= x -> x >= c -> ! x < c or ! x <= c - 1 if integer
+                new_pred_f = BiOp(right, "<", left)
+                if is_integer:
+                    new_pred_f = lt_to_le(new_pred_f)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
         elif op == ">":
             # x > c -> !(x <= c)
             if vars_on_left:
-                new_pred = BiOp(left, "<=", right)
-                return signature, neg(new_pred), [new_pred]
+                new_pred_f = BiOp(left, "<=", right)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
             else:
-                # of form c > x, then can represent as x < c
+                # of form c > x, then can represent as x < c or x <= c - 1 if integer
                 new_pred = BiOp(right, "<", left)
-                return signature, new_pred, [new_pred]
+                if is_integer:
+                    new_pred = lt_to_le(new_pred)
+                new_atomic_preds = [new_pred]
         elif op == ">=":
             if vars_on_left:
-                # x >= c -> ! x < c
-                new_pred = BiOp(left, "<", right)
-                return signature, neg(new_pred), [new_pred]
+                # x >= c -> ! x < c or x <= c - 1 if integer
+                new_pred_f = BiOp(left, "<", right)
+                if is_integer:
+                    new_pred_f = lt_to_le(new_pred_f)
+                new_pred = neg(new_pred_f)
+                new_atomic_preds = [new_pred_f]
             else:
                 # c >= x -> x <= c
                 new_pred = BiOp(right, "<=", left)
-                return signature, new_pred, [new_pred]
-        elif op[0] == "=":
+                new_atomic_preds = [new_pred]
+        elif op == "=":
             if vars_on_left:
-                # x == c -> x <= c and ! x < c
+                # x == c -> x <= c and ! x < c or x <= c - 1 if integer
                 new_pred1 = BiOp(left, "<=", right)
-                new_pred2 = BiOp(left, "<", right)
-                return signature, conjunct(neg(new_pred2), new_pred1), [new_pred1, new_pred2]
+                new_pred2_f = BiOp(left, "<", right)
+                if is_integer:
+                    new_pred2_f = lt_to_le(new_pred2_f)
+                new_pred = conjunct(neg(new_pred2_f), new_pred1)
+                new_atomic_preds = [new_pred1, new_pred2_f]
             else:
-                # c == x -> x <= c and ! x < c
+                # c == x -> x <= c and ! x < c or x <= c - 1 if integer
                 new_pred1 = BiOp(right, "<=", left)
-                new_pred2 = BiOp(right, "<", left)
-                return signature, conjunct(neg(new_pred2), new_pred1), [new_pred1, new_pred2]
+                new_pred2_f = BiOp(right, "<", left)
+                if is_integer:
+                    new_pred2_f = lt_to_le(new_pred2_f)
+                new_pred = conjunct(neg(new_pred2_f), new_pred1)
+                new_atomic_preds = [new_pred1, new_pred2_f]
         elif op == "!=":
             if vars_on_left:
-                # x != c -> !(x <= c) or x < c
+                # x != c -> !(x <= c) or x < c or x <= c - 1 if integer
                 new_pred1 = BiOp(left, "<=", right)
                 new_pred2 = BiOp(left, "<", right)
-                return signature, disjunct(neg(new_pred1), new_pred2), [new_pred1, new_pred2]
+                if is_integer:
+                    new_pred2 = lt_to_le(new_pred2)
+                new_pred = disjunct(neg(new_pred1), new_pred2)
+                new_atomic_preds = [new_pred1, new_pred2]
             else:
                 new_pred1 = BiOp(right, "<=", left)
                 new_pred2 = BiOp(right, "<", left)
-                return signature, disjunct(neg(new_pred1), new_pred2), [new_pred1, new_pred2]
+                if is_integer:
+                    new_pred2 = lt_to_le(new_pred2)
+                new_pred = disjunct(neg(new_pred1), new_pred2)
+                new_atomic_preds = [new_pred1, new_pred2]
         else:
-            raise Exception("Predicate " + str(pred_with_var_on_one_side) + " has an unexpected relational operator")
+            raise Exception(
+                "Predicate "
+                + str(pred_with_var_on_one_side)
+                + " has an unexpected relational operator"
+            )
+
+        return signature, new_pred, new_atomic_preds
+
     else:
-        raise Exception("Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp")
+        raise Exception(
+            "Predicate " + str(pred_with_var_on_one_side) + " is not a BiOp"
+        )
+
+
+def lt_to_le(pred):
+    # convert all < to <= in a Linear Integer Arithmetic inequality
+
+    if isinstance(pred, BiOp):
+        if pred.op == "<":
+            new_right = simplify_sum(BiOp(pred.right, "-", Value(1)), {})
+            return BiOp(pred.left, "<=", new_right)
+        else:
+            raise Exception(
+                "Predicate " + str(pred) + " is not of form: f(vars) < constants"
+            )
+    else:
+        raise Exception("Predicate " + str(pred) + " is not a BiOp")
 
 
 def put_vars_on_left_side(pred):
@@ -1603,27 +2563,109 @@ def put_vars_on_left_side(pred):
         left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
         right_vars, right_constants = get_vars_and_constants_in_term(pred.right)
 
-        new_left_vars = left_vars + [propagate_minuses(UniOp("-", t)) for t in right_vars]
+        new_left_vars = left_vars + [
+            propagate_minuses(UniOp(MathOps.SUB, t)) for t in right_vars
+        ]
         new_left = sum(new_left_vars)
 
-        new_right_constants = right_constants + [propagate_minuses(UniOp("-", c)) for c in left_constants]
+        new_right_constants = right_constants + [
+            propagate_minuses(UniOp(MathOps.SUB, c)) for c in left_constants
+        ]
         if len(new_right_constants) == 0:
-            new_right = Value("0")
+            new_right = Value(int(0))
         else:
             new_right = sum(new_right_constants)
 
-        new_left_vars.sort(key=lambda x: str(x))
-        new_right = simplify_sum(new_right, {}) # this should evaluate the sum
+        new_right = simplify_sum(new_right, {})  # this should evaluate the sum
         return new_left, BiOp(new_left, pred.op, new_right)
     else:
         raise Exception("Predicate " + str(pred) + " is not a BiOp")
+
+
+def put_next_vars_on_left_side(pred):
+    # put all the next variables of a Linear Integer Arithmetic inequality on one side
+    def _is_next_term(term):
+        vars_in_term = [v for v in term.variablesin()]
+        return len(vars_in_term) > 0 and all(v.is_next() for v in vars_in_term)
+
+    if isinstance(pred, BiOp):
+        left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
+        right_vars, right_constants = get_vars_and_constants_in_term(pred.right)
+
+        next_vars_in_left = [v for v in left_vars if _is_next_term(v)]
+        now_vars_in_left = [v for v in left_vars if not _is_next_term(v)]
+        next_vars_in_right = [v for v in right_vars if _is_next_term(v)]
+        now_vars_in_right = [v for v in right_vars if not _is_next_term(v)]
+
+        new_left_vars = next_vars_in_left + [
+            propagate_minuses(UniOp(MathOps.SUB, t)) for t in next_vars_in_right
+        ]
+        new_left = sum(new_left_vars)
+
+        new_right_constants = (
+            right_constants
+            + now_vars_in_right
+            + [
+                propagate_minuses(UniOp(MathOps.SUB, c))
+                for c in left_constants + now_vars_in_left
+            ]
+        )
+        if len(new_right_constants) == 0:
+            new_right = Value(int(0))
+        else:
+            new_right = sum(new_right_constants)
+
+        new_pred = BiOp(new_left, pred.op, new_right)
+        new_pred = _remove_single_negated_lhs_var(new_pred)
+        return new_pred.left, new_pred
+    else:
+        raise Exception("Predicate " + str(pred) + " is not a BiOp")
+
+
+def _flip_relation_under_sign_change(op):
+    if op == MathRels.LT:
+        return MathRels.GT
+    if op == MathRels.LE:
+        return MathRels.GE
+    if op == MathRels.GT:
+        return MathRels.LT
+    if op == MathRels.GE:
+        return MathRels.LE
+    if op == MathRels.EQ or op == MathRels.NEQ:
+        return op
+    raise Exception(f"Unsupported relation for sign flip: {op}")
+
+
+def _remove_single_negated_lhs_var(pred):
+    """
+    Canonicalize relations of the form (-v REL rhs) into (v REL' -rhs),
+    but only when lhs consists of exactly one negated variable and no constants.
+    """
+    if not isinstance(pred, BiOp):
+        return pred
+
+    left_vars, left_constants = get_vars_and_constants_in_term(pred.left)
+    if len(left_vars) != 1 or len(left_constants) != 0:
+        return pred
+
+    only_left_var = left_vars[0]
+    if not (
+        isinstance(only_left_var, UniOp)
+        and only_left_var.op == MathOps.SUB
+        and isinstance(only_left_var.right, Variable)
+    ):
+        return pred
+
+    flipped_right = propagate_minuses(UniOp(MathOps.SUB, pred.right))
+    flipped_op = _flip_relation_under_sign_change(pred.op)
+    return BiOp(only_left_var.right, flipped_op, flipped_right)
 
 
 def get_vars_and_constants_in_term(term):
     vars = []
     constants = []
     left_to_do = term.sub_formulas_up_to_associativity()
-    while (True):
+    while True:
         new_left_to_do = []
         if len(left_to_do) == 0:
             break
@@ -1632,8 +2674,12 @@ def get_vars_and_constants_in_term(term):
                 if isinstance(p, BiOp):
                     new_left_to_do.append(p)
                     if p in left_to_do:
-                        raise Exception("Cycle detected in get_vars_and_constants_in_term")
-                elif isinstance(p, UniOp) and p.op == "-" and isinstance(p.right, Value):
+                        raise Exception(
+                            "Cycle detected in get_vars_and_constants_in_term"
+                        )
+                elif (
+                    isinstance(p, UniOp) and p.op == "-" and isinstance(p.right, Value)
+                ):
                     constants.append(p)
                 elif isinstance(p, Value):
                     constants.append(p)
@@ -1649,11 +2695,27 @@ def sum(terms):
         raise Exception("No terms to sum")
     elif len(terms) == 1:
         return terms[0]
-    else:
-        term = terms[0]
-        for i in range(1, len(terms)):
-            term = BiOp(term, "+", terms[i])
-        return term
+
+    kept_terms = Counter()
+    for t in terms:
+        if str(t) == "0":
+            continue
+        minus_t = propagate_minuses(UniOp(MathOps.SUB, t))
+        if kept_terms[minus_t]:
+            kept_terms[minus_t] -= 1
+            if kept_terms[minus_t] == 0:
+                del kept_terms[minus_t]
+        else:
+            kept_terms[t] += 1
+
+    if len(kept_terms) == 0:
+        return Value(int(0))
+
+    new_terms = list(kept_terms.elements())
+    term = new_terms[0]
+    for i in range(1, len(new_terms)):
+        term = BiOp(term, "+", new_terms[i])
+    return term
 
 
 def strip_outer_mathexpr(f):
@@ -1687,242 +2749,7 @@ def math_exprs_in_formula(f):
         return set()
 
 
-def chain_of_preds_old(preds, term, current_pos=None, current_neg=None):
-    if current_pos is None:
-        current_pos = []
-    if current_neg is None:
-        current_neg = []
-
-    pos_chain_of_preds = []
-    pos_chain_of_preds.extend(current_pos)
-    neg_chain_of_preds = []
-    neg_chain_of_preds.extend(current_neg)
-    rest = []
-    pos_pred_locs = []
-    neg_pred_locs = []
-    for p in preds:
-        pred = strip_outer_mathexpr(p)
-        vars_in_pred = pred.variablesin()
-        if len(vars_in_pred) == 1 and term in pred.variablesin():
-            if isinstance(pred, BiOp) and pred.op == "<=" and pred.left == term and isinstance(pred.right, Value):
-                new_loc = bisect_left(pos_chain_of_preds, pred, key=lambda x: int(x.right.name))
-                pos_chain_of_preds.insert(new_loc, pred)
-                pos_pred_locs.append((pred, new_loc))
-                # bisect.insort_left(pos_chain_of_preds, pred, key=lambda x: int(x.right.name))
-            elif isinstance(pred, BiOp) and pred.op == "<=" and pred.right == term and isinstance(pred.left, Value):
-                new_loc = bisect_left(neg_chain_of_preds, pred, key=lambda x: int(x.right.name))
-                neg_chain_of_preds.insert(new_loc, pred)
-                neg_pred_locs.append((pred, new_loc))
-                # bisect.insort_left(neg_chain_of_preds, pred, key=lambda x: 1 - int(x.left.name))
-            else:
-                rest.append(p)
-        else:
-            rest.append(p)
-
-    return (pos_chain_of_preds, pos_pred_locs), (neg_chain_of_preds, neg_pred_locs), rest
-
-
-def is_chain_pos_pred(pred, term):
-    if (isinstance(pred, BiOp) and pred.op == "<=" and pred.left == term and
-     (isinstance(pred.right, Value) or
-      (isinstance(pred.right, UniOp) and pred.right.op == "-" and isinstance(pred.right.right, Value)))):
-        return True, int(str(pred.right))
-    else:
-        return False, None
-
-
-def is_chain_neg_pred(pred, term):
-    if (isinstance(pred, BiOp) and pred.op == "<=" and pred.right == term and
-     (isinstance(pred.left, Value) or
-      (isinstance(pred.left, UniOp) and pred.left.op == "-" and isinstance(pred.left.right, Value)))):
-        return True, 1 - int(str(pred.left))
-    else:
-        return False, None
-
-
-def chain_of_preds_sets(preds, term,
-                        old_pos_list, old_viable_pred_pos_states, old_pos_pred_to_chain,
-                        old_neg_list, old_viable_pred_neg_states, old_neg_pred_to_chain):
-    if len(preds) == 0:
-        raise Exception("No predicates to chain.")
-
-    rest = []
-
-    pos_list = old_pos_list.copy()
-    neg_list = old_neg_list.copy()
-
-    old_to_new_pos = []
-    old_to_new_neg = []
-
-    for p in preds:
-        pred = strip_outer_mathexpr(p)
-        vars_in_pred = pred.variablesin()
-        if len(vars_in_pred) == 1 and term in pred.variablesin():
-            res = is_chain_pos_pred(pred, term)
-            if res[0]:
-                i = bisect.bisect_left(pos_list, is_chain_pos_pred(pred, term)[1], key=lambda x: is_chain_pos_pred(x, term)[1])
-                pos_list.insert(i, pred)
-                old_to_new_pos.append((i, pos_list.copy()))
-            else:
-                res = is_chain_neg_pred(pred, term)
-                if res[0]:
-                    i = bisect.bisect_left(neg_list, is_chain_neg_pred(pred, term)[1], key=lambda x: is_chain_neg_pred(x, term)[1])
-                    neg_list.insert(i, pred)
-                    old_to_new_neg.append((i, neg_list.copy()))
-                else:
-                    rest.append(p)
-        else:
-            rest.append(p)
-
-    if len(rest) == len(preds):
-        return ((old_pos_list, old_viable_pred_pos_states, old_pos_pred_to_chain),
-                (old_neg_list, old_viable_pred_neg_states, old_neg_pred_to_chain),
-                rest,
-                old_to_new_pos,
-                old_to_new_neg)
-
-    viable_pred_pos_states = []
-    pos_pred_to_chain = {}
-    if len(pos_list) != len(old_pos_list):
-        for i, p in enumerate(pos_list):
-            if i == 0:
-                viable_pred_pos_states.append(p)
-            else:
-                all_before_neg = conjunct(neg(pos_list[i-1]), p)
-                viable_pred_pos_states.append(all_before_neg)
-            pos_pred_to_chain[p] = viable_pred_pos_states.copy()
-
-        viable_pred_pos_states.append(neg(pos_list[-1]))
-        for i, p in enumerate(pos_list):
-            pos_pred_to_chain[neg(p)] = viable_pred_pos_states[i+1:]
-    else:
-        viable_pred_pos_states = old_viable_pred_pos_states
-        pos_pred_to_chain = old_pos_pred_to_chain
-
-
-    viable_pred_neg_states = []
-    neg_pred_to_chain = {}
-    if len(neg_list) != len(old_neg_list):
-        for i, p in enumerate(neg_list):
-            if i == 0:
-                viable_pred_neg_states.append(p)
-            else:
-                all_before_neg = conjunct(neg(neg_list[i-1]), p)
-                viable_pred_neg_states.append(all_before_neg)
-            neg_pred_to_chain[p] = viable_pred_neg_states.copy()
-
-        viable_pred_neg_states.append(neg(neg_list[-1]))
-        for i, p in enumerate(neg_list):
-            neg_pred_to_chain[neg(p)] = viable_pred_neg_states[i+1:]
-    else:
-        viable_pred_neg_states = old_viable_pred_neg_states
-        neg_pred_to_chain = old_neg_pred_to_chain
-
-    return ((pos_list, viable_pred_pos_states, pos_pred_to_chain),
-            (neg_list, viable_pred_neg_states, neg_pred_to_chain),
-            rest,
-            old_to_new_pos,
-            old_to_new_neg)
-
-
-def chain_of_preds(preds, term, old_pos_list, old_neg_list, current_pos_fs=None, current_neg_fs=None):
-    if len(preds) == 0:
-        raise Exception("No predicates to chain.")
-
-    if current_pos_fs is None or len(current_pos_fs) == 0:
-        current_pos_fs = [[]]
-    if current_neg_fs is None or len(current_neg_fs) == 0:
-        current_neg_fs = [[]]
-    rest = []
-    pos_pred_locs = []
-    neg_pred_locs = []
-
-    pos_list = old_pos_list.copy()
-    neg_list = old_neg_list.copy()
-
-    for p in preds:
-        pred = strip_outer_mathexpr(p)
-        vars_in_pred = pred.variablesin()
-        if len(vars_in_pred) == 1 and term in pred.variablesin():
-            res = is_chain_pos_pred(pred, term)
-            if res[0]:
-                new_loc = bisect_left([is_chain_pos_pred(p, term)[1] for p in pos_list], res[1])
-                pos_list.insert(new_loc, pred)
-                pos_pred_locs.append((pred, new_loc))
-                # bisect.insort_left(pos_chain_of_preds, pred, key=lambda x: int(x.right.name))
-            elif (isinstance(pred, BiOp) and pred.op == "<=" and pred.right == term and
-                (isinstance(pred.right, Value) or
-                 (isinstance(pred.left, UniOp) and pred.left.op == "-" and isinstance(pred.left.right, Value)))):
-                new_loc = bisect_left([1 - int(p.left.name) for p in neg_list], 1 - int(str(pred.right)))
-                neg_list.insert(new_loc, pred)
-                neg_pred_locs.append((pred, new_loc))
-                # bisect.insort_left(neg_chain_of_preds, pred, key=lambda x: 1 - int(x.left.name))
-            else:
-                rest.append(p)
-        else:
-            rest.append(p)
-
-    pos_old_to_new = {}
-    neg_old_to_new = {}
-
-    pos_chain_of_preds = []
-    neg_chain_of_preds = []
-
-    if len(pos_pred_locs) != 0:
-        for old_pos in current_pos_fs:
-            result = update_chain_preds(old_pos, pos_pred_locs)
-            pos_chain_of_preds.extend(result)
-
-            if len(old_pos) > 0:
-                pos_old_to_new[conjunct_formula_set(old_pos)] = [conjunct_formula_set(l) for l in result]
-
-    if len(neg_pred_locs) != 0:
-        for old_neg in current_neg_fs:
-            result = update_chain_preds(old_neg, neg_pred_locs)
-            neg_chain_of_preds.extend(result)
-
-            if len(old_neg) > 0:
-                neg_old_to_new[conjunct_formula_set(old_neg)] = [conjunct_formula_set(l) for l in result]
-
-    return (pos_list, pos_chain_of_preds, pos_old_to_new), (neg_list, neg_chain_of_preds, neg_old_to_new), rest
-
-
-def update_chain_preds(old_pred_rep, pred_locs):
-    corresponding_new_pred_reps = [old_pred_rep]
-    for (pred, loc) in pred_locs:
-        new_corresponding_new_pred_reps = []
-        for corr_pred_rep in corresponding_new_pred_reps:
-            pr = update_chain_pred_one(corr_pred_rep, pred, loc)
-            new_corresponding_new_pred_reps.extend(pr)
-        corresponding_new_pred_reps = new_corresponding_new_pred_reps
-    new_pred_rep = corresponding_new_pred_reps
-    return new_pred_rep
-
-
-def update_chain_pred_one(old_pred_rep, new_pred, loc):
-    new = []
-    if len(old_pred_rep) == 0:
-        new.append([new_pred])
-        new.append([neg(new_pred)])
-    elif loc == 0:
-        new.append([neg(new_pred)] + old_pred_rep)
-        if not isinstance(old_pred_rep[0], UniOp):
-            new.append([new_pred] + old_pred_rep)
-    elif loc == len(old_pred_rep):
-        new.append(old_pred_rep + [new_pred])
-        if isinstance(old_pred_rep[-1], UniOp):
-            new.append(old_pred_rep + [neg(new_pred)])
-    elif loc > len(old_pred_rep):
-        raise Exception("loc out of range")
-    else:
-        new.append(old_pred_rep[:loc] + [new_pred] + old_pred_rep[loc:])
-        if isinstance(old_pred_rep[loc - 1], UniOp):
-            new.append(old_pred_rep[:loc] + [neg(new_pred)] + old_pred_rep[loc:])
-
-    return new
-
-
-def massage_ltl_for_dual(formula: Formula, next_events, preds_too=True):
+def massage_ltl_for_dual(formula: Formula, next_events, preds_too=False):
     if isinstance(formula, Value):
         return formula
     elif isinstance(formula, Variable):
@@ -1930,14 +2757,438 @@ def massage_ltl_for_dual(formula: Formula, next_events, preds_too=True):
             return X(formula)
         else:
             return formula
-    elif (isinstance(formula, MathExpr) or should_be_math_expr(formula)):
-        if preds_too:
+    elif isinstance(formula, MathExpr) or should_be_math_expr(formula):
+        if any(v for v in next_events if v in formula.variablesin()):
             return X(formula)
         else:
             return formula
     elif isinstance(formula, UniOp):
-        return UniOp(formula.op, massage_ltl_for_dual(formula.right, next_events))
+        return UniOp(
+            formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too)
+        )
     elif isinstance(formula, BiOp):
-        return BiOp(massage_ltl_for_dual(formula.left, next_events), formula.op, massage_ltl_for_dual(formula.right, next_events))
+        return BiOp(
+            massage_ltl_for_dual(formula.left, next_events, preds_too),
+            formula.op,
+            massage_ltl_for_dual(formula.right, next_events, preds_too),
+        )
+    else:
+        return formula
+
+
+def massage_action_for_dual(formula: Formula, next_events, preds_too=False):
+    if isinstance(formula, Value):
+        return formula
+    elif isinstance(formula, Variable):
+        if formula in next_events:
+            return X(formula)
+        else:
+            return formula
+    elif isinstance(formula, MathExpr) or should_be_math_expr(formula):
+        return formula.replace_formulas(
+            {v: X(v) for v in formula.variablesin() if v in next_events}
+        )
+    elif isinstance(formula, UniOp):
+        return UniOp(
+            formula.op, massage_ltl_for_dual(formula.right, next_events, preds_too)
+        )
+    elif isinstance(formula, BiOp):
+        return BiOp(
+            massage_ltl_for_dual(formula.left, next_events, preds_too),
+            formula.op,
+            massage_ltl_for_dual(formula.right, next_events, preds_too),
+        )
+    else:
+        return formula
+
+
+def all_sat_models(preds, symbol_table):
+    if len(preds) == 0:
+        raise Exception("all_sat_models called with zero preds")
+
+    if not USE_INCREMENTAL_ALL_SAT_MODELS:
+        # Previous implementation: explicit cross-product with SAT filtering.
+        models = [c for c in preds[0].choices()]
+        for pred in preds[1:]:
+            new_models = []
+            for m in models:
+                for c in pred.choices():
+                    new_m = conjunct(c, m)
+                    if sat(new_m, symbol_table):
+                        new_models.append(new_m)
+            models = new_models
+        return models
+
+    # Incremental SAT-guided enumeration of choice combinations.
+    # Semantics match the legacy cross-product + sat filtering, but avoids
+    # rebuilding and re-solving the full conjunction at each step.
+    choices_per_pred = []
+    for pred in preds:
+        seen = set()
+        deduped = []
+        for c in pred.choices():
+            sc = str(c)
+            if sc in seen:
+                continue
+            seen.add(sc)
+            deduped.append(c)
+        choices_per_pred.append(deduped)
+
+    try:
+        solver = Solver(name="msat")
+    except Exception:
+        # Fallback to legacy behavior if incremental solver is unavailable.
+        models = [c for c in choices_per_pred[0]]
+        for pred_choices in choices_per_pred[1:]:
+            new_models = []
+            for m in models:
+                for c in pred_choices:
+                    new_m = conjunct(c, m)
+                    if sat(new_m, symbol_table):
+                        new_models.append(new_m)
+            models = new_models
+        return models
+
+    smt_cache = {}
+
+    def _to_smt(f):
+        key = str(f)
+        cached = smt_cache.get(key)
+        if cached is not None:
+            return cached
+        smt = And(*f.to_smt(symbol_table))
+        smt_cache[key] = smt
+        return smt
+
+    chosen = []
+    models = []
+
+    def _dfs(i: int):
+        if i == len(choices_per_pred):
+            models.append(conjunct_formula_set(list(chosen)))
+            return
+        for c in choices_per_pred[i]:
+            solver.push()
+            solver.add_assertion(_to_smt(c))
+            try:
+                if solver.solve():
+                    chosen.append(c)
+                    _dfs(i + 1)
+                    chosen.pop()
+            finally:
+                solver.pop()
+
+    try:
+        _dfs(0)
+    finally:
+        solver.exit()
+
+    return models
+
+
+def reset_caches(names=None):
+    dnf_cache.clear()
+    cnf_cache.clear()
+    var_to_predicate_cache.clear()
+    predicate_to_var_cache.clear()
+
+    import sys, inspect
+
+    """Clear @lru_cache decorated functions in specified modules"""
+    if names is None:
+        # Clear caches in prop_lang modules by default
+        names = [
+            "prop_lang.biop",
+            "prop_lang.formula",
+            "prop_lang.uniop",
+            "prop_lang.value",
+            "prop_lang.util",
+        ]
+
+    cleared_count = 0
+
+    def _cache_clear_target(obj):
+        """
+        Return the object exposing a callable `cache_clear`, if any.
+        Works across runtimes (CPython/PyPy) and common descriptor wrappers.
+        """
+        direct = getattr(obj, "cache_clear", None)
+        if callable(direct):
+            return obj
+
+        # Decorated methods may be wrapped in descriptors.
+        for wrapped_attr in ("__func__", "fget"):
+            inner = getattr(obj, wrapped_attr, None)
+            if inner is None:
+                continue
+            cache_clear = getattr(inner, "cache_clear", None)
+            if callable(cache_clear):
+                return inner
+
+        return None
+
+    for module_name in names:
+        if module_name in sys.modules:
+            module = sys.modules[module_name]
+
+            # Iterate through all attributes in the module
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+
+                # Check if it's an lru_cache decorated function
+                target = _cache_clear_target(attr)
+                if target is not None:
+                    try:
+                        target.cache_clear()
+                        cleared_count += 1
+                        if config.Config.getConfig().debug:
+                            print(f"Cleared cache for {module_name}.{attr_name}")
+                    except Exception as e:
+                        print(
+                            f"Failed to clear cache for {module_name}.{attr_name}: {e}"
+                        )
+
+                # Check for class methods with lru_cache
+                elif inspect.isclass(attr):
+                    for method_name in dir(attr):
+                        method = getattr(attr, method_name)
+                        target = _cache_clear_target(method)
+                        if target is not None:
+                            try:
+                                target.cache_clear()
+                                cleared_count += 1
+                                if config.Config.getConfig().debug:
+                                    print(
+                                        f"Cleared cache for {module_name}.{attr_name}.{method_name}"
+                                    )
+                            except Exception as e:
+                                print(
+                                    f"Failed to clear cache for {module_name}.{attr_name}.{method_name}: {e}"
+                                )
+
+    return cleared_count
+
+
+def extract_global_formula(formula: Formula) -> Optional[Formula]:
+    """Return f if formula is equivalent to G(f); otherwise return None.
+    Formula is first normalised to NNF/LTL-normal form via propagate_negations.
+    """
+
+    temporal_ops = {"G", "F", "X", "U", "W", "R", "M"}
+
+    # Keep extraction stable regardless of caller pre-processing.
+    formula = propagate_negations(formula)
+
+    def is_propositional(node: Formula) -> bool:
+        return not any(op in temporal_ops for op in node.ops_used())
+
+    if isinstance(formula, Value):
+        return None
+
+    if isinstance(formula, UniOp) and formula.op == "G":
+        if is_propositional(formula.right):
+            return formula.right
+        return extract_global_formula(formula.right)
+
+    if isinstance(formula, BiOp) and formula.op == "&":
+        left = extract_global_formula(formula.left)
+        if left is None:
+            return None
+        right = extract_global_formula(formula.right)
+        if right is None:
+            return None
+        return conjunct(left, right)
+
+    if isinstance(formula, BiOp) and formula.op == "|":
+        left = extract_global_formula(formula.left)
+        if left is None:
+            return None
+        right = extract_global_formula(formula.right)
+        if right is None:
+            return None
+        return disjunct(left, right)
+
+    return None
+
+
+def extract_initial_formula(formula: Formula) -> Formula | None:
+    r"""Partial initial-obligation extractor I(·) for normalized LTL formulas.
+
+    Formal contract:
+      I : LTL -> Prop ∪ {None}
+      where `I(phi) = psi` means `psi` is a sound initial-state obligation
+      derivable from `phi` (i.e., if `phi` holds on a trace, then `psi` holds at t=0).
+      `None` means "no sound nontrivial initial obligation extracted".
+
+    This is intentionally partial/conservative: failing to extract is allowed; extracting
+    an obligation that is not semantically required is not allowed.
+
+    Assumes input is already normalized (e.g., `normalize_ltl(propagate_negations(phi))`).
+
+    Core rules (implemented below):
+      - propositional atom/formula p:                 I(p) = p
+      - G f:                                          I(G f) = I(f)
+      - F f, X f:                                     I(F f) = I(X f) = None
+      - f U g:                                        I(f U g) = I(f) ∨ I(g)
+      - f ∧ g:                                        I(f ∧ g) = combine_and(I(f), I(g))
+      - f ∨ g:                                        I(f ∨ g) = I(f) ∨ I(g) if both exist, else None
+
+    Implication-family rules use an exactness guard:
+      For `->`, `<-`, `<->`, we only keep implication shape when the antecedent-side
+      extraction is exact (string-equal to the original side). This avoids unsoundly
+      replacing temporal antecedents by weaker/stronger initial projections.
+    """
+
+    temporal_ops = {"G", "F", "X", "U", "W", "R", "M"}
+
+    def combine_and(left: Formula | None, right: Formula | None) -> Formula | None:
+        if left is None and right is None:
+            return None
+        if left is None:
+            return right
+        if right is None:
+            return left
+        return conjunct(left, right)
+
+    def combine_or(left: Formula | None, right: Formula | None) -> Formula | None:
+        if left is None or right is None:
+            return None
+        return disjunct(left, right)
+
+    def is_exact_initial_subformula(
+        subformula: Formula, extracted: Formula | None
+    ) -> bool:
+        return extracted is not None and str(extracted) == str(subformula)
+
+    if not any(op in temporal_ops for op in formula.ops_used()):
+        return formula
+
+    if isinstance(formula, UniOp):
+        if formula.op == "G":
+            return extract_initial_formula(formula.right)
+        if formula.op in {"F", "X"}:
+            return None
+        if formula.op == "!":
+            inner = extract_initial_formula(formula.right)
+            if inner is None:
+                return None
+            return neg(inner)
+        return None
+
+    if isinstance(formula, BiOp):
+        if formula.op == "U":
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            return combine_or(left, right)
+        if formula.op == "&":
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            return combine_and(left, right)
+        if formula.op == "|":
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            return combine_or(left, right)
+        if formula.op in {"->", "<-", "<->"}:
+            left = extract_initial_formula(formula.left)
+            right = extract_initial_formula(formula.right)
+            if left is None or right is None:
+                return None
+            # Soundness guard (formal):
+            # We do NOT assume I(a -> b) = I(a) -> I(b) in general.
+            # We only allow implication extraction when antecedent-side extraction is exact:
+            #   ->   : require I(a) == a
+            #   <-   : require I(b) == b
+            #   <->  : require I(a) == a and I(b) == b
+            # Otherwise return None conservatively.
+            if formula.op == "->" and not is_exact_initial_subformula(
+                formula.left, left
+            ):
+                return None
+            if formula.op == "<-" and not is_exact_initial_subformula(
+                formula.right, right
+            ):
+                return None
+            if formula.op == "<->" and (
+                not is_exact_initial_subformula(formula.left, left)
+                or not is_exact_initial_subformula(formula.right, right)
+            ):
+                return None
+            return BiOp(left, formula.op, right)
+        return None
+
+    return None
+
+
+def extract_initial_values(
+    variables: set[Variable] | set[str],
+    formula: Formula,
+    symbol_table: dict,
+) -> tuple[Formula | None, dict[Variable, Value]]:
+    """Extract initial-state constraints and any uniquely-determined variable values."""
+
+    init_formula = extract_initial_formula(formula)
+    if init_formula is None:
+        return None, {}
+
+    predicates_by_var: dict[Variable, set[Formula]] = {}
+    for pred in atomic_predicates(init_formula):
+        if not hasattr(pred, "variablesin"):
+            continue
+        for v in pred.variablesin():
+            predicates_by_var.setdefault(v, set()).add(pred)
+
+    fixed_values: dict[Variable, Value] = {}
+
+    for var in variables:
+        var_obj = Variable(var) if isinstance(var, str) else var
+        if var_obj.name not in symbol_table:
+            continue
+        var_type = symbol_table[var_obj.name]
+
+        if var_type == BOOLEAN:
+            sat_true = sat(conjunct(init_formula, var_obj), symbol_table)
+            sat_false = sat(conjunct(init_formula, neg(var_obj)), symbol_table)
+            if sat_true and not sat_false:
+                fixed_values[var_obj] = Value(BoolAtoms.TRUE)
+            elif sat_false and not sat_true:
+                fixed_values[var_obj] = Value(BoolAtoms.FALSE)
+            continue
+
+        implied_values = set()
+        for pred in predicates_by_var.get(var_obj, set()):
+            if isinstance(pred, MathExpr):
+                pred = strip_mathexpr(pred)
+            if not isinstance(pred, BiOp):
+                continue
+            if str(pred.op) not in {"=", "=="}:
+                continue
+            if pred.left == var_obj and isinstance(pred.right, Value):
+                candidate = pred.right
+            elif pred.right == var_obj and isinstance(pred.left, Value):
+                candidate = pred.left
+            else:
+                continue
+            if not sat(
+                conjunct(init_formula, neg(BiOp(var_obj, "=", candidate))), symbol_table
+            ):
+                implied_values.add(candidate)
+        if len(implied_values) == 1:
+            fixed_values[var_obj] = next(iter(implied_values))
+
+    return init_formula, fixed_values
+
+
+def remove_globals(formula: Formula) -> Formula:
+    """Assuming that formula == propagate_negations(only_dis_or_con_junctions(formula))"""
+    if isinstance(formula, BiOp):
+        new_left = remove_globals(formula.left)
+        new_right = remove_globals(formula.right)
+        return BiOp(new_left, formula.op, new_right)
+    elif isinstance(formula, UniOp):
+        new_formula = remove_globals(formula.right)
+        if formula.op == "G":
+            return new_formula
+        else:
+            return UniOp(formula.op, new_formula)
     else:
         return formula

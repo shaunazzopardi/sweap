@@ -18,7 +18,7 @@ program robot-cat-real-2d {
         oy : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         setxvars -> setxvars [stay $
                                 rx := rx + 1 if toggle & inc;
                                 rx := rx - 1 if toggle & !inc;

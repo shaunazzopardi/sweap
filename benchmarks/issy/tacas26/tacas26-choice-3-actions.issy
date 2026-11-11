@@ -1,0 +1,18 @@
+state int x
+state int y
+input int i
+
+
+game Reachability from work {
+    loc work 0
+    loc done 1
+    
+    from done to done with true
+    
+    from work to work with
+        ([x' = x - y - i] && [y' = y])
+     || ([x' = x - y + i] && [y' = y])  
+     || ([x' = x]         && [y' = y + 1])
+
+    from work to done with ([x <= 0])   
+}

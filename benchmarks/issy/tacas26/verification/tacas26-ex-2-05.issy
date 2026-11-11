@@ -1,0 +1,14 @@
+// Example 2.5 from the paper "Ranking Templates for Linear Loops"
+// There exists a ranking function: ceil(q) when q > 0.
+
+
+state int q
+state int y
+
+formula {
+    assert G (([q > 0] && [y > 0]) -> 
+              ([y' = y] && [q' = q - y - 1]))
+    assert G (([q > 0] && [y <= 0]) -> 
+              ([y' = y] && [q' = q + y - 1]))
+    assert F [q <= 0]
+}

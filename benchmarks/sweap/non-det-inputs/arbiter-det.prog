@@ -1,0 +1,26 @@
+program arbiter-det {
+    STATES {
+        q1 : init
+    }
+
+    ENVIRONMENT EVENTS {
+        i: integer
+    }
+
+    CONTROLLER EVENTS {
+        finished
+    }
+
+    VALUATION {
+        cnt : integer;
+    }
+
+    TRANSITIONS [completion=stutter]{
+        q1 -> q1 [!finished $ cnt := cnt - 1],
+        q1 -> q0 [cnt == 0 & finished $]
+    }
+
+    SPECIFICATION {
+        (cnt == 0) -> G(q1 -> F q0)
+    }
+}

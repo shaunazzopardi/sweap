@@ -1,30 +1,38 @@
-from synthesis.ltl_synthesis_problem import LTLSynthesisProblem
 from prop_lang.formula import Formula
 from prop_lang.variable import Variable
+from synthesis.ltl.ltl_synthesis_problem import LTLSynthesisProblem
 
 
-class AbstractLTLSynthesisProblem():
-    pure_env_props: [Variable]
-    program_out_props: [Variable]
-    program_pred_props: [Variable]
-    con_props: [Variable]
+class AbstractLTLSynthesisProblem:
+    pure_env_props: list[Variable]
+    program_out_props: list[Variable]
+    program_pred_props: list[Variable]
+    con_props: list[Variable]
     ltl_synthesis_problem: LTLSynthesisProblem
+    tlsf: str
 
-    def __init__(self,
-                 pure_env_props: [Variable],
-                 program_out_props: [Variable],
-                 program_pred_props: [Variable],
-                 con_props: [Variable],
-                 assumptions: [Formula],
-                 guarantees: [Formula]):
+    def __init__(
+        self,
+        pure_env_props: list[Variable],
+        program_out_props: list[Variable],
+        program_pred_props: list[Variable],
+        con_props: list[Variable],
+        assumptions: list[Formula],
+        guarantees: list[Formula],
+        init_choice_logic: Formula,
+    ):
         self.pure_env_props = pure_env_props
         self.program_out_props = program_out_props
         self.program_pred_props = program_pred_props
         self.con_props = con_props
-        self.ltl_synthesis_problem = LTLSynthesisProblem(pure_env_props + program_out_props + program_pred_props,
-                                                         con_props,
-                                                         assumptions,
-                                                         guarantees)
+        self.ltl_synthesis_problem = LTLSynthesisProblem(
+            pure_env_props + program_out_props + program_pred_props,
+            con_props,
+            assumptions,
+            guarantees,
+        )
+        self.tlsf = self.ltl_synthesis_problem.tlsf
+        self.init_choice_logic = init_choice_logic
 
     def get_env_props(self):
         return self.pure_env_props
@@ -43,8 +51,3 @@ class AbstractLTLSynthesisProblem():
 
     def get_guarantees(self):
         return self.ltl_synthesis_problem.get_guarantees()
-
-    def to_tlsf(self):
-        return self.ltl_synthesis_problem.to_tlsf()
-
-

@@ -16,7 +16,7 @@ program square5x5 {
         y : integer := 1;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         move0 -> move1 [d],
         move0 -> move1 [a & !b & !c & !d $ x := x + 1],
         move0 -> move1 [!a & b & !c & !d $ x := x + 1; y := y + 1],

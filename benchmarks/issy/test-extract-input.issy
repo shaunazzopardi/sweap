@@ -1,0 +1,12 @@
+input int i
+state int x
+
+game Safety from l0 {
+    loc l0 1
+    loc l1 0
+
+    from l0 to l0 with ([x' = x + i] || [x' = x - i]) && [x' >= x]
+
+    from l0 to l1 with true
+    from l1 to l1 with true
+}

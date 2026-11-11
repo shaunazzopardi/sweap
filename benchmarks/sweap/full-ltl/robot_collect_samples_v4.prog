@@ -19,7 +19,7 @@ program robot_collect_samples_v4 {
         reqSamples : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         moveToBase -> base [trackPos == 23 $ samples := 0; reqSamples := 0],
         moveToBase -> moveToBase [trackPos != 23 & a $],
         moveToBase -> moveToBase [trackPos != 23 & !a & b $ trackPos := trackPos + 1],

@@ -17,7 +17,7 @@ program g-unreal-1{
         e: int := 0;
     }
 
-    TRANSITIONS{
+    TRANSITIONS[completion=stutter]{
         setx -> setx [e0 $ x := x + 1],
         setx -> setx [!e0 & e1 $ x := x - 1],
         setx -> sety [!e0 & !e1],

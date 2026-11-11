@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
-
 from prop_lang.formula import Formula
 
 
 class Atom(Formula, ABC):
-
     def __str__(self):
         return str(self.name)
 

@@ -1,0 +1,18 @@
+program history_parity_unreal {
+    STATES { run : init }
+    ENVIRONMENT EVENTS { }
+    CONTROLLER EVENTS {
+        up_x : boolean, up_y : boolean
+    }
+    VALUATION {
+        x : integer := 0;
+        y : integer := 1;
+    }
+    TRANSITIONS [completion=stutter] {
+        run -> run [up_x & up_y $ x := x + 1; y := y + 1],
+        run -> run [up_x & !up_y $ x := x + 1; y := y - 1],
+        run -> run [!up_x & up_y $ x := x - 1; y := y + 1],
+        run -> run [!up_x & !up_y $ x := x - 1; y := y - 1]
+    }
+    SPECIFICATION { X F(x_prev = y_prev) }
+}

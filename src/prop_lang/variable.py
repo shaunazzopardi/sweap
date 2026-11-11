@@ -1,17 +1,16 @@
-import re
-
 import sympy.core.symbol
-from pysmt.fnode import FNode
-from pysmt.shortcuts import INT, BOOL, GE, LE, And, Int, TRUE, Symbol
 
-from programs.typed_valuation import TypedValuation
+from pysmt.fnode import FNode
+
 from prop_lang.atom import Atom
+from prop_lang.types.types import typed_var_to_pysmt_type
 
 
 class Variable(Atom):
     def __init__(self, name: str):
         self.name = name
         self.prev_representation = None
+        self.smt_representation = None
 
     def __str__(self):
         return str(self.name)
@@ -28,13 +27,6 @@ class Variable(Atom):
     def variablesin(self):
         return [self]
 
-    def ground(self, context: [TypedValuation]):
-        for val in context:
-            if val.name == self.name:
-                return val.value
-
-        return self
-
     def simplify(self):
         return self
 
@@ -42,49 +34,52 @@ class Variable(Atom):
         return []
 
     def replace_vars(self, context):
-        if isinstance(context, list):
-            for val in context:
-                if (val.op == "=" or val.op == ":=") and (str(val.left.name) == self.name):
-                    return val.right
-        elif hasattr(context, '__call__'):
+        if isinstance(context, dict):
+            if self in context.keys():
+                return context[self]
+            elif self.name in context.keys():
+                return context[self.name]
+            else:
+                return self
+        elif hasattr(context, "__call__"):
             return context(self)
         else:
-            try:
-                val = context
-                if (val.op == "=" or val.op == ":=") and (str(val.left.name) == self.name):
-                    return val.right
-            except:
-                raise Exception("Variable.replace: context is not a list of assignments, an assignment, or a mapping function.")
-        return self
+            raise Exception(
+                "Variable.replace: context is not a dictionary or a function."
+            )
 
     def to_nuxmv(self):
-        return self
+        if self.is_next():
+            return "next(" + self.name[:-1] + ")"
+        else:
+            return self.name
 
     def to_strix(self):
-        return self
+        return self.name
 
-    def to_smt(self, symbol_table) -> (FNode, FNode):
-        if self.name in symbol_table.keys():
-            typed_val = symbol_table[self.name]
-        elif self.name.split("_prev")[0] in symbol_table.keys():
-            typed_val = symbol_table[self.name.split("_prev")[0]]
-        else:
-            raise Exception("Variable.to_smt: variable " + self.name + " not in symbol table.")
+    def to_smt(self, symbol_table) -> tuple[FNode, FNode]:
+        import config
 
-        if typed_val.type == "int" or typed_val.type == "integer":
-            return Symbol(self.name, INT), TRUE()
-        elif typed_val.type == "bool" or typed_val.type == "boolean":
-            return Symbol(self.name, BOOL), TRUE()
-        elif typed_val.type == "nat" or typed_val.type == "natural":
-            return Symbol(self.name, INT), GE(Symbol(self.name, INT), Int(0))
-        elif re.match("-?[0-9]+..+-?[0-9]+", typed_val.type):
-            split = re.split("\\.\\.+", typed_val.type)
-            lower = int(split[0])
-            upper = int(split[1])
-            return Symbol(self.name, INT), And(GE(Symbol(self.name, INT), Int((lower))),
-                                               LE(Symbol(self.name, INT), Int((upper))))
+        cache = config.Config.getConfig().cache_smt
+
+        if cache and self.smt_representation:
+            return self.smt_representation
+        type_name = self.name
+        while type_name not in symbol_table and type_name.endswith("_prev"):
+            type_name = type_name.removesuffix("_prev")
+        if type_name in symbol_table:
+            type = symbol_table[type_name]
+        elif self.is_next():
+            type = symbol_table[self.prev_rep().name]
         else:
-            raise NotImplementedError(f"Type {typed_val.type} unsupported.")
+            raise Exception(
+                "Variable.to_smt: variable " + self.name + " not in symbol table."
+            )
+
+        f = typed_var_to_pysmt_type(self.name, type)
+        if cache:
+            self.smt_representation = f
+        return f
 
     def replace_math_exprs(self, symbol_table, cnt=0):
         return self, {}
@@ -115,5 +110,14 @@ class Variable(Atom):
 
     def prev_rep(self):
         if self.prev_representation is None:
-            self.prev_representation = Variable(self.name + "_prev")
+            if self.is_next():
+                self.prev_representation = Variable(self.name[:-1])
+            else:
+                self.prev_representation = Variable(self.name + "_prev")
         return self.prev_representation
+
+    def is_next(self):
+        return self.name.endswith("'")
+
+    def is_prev(self) -> bool:
+        return self.name.endswith("_prev")

@@ -1,0 +1,15 @@
+// Example 4.6 from the paper "Ranking Templates for Linear Loops"
+// There exists a 2-phase ranking function.
+
+
+state int q
+state int y
+input int i
+
+formula {
+    assert G (([q > 0] && [y > 0]) -> 
+              ([y' = 0] && [q' = i]))
+    assert G (([q > 0] && [y <= 0]) -> 
+              ([y' = y - 1] && [q' = q - 1]))
+    assert F [q <= 0]
+}

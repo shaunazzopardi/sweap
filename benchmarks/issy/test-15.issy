@@ -1,0 +1,12 @@
+state real x
+
+formula {
+    assume [x=0]
+    assert F ([x>10])
+}
+
+game Safety from l0 {
+    loc l0 1
+
+    from l0 to l0 with [x' > x] && [x' < x + 1]
+}

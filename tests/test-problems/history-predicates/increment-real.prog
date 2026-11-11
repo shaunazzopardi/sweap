@@ -1,0 +1,10 @@
+program history_increment_real {
+    STATES { run : init }
+    ENVIRONMENT EVENTS { }
+    CONTROLLER EVENTS { }
+    VALUATION { x : integer := 0; }
+    TRANSITIONS [completion=stutter] {
+        run -> run [TRUE $ x := x + 1]
+    }
+    SPECIFICATION { X F(x_prev >= 1) }
+}

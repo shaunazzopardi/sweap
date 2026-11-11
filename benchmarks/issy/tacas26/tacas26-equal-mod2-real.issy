@@ -1,0 +1,8 @@
+state int x
+state int y
+
+formula {
+    assert G ([x' = x + 1] || [x' = x - 1])
+    assert G ([y' = y + 1] || [y' = y - 1])
+    assert F ([x = y] || [x = y + 1])
+}

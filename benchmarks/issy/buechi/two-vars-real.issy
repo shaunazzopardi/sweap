@@ -1,0 +1,37 @@
+state int x
+state int y
+
+game Buechi from linit{
+
+    loc linit 0
+    loc l0 0
+    loc l1 0
+    loc l2 1
+    loc l3 0
+    loc l4 0
+    loc l5 1
+    loc l6 1
+
+    from linit to l0 with ([x > 1] || [y > 1])   && [x' = x] && [y' = y]
+    from linit to l6 with ([x <= 1] && [y <= 1]) && [x' = x] && [y' = y]
+
+    from l0 to l1 with [x' = x] && [y' = 0]
+    from l0 to l4 with [x' = 0] && [y' = y]
+
+    from l1 to l1 with [x' = x]     && [y' = y + 1]
+    from l1 to l2 with [x' = x - 1] && [y' = y]
+    
+    from l2 to l0 with [x > 0]  && [x' = x] && [y' = y]
+    from l2 to l3 with [x <= 0] && [x' = x] && [y' = y]
+
+    from l3 to l3 with [x' = x] && [y' = y]
+    
+    from l4 to l4 with [x' = x + 1] && [y' = y]
+    from l4 to l5 with [x' = x]     && [y' = y - 1]
+
+    from l5 to l0 with [y > 0]   && [x' = x] && [y' = y]
+    from l5 to l3 with [y <= 0]  && [x' = x] && [y' = y]
+
+    from l6 to l6 with [x' = x] && [y' = y]
+
+}

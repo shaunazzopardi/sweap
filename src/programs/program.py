@@ -1,59 +1,227 @@
+import itertools
+import math
 import logging
+from collections import deque
 from multiprocessing import Pool
-from typing import Set
 from textwrap import dedent
+from typing import Set, Union
 
 from graphviz import Digraph
-
+from analysis.sat_context import IncrementalSatContext, NonIncrementalSatContext
 import config
-from analysis.compatibility_checking.nuxmv_model import NuXmvModel
+from programs.dfa import (
+    program_sccs,
+    reachable_states,
+    simplify_with_location_constants,
+)
 from programs.transition import Transition
-from programs.typed_valuation import TypedValuation
-from programs.util import stutter_transition, symbol_table_from_program, is_deterministic, binary_rep_states, \
-    add_prev_suffix
+from prop_lang.formula import Formula
+from prop_lang.util import (
+    reset_caches as prop_lang_util_reset_caches,
+    type_constraint,
+)
+from programs.util import (
+    reset_caches,
+    stutter_transition,
+    symbol_table_from_program,
+    is_deterministic,
+    binary_rep_states,
+    add_prev_suffix,
+    transition_formula,
+)
+from prop_lang.atom import Atom
 from prop_lang.biop import BiOp
+from prop_lang.uniop import UniOp
 from prop_lang.nondet import NonDeterministic
-from prop_lang.util import (disjunct_formula_set, neg, true, \
-                            sat, type_constraints_acts, implies, is_tautology, sat_parallel, mutually_exclusive_rules,
-                            atomic_predicates,
-                            simplify_formula_with_math_wo_type_constraints, conjunct, conjunct_typed_valuation_set,
-                            massage_ltl_for_dual)
+from prop_lang.types.types import (
+    Type,
+    Number,
+    is_finite,
+    BaseNumberTypes,
+    BOOLEAN,
+)
+from prop_lang.update import Update
+from prop_lang.util import (
+    disjunct_formula_set,
+    neg,
+    true,
+    false,
+    sat,
+    type_constraints_acts,
+    implies,
+    is_tautology,
+    sat_parallel,
+    mutually_exclusive_rules,
+    atomic_predicates,
+    simplify_formula_with_math_wo_type_constraints,
+    conjunct,
+    massage_ltl_for_dual,
+    conjunct_formula_set,
+)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
 
+def is_otherwise_transition(transition: Transition) -> bool:
+    return str(transition.condition) == "otherwise"
+
+
+def materialize_otherwise_transitions(
+    transitions: list[Transition], symbol_table
+) -> list[Transition]:
+    otherwise_by_src = {}
+    for t in transitions:
+        if is_otherwise_transition(t):
+            otherwise_by_src.setdefault(t.src, []).append(t)
+
+    duplicate_srcs = [str(src) for src, trs in otherwise_by_src.items() if len(trs) > 1]
+    if duplicate_srcs:
+        raise Exception(
+            "Too many 'otherwise' transitions from state(s): "
+            + ", ".join(sorted(duplicate_srcs))
+        )
+
+    if len(otherwise_by_src) == 0:
+        return transitions
+
+    resolved_transitions = []
+    for t in transitions:
+        if not is_otherwise_transition(t):
+            resolved_transitions.append(t)
+            continue
+
+        fallback_condition = neg(
+            disjunct_formula_set(
+                [tt.condition for tt in transitions if tt.src == t.src and tt is not t]
+            )
+        )
+        if sat(fallback_condition, symbol_table):
+            resolved_transitions.append(
+                Transition(
+                    t.src,
+                    fallback_condition,
+                    t.action,
+                    t.output,
+                    t.tgt,
+                )
+            )
+
+    return resolved_transitions
+
+
 class Program:
+    def __init__(
+        self,
+        name,
+        sts,
+        init_st,
+        init_values: list[Union[tuple[str, Type], tuple[str, Type, Atom]]],
+        transitions: list[Transition],
+        env_events: list[tuple[Variable, Type]],
+        con_events: list[tuple[Variable, Type]],
+        preprocess=True,
+        is_determ=None,
+        emit_state_binary_map=True,
+        transition_completion: str | None = None,
+    ):
+        config.Config.getConfig().cache_smt = False
+        reset_caches()
 
-    def __init__(self, name, sts, init_st, init_val: [TypedValuation],
-                 transitions: [Transition],
-                 env_events: [Variable], con_events: [Variable],
-                 preprocess=True, is_determ=None):
+        if not name:
+            raise Exception("Program must have a name.")
         self.name = name
-        self.initial_state = init_st
+        self.input_format: str | None = None
         self.states: Set = set(sts)
-        self.valuation = init_val
+        # Source identifiers may also appear in a separately supplied TLSF file.
+        self.identifier_renames: dict[str, str] = {}
+        self.source_identifiers = (
+            {str(s) for s in self.states}
+            | {v[0] for v in init_values}
+            | {str(v) for v, _ in env_events + con_events}
+        )
+        self.tlsf_inputs: dict[str, Variable] = {}
+        self.tlsf_outputs: dict[str, Variable] = {}
+        self.initial_state = init_st
+        self.added_completion_lose_transitions = False
+        self.constants = {}
+        # Specifications also refer to control states removed by preprocessing.
+        # Keep those separate from valuation constants used for legal lookbacks.
+        self.specification_constants: dict[Variable, Formula] = {}
+        self.constant_types: dict[Variable, Type] = {}
+        self.binary_rep_tables: dict[str, str] = {}
 
-        if config.Config.getConfig().dual:
-            self.env_events = con_events
-            self.con_events = env_events
-        else:
-            self.env_events = env_events
-            self.con_events = con_events
+        inputs = [v for v, _ in env_events]
+        outputs = [v for v, _ in con_events]
+
+        # TODO update to Types not str
+        self.inp_out_puts = inputs + outputs
+        self.num_in_out = [v for v, t in env_events + con_events if not t == BOOLEAN]
+        self.bool_in_out = [v for v in inputs + outputs if v not in self.num_in_out]
+
+        self.env_events = env_events
+        self.con_events = con_events
+        self.inputs = inputs
+        self.outputs = outputs
+
+        # check that non-boolean events only in env events
+        for ev, t in con_events:
+            if not t == BOOLEAN:
+                raise Exception(
+                    "Only environment events can have non-boolean variables: "
+                    + str(ev)
+                    + ": "
+                    + str(t)
+                )
+
         self.out_events = []
-        self.symbol_table = symbol_table_from_program(self)
-        self.local_vars = [Variable(tv.name) for tv in init_val]
+
+        self.symbol_table, self.init_var_values, self.unset_init_vars = (
+            symbol_table_from_program(self, init_values)
+        )
+        self.local_vars_str: list[str] = [v[0] for v in init_values]
+        self.local_vars: list[Variable] = [Variable(v) for v in self.local_vars_str]
+
+        for transition in transitions:
+            formulas = [transition.condition, *transition.action, *transition.output]
+            if isinstance(transition.pred_upgrades, Formula):
+                formulas.append(transition.pred_upgrades)
+            else:
+                formulas.extend(transition.pred_upgrades)
+            for formula in formulas:
+                if isinstance(formula, Formula):
+                    self.validate_history_references(formula, "transition", max_depth=0)
 
         self.transitions = transitions
 
         if len(self.transitions) == 0:
-            self.transitions = [Transition(s, true(), [], [], s) for s in self.states]
+            self.transitions = [
+                Transition(self.initial_state, true(), [], [], self.initial_state)
+            ]
 
-        logging.info("Processing program.")
-        print("Processing program.")
-        if preprocess:
-            all_vars = self.local_vars
-            self.transitions = [t.complete_outputs(self.out_events)
-                                    .complete_action_set(all_vars) for t in self.transitions]
+        self._materialize_otherwise_transitions()
+
+        all_vars = self.local_vars
+        self.transitions = [
+            self.add_type_constraints_to_guards(t)
+            .complete_outputs(self.out_events)
+            .complete_action_set(all_vars)
+            for t in self.transitions
+        ]
+
+        init_type_constraints = []
+        for v, t in self.symbol_table.items():
+            if isinstance(t, Number) and t.interval:
+                init_type_constraints.append(
+                    type_constraint(Variable(v), self.symbol_table)
+                )
+
+        self.init_type_constraints = conjunct_formula_set(init_type_constraints)
+
+        self.deterministic = is_determ
+
+        if preprocess or config.Config.getConfig().debug:
+            logging.info("Processing program.")
+            print("Processing program.")
             unsat_trans = []
             with Pool(config.Config.getConfig().workers) as pool:
                 arg1 = []
@@ -70,27 +238,31 @@ class Program:
                         new_transitions.append(t)
 
             if len(unsat_trans) > 0:
-                logging.info("Removed transitions with unsat transitions: " + ",\n".join(map(str, unsat_trans)))
+                logging.info(
+                    "Removed transitions with unsat transitions: "
+                    + ",\n".join(map(str, unsat_trans))
+                )
 
-        otherwise = [t for t in self.transitions if str(t.condition) == "otherwise"]
-        if len(otherwise) > 1:
-            raise Exception("Too many environment otherwise transitions")
-        elif len(otherwise) == 1:
-            otherwise_trans = otherwise[0]
-            condition = neg(disjunct_formula_set([t.condition
-                                                                  for t in transitions
-                                                                  if t.src == otherwise_trans.src
-                                                                  and t != otherwise_trans]))
-            if sat(condition, self.symbol_table):
-                concrete_trans = Transition(otherwise_trans.src,
-                                                condition,
-                                                otherwise_trans.action,
-                                                otherwise_trans.output,
-                                                otherwise_trans.tgt)
-                self.transitions.append(concrete_trans)
-            self.transitions.remove(otherwise_trans)
+        if (
+            preprocess and self.deterministic is None
+        ) or config.Config.getConfig().debug:
+            self.deterministic = is_deterministic(self)
 
-        self.orig_ts, self.stutter_ts = self.complete_transitions_stutter_explicit()
+        if config.Config.getConfig().opt_location_constant_simplify:
+            simplified, removed_unsat = simplify_with_location_constants(self)
+            if simplified > 0 or removed_unsat > 0:
+                logging.info(
+                    "Location-constant simplification: simplified "
+                    + str(simplified)
+                    + " transitions, removed "
+                    + str(removed_unsat)
+                    + " unsat transitions."
+                )
+
+        (
+            self.orig_ts,
+            self.stutter_ts,
+        ) = self.complete_transitions(transition_completion)
         self.transitions = self.orig_ts + self.stutter_ts
         # TODO this can take a long time, see concurrent-safety-response
         self.state_to_trans = {}
@@ -100,128 +272,353 @@ class Program:
             else:
                 self.state_to_trans[t.src] = [t]
 
-        self.deterministic = None
-        if preprocess:
-            if is_determ is None:
-                self.deterministic = is_deterministic(self)
-            else:
-                self._det = None
+        reachable_statess, self.reachable_from = reachable_states(self)
+        if len(reachable_statess) != len(self.states):
+            for state in self.states - reachable_statess:
+                self.specification_constants[Variable(state)] = false()
+                self.constant_types[Variable(state)] = BOOLEAN
+            print(
+                "Removed unreachable states: "
+                + ", ".join(map(str, self.states - reachable_statess))
+            )
+            self.states = reachable_statess
+            self.transitions = [t for t in self.transitions if t.src in self.states]
+            self.orig_ts = [t for t in self.orig_ts if t.src in self.states]
+            self.stutter_ts = [t for t in self.stutter_ts if t.src in self.states]
+            self.state_to_trans = {
+                k: v for k, v in self.state_to_trans.items() if k in self.states
+            }
 
-                def lazy_det(slf):
-                    if slf._det is None:
-                        slf._det = is_deterministic(slf)
-                    return slf._det
+        self.only_init_transitions: list[Transition] = self.state_to_trans.get(
+            self.initial_state, []
+        )
+        tgts = set(t.tgt for t in self.transitions)
+        if any(
+            s for s in tgts if self.initial_state in self.reachable_from.get(s, set())
+        ):
+            self.only_init_transitions = []
 
-                def skip(_):
-                    pass
-                self.deterministic = property(lazy_det, skip, skip, "")
-
-        self.bin_state_vars, self.states_binary_map = binary_rep_states(self.states)
+        # if not config.Config.getConfig().no_binary_enc:
+        self.bin_state_vars, self.states_binary_map = binary_rep_states(
+            self.states,
+            printing=False,
+            log=emit_state_binary_map,
+            collect_to=self,
+        )
         self.bin_to_orig_state_map = {st: k for k, st in self.states_binary_map.items()}
-        self.states_binary_map |= {Variable(st): bin_st for st, bin_st in self.states_binary_map.items()}
+        self.states_binary_map |= {
+            Variable(st): bin_st for st, bin_st in self.states_binary_map.items()
+        }
+        self.symbol_table.update({str(b): BOOLEAN for b in self.bin_state_vars})
+        # TODO: the below is wrong, if incorporated needs to be corrected so that states are mutually exclusive
+        # else:
+        #     self.bin_state_vars = list(self.states)
+        #     self.bin_to_orig_state_map = {st: st for st in self.states}
+        #     self.states_binary_map = {(st): Variable(st) for st in self.states}
 
         self.project_out_constants()
+
+        self.updates = {u for trans in self.transitions for u in trans.action}
+        self.sccs = program_sccs(self)
+        # note, we do not need to add natural type constraints to transitions after this call here,
+        # since we are refining integers to naturals only when every transition already
+        # preserves the natural constraint
         while self.refine_var_types():
+            prop_lang_util_reset_caches()
+            reset_caches()
+            # TODO: should we adding type constraints in transitions here again?
             pass
 
-    def refine_var_types(self):
-        new_symbol_table = {}
-        for n, tv in self.symbol_table.items():
-            if tv.type.startswith("int"):
-                v = Variable(tv.name)
-                nat_pred = BiOp(v, ">=", Value("0"))
-                if not is_tautology(implies(conjunct_typed_valuation_set(self.valuation), nat_pred), self.symbol_table):
+        # doing this after refining var types; otherwise the wrong type constraints will be added to smt calls
+        config.Config.getConfig().cache_smt = True
+
+    def register_binary_rep_table(self, label: str, table: str):
+        self.binary_rep_tables[label] = table
+
+    def add_boolean_events(
+        self, inputs: list[Variable], outputs: list[Variable]
+    ) -> None:
+        """Add unconstrained events supplied by an external specification."""
+        for additions, events, variables in (
+            (inputs, self.env_events, self.inputs),
+            (outputs, self.con_events, self.outputs),
+        ):
+            for variable in additions:
+                if variable in variables:
                     continue
-                symbol_table_with_prevs = {(m + "_prev") : TypedValuation(m + "_prev", tv.type, tv.value) for m, tv in self.symbol_table.items()}
+                if variable.name in self.symbol_table:
+                    raise ValueError(f"Event {variable.name!r} collides with a program symbol.")
+                events.append((variable, BOOLEAN))
+                variables.append(variable)
+                self.bool_in_out.append(variable)
+                self.inp_out_puts.append(variable)
+                self.symbol_table[variable.name] = BOOLEAN
+
+    def get_binary_rep_tables(self) -> list[str]:
+        return list(self.binary_rep_tables.values())
+
+    def refine_var_types(self):
+        from prop_lang.types.types import NATURAL
+
+        new_symbol_table = {}
+
+        # Create valuation from init_var_values
+        current_vals = [
+            BiOp(Variable(name), "=", val) for name, val in self.init_var_values.items()
+        ]
+        current_valuation = (
+            conjunct_formula_set(current_vals) if current_vals else true()
+        )
+
+        for n, type_obj in self.symbol_table.items():
+            if (
+                isinstance(type_obj, Number)
+                and not str(n).endswith("_prev")
+                and n not in self.inputs
+                and n not in self.outputs
+            ):
+                v = Variable(n)
+                if not (
+                    isinstance(type_obj, Number)
+                    and type_obj.number_type == BaseNumberTypes.integer
+                ):
+                    continue
+                nat_pred = BiOp(v, ">=", Value("0"))
+
+                if not is_tautology(
+                    implies(current_valuation, nat_pred),
+                    self.symbol_table,
+                ):
+                    continue
+
                 exit = False
                 prev_nat = add_prev_suffix(nat_pred)
+
                 for t in self.transitions:
-                    if not is_tautology(implies(conjunct(prev_nat, t.formula()), nat_pred), self.symbol_table | symbol_table_with_prevs):
+                    if not is_tautology(
+                        implies(conjunct(prev_nat, t.formula()), nat_pred),
+                        self.symbol_table,
+                    ):
                         exit = True
                         break
+
                 if not exit:
                     print("turned " + n + " into a natural")
-                    new_symbol_table[n] = TypedValuation(n, "natural", tv.value)
+                    new_symbol_table[n] = NATURAL
+                    new_symbol_table[n + "_prev"] = NATURAL
+                    new_symbol_table[n + "_prev_prev"] = NATURAL
 
         self.symbol_table.update(new_symbol_table)
         return len(new_symbol_table) > 0
 
-    def project_out_constants(self):
-        vars_to_project_out = {}
-        stutter_acts = []
-        new_valuation = []
-        for tv in self.valuation:
-            if all(BiOp(Variable(tv.name), ":=", Variable(tv.name)) in t.action for t in self.transitions):
-                vars_to_project_out[Variable(tv.name)] = Value(tv.value)
-                stutter_acts.append(BiOp(Variable(tv.name), ":=", Variable(tv.name)))
-            else:
-                new_valuation.append(tv)
+    def validate_history_references(
+        self, formula: Formula, context: str, max_depth: int | None = None,
+        require_next: bool = False,
+    ) -> None:
+        """History may refer only to valuation variables, including projected ones."""
+        state_names = set(self.local_vars_str) | {str(v) for v in self.constants}
+        event_names = {v.name for v, _ in self.env_events + self.con_events}
+        declared_names = state_names | event_names
+        history_names = set()
+        for variable in formula.variablesin():
+            name = variable.name.removesuffix("'")
+            if not name.endswith("_prev") or name in declared_names:
+                continue
+            history_names.add(name)
+            if max_depth == 0:
+                raise ValueError(
+                    f"Invalid history reference {name!r} in {context}: "
+                    "lookbacks are only allowed in LTL specifications."
+                )
+            base = name
+            depth = 0
+            while base.endswith("_prev") and base not in declared_names:
+                base = base[: -len("_prev")]
+                depth += 1
+            if base not in state_names:
+                raise ValueError(
+                    f"Invalid history reference {name!r} in {context}: "
+                    "_prev may only refer to state variables, "
+                    f"but {base!r} is not a state variable."
+                )
+            if max_depth is not None and depth > max_depth:
+                raise ValueError(
+                    f"Invalid history reference {name!r} in {context}: "
+                    "only one _prev suffix is supported in LTL specifications."
+                )
 
-        if len(vars_to_project_out.keys()) == 0:
+        if require_next and history_names:
+            def check_initial_state(expr):
+                if isinstance(expr, UniOp):
+                    if expr.op != "X":
+                        check_initial_state(expr.right)
+                elif isinstance(expr, BiOp):
+                    check_initial_state(expr.left)
+                    check_initial_state(expr.right)
+                else:
+                    for variable in expr.variablesin():
+                        if variable.name.removesuffix("'") in history_names:
+                            raise ValueError(
+                                f"Invalid history reference {str(variable)!r} in {context}: "
+                                "_prev references must have an enclosing X operator "
+                                "so they cannot refer to the initial state."
+                            )
+
+            check_initial_state(formula)
+
+    def substitute_specification_constants(
+        self, formula: Formula, include_history: bool = True
+    ) -> Formula:
+        """Apply global program constants, after validating any LTL lookbacks."""
+        substitutions = dict(self.specification_constants)
+        if include_history:
+            substitutions.update({
+                variable.prev_rep(): value for variable, value in self.constants.items()
+            })
+        return formula.replace_vars(substitutions)
+
+    def project_out_constants(self):
+        # Early check to see if any variables are constant
+        constant_vars = set()
+        for var_name in self.init_var_values.keys():
+            var_obj = Variable(var_name)
+            identity_action = Update(var_obj, var_obj)
+            if all(identity_action in t.action for t in self.transitions):
+                constant_vars.add(var_name)
+
+        if not constant_vars:
             return
 
+        # Build projection mapping and new valuation
+        vars_to_project_out = {}
+        new_init_var_values = {}
+
+        for var_name, var_value in self.init_var_values.items():
+            if var_name in constant_vars:
+                vars_to_project_out[Variable(var_name)] = var_value
+            else:
+                new_init_var_values[var_name] = var_value
+
+        # A projected constant has the same value before and after a transition.
+        predicate_constants = vars_to_project_out | {
+            Variable(variable.name + "'"): value
+            for variable, value in vars_to_project_out.items()
+        }
+
+        # Process transitions
         for t in self.transitions:
-            t.action = [a for a in t.action if a.left not in vars_to_project_out.keys()]
+            t.pred_upgrades = [
+                predicate.replace_formulas(predicate_constants)
+                for predicate in t.pred_upgrades
+            ]
+            t.f = None
+
+            # Filter actions and replace variables
+            t.action = [
+                Update(
+                    a.left,
+                    a.right.replace_vars(lambda x: vars_to_project_out.get(x, x)),
+                )
+                for a in t.action
+                if a.left not in vars_to_project_out
+            ]
+
+            # Only process condition if it contains variables to project out
             preds_in_cond = atomic_predicates(t.condition)
-            preds_to_replace = {p: simplify_formula_with_math_wo_type_constraints(p.replace_formulas(vars_to_project_out), self.symbol_table)
-                                for p in preds_in_cond if not vars_to_project_out.keys().isdisjoint(p.variablesin())}
-            t.condition = t.condition.replace_formulas(preds_to_replace)
+            preds_to_replace = {}
 
+            for p in preds_in_cond:
+                pred_vars = p.variablesin()
+                if not vars_to_project_out.keys().isdisjoint(pred_vars):
+                    preds_to_replace[p] = (
+                        simplify_formula_with_math_wo_type_constraints(
+                            p.replace_formulas(vars_to_project_out), self.symbol_table
+                        )
+                    )
+
+            if preds_to_replace:
+                t.condition = t.condition.replace_formulas(preds_to_replace)
+
+        # Update symbol table and data structures
+        var_names_to_delete = [v.name for v in vars_to_project_out.keys()]
+        for var_name in var_names_to_delete:
+            variable = Variable(var_name)
+            self.constants[variable] = self.init_var_values[var_name]
+            self.specification_constants[variable] = self.init_var_values[var_name]
+            self.constant_types[variable] = self.symbol_table[var_name]
+            del self.symbol_table[var_name]
+            del self.symbol_table[var_name + "_prev"]
+            del self.symbol_table[var_name + "_prev_prev"]
+
+        self.init_var_values = new_init_var_values
         for v in vars_to_project_out.keys():
-            del self.symbol_table[v.name]
-            del self.symbol_table[v.name + "_prev"]
-            del self.symbol_table[v.name + "_prev_prev"]
-
-        self.valuation = new_valuation
-        self.local_vars = [Variable(tv.name) for tv in new_valuation]
-
+            self.local_vars.remove(v)
+            self.local_vars_str.remove(str(v))
 
     def add_type_constraints_to_guards(self, transition: Transition):
-        constraints = type_constraints_acts(transition, self.symbol_table).to_nuxmv()
-        if not is_tautology(implies(transition.condition, constraints), self.symbol_table):
-            return transition.add_condition(constraints)
-        else:
+        constraints = type_constraints_acts(transition, self.symbol_table)
+        # constraints += list(type_constraints(transition.condition, self.symbol_table))
+        if len(constraints) == 0:
             return transition
+        else:
+            return transition.add_condition(conjunct_formula_set(constraints))
+
+    def _materialize_otherwise_transitions(self) -> None:
+        self.transitions = materialize_otherwise_transitions(
+            self.transitions, self.symbol_table
+        )
 
     def is_finite_state(self):
-        return all(val.is_finite_state() for val in self.symbol_table.values())
+        return all(is_finite(type_obj) for type_obj in self.symbol_table.values())
 
     def to_prog(self, spec=None):
         def state_to_str(x):
             if not isinstance(x, str) and hasattr(x, "__iter__"):
-                return ", ".join(str[v] for v in list(x))
+                return ", ".join(str(v) for v in list(x))
             return str(x)
 
-        def fmt_valuation(v: TypedValuation):
-            typ = {
-                "int": "integer", "nat": "integer", "natural": "integer",
-                "bool": "boolean"}.get(str(v.type), str(v.type))
-            return f"{v.name} : {typ} := {str(v.value).lower()}"
+        def fmt_valuation(name, value, var_type):
+            return f"{name} : {var_type} := {str(value).lower()}"
+
+        def fmt_valuation_no_init(name, var_type):
+            return f"{name} : {var_type}"
 
         def tr_to_str(t, is_env):
             def remove_paren(s):
                 s1 = str(s)
-                return s1[1:-1] if s1.startswith('(') else s1
+                return s1[1:-1] if s1.startswith("(") else s1
 
-            result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"  # noqa: E501
+            result = f"{state_to_str(t.src)} -> {state_to_str(t.tgt)} [{remove_paren(t.condition)}"
             if t.action is not None and len(t.action) > 0:
-                result += " $ " + '; '.join(map(remove_paren, t.action))
-            # Deprecated: we'll remove output actions altogether at some point
+                result += " $ " + "; ".join(map(remove_paren, t.action))
             if is_env and t.output is not None and len(t.output) > 0:
-                result += " # " + ', '.join(map(remove_paren, t.output))
-            return result + ']'
+                result += " >> " + ", ".join(map(remove_paren, t.output))
+            return result + "]"
 
-        valuations = [fmt_valuation(v) for v in self.valuation]
-        other_states = ", ".join([
-            state_to_str(s) for s in self.states if s != self.initial_state])
+        # Create valuations from init_var_values and symbol_table
+        valuations = [
+            fmt_valuation(name, value, self.symbol_table[name])
+            for name, value in self.init_var_values.items()
+        ] + [
+            fmt_valuation_no_init(name, self.symbol_table[name])
+            for name in self.unset_init_vars
+        ]
+
+        other_states = ", ".join(
+            [state_to_str(s) for s in self.states if s != self.initial_state]
+        )
         INDENT = " " * 16
         CN = ",\n" + INDENT
         SN = ";\n" + INDENT
-        spec = f"""
+        spec = (
+            f"""
             SPECIFICATION {{
               {spec}
             }}
-        """ if spec is not None else ""
+        """
+            if spec is not None
+            else ""
+        )
 
         prog = f"""\
         program {self.name} {{
@@ -229,13 +626,10 @@ class Program:
                 {state_to_str(self.initial_state)}: init, {other_states}
             }}
             ENVIRONMENT EVENTS {{
-                {', '.join(str(e) for e in self.env_events)}
+                {', '.join(f"{e} : {t}" for e, t in self.env_events)}
             }}
             CONTROLLER EVENTS {{
-                {', '.join(str(e) for e in self.con_events)}
-            }}
-            PROGRAM EVENTS {{
-                {', '.join(str(e) for e in self.out_events)}
+                {', '.join(f"{e} : {t}" for e, t in self.con_events)}
             }}
             VALUATION {{
                 {SN.join(valuations)}{';' if valuations else ''}
@@ -249,18 +643,31 @@ class Program:
         """
         return dedent(prog)
 
-    def to_dot(self):
-        dot = Digraph(name=self.name,
-                      graph_attr=[("overlap", "scalexy"), ("splines", "true"), ("ranksep", "0.8"),
-                                  ("nodesep", "0.5")],
-                      node_attr=[("shape", "rectangle")],
-                      edge_attr=[("fontname", "mono")],
-                      engine='dot',
-                      format='svg')
+    def to_issy(self, spec):
+        from programs.issy_export import program_to_issy
 
-        to_str = lambda x: ", ".join([str(v) for v in list(x)]) if not isinstance(x, str) and hasattr(x,
-                                                                                                      "__iter__") else str(
-            x)
+        return program_to_issy(self, spec)
+
+    def to_dot(self):
+        dot = Digraph(
+            name=self.name + "_dot",
+            graph_attr=[
+                ("overlap", "scalexy"),
+                ("splines", "true"),
+                ("ranksep", "0.8"),
+                ("nodesep", "0.5"),
+            ],
+            node_attr=[("shape", "rectangle")],
+            edge_attr=[("fontname", "mono")],
+            engine="dot",
+            format="svg",
+        )
+
+        to_str = lambda x: (
+            ", ".join([str(v) for v in list(x)])
+            if not isinstance(x, str) and hasattr(x, "__iter__")
+            else str(x)
+        )
 
         dot.node("init", "", [("shape", "point")])
         for s in self.states:
@@ -272,9 +679,9 @@ class Program:
 
             label = str(t.condition)
             if t.action is not None and len(t.action) > 0:
-                label = label + " $ " + ', '.join(map(str, t.action))
+                label = label + " $ " + ", ".join(map(str, t.action))
             if t.output is not None and len(t.output) > 0:
-                label = label + " >> " + ', '.join(map(str, t.output))
+                label = label + " >> " + ", ".join(map(str, t.output))
             dot.edge(to_str(t.src), to_str(t.tgt), label)
 
         # for t in self.con_transitions:
@@ -285,316 +692,473 @@ class Program:
 
         return dot
 
-    def to_nuXmv_with_turns(self):
-        real_acts = []
-        guards = []
-        acts = []
-        dualise = config.Config.getConfig().dual
-        for transition in self.transitions:
-            if dualise:
-                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
-                cond = str(cond.to_nuxmv()).replace("X(", "next(")
-            else:
-                cond = str(transition.condition.to_nuxmv())
-            guard = "turn = cs & " + str(transition.src) + " & " \
-                    + str(cond)
-
-            act = "next(" + str(transition.tgt) + ")" \
-                  + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
-                             self.complete_action_set(transition.action)]) \
-                  + "".join([" & next(" + str(assignment) + ")" for assignment in
-                             transition.output]) \
-                  + "".join([" & !next(" + str(event) + ")" for event in self.out_events
-                             if event not in transition.output]) \
-                  + "".join([" & !next(" + st + ")" for st in self.states
-                             if st != transition.tgt])
-            guards.append(guard)
-            acts.append(act)
-            real_acts.append((transition.action, transition.output, transition.tgt))
-
-        real_acts.append(([], [], None)) # for the stutter transition
-
-        define = []
-        guard_and_act = []
-        guard_ids = []
-
-        i = 0
-        while i < len(guards):
-            define += ["guard_" + str(i) + " := " + guards[i]]
-            define += ["act_" + str(i) + " := " + acts[i]]
-            guard_ids.append("guard_" + str(i))
-            guard_and_act.append("(guard_" + str(i) + " & " + "act_" + str(i) + ")")
-            i += 1
-
-        identity = []
-        for typed_val in self.valuation:
-            identity.append("next(" + str(typed_val.name) + ") = " + str(typed_val.name))
-        for st in self.states:
-            identity.append("next(" + str(st) + ") = " + str(st))
-
-        identity += ["!next(" + str(event) + ")" for event in self.out_events]
-
-        define += ["identity_" + self.name + " := " + " & ".join(identity)]
-
-        # if no guard holds, then keep the same state and output no program events
-        guards.append("!(" + " | ".join(guard_ids) + ")")
-        acts.append("identity_" + self.name)
-        define += ["guard_" + str(len(guards) - 1) + " := " + guards[len(guards) - 1]]
-        define += ["act_" + str(len(guards) - 1) + " := " + acts[len(guards) - 1]]
-
-        guard_and_act.append("(guard_" + str(len(guards) - 1) + " & " + "act_" + str(len(guards) - 1) + ")")
-
-        transitions = guard_and_act
-
-        vars = ["turn : {prog, cs}"]
-        vars += [str(st) + " : boolean" for st in self.bin_state_vars]
-
-        for typed_val in self.valuation:
-            if typed_val.type.startswith("bool"):
-                vars.append(str(typed_val.name) + " : " + "boolean")
-                vars.append(str(typed_val.name) + "_prev : " + "boolean")
-            else:
-                vars.append(str(typed_val.name) + " : " + "integer")
-                vars.append(str(typed_val.name) + "_prev : " + "integer")
-
-        vars += [str(var) + " : boolean" for var in self.env_events]
-        vars += [str(var) + " : boolean" for var in self.con_events]
-        vars += [str(var) + " : boolean" for var in self.out_events]
-
-        init = [self.initial_state]
-        init += ["!" + st for st in self.states if st != self.initial_state]
-        init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
-        init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
-        init += ["!" + str(event) for event in self.out_events]
-        trans = ["\n\t|\t".join(transitions)]
-        update_prevs = "(turn = cs)" + " & " + " & ".join(["next(" + str(var.name) + "_prev) = " + str(var.name) for var in self.valuation])
-        maintain_prevs = "!(turn = cs)" + " & " + " & ".join(["next(" + str(var.name) + "_prev) = " + str(var.name)  + "_prev" for var in self.valuation])
-        prev_logic = "((" + update_prevs + ") | (" + maintain_prevs + "))"
-        trans += [prev_logic]
-
-        invar = mutually_exclusive_rules(self.states)
-        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
-        invar += [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
-        invar.extend([str(val.name) + "_prev" + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")])
-
-        return NuXmvModel(self.name, vars, define, init, invar, trans)
-
-
-    def to_nuXmv_with_turns_for_con_verif(self):
-        real_acts = []
-        guards = []
-        acts = []
-        dualise = config.Config.getConfig().dual
-        for transition in self.transitions:
-            if dualise:
-                cond = massage_ltl_for_dual(transition.condition, self.env_events, False)
-                cond = str(cond.to_nuxmv()).replace("X(", "next(")
-            else:
-                cond = str(transition.condition.to_nuxmv())
-            guard = str(transition.src) + " & " \
-                    + str(cond)
-
-            act = "next(" + str(transition.tgt) + ")" \
-                  + "".join([" & next(" + str(act.left) + ") = " + str(act.right.to_nuxmv()) for act in
-                             self.complete_action_set(transition.action)]) \
-                  + "".join([" & next(" + str(assignment) + ")" for assignment in
-                             transition.output]) \
-                  + "".join([" & !next(" + str(event) + ")" for event in self.out_events
-                             if event not in transition.output]) \
-                  + "".join([" & !next(" + st + ")" for st in self.states
-                             if st != transition.tgt])
-            guards.append(guard)
-            acts.append(act)
-            real_acts.append((transition.action, transition.output, transition.tgt))
-
-        real_acts.append(([], [], None)) # for the stutter transition
-
-        define = []
-        guard_and_act = []
-        guard_ids = []
-
-        i = 0
-        while i < len(guards):
-            define += ["guard_" + str(i) + " := " + guards[i]]
-            define += ["act_" + str(i) + " := " + acts[i]]
-            guard_ids.append("guard_" + str(i))
-            guard_and_act.append("(guard_" + str(i) + " & " + "act_" + str(i) + ")")
-            i += 1
-
-        identity = []
-        for typed_val in self.valuation:
-            identity.append("next(" + str(typed_val.name) + ") = " + str(typed_val.name))
-        for st in self.states:
-            identity.append("next(" + str(st) + ") = " + str(st))
-
-        identity += ["!next(" + str(event) + ")" for event in self.out_events]
-
-        identity_macro_name = "identity_" + self.name
-        define += [identity_macro_name + " := " + " & ".join(identity)]
-
-        # if no guard holds, then keep the same state and output no program events
-        guards.append("!(" + " | ".join(guard_ids) + ")")
-        acts.append(identity_macro_name)
-        define += ["guard_" + str(len(guards) - 1) + " := " + guards[len(guards) - 1]]
-        define += ["act_" + str(len(guards) - 1) + " := " + acts[len(guards) - 1]]
-
-        guard_and_act.append("(guard_" + str(len(guards) - 1) + " & " + "act_" + str(len(guards) - 1) + ")")
-
-        transitions = guard_and_act
-
-        vars = ["turn : {prog, cs}"]
-        vars += [str(st) + " : boolean" for st in self.bin_state_vars]
-
-        prev_logic = []
-
-        for typed_val in self.valuation:
-            if typed_val.type.startswith("bool"):
-                vars.append(str(typed_val.name) + " : " + "boolean")
-                vars.append(str(typed_val.name) + "_prev : " + "boolean")
-            else:
-                vars.append(str(typed_val.name) + " : " + "integer")
-                vars.append(str(typed_val.name) + "_prev : " + "integer")
-
-            prev_logic += ["next(" + str(typed_val.name) + "_prev) = " + str(typed_val.name)]
-
-        vars += [str(var) + " : boolean" for var in self.env_events]
-        vars += [str(var) + " : boolean" for var in self.con_events]
-        vars += [str(var) + " : boolean" for var in self.out_events]
-
-        init = [self.initial_state]
-        init += ["!" + st for st in self.states if st != self.initial_state]
-        init += [str(val.name) + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
-        init += [str(val.name) + "_prev" + " = " + str(val.value.to_nuxmv()) for val in self.valuation if not isinstance(val.value, NonDeterministic)]
-        init += ["!" + str(event) for event in self.out_events]
-        trans = ["\n\t|\t".join(transitions)]
-        trans += prev_logic
-
-        invar = mutually_exclusive_rules(self.states)
-        invar += [str(disjunct_formula_set([Variable(s) for s in self.states]))]
-        invar += [str(val.name) + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")]
-        invar.extend([str(val.name) + "_prev" + " >= 0" for val in self.valuation if (val.type == "nat" or val.type == "natural")])
-
-        return NuXmvModel(self.name, vars, define, init, invar, trans)
-
-    def complete_transitions(self):
+    def complete_transitions(self, transition_completion: str | None = None):
         complete_trans = []
 
         reachable_states = set(
-            [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state])
-
+            [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state]
+        )
+        missing_coverage = []
         for s in reachable_states:
-            from_s = [t for t in self.transitions if t.src == s]
+            from_s = [
+                t.complete_outputs(self.out_events)
+                for t in self.transitions
+                if t.src == s
+            ]
             stutter_from_s = stutter_transition(self, s, True)
             if stutter_from_s != None:
-                from_s += [stutter_from_s]
+                missing_coverage += [stutter_from_s.complete_outputs(self.out_events)]
             complete_trans += from_s
 
-        unsat_trans = [t for t in self.transitions if not sat(t.condition, self.symbol_table)]
-        if len(unsat_trans) > 0:
-            raise Exception("There are some unsat transitions: " + ",\n".join([str(t) for t in unsat_trans]))
-        return complete_trans
+        if transition_completion in (None, "stutter"):
+            return complete_trans, missing_coverage
 
-    def complete_transitions_stutter_explicit(self):
-        complete_trans = []
+        if transition_completion == "":
+            if len(missing_coverage) > 0:
+                incomplete_states = sorted(
+                    {str(t.src) for t in missing_coverage}, key=str
+                )
+                raise Exception(
+                    "Incomplete transitions from state(s): "
+                    + ", ".join(incomplete_states)
+                    + ". Specify TRANSITIONS [completion=stutter] or [completion=lose]."
+                )
+            return complete_trans, []
 
-        reachable_states = set(
-            [s for t in self.transitions for s in [t.tgt, t.src]] + [self.initial_state])
-        stutter_trans_candidates = []
-        for s in reachable_states:
-            from_s = [t.complete_outputs(self.out_events) for t in self.transitions if t.src == s]
-            stutter_from_s = stutter_transition(self, s, True)
-            if stutter_from_s != None:
-                stutter_trans_candidates += [stutter_from_s.complete_outputs(self.out_events)]
-            complete_trans += from_s
+        if transition_completion == "lose":
+            lose_trans = [
+                Transition(t.src, t.condition, list(t.action), list(t.output), "lose")
+                for t in missing_coverage
+            ]
+            if len(lose_trans) > 0:
+                self.added_completion_lose_transitions = True
+                self.states.add("lose")
+                has_lose_self_loop = any(
+                    str(t.src) == "lose" and str(t.tgt) == "lose"
+                    for t in complete_trans + lose_trans
+                )
+                if not has_lose_self_loop:
+                    lose_trans.append(
+                        Transition("lose", true(), [], [], "lose")
+                        .complete_outputs(self.out_events)
+                        .complete_action_set(self.local_vars)
+                    )
+            return complete_trans + lose_trans, []
 
-        stutter_trans = stutter_trans_candidates
-        # stutter_trans_con = []
-        # for stutter_t in stutter_trans_candidates:
-        #     if any(t for t in complete_con + stutter_trans_con_candidates if t.tgt == stutter_t.src):
-        #         complete_env += [stutter_t]
-        #         stutter_trans_env += [stutter_t]
+        raise ValueError(
+            f"Unsupported transition completion mode: {transition_completion}"
+        )
 
-        return complete_trans, stutter_trans
-
-    def complete_action_set(self, actions: [BiOp]):
-        non_updated_vars = [tv.name for tv in self.valuation if tv.name not in [str(act.left) for act in actions]]
-        return actions + [BiOp(Variable(var), ":=", Variable(var)) for var in non_updated_vars]
+    def complete_action_set(self, actions: list[BiOp]):
+        non_updated_vars = [
+            v
+            for v in self.local_vars_str
+            if v not in [str(act.left) for act in actions]
+        ]
+        return actions + [Update(var, var) for var in non_updated_vars]
 
     def __str__(self):
         return str(self.to_dot())
 
 
-def combine_programs(programs: [Program]):
+def program_cross_product(
+    programs: list[Program], symbol_table, losing_states, lose_var, name=None
+):
+    # Implement cross product of multiple programs
+    new_states_combinations = itertools.product(
+        *[list(prog.states) for prog in programs]
+    )
+    new_initial_state = "_".join(prog.initial_state for prog in programs)
+    new_states = set()
+    prog_old_to_new_state = {
+        i: {Variable(s): set() for s in programs[i].states}
+        for i in range(len(programs))
+    }
+
+    new_transitions = []
+    # TODO: optimise with parallel processing, and ?
+    for state_tuple in new_states_combinations:
+        possible_transitions = []
+        for i, prog in enumerate(programs):
+            from_state = state_tuple[i]
+            transitions_from_state = prog.state_to_trans[from_state]
+            possible_transitions.append(transitions_from_state)
+        print("TRAN COMBS: " + str(len(list(itertools.product(*possible_transitions)))))
+        for transition_combination in itertools.product(*possible_transitions):
+            cond = conjunct_formula_set(
+                conjunct(
+                    transition_formula(t),
+                    conjunct_formula_set([p.prev_rep() for p in t.pred_upgrades]),
+                )
+                for t in transition_combination
+            )
+            if (
+                "lose" in state_tuple
+                or any(
+                    i
+                    for i in range(len(state_tuple))
+                    if state_tuple[i] in losing_states[i]
+                )
+                or not sat(cond, symbol_table)
+            ):
+                print("NOT SAT: " + str(cond))
+                continue
+            combined_src = "_".join(state_tuple)
+            new_states.add(combined_src)
+            for i in range(len(state_tuple)):
+                prog_old_to_new_state[i][Variable(state_tuple[i])].add(
+                    Variable(combined_src)
+                )
+            tgt_tuple = [t.tgt for t in transition_combination]
+            if "lose" in tgt_tuple:
+                combined_tgt = lose_var
+                new_states.add(combined_tgt)
+                for i in range(len(tgt_tuple)):
+                    prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                        Variable(combined_tgt)
+                    )
+            elif losing := [
+                i for i in range(len(tgt_tuple)) if tgt_tuple[i] in losing_states[i]
+            ]:
+                combined_tgt = lose_var
+                new_states.add(combined_tgt)
+                for i in losing:
+                    prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(lose_var)
+            else:
+                combined_tgt = "_".join(t.tgt for t in transition_combination)
+                new_states.add(combined_tgt)
+                for i in range(len(tgt_tuple)):
+                    prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                        Variable(combined_tgt)
+                    )
+            combined_condition = conjunct_formula_set(
+                [t.condition for t in transition_combination]
+            )
+            combined_actions = set()
+            combined_outputs = []
+            for t in transition_combination:
+                combined_actions.update(t.action)
+                combined_outputs.extend(t.output)
+
+            left_to_u = {}
+            # sorting ensures deterministic choice for which update to add to combined condition
+            # preferring to keep updates with less variables in case of conflict
+            combined_actions = sorted(
+                combined_actions, key=lambda x: len(x.variablesin())
+            )
+            for u in combined_actions:
+                if u.left in left_to_u.keys():
+                    # conflict, keep deterministic one
+                    if not isinstance(u.right, NonDeterministic) and not isinstance(
+                        left_to_u[u.left].right, NonDeterministic
+                    ):
+                        combined_condition = conjunct(
+                            combined_condition,
+                            BiOp(u.right, "=", left_to_u[u.left].right),
+                        )
+                    elif not isinstance(u.right, NonDeterministic) and isinstance(
+                        left_to_u[u.left].right, NonDeterministic
+                    ):
+                        left_to_u[u.left] = u
+                else:
+                    left_to_u[u.left] = u
+            combined_actions = set(left_to_u.values())
+
+            new_t = Transition(
+                combined_src,
+                combined_condition,
+                list(combined_actions),
+                combined_outputs,
+                combined_tgt,
+            )
+            new_t.pred_upgrades = set(
+                itertools.chain.from_iterable(
+                    [tt.pred_upgrades for tt in transition_combination]
+                )
+            )
+            if len(new_t.pred_upgrades) > 0:
+                print("NEW T WITH PREDS: " + str(new_t))
+            new_transitions.append(new_t)
+
+    new_prog = Program(
+        name=name if name else "_xprod_".join([prog.name for prog in programs]),
+        sts=list(new_states_combinations),
+        init_st=new_initial_state,
+        init_values=list(
+            {
+                (var.name, symbol_table[var.name])
+                for prog in programs
+                for var in prog.local_vars
+            }
+        ),
+        transitions=new_transitions,
+        env_events=list({(var, t) for prog in programs for var, t in prog.env_events}),
+        con_events=list({(var, t) for prog in programs for var, t in prog.con_events}),
+        preprocess=True,
+    )
+    reachable_states = [Variable(s) for s in new_prog.states]
+    prog_old_to_new_state = {
+        i: {prev: new.intersection(reachable_states) for prev, new in d.items()}
+        for i, d in prog_old_to_new_state.items()
+    }
+    return new_prog, prog_old_to_new_state
+
+
+def program_cross_product_optimized(
+    programs: list[Program],
+    symbol_table,
+    losing_states,
+    lose_var,
+    name=None,
+    *,
+    debug: bool = False,
+    use_incremental_sat: bool = True,
+):
+    """Optimized alternative to `program_cross_product`.
+
+    Key differences vs legacy:
+    - Builds reachable cross-product states on-the-fly from the initial tuple.
+    - Uses SAT-guided recursive transition combination construction with early
+      pruning of unsatisfiable partial conjunctions.
+    - Orders components by local branching factor to maximize early pruning.
+    - Checks losing-source tuples before any SMT work.
+    - Avoids redundant SAT filtering in Program preprocessing.
+    """
     if len(programs) == 0:
-        raise Exception("Cannot combine empty list of programs")
-    if len(programs) == 1:
-        return programs[0]
-    return combine_programs([combine_two_programs(programs[0], programs[1])] + programs[2:])
+        raise Exception(
+            "program_cross_product_optimized: expected at least one program."
+        )
 
-def combine_two_programs(program_A : Program, program_B : Program):
-    valuation = list(set(program_A.valuation + program_B.valuation))
-    states = []
-    orig_A_to_new = {st_A : [] for st_A in program_A.states}
-    orig_B_to_new = {st_B : [] for st_B in program_B.states}
-    for st_A in program_A.states:
-        for st_B in program_B.states:
-            states.append(st_A + "_" + st_B)
-            orig_A_to_new[st_A] += [st_A + "_" + st_B]
-            orig_B_to_new[st_B] += [st_A + "_" + st_B]
-    initial_state = program_A.initial_state + "_" + program_B.initial_state
-    env_events = program_A.env_events + program_B.env_events
-    con_events = program_A.con_events + program_B.con_events
-    out_events = program_A.out_events + program_B.out_events
+    num_programs = len(programs)
+    new_initial_state_tuple = tuple(prog.initial_state for prog in programs)
+    new_initial_state = "_".join(new_initial_state_tuple)
 
-    new_env_transitions = []
-    new_con_transitions = []
-    for t_A in program_A.transitions:
-        for new_st in orig_A_to_new[t_A.src]:
-            # A executes first
-            new_src = new_st
-            new_tgt = new_st.replace(t_A.src + "_", t_A.tgt + "_")
-            guard = t_A.condition
-            action = t_A.action
-            output = t_A.output
-            A_first_t = Transition(new_src, guard, action, output,new_tgt)
+    # Keep the same mapping shape as the legacy implementation.
+    prog_old_to_new_state = {
+        i: {Variable(s): set() for s in programs[i].states} for i in range(num_programs)
+    }
 
-            new_env_transitions += [A_first_t]
+    new_states = set()
+    new_transitions = []
+    transition_constraint_cache = {}
+    combined_src_cache = {}
+    combined_tgt_cache = {}
+    lose_state_name = lose_var if lose_var is not None else "lose"
 
-    for t_B in program_B.transitions:
-        for new_st in orig_A_to_new[t_B.src]:
-            # B executes first
-            new_src = new_st
-            new_tgt = new_st.replace("_" + t_B.src, "_" + t_B.tgt)
-            guard = t_B.condition
-            action = t_B.action
-            output = t_B.output
+    def _combined_state_name(state_tuple):
+        cached = combined_src_cache.get(state_tuple)
+        if cached is None:
+            cached = "_".join(state_tuple)
+            combined_src_cache[state_tuple] = cached
+        return cached
 
-            B_first_t = Transition(new_src, guard, action, output,new_tgt)
-            new_env_transitions += [B_first_t]
+    def _combined_target_name(tgt_tuple):
+        cached = combined_tgt_cache.get(tgt_tuple)
+        if cached is None:
+            cached = "_".join(tgt_tuple)
+            combined_tgt_cache[tgt_tuple] = cached
+        return cached
+
+    def _is_losing_src_tuple(state_tuple) -> bool:
+        if "lose" in state_tuple:
+            return True
+        return any(
+            state_tuple[i] in losing_states.get(i, []) for i in range(num_programs)
+        )
+
+    def _transition_constraint(t: Transition):
+        cached = transition_constraint_cache.get(t)
+        if cached is not None:
+            return cached
+        cached = conjunct(
+            transition_formula(t),
+            conjunct_formula_set([p.prev_rep() for p in t.pred_upgrades]),
+        )
+        transition_constraint_cache[t] = cached
+        return cached
+
+    worklist = deque([new_initial_state_tuple])
+    queued = {new_initial_state_tuple}
+    processed = set()
+
+    sat_ctx_cls = (
+        IncrementalSatContext if use_incremental_sat else NonIncrementalSatContext
+    )
+    with sat_ctx_cls(symbol_table) as sat_ctx:
+        while worklist:
+            state_tuple = worklist.popleft()
+            if state_tuple in processed:
+                continue
+            processed.add(state_tuple)
+
+            # Early source-losing pruning before any SMT checks.
+            if _is_losing_src_tuple(state_tuple):
+                continue
+
+            possible_transitions = [
+                programs[i].state_to_trans.get(state_tuple[i], [])
+                for i in range(num_programs)
+            ]
+            if any(len(ts) == 0 for ts in possible_transitions):
+                continue
+
+            order = sorted(
+                range(num_programs), key=lambda i: len(possible_transitions[i])
+            )
+            if debug:
+                upper_bound = math.prod(len(possible_transitions[i]) for i in order)
+                print("TRAN COMBS UPPER BOUND: " + str(upper_bound))
+
+            selected = [None] * num_programs
+
+            def _emit_combination(transition_combination):
+                combined_src = _combined_state_name(state_tuple)
+                new_states.add(combined_src)
+                for i in range(num_programs):
+                    prog_old_to_new_state[i][Variable(state_tuple[i])].add(
+                        Variable(combined_src)
+                    )
+
+                tgt_tuple = tuple(t.tgt for t in transition_combination)
+                if "lose" in tgt_tuple:
+                    combined_tgt = lose_state_name
+                    new_states.add(combined_tgt)
+                    for i in range(num_programs):
+                        prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                            Variable(combined_tgt)
+                        )
+                else:
+                    losing = [
+                        i
+                        for i in range(num_programs)
+                        if tgt_tuple[i] in losing_states.get(i, [])
+                    ]
+                    if len(losing) > 0:
+                        combined_tgt = lose_state_name
+                        new_states.add(combined_tgt)
+                        for i in losing:
+                            prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                                Variable(combined_tgt)
+                            )
+                    else:
+                        combined_tgt = _combined_target_name(tgt_tuple)
+                        new_states.add(combined_tgt)
+                        for i in range(num_programs):
+                            prog_old_to_new_state[i][Variable(tgt_tuple[i])].add(
+                                Variable(combined_tgt)
+                            )
+
+                        # Reachability-driven state-space construction.
+                        if tgt_tuple not in queued and tgt_tuple not in processed:
+                            queued.add(tgt_tuple)
+                            worklist.append(tgt_tuple)
+
+                combined_condition = conjunct_formula_set(
+                    [t.condition for t in transition_combination]
+                )
+                combined_actions = set()
+                combined_outputs = []
+                for t in transition_combination:
+                    combined_actions.update(t.action)
+                    combined_outputs.extend(t.output)
+
+                left_to_u = {}
+                # deterministic tie-breaking for conflicting updates
+                combined_actions = sorted(
+                    combined_actions, key=lambda x: len(x.variablesin())
+                )
+                for u in combined_actions:
+                    if u.left in left_to_u.keys():
+                        # conflict, keep deterministic one
+                        if not isinstance(u.right, NonDeterministic) and not isinstance(
+                            left_to_u[u.left].right, NonDeterministic
+                        ):
+                            combined_condition = conjunct(
+                                combined_condition,
+                                BiOp(u.right, "=", left_to_u[u.left].right),
+                            )
+                        elif not isinstance(u.right, NonDeterministic) and isinstance(
+                            left_to_u[u.left].right, NonDeterministic
+                        ):
+                            left_to_u[u.left] = u
+                    else:
+                        left_to_u[u.left] = u
+                combined_actions = set(left_to_u.values())
+
+                new_t = Transition(
+                    combined_src,
+                    combined_condition,
+                    list(combined_actions),
+                    combined_outputs,
+                    combined_tgt,
+                )
+                new_t.pred_upgrades = set(
+                    itertools.chain.from_iterable(
+                        [tt.pred_upgrades for tt in transition_combination]
+                    )
+                )
+                new_transitions.append(new_t)
+
+            def _dfs_transition_combinations(depth, partial_constraint):
+                if depth == num_programs:
+                    _emit_combination(selected)
+                    return
+
+                prog_idx = order[depth]
+                for t in possible_transitions[prog_idx]:
+                    selected[prog_idx] = t
+                    next_partial = conjunct(
+                        partial_constraint, _transition_constraint(t)
+                    )
+                    if sat(next_partial, symbol_table, sat_ctx=sat_ctx):
+                        _dfs_transition_combinations(depth + 1, next_partial)
+                selected[prog_idx] = None
+
+            _dfs_transition_combinations(0, true())
+
+    # state set comes from the reachable construction, no consumed iterator bug.
+    new_prog = Program(
+        name=name if name else "_xprod_".join([prog.name for prog in programs]),
+        sts=set(new_states),
+        init_st=new_initial_state,
+        init_values=list(
+            {
+                (var.name, symbol_table[var.name])
+                for prog in programs
+                for var in prog.local_vars
+            }
+        ),
+        transitions=new_transitions,
+        env_events=list({(var, t) for prog in programs for var, t in prog.env_events}),
+        con_events=list({(var, t) for prog in programs for var, t in prog.con_events}),
+        # cross-product generation already performs SAT-guided pruning.
+        preprocess=False,
+    )
+    reachable_states = [Variable(s) for s in new_prog.states]
+    prog_old_to_new_state = {
+        i: {prev: new.intersection(reachable_states) for prev, new in d.items()}
+        for i, d in prog_old_to_new_state.items()
+    }
+    return new_prog, prog_old_to_new_state
 
 
-    for t_A in program_A.con_transitions:
-        for new_st in orig_A_to_new[t_A.src]:
-            # A executes first
-            new_src = new_st
-            new_tgt = new_st.replace(t_A.src + "_", t_A.tgt + "_")
-            guard = t_A.condition
-            action = t_A.action
-            output = t_A.output
-            A_first_t = Transition(new_src, guard, action, output,new_tgt)
+def fill_in_minigames(
+    program: Program,
+    ltl_formulas: list[Formula],
+    to_exclude_from_minigame,
+    optimisation_counters: dict[str, int] | None = None,
+):
+    from programs.minigame_filler import MinigameFiller
 
-            new_con_transitions += [A_first_t]
+    return MinigameFiller(
+        program,
+        ltl_formulas,
+        to_exclude_from_minigame,
+        optimisation_counters=optimisation_counters,
+    ).run()
 
-    for t_B in program_B.con_transitions:
-        for new_st in orig_A_to_new[t_B.src]:
-            # B executes first
-            new_src = new_st
-            new_tgt = new_st.replace("_" + t_B.src, "_" + t_B.tgt)
-            guard = t_B.condition
-            action = t_B.action
-            output = t_B.output
 
-            B_first_t = Transition(new_src, guard, action, output,new_tgt)
-            new_con_transitions += [B_first_t]
+def normalise_mg_preds(mg_preds: list[Formula]):
+    from programs.minigame_filler import MinigameFiller
 
-    return Program(program_A.name + "_" + program_B.name, states, initial_state, valuation, new_env_transitions, new_con_transitions, env_events, con_events, out_events)
+    return MinigameFiller.normalise_mg_preds(mg_preds)

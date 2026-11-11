@@ -1,0 +1,101 @@
+// Environment moves
+input bool inc
+input bool dooropen
+
+// System moves (should only appear as primed next-states)
+state bool up
+state bool down
+state bool notify
+
+// Program variables
+state int target
+state int at_floor
+
+// Variables to track the location
+state bool q0
+state bool q1
+
+// Temporal specifcation
+formula {
+  assert X ( ((G F dooropen) && (G F (!dooropen))) -> ((G F [((at_floor = target))]) && (G(dooropen -> (up' <-> down')))) )
+}
+
+// Program arena as a safety game
+game Safety from init_location {
+  loc init_location 1
+  loc unsafe_sink 0
+  loc q0 1
+  loc q1 1
+
+// Init variables and go to inital state
+  from init_location to q0 with
+    q0'
+    && (!q1')
+    && [target' = 0]
+    && [at_floor' = 0]
+
+  from q0 to q0 with
+    q0' 
+    && (!q1')
+  && (false
+    || ( // q0 -> q0 [inc && dooropen $ target := target + 1,]
+         inc && dooropen 
+      && [target' = ( target + 1)]
+      && [at_floor' = at_floor]
+    )
+    || ( // q0 -> q0 [!inc && dooropen $ target := target - 1,]
+         !inc && dooropen 
+      && [target' = ( target - 1)]
+      && [at_floor' = at_floor]
+    )
+  )
+
+  from q0 to q1 with
+    q1' 
+    && (!q0')
+  && (false
+    || ( // q0 -> q1 [!dooropen]
+         !dooropen
+      && [target' = target]
+      && [at_floor' = at_floor]
+    )
+  )
+
+  from q1 to q0 with
+    q0' 
+    && (!q1')
+  && (false
+    || ( // q1 -> q0 [dooropen && !(at_floor < target) && !(at_floor > target) && !(up && !down) && !(!up && down)]
+         dooropen && ![(at_floor < target)] && ![(at_floor > target)] && !(up' && !down') && !(!up' && down')
+      && [target' = target]
+      && [at_floor' = at_floor]
+    )
+  )
+
+  from q1 to q1 with
+    q1' 
+    && (!q0')
+  && (false
+    || ( // q1 -> q1 [(up <-> down) && !(dooropen && !(at_floor < target) && !(at_floor > target))]
+         (up' <-> down') && !(dooropen && ![(at_floor < target)] && ![(at_floor > target)])
+      && [target' = target]
+      && [at_floor' = at_floor]
+    )
+    || ( // q1 -> q1 [up && !down $ at_floor := at_floor + 1]
+         up' && !down' 
+      && [target' = target]
+      && [at_floor' = ( at_floor + 1)]
+    )
+    || ( // q1 -> q1 [!up && down $ at_floor := at_floor - 1]
+         !up' && down' 
+      && [target' = target]
+      && [at_floor' = ( at_floor - 1)]
+    )
+  )
+
+
+// Ensure not-blocking
+  from q0 to unsafe_sink with true
+  from q1 to unsafe_sink with true
+  from unsafe_sink to unsafe_sink with true
+}

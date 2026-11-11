@@ -1,0 +1,20 @@
+state int x
+input bool start
+
+formula {
+     assert G ([start] -> F [x >= 1])
+}
+
+game Safety from l0 {
+    loc l0 1
+    loc l1 1
+
+
+    from l0 to l0 with   [x' = x + 1]
+    from l0 to l1 with   [x' = x] 
+
+    from l1 to l1 with   [x' = x]
+ 
+}
+
+

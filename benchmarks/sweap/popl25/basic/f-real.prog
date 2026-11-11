@@ -14,7 +14,7 @@ program f_real {
         y : integer := 0;
         e : integer := 0;
     }
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         q0 -> q0 [!e0 && !e1 && !e2 && !e3 $ e := e, t := t; x := x; y := (y + 1)],
         q0 -> q0 [!e0 && !e1 && !e2 &&  e3 $ e := e, t := t; x := x; y := (y - 1)],
         q0 -> q0 [!e0 && !e1 &&  e2 && !e3 $ e := e, t := t; x := (x + 1); y := y],

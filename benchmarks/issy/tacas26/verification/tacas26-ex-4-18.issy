@@ -1,0 +1,18 @@
+// Example 4.18 from the paper "Ranking Templates for Linear Loops"
+// There exists a lexicographic ranking function.
+
+state int a
+state int b
+input bool c
+input int i
+
+
+formula {
+    assert G (([a > 0] && [b > 5] && c)  -> 
+              ([a' = a] && [b' = b - 1]))
+    assert G (([a > 0] && [b > 5] && !c)  -> 
+              ([a' = a - 1] && [b' = i]))
+    assert G (([a > 0] && [b > 0] && ![b > 5])  -> 
+              ([a' = a - 1] && [b' = i]))
+    assert F ([a <= 0] || [b <= 0] || ![i > 0])
+}

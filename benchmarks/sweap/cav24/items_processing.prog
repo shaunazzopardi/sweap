@@ -18,7 +18,7 @@ program items_processing {
         c : integer := 0;
     }
 
-    TRANSITIONS {
+    TRANSITIONS [completion=stutter]{
         int -> inpNumItems [$ numItems := 0],
 
         inpNumItems -> inpNumItems [einc & !stop $ numItems := numItems + 1],

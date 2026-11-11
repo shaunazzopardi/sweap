@@ -1,44 +1,97 @@
 import logging
 
-from analysis.abstraction.effects_abstraction.effects_abstraction import EffectsAbstraction
+from pysmt.shortcuts import And, ForAll, Implies, serialize
+
+from analysis.abstraction.effects_abstraction.effects_abstraction import (
+    EffectsAbstraction,
+)
+from analysis.smt_checker import quantifier_elimination, sequence_interpolant
 from parsing.string_to_prop_logic import string_to_prop
-from analysis.smt_checker import sequence_interpolant
 from programs.program import Program
-from programs.typed_valuation import TypedValuation
 from programs.util import reduce_up_to_iff
 from prop_lang.biop import BiOp
-from prop_lang.util import (neg, conjunct_formula_set, fnode_to_formula, var_to_predicate, is_tautology,
-                            is_contradictory, atomic_predicates, normalise_pred_multiple_vars)
+from prop_lang.formula import Formula
+from prop_lang.types.types import BOOLEAN, typed_var_to_pysmt_type
+from prop_lang.types.values import BoolAtoms
+from prop_lang.util import (
+    neg,
+    conjunct_formula_set,
+    fnode_to_formula,
+    var_to_predicate,
+    is_tautology,
+    is_contradictory,
+    atomic_predicates,
+    normalise_pred_multiple_vars,
+    sat,
+    conjunct,
+    simplify_formula_with_math,
+)
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 
-def safety_refinement_seq_int(program: Program,
-                      predicate_abstraction: EffectsAbstraction,
-                      agreed_on_transitions,
-                      disagreed_on_state,
-                      signatures,
-                      allow_user_input: bool,
-                      keep_only_bool_interpolants: bool,
-                      conservative_with_state_predicates: bool,
-                      enable_equality_to_le: bool=False):
+
+def safety_refinement_seq_int(
+    program: Program,
+    predicate_abstraction: EffectsAbstraction,
+    agreed_on_transitions,
+    disagreed_on_state,
+    signatures,
+    allow_user_input: bool,
+):
     symbol_table = predicate_abstraction.get_symbol_table()
     new_symbol_table = {}
 
-    add_actions = "_prev" in str(disagreed_on_state[0])
+    add_actions = any(p.has_prev_vars() for p in disagreed_on_state[0])
 
     if allow_user_input:
         new_state_preds = interactive_state_predicates()
     else:
-        ith_vars = lambda i: [BiOp(Variable(v), ":=", Variable(v + "_" + str(i))) for v in symbol_table.keys() if "_prev" not in v] + \
-                              [BiOp(Variable(v), ":=", Variable(v.removesuffix("_prev") + "_" + str(i - 1))) for v in symbol_table.keys() if "_prev" in v]
+        ith_vars = lambda i: {
+            Variable(v): Variable(v + "_" + str(i))
+            for v in symbol_table.keys()
+            if not v.endswith("_prev")
+        } | {
+            Variable(v): Variable(v.removesuffix("_prev") + "_" + str(i - 1))
+            for v in symbol_table.keys()
+            if v.endswith("_prev")
+        }
+
+        if len(agreed_on_transitions) == 0:
+            raise Exception("No agreed on transitions found in the counterexample.")
 
         for i, (tran, prog_state, cs_state) in enumerate(agreed_on_transitions):
             if i == 0:
-                init_formula = [BiOp(Variable(tv.name), "=", Value(tv.value)) for tv in program.valuation
-                                                              if "_prev" not in tv.name]
-                p_0 = conjunct_formula_set(init_formula).replace_vars(ith_vars(0))
-                us_0 = [BiOp(Variable(str(u.left) + "_1"), "=", u.right.replace_vars(ith_vars(0))) for u in tran.action]
-                g = tran.condition.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e in program.env_events + program.con_events])
+                init_formula = [
+                    BiOp(e, "=", Value(prog_state[str(e)])) for e in program.local_vars
+                ]
+                ps = []
+                for k, v in cs_state.items():
+                    if k.startswith("pred_"):
+                        pred = var_to_predicate(k)
+                        if pred.has_prev_vars():
+                            continue
+                        if v == "TRUE":
+                            ps.append(pred)
+                        else:
+                            ps.append(neg(pred))
+                p_0 = conjunct_formula_set(ps + init_formula).replace_vars(ith_vars(0))
+
+                act = tran.action
+                us_0 = [
+                    BiOp(
+                        Variable(str(u.left) + "_1"),
+                        "=",
+                        u.right.replace_vars(ith_vars(0)),
+                    )
+                    for u in act
+                ]
+                g = tran.condition.replace_vars(
+                    {
+                        e: Value(cs_state[str(e)])
+                        for e, _ in program.env_events + program.con_events
+                        if symbol_table[str(e)] == BOOLEAN
+                    }
+                )
                 g_0 = g.replace_vars(ith_vars(0))
                 u_0 = conjunct_formula_set(us_0)
                 formulas = [conjunct_formula_set([p_0, g_0, u_0])]
@@ -47,127 +100,102 @@ def safety_refinement_seq_int(program: Program,
                 for k, v in cs_state.items():
                     if k.startswith("pred_"):
                         pred = var_to_predicate(k)
-                        if not add_actions and "_prev" in str(pred):
+                        if not add_actions and pred.has_prev_vars():
                             continue
                         if v == "TRUE":
                             ps.append(pred)
                         else:
                             ps.append(neg(pred))
                 p_i = conjunct_formula_set(ps).replace_vars(ith_vars(i))
-                g = tran.condition.replace_vars([BiOp(Variable(str(e)), ":=", Value(cs_state[str(e)])) for e in program.env_events + program.con_events])
+                g = tran.condition.replace_vars(
+                    {
+                        Variable(str(e)): Value(cs_state[str(e)])
+                        for e in program.bool_in_out
+                    }
+                )
                 g_i = g.replace_vars(ith_vars(i))
-                us_i = [BiOp(Variable(str(u.left) + "_" + str(i + 1)), "=", u.right.replace_vars(ith_vars(i))) for u in tran.action]
+                act = tran.action
+                us_i = [
+                    BiOp(
+                        Variable(str(u.left) + "_" + str(i + 1)),
+                        "=",
+                        u.right.replace_vars(ith_vars(i)),
+                    )
+                    for u in act
+                ]
                 u_i = conjunct_formula_set(us_i)
-                formulas.append(conjunct_formula_set([p_i, g_i, u_i]))
-            new_symbol_table.update({key + "_" + str(i): value for key, value in symbol_table.items()})
 
-        p_last = conjunct_formula_set(disagreed_on_state[0]).replace_vars(ith_vars(i + 1))
+                formulas.append(conjunct_formula_set([p_i, g_i, u_i]))
+            new_symbol_table.update(
+                {key + "_" + str(i): value for key, value in symbol_table.items()}
+            )
+
+        p_last = conjunct_formula_set(disagreed_on_state[0]).replace_vars(
+            ith_vars(i + 1)
+        )
         formulas.append(p_last)
-        new_symbol_table.update({key + "_" + str(i + 1): value for key, value in symbol_table.items()})
+        new_symbol_table.update(
+            {key + "_" + str(i + 1): value for key, value in symbol_table.items()}
+        )
 
         formulas_fnode = [f.to_smt(new_symbol_table)[0] for f in formulas]
 
         new_state_preds_fnode = sequence_interpolant(formulas_fnode)
 
-        if new_state_preds_fnode is None:
-            raise Exception("Bug: Counterexample does not contain a sequence interpolant.")
-        reset_vars = [BiOp(Variable(v + "_" + str(i)), ":=", Variable(v)) for v in program.symbol_table.keys() for i in
-                      range(0, len(agreed_on_transitions) + 1)]
+        reset_vars = {
+            Variable(v + "_" + str(i)): Variable(v)
+            for v in program.symbol_table.keys()
+            for i in range(0, len(agreed_on_transitions) + 1)
+        }
 
-        new_state_preds = ([fnode_to_formula(f).replace_vars(reset_vars) for f in new_state_preds_fnode])
-        new_state_preds = [p for ps in new_state_preds for p in atomic_predicates(ps)]
-        new_state_preds = list(set(new_state_preds))
-        new_state_preds = [x for x in new_state_preds if
-                           not is_tautology(x, symbol_table) and not is_contradictory(x, symbol_table)]
+        old_state_predicates = predicate_abstraction.raw_state_predicates
 
-    state_predicates = set()
-    state_predicates.update(s.pred for s in predicate_abstraction.get_state_predicates())
-    state_predicates.update(s for c in predicate_abstraction.v_to_chain_pred.values() for s in c.chain)
-    # new_state_preds = list(itertools.chain.from_iterable(map(lambda x: x[1], map(normalise_predicate, new_state_preds))))
-    normalised_state_preds = set()
-    for p in new_state_preds:
-        result = normalise_pred_multiple_vars(p, signatures, program.symbol_table)
-        if len(result) == 1:
-            normalised_state_preds.add(result)
+        if new_state_preds_fnode:
+            new_state_preds = [
+                fnode_to_formula(f).replace_vars(reset_vars)
+                for f in new_state_preds_fnode
+            ]
+            new_state_preds = [
+                p for ps in new_state_preds for p in atomic_predicates(ps)
+            ]
+
+            new_state_preds, _ = normalise_and_filter_preds(
+                old_state_predicates, new_state_preds, signatures, symbol_table
+            )
+
+            success = len(new_state_preds) > 0
         else:
-            sig, _, preds = result
-            signatures.add(sig)
-            normalised_state_preds.update(preds)
-    new_state_preds = normalised_state_preds
-    new_all_preds = new_state_preds | state_predicates
+            success = False
 
-    new_all_preds = reduce_up_to_iff(state_predicates,
-                                     list(new_all_preds),
-                                     symbol_table
-                                     | {str(v): TypedValuation(str(v),
-                                                               symbol_table[str(v).removesuffix("_prev")].type,
-                                                               "true")
-                                        for p in new_all_preds
-                                        for v in p.variablesin()
-                                        if str(v).endswith(
-                                             "prev")})  # TODO symbol_table needs to be updated with prevs
+        if not success:
+            new_state_preds = qe_refinement_only_inputs(
+                formulas,
+                old_state_predicates,
+                program,
+                reset_vars,
+                predicate_abstraction.program.symbol_table,
+                new_symbol_table,
+            )
+            if new_state_preds:
+                new_state_preds, _ = normalise_and_filter_preds(
+                    old_state_predicates, new_state_preds, signatures, symbol_table
+                )
+            else:
+                new_state_preds = qe_refinement(
+                    formulas,
+                    old_state_predicates,
+                    signatures,
+                    reset_vars,
+                    predicate_abstraction.program.symbol_table,
+                    new_symbol_table,
+                )
 
-    if len(new_all_preds) < len(set(state_predicates)):
-        raise Exception("There are somehow less state predicates than previously.")
-
-    if len(set(new_all_preds)) == len(set(state_predicates)):
-        raise Exception("Did not find new state predicates.")
-        # new_state_preds = set()
-        # prog_states = [prog_state for _, prog_state, _ in agreed_on_transitions] + [disagreed_on_state[1][1]]
-        # for prog_state in prog_states:
-        #     for v in program.local_vars:
-        #         if str(Value(prog_state[str(v)])).lower() == "true":
-        #             new_state_preds.add(v)
-        #         elif str(Value(prog_state[str(v)])).lower() == "false":
-        #             new_state_preds.add(neg(v))
-        #         else:
-        #             pred = BiOp(v, "=", Value(prog_state[str(v)]))
-        #             sig, _, preds = normalise_pred_multiple_vars(pred, signatures, symbol_table)
-        #             new_state_preds.update(preds)
-        #             signatures.add(sig)
-        # new_all_preds = new_state_preds | state_predicates
-        # new_all_preds = reduce_up_to_iff(state_predicates,
-        #                                  new_all_preds,
-        #                                  symbol_table
-        #                                  | {str(v): TypedValuation(str(v),
-        #                                                            symbol_table[str(v).removesuffix("_prev")].type,
-        #                                                            "true")
-        #                                     for p in new_all_preds
-        #                                     for v in p.variablesin()
-        #                                     if str(v).endswith(
-        #                                          "prev")})  # TODO symbol_table needs to be updated with prevs
-
-        # check_for_nondeterminism_last_step(program_actually_took[1], predicate_abstraction.py.program, True)
-        # raise Exception("Could not find new state predicates..")
-
-    if keep_only_bool_interpolants:
-        bool_interpolants = [p for p in new_state_preds if
-                             p not in state_predicates and p in new_all_preds and 0 == len(
-                                 [v for v in p.variablesin() if
-                                  symbol_table[str(v)].type != "bool" and symbol_table[
-                                      str(v)].type != "boolean"])]
-        if len(bool_interpolants) > 0:
-            new_all_preds = [p for p in new_all_preds if p in bool_interpolants or p in state_predicates]
-    if conservative_with_state_predicates:
-        # TODO some heuristics to choose state preds
-        new_state_preds = [p for p in new_all_preds if p not in state_predicates]
         if len(new_state_preds) == 0:
             raise Exception("No new state predicates identified.")
-        # get the number of variables associated with each predicates
-        ordered_according_to_no_of_vars_used = [[p for p in new_state_preds if len(p.variablesin()) == n] for n in
-                                                range(1, len(program.valuation) + 1)]
-        ordered_according_to_no_of_vars_used = [ps for ps in ordered_according_to_no_of_vars_used if
-                                                len(ps) > 0]
-        new_all_preds = state_predicates + (ordered_according_to_no_of_vars_used[0] if len(
-            ordered_according_to_no_of_vars_used) > 0 else [])
 
-    logging.info("Using: " + ", ".join([str(p) for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates]))
+    logging.info("Using: " + ", ".join([str(p) for p in new_state_preds]))
 
-    new_preds = {p for p in new_all_preds if p not in state_predicates and neg(p) not in state_predicates}
-    if len(new_preds) == 0:
-        print("No new state predicates identified.")
-
-    return True, new_preds
+    return True, new_state_preds
 
 
 def interactive_state_predicates():
@@ -184,3 +212,134 @@ def interactive_state_predicates():
         except Exception as e:
             pass
     return new_preds
+
+
+def qe_refinement(
+    formulas,
+    state_predicates,
+    signatures,
+    reset_vars,
+    symbol_table,
+    new_symbol_table,
+):
+    possible_new_preds = []
+    for i in range(0, len(formulas)):
+        new_state_preds = set()
+        typed_vars = list(
+            {
+                typed_var_to_pysmt_type(str(v), new_symbol_table[str(v)])[0]
+                for f in formulas
+                for v in f.variablesin()
+                if str(v).split("_")[-1] != str(i)
+            }
+        )
+        left = conjunct_formula_set(formulas[0:-1])
+        right = formulas[-1]
+        preds_in_res = set()
+        LHS = And(*left.to_smt(new_symbol_table))
+        RHS = And(*right.to_smt(new_symbol_table))
+        formula_fnode = ForAll(typed_vars, Implies(LHS, RHS))
+        result_fnode = quantifier_elimination(formula_fnode)
+        result = fnode_to_formula(result_fnode)
+        preds_in_res.update(atomic_predicates(result))
+
+        to_proj = {}
+        for p in preds_in_res:
+            if not sat(conjunct(p, left), new_symbol_table):
+                to_proj[p] = Value(BoolAtoms.FALSE)
+
+        new_f = result.replace_formulas(to_proj)
+        new_f = simplify_formula_with_math(new_f, new_symbol_table)
+
+        new_state_preds.update(
+            [p.replace_vars(reset_vars) for p in atomic_predicates(new_f)]
+        )
+        new_state_preds, _ = normalise_and_filter_preds(
+            state_predicates, new_state_preds, signatures, symbol_table
+        )
+        # TODO these may not be the highest quality predicates
+        #       e.g., a predicate state_var < input may be better than input < 0
+        if new_state_preds:
+            possible_new_preds.append(frozenset(new_state_preds))
+    new_state_preds = min(possible_new_preds, key=lambda x: len(x), default=set())
+    return new_state_preds
+
+
+def qe_refinement_only_inputs(
+    formulas, state_predicates, program, reset_vars, symbol_table, new_symbol_table
+):
+    new_state_preds = set()
+    typed_vars = list(
+        {
+            typed_var_to_pysmt_type(str(v), new_symbol_table[str(v)])[0]
+            for f in formulas
+            for v in f.variablesin()
+            if Variable("_".join(str(v).split("_")[0:-1])) not in program.num_in_out
+        }
+    )
+    left = conjunct_formula_set(formulas[0:-1])
+    right = formulas[-1]
+    preds_in_res = set()
+    LHS = And(*left.to_smt(new_symbol_table))
+    RHS = And(*right.to_smt(new_symbol_table))
+    formula_fnode = ForAll(typed_vars, Implies(LHS, RHS))
+    result_fnode = quantifier_elimination(formula_fnode)
+    result = fnode_to_formula(result_fnode)
+    preds_in_res.update(atomic_predicates(result))
+
+    to_proj = {}
+    for p in preds_in_res:
+        if not sat(conjunct(p, left), new_symbol_table):
+            to_proj[p] = Value(BoolAtoms.FALSE)
+
+    new_f = result.replace_formulas(to_proj)
+    new_f = simplify_formula_with_math(new_f, new_symbol_table)
+
+    new_state_preds.update(
+        [p.replace_vars(reset_vars) for p in atomic_predicates(new_f)]
+    )
+
+    # TODO these may not be the highest quality predicates
+    #       e.g., a predicate state_var < input is probably better than input < 0
+    if not predicates_known(
+        state_predicates,
+        new_state_preds,
+        symbol_table,
+    ):
+        return new_state_preds
+    else:
+        return None
+
+
+def predicates_known(old_state_predicates, new_state_preds, symbol_table):
+    new_all_preds = new_state_preds | old_state_predicates
+
+    new_all_preds = reduce_up_to_iff(
+        old_state_predicates,
+        list(new_all_preds),
+        symbol_table,
+    )
+
+    return len(new_all_preds) == len(set(old_state_predicates))
+
+
+def normalise_and_filter_preds(
+    old_state_predicates, new_state_preds, signatures, symbol_table
+):
+    normalised_state_preds = set()
+    for p in new_state_preds:
+        result = normalise_pred_multiple_vars(p, signatures, symbol_table)
+        # ignore boolean variables, these will already have been handled
+        if not isinstance(result, Formula):
+            sig, _, preds = result
+            signatures.add(sig)
+            normalised_state_preds.update(preds)
+
+    fresh_state_preds = {
+        x
+        for x in normalised_state_preds
+        if x not in old_state_predicates
+        and not is_tautology(x, symbol_table)
+        and not is_contradictory(x, symbol_table)
+    }
+    return fresh_state_preds, signatures

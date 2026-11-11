@@ -1,0 +1,39 @@
+def MAXADD = [2]
+def MAXREM = [1]
+def MAXDIFF = [2]
+
+state int q1
+state int q2
+
+input int a
+input int r1
+input int r2
+
+formula {
+    
+    assume G ([a >= 1] && [a <= MAXADD])
+    assume G ([r1 >= 0] && [r1 <= MAXREM] && [r1 <= q1])
+    assume G ([r2 >= 0] && [r2 <= MAXREM] && [r2 <= q2])
+    assume [q1 = 0] && [q2 = 0] 
+
+    assert G [q1 >= 0]
+    assert G [q2 >= 0]
+
+    // q1 and q2 should be close enough
+    assert G ([(q1 - q2) <= MAXDIFF] && [(q2 - q1) <= MAXDIFF])
+ 
+    assume G ([q1 = 0] || [q2 = 0] || ([r1  + r2 > a]))
+    
+    assert G F ([q1 = 0])
+    assert G F ([q2 = 0])
+
+}
+
+game Safety from l0 {
+    loc l0 1
+
+    // add a to q1 or q2; remove r1 from q1, r2 from q2    
+    from l0 to l0 with ([q1' = q1 - r1 + a] && [q2' = q2 - r2]) || 
+                       ([q1' = q1 - r1]     && [q2' = q2 - r2 + a])
+
+}
