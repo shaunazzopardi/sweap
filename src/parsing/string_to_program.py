@@ -2,9 +2,7 @@ import re
 from multiprocessing import Pool
 
 import parsec
-from parsec import generate, string, sepBy, regex, many, exclude
-from parsec import spaces as parsec_spaces
-from parsec import any as parsec_any
+from parsec import generate, string, sepBy, spaces, regex
 
 import config
 from parsing.reserved_names import reserved_name_mapping, rename_formula, rename_tree
@@ -57,19 +55,6 @@ from prop_lang.variable import Variable
 name_regex = r"[_a-zA-Z][_a-zA-Z0-9$@\_\-]*"
 name = regex(name_regex)
 state = regex(r"[a-zA-Z0-9@$_-]+")
-
-
-@generate
-def comment():
-    end_comment = string("*/")
-    yield string("/*")
-    yield many(exclude(parsec_any(), end_comment))
-    yield end_comment
-    return None
-
-
-def spaces():
-    return parsec_spaces() >> many(comment >> parsec_spaces())
 
 
 @generate
@@ -413,7 +398,7 @@ def num_decl_parser():
     yield spaces()
     yield string(":=") << spaces()
     raw_value = yield regex("[^,;}]+") << spaces()
-    if raw_value == "*":
+    if raw_value.strip() == "*":
         return var, type, NonDeterministic()
     else:
         try:
@@ -462,7 +447,7 @@ def num_decl_parser_untyped():
 
 @generate
 def action_guard():
-    yield string("if") << spaces() << spaces()
+    yield string("if") << spaces()
     raw_value = yield regex(r"[^,;\]#]+") << spaces()
     try:
         value = string_to_prop(raw_value)
@@ -498,8 +483,8 @@ def transition_parser(program_var_names: set[str] | None = None):
         dest = yield state << spaces()
         yield string("[") >> spaces()
         raw_cond = yield parsec.optional(spaces() >> regex(r"[^$#\]]+"), "true")
-        if raw_cond == "otherwise":
-            cond = raw_cond
+        if raw_cond.strip() == "otherwise":
+            cond = "otherwise"
         else:
             cond = string_to_prop(raw_cond)
         yield spaces()
@@ -896,6 +881,19 @@ def specification_parser():
 parser = program_parser
 
 
+def _mask_comments(text: str) -> str:
+    """Replace comment characters with spaces, preserving newlines and source positions."""
+    def mask(match: re.Match) -> str:
+        comment = match.group()
+        if comment.startswith("/*") and not comment[2:].endswith("*/"):
+            raise parsec.ParseError("closing */", text, match.start())
+        return re.sub(r"[^\r\n]", " ", comment)
+
+    # Match whole comments, or an unterminated block comment through EOF.
+    # As in TatSu, only LF or EOF ends //; preserve CR characters for offsets.
+    return re.sub(r"//[^\n]*|/\*[\s\S]*?(?:\*/|\Z)", mask, text)
+
+
 def string_to_program(input: str) -> tuple[Program, Formula]:
-    program, ltl_spec = (parser << parsec.eof()).parse(input)
+    program, ltl_spec = (parser << parsec.eof()).parse(_mask_comments(input))
     return program, ltl_spec
