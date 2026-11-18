@@ -110,9 +110,24 @@ class TestStringToIssyProcessCharacterization(unittest.TestCase):
             )
         )
 
-    def test_buggy2_minigame_uses_unrestricted_encoding(self):
-        observed = self._snapshot("benchmarks/issy/buggy2.issy")
-        program = observed["program"]
+    def test_relational_update_minigame_uses_unrestricted_encoding(self):
+        reset_env()
+        program, _ = string_to_issy_module.string_to_issy(
+            """
+            state int x
+
+            game Safety from l1 {
+                loc l1 1
+                loc l0 0
+
+                from l1 to l1 with [x' < 0] && [x' - x > 0]
+
+                from l1 to l0 with true
+                from l0 to l0 with true
+            }
+            """.strip(),
+            "relational_update",
+        )
 
         local_names = {str(v) for v in program.local_vars}
         self.assertIn("int_x", local_names)

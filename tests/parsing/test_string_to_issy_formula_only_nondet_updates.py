@@ -219,17 +219,44 @@ class TestStringToIssyFormulaOnlyNondetUpdates(unittest.TestCase):
         self.assertIn("q0", {str(v) for v, _ in final_program.con_events})
 
     def test_games_always_primed_bool_state_vars_become_controller_props(self):
-        benchmark = REPO_ROOT / "benchmarks/issy/test-04-bool-version.issy"
-        with benchmark.open() as handle:
-            issy = handle.read()
+        issy = """
+        state int x1
+        state int x2
+        state bool sched1
+        state bool sched2
 
-        input_wo_comments = re.sub("//.*(\\n|$)", "", issy).strip()
+        formula {
+            assume [x1 = 0] && [x2 = 0]
+            assert G ([x1 <= 3] && [x2 <= 3])
+            assert G ((![sched1] && ![sched2]) || (![sched1] && [sched2]))
+        }
+
+        game Safety from l0 {
+            loc l0 1
+            loc l1 1
+
+            from l0 to l0 with [x1 <= 5] &&
+                               ([x1' = x1 + 1] || ![sched1] && ![sched2] && [x1' = x1  - 2])
+            from l0 to l1 with [x1 > 5] && [x1' = x1]
+            from l1 to l1 with [x1' = x1]
+        }
+
+        game Safety from l0 {
+            loc l0 1
+            loc l1 1
+
+            from l0 to l0 with [x2 <= 5] &&
+                               ([x2' = x2 + 2] || ![sched1] && [sched2] && [x2' = x2 - 1])
+            from l0 to l1 with [x2 > 5] && [x2' = x2]
+            from l1 to l1 with [x2' = x2]
+        }
+        """
         vars_or_macros, formula_objectives, games = (
             string_to_issy_module.parser << parsec.eof()
-        ).parse(input_wo_comments)
+        ).parse(issy.strip())
 
         game_programs = _build_stage1_game_programs(
-            benchmark.name,
+            "boolean_schedulers",
             vars_or_macros,
             formula_objectives,
             games,
@@ -243,7 +270,7 @@ class TestStringToIssyFormulaOnlyNondetUpdates(unittest.TestCase):
             self.assertNotIn("sched2", con_event_names)
 
         final_program, _ = string_to_issy_module.process(
-            benchmark.name,
+            "boolean_schedulers",
             vars_or_macros,
             formula_objectives,
             games,
@@ -296,17 +323,37 @@ class TestStringToIssyFormulaOnlyNondetUpdates(unittest.TestCase):
         self.assertNotIn("sched'", str(final_objective))
 
     def test_formula_only_numeric_constant_updates_promote_d_vars(self):
-        benchmark = REPO_ROOT / "benchmarks/issy/formula-multiminigame-noexpgames1.issy"
-        with benchmark.open() as handle:
-            issy = handle.read()
+        issy = """
+        state int x
+        state int y
+        state int d0
+        state int d1
 
-        input_wo_comments = re.sub("//.*(\\n|$)", "", issy).strip()
+        input int i
+        input int j
+
+        formula {
+          assume [x = 0]
+          assume [y = 0]
+
+          assert G ([d0' = 0] || [d0' = 1])
+          assert G ([d1' = 0] || [d1' = 1])
+
+          assert G (([x' = x + 1] && [d0' = 1]) || ([x' = x + i] && [d0' = 0]))
+          assert G (([y' = y + 1] && [d1' = 1]) || ([y' = y + j] && [d1' = 0]))
+
+          assert G [x >= 0]
+          assert G [y >= 0]
+          assert F [x > 3]
+          assert F [y > 3]
+        }
+        """
         vars_or_macros, formula_objectives, games = (
             string_to_issy_module.parser << parsec.eof()
-        ).parse(input_wo_comments)
+        ).parse(issy.strip())
 
         game_programs = _build_stage1_game_programs(
-            benchmark.name,
+            "numeric_update_choices",
             vars_or_macros,
             formula_objectives,
             games,
@@ -323,7 +370,7 @@ class TestStringToIssyFormulaOnlyNondetUpdates(unittest.TestCase):
         self.assertTrue(any(name.startswith("d1") for name in stage1_con_event_names))
 
         final_program, final_objective = string_to_issy_module.process(
-            benchmark.name,
+            "numeric_update_choices",
             vars_or_macros,
             formula_objectives,
             games,

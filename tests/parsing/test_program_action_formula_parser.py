@@ -246,7 +246,7 @@ class TestProgramActionFormulaParser(TestCase):
 
     def test_string_to_program_reuses_equivalent_minigames(self):
         program_text = """
-        program buggy2_style_relational_action_demo {
+        program equivalent_minigames_demo {
             STATES {
                 l1 : init, l0
             }
