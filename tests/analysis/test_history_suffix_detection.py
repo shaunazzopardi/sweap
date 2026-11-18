@@ -1,7 +1,11 @@
+from types import SimpleNamespace
 from unittest import TestCase
+from unittest.mock import patch
 
 from analysis.abstraction.effects_abstraction.effects_abstraction import (
+    _labels_with_prev_vars,
     _invariant_has_prev_vars,
+    effects_to_ltl,
 )
 from analysis.abstraction.effects_abstraction.predicates.StatePredicate import StatePredicate
 from analysis.compatibility_checking.compatibility_builder import (
@@ -9,7 +13,7 @@ from analysis.compatibility_checking.compatibility_builder import (
 )
 from prop_lang.biop import BiOp
 from prop_lang.types.types import INTEGER
-from prop_lang.util import stringify_pred
+from prop_lang.util import X, iff, stringify_pred, var_to_predicate_cache
 from prop_lang.value import Value
 from prop_lang.variable import Variable
 from programs.minigame_filler import MinigameFiller
@@ -32,7 +36,21 @@ class TestHistorySuffixDetection(TestCase):
                 )
                 self.assertEqual(expected, wrapped in transitions)
                 self.assertEqual(not expected, wrapped in states)
-                self.assertEqual(expected, _invariant_has_prev_vars(stringify_pred(pred)))
+                label = stringify_pred(pred)
+                self.assertEqual(expected, _invariant_has_prev_vars(
+                    label, _labels_with_prev_vars(wrapped.boolean_rep())
+                ))
+
+    def test_worker_renders_invariants_without_parent_predicate_cache(self):
+        current = StatePredicate(Variable("granting"), False)
+        history = StatePredicate(Variable("granting_prev"), False)
+        relabelling = current.boolean_rep() | history.boolean_rep()
+        with patch.dict(var_to_predicate_cache, clear=True):
+            rendered = effects_to_ltl(
+                {}, [], [current.bool_var, history.bool_var], SimpleNamespace(dual=False),
+                {}, relabelling, {},
+            )
+        self.assertEqual(iff(current.bool_var, X(current.bool_var)), rendered)
 
     def test_history_type_lookup_preserves_underscores_in_the_base_name(self):
         for name in ("counter_preview_prev", "counter_preview_prev_prev"):

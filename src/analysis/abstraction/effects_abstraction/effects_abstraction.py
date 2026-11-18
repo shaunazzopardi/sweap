@@ -62,7 +62,6 @@ from prop_lang.util import (
     normalise_pred_multiple_vars,
     implies,
     stringify_term,
-    var_to_predicate,
 )
 from prop_lang.value import Value
 from prop_lang.variable import Variable
@@ -1308,6 +1307,7 @@ def compute_abstract_effect_for_guard_update(arg):
             invars,
             conf,
             symbol_table,
+            vars_relabelling,
         )
         print("\n\n" + str(gu_ltl))
 
@@ -1414,13 +1414,14 @@ def debug_check_sat(gu, now_nexts, invars, constants, symbol_table):
                 print("next" + str(next))
 
 
-def _invariant_has_prev_vars(invariant):
-    # Encoded predicate names lose underscores; inspect their source formulas.
-    return any(
-        var_to_predicate(v.name).has_prev_vars()
-        if v.name.startswith("pred_") else v.is_prev()
-        for v in invariant.variablesin()
-    )
+def _labels_with_prev_vars(relabelling):
+    # Encoded names lose underscores. Classify labels using their source formulas.
+    return frozenset(label for source, label in relabelling.items()
+                     if isinstance(label, Variable) and source.has_prev_vars())
+
+
+def _invariant_has_prev_vars(invariant, labels_with_prev_vars):
+    return any(v in labels_with_prev_vars or v.is_prev() for v in invariant.variablesin())
 
 
 def effects_to_ltl(
@@ -1478,13 +1479,14 @@ def effects_to_ltl(
         parts_ltl.append(part.replace_formulas(vars_relabelling))
     effects_ltl = conjunct_formula_set(parts_ltl)
 
+    labels_with_prev_vars = _labels_with_prev_vars(vars_relabelling)
     invar_preds_effects = set()
     invars = sorted(set(invars), key=lambda p: str(p))
     for p in invars:
         if isinstance(p, ChainPredicate):
             invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
         else:
-            if not _invariant_has_prev_vars(p):
+            if not _invariant_has_prev_vars(p, labels_with_prev_vars):
                 invar_preds_effects.add(iff(p, X(p)))
 
     constant_effects = []
@@ -1510,6 +1512,7 @@ def effects_to_ltl_non_bin(
     invars,
     conf: config.Config,
     symbol_table,
+    vars_relabelling,
 ):
     parts_ltl = []
     parts_ltl_wo_next = []
@@ -1554,6 +1557,7 @@ def effects_to_ltl_non_bin(
         else:
             print("Effects ok for gu: " + str(gu))
 
+    labels_with_prev_vars = _labels_with_prev_vars(vars_relabelling)
     invar_preds_effects = set()
     invars = sorted(set(invars), key=lambda p: str(p))
     for p in invars:
@@ -1567,16 +1571,8 @@ def effects_to_ltl_non_bin(
 
             invar_preds_effects.update(iff(b, X(b)) for b in p.bin_vars)
         else:
-            if not _invariant_has_prev_vars(p):
+            if not _invariant_has_prev_vars(p, labels_with_prev_vars):
                 invar_preds_effects.add(iff(p, X(p)))
-            else:
-                print("prev state predicate as invar")
-
-                for c in p.choices():
-                    if sat(conjunct(gu, neg(iff(c.prev_rep(), c))), symbol_table):
-                        raise Exception(
-                            "Neg of invar sat with gu: " + str(gu) + " pred: " + str(p)
-                        )
 
     constant_effects = []
     constants = sorted(set(constants), key=lambda p: str(p))
